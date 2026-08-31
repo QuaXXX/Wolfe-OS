@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --accent-hue: 222; /* Default Deep Blue */
+    --accent-primary: hsl(var(--accent-hue), 95%, 58%);
+    --accent-primary-hover: hsl(var(--accent-hue), 95%, 48%);
+    --accent-glow: hsla(var(--accent-hue), 95%, 58%, 0.35);
+    --accent-border: hsla(var(--accent-hue), 95%, 58%, 0.25);
+    --accent-subtle: hsla(var(--accent-hue), 95%, 58%, 0.12);
+  }
+
+  body {
+    @apply bg-[#06070d] text-slate-100 antialiased selection:bg-white/10 selection:text-white;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom Sleek Scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--accent-subtle);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-border);
+  }
+}
+
+@layer utilities {
+  .theme-card {
+    background: linear-gradient(160deg, rgba(13, 16, 28, 0.8) 0%, rgba(9, 11, 20, 0.92) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .theme-card:hover {
+    background: linear-gradient(160deg, rgba(17, 21, 38, 0.9) 0%, rgba(12, 15, 28, 0.98) 100%);
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 14px 35px -10px rgba(0, 0, 0, 0.7);
+  }
+
+  .theme-dock {
+    background: rgba(12, 15, 26, 0.92);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--accent-border);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 25px -5px var(--accent-glow);
+  }
+
+  .theme-active-btn {
+    background-color: var(--accent-primary);
+    color: #ffffff;
+    box-shadow: 0 0 20px -3px var(--accent-glow);
+  }
+  .theme-active-btn:hover {
+    background-color: var(--accent-primary-hover);
+  }
+
+  .theme-accent-color {
+    color: var(--accent-primary);
+  }
+
+  .theme-accent-border {
+    border-color: var(--accent-border);
+  }
+
+  .theme-accent-bg {
+    background-color: var(--accent-subtle);
+  }
+}
