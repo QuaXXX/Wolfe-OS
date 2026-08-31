@@ -35,7 +35,7 @@ import {
   connectObsidianVault 
 } from '../../utils/obsidianService';
 
-export const COLOR_PRESETS = [
+const COLOR_PRESETS = [
   { name: 'Emerald Green', hue: 150 },
   { name: 'Deep Blue', hue: 222 },
   { name: 'Twilight Indigo', hue: 250 },
