@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -33,19 +33,21 @@ export const ProfEmailDraftModal = ({
 }) => {
   const [selectedCourse, setSelectedCourse] = useState(courseCode || "AUTO");
   const [promptInput, setPromptInput] = useState('');
-  const [recipient, setRecipient] = useState(instructorEmail);
+  const [recipient, setRecipient] = useState(instructorEmail || '');
   const [subject, setSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [detectedProfInfo, setDetectedProfInfo] = useState(null);
 
-  // Available course list (combining courses prop and vault courses)
-  const availableCourses = Array.from(new Set([
-    ...(courses.map(c => c.code || c.id || c.name)),
-    ...(vaultMeta?.courses || []),
-    ...(scannedFiles.map(f => f.course).filter(Boolean))
-  ])).filter(Boolean);
+  // Stabilize available courses list to prevent infinite re-render loops
+  const availableCourses = useMemo(() => {
+    return Array.from(new Set([
+      ...(courses.map(c => c.code || c.id || c.name)),
+      ...(vaultMeta?.courses || []),
+      ...(scannedFiles.map(f => f.course).filter(Boolean))
+    ])).filter(Boolean);
+  }, [courses, vaultMeta?.courses, scannedFiles]);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,51 +61,66 @@ export const ProfEmailDraftModal = ({
     }
   }, [isOpen, courseCode, instructorEmail]);
 
-  // Live Course & Instructor Detection from Prompt Input
+  // Debounced live course & instructor detection (prevents freeze/crash on paste)
   useEffect(() => {
-    if (!promptInput.trim()) {
-      if (selectedCourse === 'AUTO') {
-        setDetectedProfInfo(null);
-      }
-      return;
-    }
+    if (!isOpen) return;
 
-    let targetCourse = selectedCourse !== 'AUTO' ? selectedCourse : '';
-    if (!targetCourse) {
-      // Detect mentioned course in prompt (e.g. FNCE, BTMA, OPMA, MGST, MKTG, CPSC, MATH)
-      const match = promptInput.match(/\b([A-Z]{2,6}\s*\d{0,4})\b/i);
-      if (match) {
-        const query = match[1].trim().toUpperCase();
-        targetCourse = availableCourses.find(c => c.toUpperCase().includes(query) || query.includes(c.toUpperCase())) || query;
-      }
-    }
-
-    if (targetCourse) {
-      findCourseOutlineContent(scannedFiles, targetCourse).then(res => {
-        if (res && res.info) {
-          setDetectedProfInfo({
-            course: res.info.course || targetCourse,
-            name: res.info.name,
-            email: res.info.email,
-            section: res.info.section || 'L01',
-            fileName: res.file?.name,
-            content: res.content
-          });
-          if (res.info.email && !recipient) {
-            setRecipient(res.info.email);
-          }
-        } else {
-          setDetectedProfInfo({
-            course: targetCourse,
-            name: instructorName || '',
-            email: instructorEmail || '',
-            section: sectionCode || 'L01',
-            content: ''
-          });
+    const timer = setTimeout(() => {
+      const trimmed = promptInput.trim();
+      if (!trimmed) {
+        if (selectedCourse === 'AUTO') {
+          setDetectedProfInfo(null);
         }
-      });
-    }
-  }, [promptInput, selectedCourse, scannedFiles, availableCourses]);
+        return;
+      }
+
+      let targetCourse = selectedCourse !== 'AUTO' ? selectedCourse : '';
+      if (!targetCourse) {
+        // Detect mentioned course in prompt (e.g. FNCE, BTMA, OPMA, MGST, MKTG, CPSC, MATH)
+        const match = trimmed.match(/\b([A-Z]{2,6}\s*\d{0,4})\b/i);
+        if (match) {
+          const query = match[1].trim().toUpperCase();
+          targetCourse = availableCourses.find(c => c.toUpperCase().includes(query) || query.includes(c.toUpperCase())) || query;
+        }
+      }
+
+      if (targetCourse && targetCourse !== 'AUTO') {
+        findCourseOutlineContent(scannedFiles, targetCourse).then(res => {
+          if (res && res.info) {
+            setDetectedProfInfo(prev => {
+              if (prev?.course === targetCourse && prev?.email === res.info.email && prev?.name === res.info.name) {
+                return prev;
+              }
+              return {
+                course: res.info.course || targetCourse,
+                name: res.info.name,
+                email: res.info.email,
+                section: res.info.section || 'L01',
+                fileName: res.file?.name,
+                content: res.content
+              };
+            });
+            if (res.info.email) {
+              setRecipient(prev => prev || res.info.email);
+            }
+          } else {
+            setDetectedProfInfo(prev => {
+              if (prev?.course === targetCourse && !prev?.name) return prev;
+              return {
+                course: targetCourse,
+                name: instructorName || '',
+                email: instructorEmail || '',
+                section: sectionCode || 'L01',
+                content: ''
+              };
+            });
+          }
+        }).catch(() => {});
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [promptInput, selectedCourse, scannedFiles, availableCourses, isOpen, instructorName, instructorEmail, sectionCode]);
 
   const handleGenerateEmail = async (e) => {
     if (e) e.preventDefault();
@@ -168,17 +185,48 @@ export const ProfEmailDraftModal = ({
     }
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     playSound('click', soundEnabled);
-    navigator.clipboard.writeText(`To: ${recipient}\nSubject: ${subject}\n\n${emailBody}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    const textToCopy = `To: ${recipient || ''}\nSubject: ${subject || ''}\n\n${emailBody || ''}`;
+    
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+        return;
+      }
+    } catch (err) {
+      console.warn("Clipboard API copy failed, using fallback:", err);
+    }
+
+    // Rock-solid DOM fallback for all browsers/environments
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = textToCopy;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (e) {
+      console.error("Copy failed:", e);
+    }
   };
 
   const handleOpenMailClient = () => {
     playSound('click', soundEnabled);
-    const mailtoUrl = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
-    window.open(mailtoUrl, '_blank');
+    try {
+      const mailtoUrl = `mailto:${encodeURIComponent(recipient || '')}?subject=${encodeURIComponent(subject || '')}&body=${encodeURIComponent(emailBody || '')}`;
+      window.open(mailtoUrl, '_blank');
+    } catch (e) {
+      console.warn("Could not launch mailto client:", e);
+    }
   };
 
   if (!isOpen) return null;
