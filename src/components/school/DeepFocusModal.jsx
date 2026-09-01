@@ -17,9 +17,9 @@ import {
   Lock, 
   Download, 
   Music, 
-  Link, 
   Radio,
-  Tv
+  Tv,
+  ExternalLink
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { playSound } from '../../utils/soundFX';
@@ -40,14 +40,6 @@ const FOCUS_DURATIONS = [
   { label: '90m Master Block', seconds: 90 * 60 }
 ];
 
-const YOUTUBE_PRESETS = [
-  { id: 'jfKfPfyJRdk', label: '☕ Lofi Girl Live' },
-  { id: '4xDzrJKXOOY', label: '🌆 Synthwave Chill' },
-  { id: 'mPZkdNFkNps', label: '🌧️ Ambient Rain' },
-  { id: '4Tr0otuiQuU', label: '🎹 Deep Focus Piano' },
-  { id: 'dx3_B-jZkP8', label: '🌙 Tokyo Night Jazz' }
-];
-
 export const DeepFocusModal = ({ 
   isOpen, 
   onClose, 
@@ -62,10 +54,10 @@ export const DeepFocusModal = ({
   const [showDistractionAlert, setShowDistractionAlert] = useState(false);
   
   // Audio state: 'none' | 'binaural' | 'rain' | 'white' | 'youtube'
-  const [audioMode, setAudioMode] = useState('youtube');
+  const [activeSound, setActiveSound] = useState('none');
   const [youtubeVideoId, setYoutubeVideoId] = useState('jfKfPfyJRdk');
   const [customYoutubeInput, setCustomYoutubeInput] = useState('');
-  const [showAudioHub, setShowAudioHub] = useState(false);
+  const [hasCustomYoutubeLink, setHasCustomYoutubeLink] = useState(false);
 
   const [showPhoneGuide, setShowPhoneGuide] = useState(false);
   const [blockedApps, setBlockedApps] = useState(['youtube', 'instagram', 'tiktok', 'reddit']);
@@ -114,13 +106,13 @@ export const DeepFocusModal = ({
 
   // Ambient Audio Synthesizer (Web Audio API for Binaural, Rain, White Noise)
   useEffect(() => {
-    if (!isActive || (audioMode !== 'binaural' && audioMode !== 'rain' && audioMode !== 'white')) {
+    if (!isActive || (activeSound !== 'binaural' && activeSound !== 'rain' && activeSound !== 'white')) {
       stopAmbientSynth();
       return;
     }
-    startAmbientSynth(audioMode);
+    startAmbientSynth(activeSound);
     return () => stopAmbientSynth();
-  }, [audioMode, isActive]);
+  }, [activeSound, isActive]);
 
   const startAmbientSynth = (type) => {
     try {
@@ -237,7 +229,8 @@ export const DeepFocusModal = ({
 
     if (vid) {
       setYoutubeVideoId(vid);
-      setAudioMode('youtube');
+      setHasCustomYoutubeLink(true);
+      setActiveSound('youtube');
       setCustomYoutubeInput('');
       playSound('success', soundEnabled);
     }
@@ -325,7 +318,7 @@ pause
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">
                   Deep Focus Shield • {courseCode}
                 </h3>
-                <p className="text-[11px] text-slate-400">Anti-distraction deep work & YouTube audio</p>
+                <p className="text-[11px] text-slate-400">Anti-distraction deep work mode</p>
               </div>
             </div>
 
@@ -412,157 +405,132 @@ pause
             </button>
           </div>
 
-          {/* YOUTUBE STUDY PLAYER (Automatically streams audio when timer runs) */}
-          {audioMode === 'youtube' && youtubeVideoId && (
-            <div className="pt-2">
-              <div className="rounded-2xl overflow-hidden border border-white/10 bg-black/60 aspect-video max-w-sm mx-auto shadow-xl">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=${isActive ? 1 : 0}&loop=1&playlist=${youtubeVideoId}&enablejsapi=1`}
-                  title="Study Music"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="w-full h-full"
-                />
-              </div>
+          {/* INVISIBLE YOUTUBE AUDIO PLAYER (Zero lag on mobile - no video rendering canvas) */}
+          {activeSound === 'youtube' && youtubeVideoId && (
+            <div style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+              <iframe
+                width="200"
+                height="200"
+                src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=${isActive ? 1 : 0}&loop=1&playlist=${youtubeVideoId}&enablejsapi=1`}
+                title="Study Audio Stream"
+                allow="autoplay"
+              />
             </div>
           )}
 
-          {/* AUDIO & STUDY MUSIC CONTROLLER */}
-          <div className="pt-3 border-t border-white/10 space-y-3 text-left">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-rose-400" />
-                <span className="text-xs font-bold text-white uppercase tracking-wider">Study Audio</span>
+          {/* AMBIENT SOUNDS & YOUTUBE AUDIO CONTROLLER */}
+          <div className="pt-2 border-t border-white/10 space-y-3 text-left">
+            <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2.5">
+              <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
+                <span>🧠 Background Study Audio</span>
+                {activeSound !== 'none' && (
+                  <span className="text-emerald-400 text-[10px] font-semibold">
+                    {isActive ? "● Audio Streaming" : "Paused"}
+                  </span>
+                )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowAudioHub(prev => !prev)}
-                className="text-[11px] font-semibold text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
-              >
-                {showAudioHub ? "Simple Controls" : "Change YouTube Link / Presets"}
-              </button>
-            </div>
+              {/* Exact Uniform Pill Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { id: 'none', label: '🔇 Mute' },
+                  { id: 'binaural', label: '⚡ 40Hz Focus' },
+                  { id: 'rain', label: '🌧️ Rain' },
+                  { id: 'white', label: '🌊 White Noise' },
+                  { id: 'youtube', label: '📺 YouTube' }
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      playSound('click', soundEnabled);
+                      setActiveSound(s.id);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
+                      activeSound === s.id
+                        ? 'bg-purple-500/20 border-purple-400 text-purple-200'
+                        : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
 
-            {/* Quick Audio Mode Selector */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {[
-                { id: 'youtube', label: '📺 YouTube Study' },
-                { id: 'binaural', label: '⚡ 40Hz Focus Wave' },
-                { id: 'rain', label: '🌧️ Ambient Rain' },
-                { id: 'white', label: '🌊 White Noise' },
-                { id: 'none', label: '🔇 Mute' }
-              ].map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setAudioMode(s.id);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer ${
-                    audioMode === s.id
-                      ? 'bg-purple-500/25 border-purple-400 text-purple-200 shadow-sm'
-                      : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-white'
-                  }`}
+              {/* Clean YouTube Link Input (Only shown when YouTube option is selected) */}
+              {activeSound === 'youtube' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="pt-2 border-t border-white/5 space-y-1.5"
                 >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-
-            {/* EXPANDED YOUTUBE SELECTOR & CUSTOM URL INPUT */}
-            {showAudioHub && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3 font-sans"
-              >
-                <div className="text-xs font-semibold text-slate-300">Curated YouTube Study Streams:</div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {YOUTUBE_PRESETS.map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        setYoutubeVideoId(p.id);
-                        setAudioMode('youtube');
-                        playSound('click', soundEnabled);
-                      }}
-                      className={`p-2 rounded-xl text-[11px] font-medium border text-left truncate transition-all cursor-pointer ${
-                        youtubeVideoId === p.id && audioMode === 'youtube'
-                          ? 'bg-purple-500/25 border-purple-400 text-purple-200'
-                          : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Custom YouTube URL Form */}
-                <div className="pt-2 border-t border-white/10 space-y-1.5">
-                  <label className="text-[11px] font-semibold text-slate-300 block">Paste Any YouTube Music URL:</label>
+                  <label className="text-[10px] font-mono text-slate-400 block">
+                    Paste YouTube Link (Audio will stream in background):
+                  </label>
                   <form onSubmit={handleApplyYouTubeUrl} className="flex gap-2">
                     <input
                       type="text"
                       value={customYoutubeInput}
                       onChange={(e) => setCustomYoutubeInput(e.target.value)}
                       placeholder="e.g. https://www.youtube.com/watch?v=..."
-                      className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-purple-500/40"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-purple-500/40"
                     />
                     <button
                       type="submit"
-                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
+                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
                     >
-                      Play Link
+                      Set Audio
                     </button>
                   </form>
+                  {hasCustomYoutubeLink && (
+                    <div className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>YouTube audio linked & ready. Starts when focus timer runs.</span>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </div>
+
+            {/* Lock Distractions & Phone Lock */}
+            <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={() => setShowPhoneGuide(prev => !prev)}
+                className="text-slate-400 hover:text-purple-300 flex items-center gap-1.5 font-medium cursor-pointer"
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>{showPhoneGuide ? "Hide Phone Lock Guide" : "Lock Phone Distractions (iOS / Android)"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadWindowsBlocker}
+                className="text-slate-400 hover:text-white flex items-center gap-1 font-mono text-[11px] cursor-pointer"
+                title="Download 1-Click Windows Blocker"
+              >
+                <Download className="w-3 h-3" />
+                <span>Hosts Blocker (.bat)</span>
+              </button>
+            </div>
+
+            {/* Phone Lock Guide Accordion */}
+            {showPhoneGuide && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 text-left text-xs text-slate-300 space-y-2 font-sans"
+              >
+                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-purple-400" />
+                  <span>How to Lock Phone Distractions:</span>
                 </div>
+                <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
+                  <li><strong className="text-white">iPhone (iOS)</strong>: Enable <em>Focus &gt; Deep Work</em> and add Screen Time App Limits.</li>
+                  <li><strong className="text-white">Android</strong>: Enable <em>Digital Wellbeing &gt; Focus Mode</em> to pause distracting apps.</li>
+                </ul>
               </motion.div>
             )}
           </div>
-
-          {/* DND PHONE & APP LOCK CONTROLS */}
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-            <button
-              type="button"
-              onClick={() => setShowPhoneGuide(prev => !prev)}
-              className="text-slate-400 hover:text-purple-300 flex items-center gap-1.5 font-medium cursor-pointer"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>{showPhoneGuide ? "Hide Phone Lock Guide" : "Lock Phone Distractions (iOS / Android)"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDownloadWindowsBlocker}
-              className="text-slate-400 hover:text-white flex items-center gap-1 font-mono text-[11px] cursor-pointer"
-              title="Download 1-Click Windows Blocker"
-            >
-              <Download className="w-3 h-3" />
-              <span>Hosts Blocker (.bat)</span>
-            </button>
-          </div>
-
-          {/* Phone Lock Guide Accordion */}
-          {showPhoneGuide && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 text-left text-xs text-slate-300 space-y-2 font-sans"
-            >
-              <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-purple-400" />
-                <span>How to Lock Phone Distractions:</span>
-              </div>
-              <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
-                <li><strong className="text-white">iPhone (iOS)</strong>: Enable <em>Focus &gt; Deep Work</em> and add Screen Time App Limits.</li>
-                <li><strong className="text-white">Android</strong>: Enable <em>Digital Wellbeing &gt; Focus Mode</em> to pause distracting apps.</li>
-              </ul>
-            </motion.div>
-          )}
         </motion.div>
       </div>
     </AnimatePresence>

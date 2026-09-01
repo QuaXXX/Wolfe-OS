@@ -7,7 +7,8 @@ import {
   X, 
   Loader2, 
   ArrowRight,
-  BookOpen
+  BookOpen,
+  FolderSync
 } from 'lucide-react';
 import { searchVaultWithAI } from '../../utils/aiService';
 import { SAMPLE_OBSIDIAN_VAULT } from '../../utils/obsidianService';
@@ -17,6 +18,8 @@ export const VaultSearchModal = ({
   isOpen, 
   onClose, 
   scannedFiles = [], 
+  isConnected = false,
+  onOpenVaultManager,
   soundEnabled = true 
 }) => {
   const [query, setQuery] = useState('');
@@ -36,9 +39,22 @@ export const VaultSearchModal = ({
     setResult(null);
 
     try {
-      // Use scanned real files if available, otherwise sample notes
+      if (!isConnected && scannedFiles.length === 0) {
+        setResult({
+          answer: `Obsidian is not connected yet! Link your Obsidian Vault folder using the "Connect Vault" button to search directly across your actual class notes, formulas, and course summaries.`,
+          matchedFiles: []
+        });
+        setIsSearching(false);
+        return;
+      }
+
+      // Use scanned real files
       const notesToSearch = scannedFiles.length > 0 ? scannedFiles : SAMPLE_OBSIDIAN_VAULT;
-      const res = await searchVaultWithAI(query.trim(), notesToSearch);
+      const res = await searchVaultWithAI({
+        query: query.trim(),
+        filesIndex: notesToSearch,
+        sampleNotes: notesToSearch
+      });
       setResult(res);
       playSound('success', soundEnabled);
     } catch (err) {
@@ -101,6 +117,30 @@ export const VaultSearchModal = ({
               <X className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Obsidian Not Connected Prompt Banner */}
+          {!isConnected && (
+            <div className="p-3.5 rounded-2xl bg-[#6d28d9]/15 border border-[#7c3aed]/30 flex items-center justify-between gap-3 text-left">
+              <div className="flex items-center gap-2.5">
+                <FolderSync className="w-4 h-4 text-[#a78bfa] shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-white">Obsidian Vault Not Connected</div>
+                  <div className="text-[11px] text-slate-300">Connect your Obsidian folder to search your personal class notes.</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  onClose();
+                  if (onOpenVaultManager) onOpenVaultManager();
+                }}
+                className="px-3 py-1.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white text-xs font-bold shadow-md shrink-0 cursor-pointer"
+              >
+                Connect Vault
+              </button>
+            </div>
+          )}
 
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="flex gap-2">
@@ -179,13 +219,15 @@ export const VaultSearchModal = ({
                         key={idx}
                         className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3 text-xs"
                       >
-                        <div className="flex items-center gap-2 truncate">
+                        <div className="flex items-center gap-2 min-w-0">
                           <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                          <span className="font-semibold text-white truncate">{mf.name}</span>
+                          <span className="text-white font-medium truncate">{mf.name}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
-                          {mf.relevance || mf.path}
-                        </span>
+                        {mf.relevance && (
+                          <span className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                            {mf.relevance}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

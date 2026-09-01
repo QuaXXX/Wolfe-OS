@@ -547,6 +547,8 @@ export const SchoolView = ({
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         scannedFiles={scannedFiles}
+        isConnected={vaultMeta.connected}
+        onOpenVaultManager={() => setIsVaultModalOpen(true)}
         soundEnabled={soundEnabled}
       />
 
