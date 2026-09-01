@@ -26,7 +26,6 @@ import { playSound } from '../../utils/soundFX';
 import { ObsidianVaultManagerModal } from '../school/ObsidianVaultManagerModal';
 import { FlashcardDeckModal } from '../school/FlashcardDeckModal';
 import { PracticeQuizModal } from '../school/PracticeQuizModal';
-import { ProfEmailDraftModal } from '../school/ProfEmailDraftModal';
 import { VaultSearchModal } from '../school/VaultSearchModal';
 import { DeepFocusModal } from '../school/DeepFocusModal';
 import { getVaultMetadata, getVaultHandle, scanVaultDirectory } from '../../utils/obsidianService';
@@ -59,7 +58,6 @@ export const SchoolView = ({
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isFlashcardsOpen, setIsFlashcardsOpen] = useState(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isDeepFocusOpen, setIsDeepFocusOpen] = useState(false);
 
@@ -114,7 +112,6 @@ export const SchoolView = ({
     setSelectedQuizQuestions(null);
     if (tool === 'flashcards') setIsFlashcardsOpen(true);
     else if (tool === 'quiz') setIsQuizOpen(true);
-    else if (tool === 'email') setIsEmailModalOpen(true);
     else if (tool === 'search') {
       if (!vaultMeta.connected) {
         setIsVaultModalOpen(true);
@@ -238,8 +235,8 @@ export const SchoolView = ({
         </div>
       )}
 
-      {/* AI Academic Tools (Sleek 4-Pillar Grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      {/* AI Academic Tools (Sleek 3-Pillar Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
         {/* Flashcards */}
         <div
           onClick={() => handleOpenStudyTool('flashcards')}
@@ -269,22 +266,6 @@ export const SchoolView = ({
           </h3>
           <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
             MCQ test drills & instant explanations.
-          </p>
-        </div>
-
-        {/* Prof Email Drafter */}
-        <div
-          onClick={() => handleOpenStudyTool('email')}
-          className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
-        >
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mb-2">
-            <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </div>
-          <h3 className="text-xs font-bold text-white group-hover:text-rose-300 transition-colors">
-            Prof Email Drafter
-          </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-            Syllabus-compliant formal email drafts.
           </p>
         </div>
 
@@ -539,21 +520,7 @@ export const SchoolView = ({
         soundEnabled={soundEnabled}
       />
 
-      {/* 4. Prof Email Draft Modal */}
-      <ProfEmailDraftModal
-        isOpen={isEmailModalOpen}
-        onClose={() => setIsEmailModalOpen(false)}
-        courseCode={activeCourse?.code || "Course"}
-        instructorName={activeCourse?.instructor || "Professor"}
-        instructorEmail={activeCourse?.instructorEmail || ""}
-        sectionCode={activeCourse?.section || "L01"}
-        scannedFiles={scannedFiles}
-        courses={courses}
-        vaultMeta={vaultMeta}
-        soundEnabled={soundEnabled}
-      />
-
-      {/* 5. Vault Semantic Search Modal */}
+      {/* 4. Vault Semantic Search Modal */}
       <VaultSearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
