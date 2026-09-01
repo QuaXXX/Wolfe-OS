@@ -10,16 +10,16 @@ import {
   Smartphone, 
   Volume2, 
   VolumeX, 
-  Maximize2, 
-  Minimize2, 
   X, 
   CheckCircle2, 
-  ExternalLink,
-  Flame,
-  Clock,
-  Sparkles,
-  Lock,
-  Download
+  Flame, 
+  Clock, 
+  Lock, 
+  Download, 
+  Music, 
+  Link, 
+  Radio,
+  Tv
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { playSound } from '../../utils/soundFX';
@@ -40,6 +40,14 @@ const FOCUS_DURATIONS = [
   { label: '90m Master Block', seconds: 90 * 60 }
 ];
 
+const YOUTUBE_PRESETS = [
+  { id: 'jfKfPfyJRdk', label: '☕ Lofi Girl Live' },
+  { id: '4xDzrJKXOOY', label: '🌆 Synthwave Chill' },
+  { id: 'mPZkdNFkNps', label: '🌧️ Ambient Rain' },
+  { id: '4Tr0otuiQuU', label: '🎹 Deep Focus Piano' },
+  { id: 'dx3_B-jZkP8', label: '🌙 Tokyo Night Jazz' }
+];
+
 export const DeepFocusModal = ({ 
   isOpen, 
   onClose, 
@@ -52,7 +60,13 @@ export const DeepFocusModal = ({
   const [isActive, setIsActive] = useState(false);
   const [distractionWarnings, setDistractionWarnings] = useState(0);
   const [showDistractionAlert, setShowDistractionAlert] = useState(false);
-  const [activeSound, setActiveSound] = useState('none'); // 'none' | 'binaural' | 'rain' | 'white'
+  
+  // Audio state: 'none' | 'binaural' | 'rain' | 'white' | 'youtube'
+  const [audioMode, setAudioMode] = useState('youtube');
+  const [youtubeVideoId, setYoutubeVideoId] = useState('jfKfPfyJRdk');
+  const [customYoutubeInput, setCustomYoutubeInput] = useState('');
+  const [showAudioHub, setShowAudioHub] = useState(false);
+
   const [showPhoneGuide, setShowPhoneGuide] = useState(false);
   const [blockedApps, setBlockedApps] = useState(['youtube', 'instagram', 'tiktok', 'reddit']);
 
@@ -87,7 +101,6 @@ export const DeepFocusModal = ({
     };
 
     const handleWindowFocus = () => {
-      // Auto-hide alert after returning
       setTimeout(() => setShowDistractionAlert(false), 4000);
     };
 
@@ -99,33 +112,32 @@ export const DeepFocusModal = ({
     };
   }, [isActive, soundEnabled]);
 
-  // Ambient Audio Synthesizer (Web Audio API)
+  // Ambient Audio Synthesizer (Web Audio API for Binaural, Rain, White Noise)
   useEffect(() => {
-    if (!isActive || activeSound === 'none') {
-      stopAmbientAudio();
+    if (!isActive || (audioMode !== 'binaural' && audioMode !== 'rain' && audioMode !== 'white')) {
+      stopAmbientSynth();
       return;
     }
-    startAmbientAudio(activeSound);
-    return () => stopAmbientAudio();
-  }, [activeSound, isActive]);
+    startAmbientSynth(audioMode);
+    return () => stopAmbientSynth();
+  }, [audioMode, isActive]);
 
-  const startAmbientAudio = (type) => {
+  const startAmbientSynth = (type) => {
     try {
-      stopAmbientAudio();
+      stopAmbientSynth();
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       audioCtxRef.current = ctx;
 
       if (type === 'binaural') {
-        // 40Hz Gamma Focus Wave (Binaural Beats for high cognitive concentration)
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
         const merger = ctx.createChannelMerger(2);
         const gain = ctx.createGain();
 
         osc1.frequency.value = 200;
-        osc2.frequency.value = 240; // 40Hz beat difference
+        osc2.frequency.value = 240; // 40Hz Gamma Beat
         gain.gain.value = 0.08;
 
         osc1.connect(merger, 0, 0);
@@ -137,7 +149,6 @@ export const DeepFocusModal = ({
         osc2.start();
         noiseNodeRef.current = { stop: () => { osc1.stop(); osc2.stop(); } };
       } else if (type === 'white' || type === 'rain') {
-        // White noise generator
         const bufferSize = ctx.sampleRate * 2;
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -164,11 +175,11 @@ export const DeepFocusModal = ({
         noiseNodeRef.current = noise;
       }
     } catch (e) {
-      console.warn("Audio synthesizer notice:", e);
+      console.warn("Synth audio notice:", e);
     }
   };
 
-  const stopAmbientAudio = () => {
+  const stopAmbientSynth = () => {
     if (noiseNodeRef.current) {
       try { noiseNodeRef.current.stop?.(); } catch (e) {}
       noiseNodeRef.current = null;
@@ -181,7 +192,7 @@ export const DeepFocusModal = ({
 
   const handleCompleteSession = () => {
     setIsActive(false);
-    stopAmbientAudio();
+    stopAmbientSynth();
     playSound('success', soundEnabled);
     try {
       confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
@@ -200,7 +211,7 @@ export const DeepFocusModal = ({
     playSound('switch', soundEnabled);
     setIsActive(false);
     setTimeLeft(duration);
-    stopAmbientAudio();
+    stopAmbientSynth();
   };
 
   const handleSelectDuration = (secs) => {
@@ -208,6 +219,28 @@ export const DeepFocusModal = ({
     setDuration(secs);
     setTimeLeft(secs);
     setIsActive(false);
+  };
+
+  // Parse YouTube URL to Video ID
+  const handleApplyYouTubeUrl = (e) => {
+    e.preventDefault();
+    const url = customYoutubeInput.trim();
+    if (!url) return;
+
+    let vid = null;
+    const match1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=)([^#&?]*).*/);
+    if (match1 && match1[1].length === 11) {
+      vid = match1[1];
+    } else if (url.length === 11) {
+      vid = url;
+    }
+
+    if (vid) {
+      setYoutubeVideoId(vid);
+      setAudioMode('youtube');
+      setCustomYoutubeInput('');
+      playSound('success', soundEnabled);
+    }
   };
 
   // Generate 1-Click Windows Hosts Blocker Script (.bat)
@@ -220,7 +253,6 @@ export const DeepFocusModal = ({
 
     const scriptContent = `@echo off
 :: Wolfe OS Deep Focus Shield Blocker (Windows)
-:: Temporarily blocks distracting domains during study sessions
 echo ==============================================
 echo   WOLFE OS DEEP FOCUS SHIELD ACTIVE
 echo   Blocking ${domainsToBlock.join(', ')}
@@ -237,7 +269,7 @@ ${domainsToBlock.map(d => `echo 127.0.0.1 ${d} >> %windir%\\System32\\drivers\\e
 
 ipconfig /flushdns >nul
 echo Deep Focus Shield Activated! Distractions blocked.
-echo To unblock after session, run the Restore script.
+echo To unblock after session, remove entries from hosts.
 pause
 `;
 
@@ -268,10 +300,11 @@ pause
           onClick={() => {
             if (!isActive) {
               playSound('click', soundEnabled);
+              stopAmbientSynth();
               onClose();
             }
           }}
-          className="fixed inset-0 top-0 left-0 w-full h-full bg-black/70 backdrop-blur-2xl transition-all"
+          className="fixed inset-0 top-0 left-0 w-full h-full bg-black/75 backdrop-blur-2xl transition-all"
         />
 
         {/* Modal Window */}
@@ -280,7 +313,7 @@ pause
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-[#080a12]/95 border border-white/15 rounded-3xl p-6 sm:p-8 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9)] backdrop-blur-2xl z-10 space-y-6 text-center"
+          className="relative w-full max-w-xl bg-[#080a12]/95 border border-white/15 rounded-3xl p-6 sm:p-8 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9)] backdrop-blur-2xl z-10 space-y-5 text-center max-h-[92vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
@@ -292,14 +325,14 @@ pause
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">
                   Deep Focus Shield • {courseCode}
                 </h3>
-                <p className="text-[11px] text-slate-400">Anti-distraction deep work mode</p>
+                <p className="text-[11px] text-slate-400">Anti-distraction deep work & YouTube audio</p>
               </div>
             </div>
 
             <button
               onClick={() => {
                 playSound('click', soundEnabled);
-                stopAmbientAudio();
+                stopAmbientSynth();
                 onClose();
               }}
               className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
@@ -308,7 +341,7 @@ pause
             </button>
           </div>
 
-          {/* Distraction Alert Banner (Triggered if user leaves tab) */}
+          {/* Distraction Alert Banner */}
           {showDistractionAlert && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -316,11 +349,11 @@ pause
               className="p-3 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-200 text-xs font-semibold flex items-center justify-center gap-2"
             >
               <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 animate-bounce" />
-              <span>⚠️ Distraction Alert: Stay in the zone! Deep work session in progress.</span>
+              <span>⚠️ Stay in the zone! Focus block in progress.</span>
             </motion.div>
           )}
 
-          {/* Duration Selector (Only when paused) */}
+          {/* Duration Selector */}
           {!isActive && (
             <div className="flex items-center justify-center gap-1.5 flex-wrap">
               {FOCUS_DURATIONS.map(d => (
@@ -340,12 +373,12 @@ pause
           )}
 
           {/* GIANT COUNTDOWN DISPLAY */}
-          <div className="relative py-4">
+          <div className="relative py-2">
             <div className="text-6xl sm:text-7xl font-mono font-bold tracking-tight text-white drop-shadow-[0_0_35px_rgba(168,85,247,0.3)]">
               {formattedTime}
             </div>
 
-            {/* Progress Arc */}
+            {/* Progress Bar */}
             <div className="w-48 sm:w-64 bg-white/10 h-1.5 rounded-full overflow-hidden mx-auto mt-4">
               <motion.div 
                 className="h-full bg-purple-500 rounded-full"
@@ -379,66 +412,138 @@ pause
             </button>
           </div>
 
-          {/* AMBIENT SOUNDS & PHONE LOCK TOOLBAR */}
-          <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-            {/* Ambient Soundscape */}
-            <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-              <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>🧠 Binaural / Ambient Audio</span>
-                {activeSound !== 'none' && <span className="text-emerald-400">Playing</span>}
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  { id: 'none', label: '🔇 Mute' },
-                  { id: 'binaural', label: '⚡ 40Hz Focus' },
-                  { id: 'rain', label: '🌧️ Rain' },
-                  { id: 'white', label: '🌊 White Noise' }
-                ].map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => {
-                      playSound('click', soundEnabled);
-                      setActiveSound(s.id);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
-                      activeSound === s.id
-                        ? 'bg-purple-500/20 border-purple-400 text-purple-200'
-                        : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
+          {/* YOUTUBE STUDY PLAYER (Automatically streams audio when timer runs) */}
+          {audioMode === 'youtube' && youtubeVideoId && (
+            <div className="pt-2">
+              <div className="rounded-2xl overflow-hidden border border-white/10 bg-black/60 aspect-video max-w-sm mx-auto shadow-xl">
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=${isActive ? 1 : 0}&loop=1&playlist=${youtubeVideoId}&enablejsapi=1`}
+                  title="Study Music"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
               </div>
             </div>
+          )}
 
-            {/* Lock Distractions & Phone Lock */}
-            <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-              <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>🔒 Lock Phone & Apps</span>
-                <span className="text-purple-400 text-[9px] font-mono">DND Shield</span>
-              </div>
-
+          {/* AUDIO & STUDY MUSIC CONTROLLER */}
+          <div className="pt-3 border-t border-white/10 space-y-3 text-left">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPhoneGuide(prev => !prev)}
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Smartphone className="w-3.5 h-3.5" />
-                  <span>{showPhoneGuide ? "Hide Setup" : "Lock Phone (iOS / Android)"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadWindowsBlocker}
-                  title="Download 1-Click Windows Blocker"
-                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </button>
+                <Radio className="w-4 h-4 text-rose-400" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Study Audio</span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAudioHub(prev => !prev)}
+                className="text-[11px] font-semibold text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+              >
+                {showAudioHub ? "Simple Controls" : "Change YouTube Link / Presets"}
+              </button>
             </div>
+
+            {/* Quick Audio Mode Selector */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { id: 'youtube', label: '📺 YouTube Study' },
+                { id: 'binaural', label: '⚡ 40Hz Focus Wave' },
+                { id: 'rain', label: '🌧️ Ambient Rain' },
+                { id: 'white', label: '🌊 White Noise' },
+                { id: 'none', label: '🔇 Mute' }
+              ].map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setAudioMode(s.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer ${
+                    audioMode === s.id
+                      ? 'bg-purple-500/25 border-purple-400 text-purple-200 shadow-sm'
+                      : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {/* EXPANDED YOUTUBE SELECTOR & CUSTOM URL INPUT */}
+            {showAudioHub && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3 font-sans"
+              >
+                <div className="text-xs font-semibold text-slate-300">Curated YouTube Study Streams:</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {YOUTUBE_PRESETS.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setYoutubeVideoId(p.id);
+                        setAudioMode('youtube');
+                        playSound('click', soundEnabled);
+                      }}
+                      className={`p-2 rounded-xl text-[11px] font-medium border text-left truncate transition-all cursor-pointer ${
+                        youtubeVideoId === p.id && audioMode === 'youtube'
+                          ? 'bg-purple-500/25 border-purple-400 text-purple-200'
+                          : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom YouTube URL Form */}
+                <div className="pt-2 border-t border-white/10 space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 block">Paste Any YouTube Music URL:</label>
+                  <form onSubmit={handleApplyYouTubeUrl} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customYoutubeInput}
+                      onChange={(e) => setCustomYoutubeInput(e.target.value)}
+                      placeholder="e.g. https://www.youtube.com/watch?v=..."
+                      className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-purple-500/40"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
+                    >
+                      Play Link
+                    </button>
+                  </form>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* DND PHONE & APP LOCK CONTROLS */}
+          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+            <button
+              type="button"
+              onClick={() => setShowPhoneGuide(prev => !prev)}
+              className="text-slate-400 hover:text-purple-300 flex items-center gap-1.5 font-medium cursor-pointer"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>{showPhoneGuide ? "Hide Phone Lock Guide" : "Lock Phone Distractions (iOS / Android)"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadWindowsBlocker}
+              className="text-slate-400 hover:text-white flex items-center gap-1 font-mono text-[11px] cursor-pointer"
+              title="Download 1-Click Windows Blocker"
+            >
+              <Download className="w-3 h-3" />
+              <span>Hosts Blocker (.bat)</span>
+            </button>
           </div>
 
           {/* Phone Lock Guide Accordion */}
@@ -453,9 +558,8 @@ pause
                 <span>How to Lock Phone Distractions:</span>
               </div>
               <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
-                <li><strong className="text-white">iPhone (iOS)</strong>: Set up <em>Focus &gt; Study Mode</em> with Screen Time App Limits on Instagram/YouTube/TikTok.</li>
-                <li><strong className="text-white">Android</strong>: Enable <em>Digital Wellbeing &gt; Focus Mode</em> to pause social apps during study blocks.</li>
-                <li><strong className="text-white">Windows Blocker</strong>: Click the download icon above to run the 1-click hosts blocker.</li>
+                <li><strong className="text-white">iPhone (iOS)</strong>: Enable <em>Focus &gt; Deep Work</em> and add Screen Time App Limits.</li>
+                <li><strong className="text-white">Android</strong>: Enable <em>Digital Wellbeing &gt; Focus Mode</em> to pause distracting apps.</li>
               </ul>
             </motion.div>
           )}

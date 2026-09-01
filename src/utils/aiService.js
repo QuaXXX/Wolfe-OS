@@ -1012,33 +1012,55 @@ function fallbackSyllabusParser(text, year) {
 /**
  * Generate High-Yield Active Recall Flashcards from Course Notes with AI
  */
-export async function generateFlashcardsWithAI({ courseCode = "Course", topic = "Core Concepts", notesText = "", count = 8 }) {
-  const prompt = `You are an elite academic tutor creating high-yield active recall flashcards for university student Zach Wolfe in course "${courseCode}".
-Topic/Focus: ${topic}
+export async function generateFlashcardsWithAI({ 
+  courseCode = "Course", 
+  topic = "Core Concepts", 
+  chapterScope = "", 
+  notesText = "", 
+  count = 8,
+  depthMode = "high-yield" 
+}) {
+  const scopeDesc = chapterScope ? `Chapters / Modules: ${chapterScope}` : `Topic / Unit: ${topic}`;
+  const depthInstruction = depthMode === 'definitions' 
+    ? 'Focus heavily on key terms, technical vocabulary, formula variables, and foundational definitions.'
+    : depthMode === 'deep-dive'
+    ? 'Focus on complex multi-step scenario calculations, application proofs, and edge-case analytical problems.'
+    : 'Focus on HIGH-YIELD EXAM CONCEPTS: recurring exam questions, core decision rules, fundamental theorems, and high-frequency formulas.';
+
+  const prompt = `You are an elite university professor and exam tutor creating high-yield active recall flashcards for student Zach Wolfe in course "${courseCode}".
+Target Scope: ${scopeDesc}
+Depth Mode: ${depthMode} (${depthInstruction})
+
 Course Notes & Context:
 """
-${notesText ? notesText.slice(0, 12000) : `Core concepts, definitions, formulas, and high-frequency exam questions for ${courseCode} on topic: ${topic}.`}
+${notesText ? notesText.slice(0, 12000) : `Core concepts, definitions, formulas, and high-frequency exam questions for ${courseCode} on: ${scopeDesc}.`}
 """
 
-Generate exactly ${count} active-recall flashcards designed for maximum long-term memory retention (spaced repetition).
+Generate exactly ${count} active-recall flashcards designed for maximum long-term memory retention and exam mastery.
 Rules:
-1. Front: Clear, thought-provoking question, formula prompt, scenario, or concept identification.
-2. Back: Concise, authoritative explanation with key terms, formulas in LaTeX ($...$ / $$...$$), and bullet points if needed.
+1. Front: Clear, thought-provoking question, formula prompt, calculation scenario, or concept drill.
+2. Back: Concise, authoritative explanation with key terms, formulas in LaTeX ($...$ / $$...$$), and bullet points.
 3. Concept: The 2-4 word topic category.
 4. Difficulty: "easy" | "medium" | "hard".
+5. YieldRating: "high" (Crucial exam concept/formula), "medium" (Important application), or "context" (Background context).
+6. YieldReason: 1 brief sentence explaining why this concept is essential for exams.
 
 Return ONLY valid JSON matching this schema:
 {
   "title": "${courseCode}: ${topic} Flashcard Deck",
   "courseCode": "${courseCode}",
   "topic": "${topic}",
+  "chapterScope": "${chapterScope || topic}",
+  "depthMode": "${depthMode}",
   "cards": [
     {
       "id": "card-1",
       "front": "What is the primary decision rule for Net Present Value (NPV)?",
       "back": "Accept the project if $NPV > 0$. NPV represents the exact net dollar addition to firm equity value after accounting for the time value of money and initial capital outlays.",
       "concept": "Capital Budgeting",
-      "difficulty": "medium"
+      "difficulty": "medium",
+      "yieldRating": "high",
+      "yieldReason": "Core corporate finance theorem appearing on nearly every valuation exam."
     }
   ]
 }`;
@@ -1059,27 +1081,35 @@ Return ONLY valid JSON matching this schema:
     title: `${courseCode}: ${topic} Deck`,
     courseCode,
     topic,
+    chapterScope: chapterScope || topic,
+    depthMode,
     cards: [
       {
         id: "card-fb-1",
-        front: `What is the core principle of ${topic} in ${courseCode}?`,
+        front: `What is the core fundamental principle of ${topic} in ${courseCode}?`,
         back: `The fundamental framework establishes key decision rules, analytical formulas, and quantitative evaluation criteria for ${topic}.`,
         concept: topic,
-        difficulty: "medium"
+        difficulty: "medium",
+        yieldRating: "high",
+        yieldReason: "Foundational core concept for this unit."
       },
       {
         id: "card-fb-2",
         front: `How do you calculate and evaluate key metrics for ${topic}?`,
         back: `Apply the standard valuation formula accounting for risk, discount rates, and expected timeline variables.`,
         concept: "Analytical Methods",
-        difficulty: "hard"
+        difficulty: "hard",
+        yieldRating: "high",
+        yieldReason: "High probability calculation question on midterms and finals."
       },
       {
         id: "card-fb-3",
         front: `What are the primary assumptions and limitations when applying ${topic}?`,
-        back: `Assumes market efficiency, stable cost of capital, and reliable forecasted cash flows / behavioral inputs.`,
+        back: `Assumes market efficiency, stable cost of capital, and reliable forecasted inputs.`,
         concept: "Assumptions & Edge Cases",
-        difficulty: "medium"
+        difficulty: "medium",
+        yieldRating: "medium",
+        yieldReason: "Frequent conceptual multiple-choice question."
       }
     ]
   };
@@ -1088,20 +1118,44 @@ Return ONLY valid JSON matching this schema:
 /**
  * Generate Practice Exam / Mock Quiz with AI
  */
-export async function generatePracticeQuizWithAI({ courseCode = "Course", topic = "Exam Prep", notesText = "", count = 5 }) {
+export async function generatePracticeQuizWithAI({ 
+  courseCode = "Course", 
+  topic = "Exam Prep", 
+  chapterScope = "", 
+  notesText = "", 
+  count = 5,
+  depthMode = "high-yield" 
+}) {
+  const scopeDesc = chapterScope ? `Chapters / Modules: ${chapterScope}` : `Topic / Unit: ${topic}`;
+  const depthInstruction = depthMode === 'definitions' 
+    ? 'Focus on terminology, definitions, property identification, and conceptual classifications.'
+    : depthMode === 'deep-dive'
+    ? 'Focus on multi-step calculations, edge-case problem solving, and analytical scenario evaluations.'
+    : 'Focus on HIGH-YIELD EXAM QUESTIONS: highest probability midterm/final exam questions, calculations, and core principles.';
+
   const prompt = `You are a university professor constructing a realistic midterm/final exam quiz for student Zach Wolfe in course "${courseCode}".
-Topic: ${topic}
+Target Scope: ${scopeDesc}
+Depth Mode: ${depthMode} (${depthInstruction})
+
 Course Notes & Material:
 """
-${notesText ? notesText.slice(0, 12000) : `Key exam problems, calculation scenarios, and conceptual definitions for ${courseCode} on topic: ${topic}.`}
+${notesText ? notesText.slice(0, 12000) : `Key exam problems, calculation scenarios, and conceptual definitions for ${courseCode} on: ${scopeDesc}.`}
 """
 
-Generate exactly ${count} multiple-choice exam questions that test deep understanding rather than shallow trivia.
+Generate exactly ${count} realistic multiple-choice exam questions that test deep understanding rather than shallow trivia.
+Rules:
+1. Provide 4 distinct plausible options per question.
+2. Provide a clear, educational explanation for why the correct option is right and others are incorrect.
+3. Provide a helpful hint that prompts active problem solving without giving away the answer.
+4. Assign a yieldRating: "high" (Crucial exam topic), "medium" (Important application), or "context" (Supporting theory).
+
 Return ONLY valid JSON matching this schema:
 {
   "title": "${courseCode}: ${topic} Practice Quiz",
   "courseCode": "${courseCode}",
   "topic": "${topic}",
+  "chapterScope": "${chapterScope || topic}",
+  "depthMode": "${depthMode}",
   "questions": [
     {
       "id": "q-1",
@@ -1114,7 +1168,9 @@ Return ONLY valid JSON matching this schema:
       ],
       "correctIndex": 1,
       "explanation": "NPV measures the absolute dollar increase in shareholder wealth. IRR suffers from the scale problem and can choose a smaller project with high percentage return over a larger project that generates more total profit.",
-      "hint": "Think about which metric focuses on total dollar value created rather than a percentage rate."
+      "hint": "Think about which metric focuses on total dollar value created rather than a percentage rate.",
+      "yieldRating": "high",
+      "topic": "Valuation Decision Rules"
     }
   ]
 }`;
@@ -1135,6 +1191,8 @@ Return ONLY valid JSON matching this schema:
     title: `${courseCode}: ${topic} Practice Exam`,
     courseCode,
     topic,
+    chapterScope: chapterScope || topic,
+    depthMode,
     questions: [
       {
         id: "q-fb-1",
@@ -1147,7 +1205,9 @@ Return ONLY valid JSON matching this schema:
         ],
         correctIndex: 1,
         explanation: "NPV represents the exact net dollar value added to the firm. Positive NPV directly increases firm equity value.",
-        hint: "Look for the rule that accounts for all future cash flows discounted at the cost of capital."
+        hint: "Look for the rule that accounts for all future cash flows discounted at the cost of capital.",
+        yieldRating: "high",
+        topic: "Valuation Fundamentals"
       },
       {
         id: "q-fb-2",
@@ -1160,7 +1220,9 @@ Return ONLY valid JSON matching this schema:
         ],
         correctIndex: 2,
         explanation: "IRR implicitly assumes cash flows are reinvested at the IRR (often unrealistically high) and ignores project scale.",
-        hint: "Consider what happens when choosing between a $100 project with 50% IRR vs a $1M project with 25% IRR."
+        hint: "Consider what happens when choosing between a $100 project with 50% IRR vs a $1M project with 25% IRR.",
+        yieldRating: "high",
+        topic: "Decision Rules"
       }
     ]
   };
