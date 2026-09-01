@@ -23,22 +23,24 @@ export const GOOGLE_CALENDAR_CONFIG = {
 };
 
 /**
- * Check if user has an active, non-expired Google Calendar connection
+ * Check if user has an active or refreshable Google Calendar connection
  */
 export function isGoogleCalendarConnected() {
   if (typeof localStorage === 'undefined') return false;
   const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  const wasSignedIn = localStorage.getItem('wolfe_user_signed_in_google') === 'true';
   
   if (refreshToken) return true;
-  if (!token) return false;
-
-  const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
-  if (expiry && Date.now() > Number(expiry)) {
-    // Token has expired
-    return false;
+  if (token) {
+    const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
+    if (!expiry || Date.now() < Number(expiry)) return true;
   }
-  return true;
+  // If user previously signed in with GIS, background silent renewal keeps connection alive!
+  if (wasSignedIn && typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -238,6 +240,37 @@ export async function refreshAccessToken() {
 }
 
 /**
+ * Attempt silent token renewal via Google Identity Services without showing any popup
+ */
+export function silentRefreshGISToken() {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.google?.accounts?.oauth2) {
+      return resolve(null);
+    }
+    const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+    try {
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
+        callback: (tokenResponse) => {
+          if (tokenResponse?.access_token) {
+            saveGoogleToken(tokenResponse.access_token, tokenResponse.expires_in || 3600);
+            resolve(tokenResponse.access_token);
+          } else {
+            resolve(null);
+          }
+        },
+        error_callback: () => resolve(null)
+      });
+      // prompt: '' enables silent renewal using existing Google session cookie
+      client.requestAccessToken({ prompt: '' });
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+/**
  * Get valid access token or refresh
  */
 export async function getValidAccessToken() {
@@ -249,9 +282,15 @@ export async function getValidAccessToken() {
     return token;
   }
 
-  // Otherwise, attempt refresh if refresh token is available
+  // 1. Attempt refresh if refresh token is available
   const freshToken = await refreshAccessToken();
   if (freshToken) return freshToken;
+
+  // 2. Attempt silent GIS renewal if user was signed in previously
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_signed_in_google') === 'true') {
+    const silentToken = await silentRefreshGISToken();
+    if (silentToken) return silentToken;
+  }
 
   if (token && (!expiry || Date.now() < Number(expiry))) {
     return token;
