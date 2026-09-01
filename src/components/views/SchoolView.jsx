@@ -42,8 +42,21 @@ export const SchoolView = ({
   onAddItem, 
   soundEnabled = true 
 }) => {
+  const defaultUniversityCourses = [
+    { id: 'fnce317', code: 'FNCE 317', name: 'Financial Management', credits: '3.0', instructor: 'Finance Dept' },
+    { id: 'btma317', code: 'BTMA 317', name: 'Information Technology', credits: '3.0', instructor: 'Business Tech' },
+    { id: 'opma317', code: 'OPMA 317', name: 'Operations Management', credits: '3.0', instructor: 'Operations Dept' },
+    { id: 'mgst391', code: 'MGST 391', name: 'Management Analytics', credits: '3.0', instructor: 'Management Science' },
+    { id: 'mktg317', code: 'MKTG 317', name: 'Marketing Management', credits: '3.0', instructor: 'Marketing Dept' },
+    { id: 'psyc203', code: 'PSYC 203', name: 'Psychology Principles', credits: '3.0', instructor: 'Psychology Dept' }
+  ];
+
+  const courses = (schoolData.courses && schoolData.courses.length > 0)
+    ? schoolData.courses
+    : defaultUniversityCourses;
+
+  const [selectedCourse, setSelectedCourse] = useState(courses[0]?.id || 'fnce317');
   const [assignments, setAssignments] = useState(schoolData.assignments || []);
-  const [selectedCourse, setSelectedCourse] = useState(schoolData.courses?.[0]?.id || null);
   const [vaultMeta, setVaultMeta] = useState(getVaultMetadata());
   const [scannedFiles, setScannedFiles] = useState([]);
 
@@ -68,7 +81,6 @@ export const SchoolView = ({
 
   const loadVaultFiles = async () => {
     try {
-      // 1. Instantly load from persistent cache
       const cached = getCachedVaultFiles();
       if (cached && cached.files && cached.files.length > 0) {
         setScannedFiles(cached.files);
@@ -81,7 +93,6 @@ export const SchoolView = ({
         }));
       }
 
-      // 2. Try live handle scan
       const handle = await getVaultHandle();
       if (handle) {
         const scanned = await scanVaultDirectory(handle);
@@ -107,8 +118,7 @@ export const SchoolView = ({
     setWeakSpots(getWeakSpots());
   };
 
-  const courses = schoolData.courses || [];
-  const activeCourse = courses.find(c => c.id === selectedCourse) || courses[0];
+  const activeCourse = courses.find(c => c.id === selectedCourse || c.code === selectedCourse) || courses[0];
 
   const toggleAssignment = (id) => {
     playSound('click', soundEnabled);
@@ -170,7 +180,7 @@ export const SchoolView = ({
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-24 select-none">
+    <div className="space-y-6 max-w-6xl mx-auto pb-24">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/[0.06]">
         <div>
@@ -185,11 +195,10 @@ export const SchoolView = ({
 
         {/* Action Controls & Stats */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* NotebookLM Study Brain Status Pill */}
           <button
             type="button"
             onClick={() => {
-              playSound('click', soundEnabled);
+              // playSound('click', soundEnabled);
               setIsVaultModalOpen(true);
             }}
             className="px-3 py-1.5 rounded-xl bg-[#6d28d9]/20 hover:bg-[#6d28d9]/30 text-[#c4b5fd] border border-[#7c3aed]/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
@@ -207,39 +216,36 @@ export const SchoolView = ({
                 : '—'}
             </div>
           </div>
-
-          <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-white/[0.03] border border-white/10 text-center">
-            <div className="text-[9px] uppercase font-semibold text-slate-400">Decks / Quizzes</div>
-            <div className="text-xs sm:text-sm font-mono font-bold text-white">{savedDecks.length + savedQuizzes.length}</div>
-          </div>
         </div>
       </div>
 
-      {/* WEAK-SPOT ALERT BANNER (If missed questions exist) */}
+      {/* WEAK-SPOT DRILL BANNER */}
       {weakSpots.length > 0 && (
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4" />
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Flame className="w-4 h-4" />
             </div>
-            <div>
-              <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>Weak-Spot Bank: {weakSpots.length} Concept{weakSpots.length > 1 ? 's' : ''}</span>
-                <span className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">Exam Priority</span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <span>Active Weak Spots Detected</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-200">
+                  {weakSpots.length} Questions
+                </span>
               </div>
-              <div className="text-[11px] text-amber-200/80 mt-0.5">
-                Missed questions from recent quizzes. Practice targeted drill to achieve 100% mastery.
-              </div>
+              <p className="text-[11px] text-amber-200/70 truncate">
+                Targeted practice based on past quiz errors to maximize exam mastery.
+              </p>
             </div>
           </div>
 
           <button
             type="button"
             onClick={handleLaunchWeakSpotDrill}
-            className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer flex items-center gap-1.5 justify-center"
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer flex items-center gap-1.5 justify-center"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Drill Weak Spots ({weakSpots.length})</span>
+            <span>Drill Weak Spots</span>
           </button>
         </div>
       )}
@@ -281,7 +287,7 @@ export const SchoolView = ({
         {/* NotebookLM Study Brain */}
         <div
           onClick={() => {
-            playSound('click', soundEnabled);
+            // playSound('click', soundEnabled);
             setIsVaultModalOpen(true);
           }}
           className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-purple-950/20 to-indigo-950/20 hover:from-purple-950/35 hover:to-indigo-950/35 border border-purple-500/25 hover:border-purple-500/45 transition-all cursor-pointer shadow-sm group"
@@ -294,7 +300,7 @@ export const SchoolView = ({
             <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/30 text-purple-200 uppercase font-bold">AI</span>
           </h3>
           <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-            Grade weights, exam cheatsheets & AI notes chat for all 5 classes.
+            Grade weights, exam cheatsheets & AI notes chat for all 6 classes.
           </p>
         </div>
       </div>
@@ -310,9 +316,9 @@ export const SchoolView = ({
             <button
               type="button"
               onClick={() => handleOpenStudyTool('flashcards')}
-              className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+              className="text-xs text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
             >
-              + Create New Deck
+              + New Deck
             </button>
           </div>
 
@@ -363,99 +369,129 @@ export const SchoolView = ({
 
       {/* Courses Area & Focus Timer */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left: Active Course Deliverables or Obsidian Link */}
-        <div className="lg:col-span-2 space-y-4">
-          {courses.length > 0 && activeCourse ? (
-            <GlassCard hoverEffect={false} className="p-5">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4 flex-wrap gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded font-mono text-xs font-bold text-white" style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}>
-                      {activeCourse.code}
-                    </span>
-                    <h2 className="text-sm font-bold text-white">{activeCourse.name}</h2>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">{activeCourse.credits || '3.0'} Credits • {activeCourse.instructor || ''}</p>
-                </div>
+        {/* Left: Active Course Deliverables & Selector */}
+        <div className="lg:col-span-2 space-y-3">
+          {/* 6 UNIVERSITY COURSE TABS */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            {courses.map((course) => {
+              const isActive = activeCourse?.id === course.id || activeCourse?.code === course.code;
+              return (
+                <button
+                  key={course.id || course.code}
+                  type="button"
+                  onClick={() => {
+                    // playSound('click', soundEnabled);
+                    setSelectedCourse(course.id || course.code);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-purple-600 text-white shadow-md border border-purple-400/50 scale-[1.02]'
+                      : 'bg-white/[0.03] text-slate-400 hover:text-slate-200 border border-white/5 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>{course.code}</span>
+                </button>
+              );
+            })}
+          </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenStudyTool('flashcards')}
-                    className="px-2.5 py-1 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <Layers className="w-3 h-3" />
-                    <span>Flashcards</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenStudyTool('quiz')}
-                    className="px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <HelpCircle className="w-3 h-3" />
-                    <span>Quiz</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Assignments */}
-              <div className="space-y-2">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  Course Deliverables
-                </div>
-
-                {assignments.filter(a => a.course === activeCourse.code).length > 0 ? (
-                  assignments.filter(a => a.course === activeCourse.code).map((a) => (
-                    <div 
-                      key={a.id}
-                      onClick={() => toggleAssignment(a.id)}
-                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
-                        a.completed 
-                          ? 'bg-white/[0.01] border-white/5 text-slate-500 line-through' 
-                          : 'bg-white/[0.03] border-white/10 hover:border-white/20 text-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <button className="shrink-0">
-                          {a.completed ? (
-                            <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-                          ) : (
-                            <Circle className="w-4 h-4 text-slate-500" />
-                          )}
-                        </button>
-                        <div className="truncate">
-                          <div className="text-xs font-semibold text-white">{a.title}</div>
-                          {a.weight && <div className="text-[10px] text-slate-400 font-mono">Weight: {a.weight}</div>}
-                        </div>
-                      </div>
-
-                      {a.dueDate && (
-                        <span className="text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded bg-black/30 border border-white/5 shrink-0">
-                          Due: {a.dueDate}
-                        </span>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-400">
-                    No upcoming deliverables logged for {activeCourse.code}.
-                  </div>
-                )}
-              </div>
-            </GlassCard>
-          ) : (
-            <GlassCard hoverEffect={false} className="p-6 text-center space-y-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#6d28d9]/15 border border-[#7c3aed]/30 flex items-center justify-center mx-auto text-[#a78bfa]">
-                <FolderSync className="w-5 h-5" />
-              </div>
+          <GlassCard hoverEffect={false} className="p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4 flex-wrap gap-2">
               <div>
-                <h3 className="text-xs font-bold text-white">Connect Obsidian or Import Syllabus</h3>
-                <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1">
-                  Upload your syllabus in Calendar or link your Obsidian Vault to populate courses automatically.
-                </p>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold text-white" style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}>
+                    {activeCourse.code}
+                  </span>
+                  <h2 className="text-sm font-bold text-white">{activeCourse.name}</h2>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">{activeCourse.credits || '3.0'} Credits • {activeCourse.instructor || ''}</p>
               </div>
-            </GlassCard>
-          )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setSelectedDeckForStudy({ courseCode: activeCourse.code });
+                    setIsFlashcardsOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <Layers className="w-3 h-3" />
+                  <span>Flashcards</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setSelectedCourse(activeCourse.code);
+                    setIsQuizOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <HelpCircle className="w-3 h-3" />
+                  <span>Quiz</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setIsVaultModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>NotebookLM</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Assignments & Deliverables */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                Course Deliverables ({activeCourse.code})
+              </div>
+
+              {assignments.filter(a => a.course === activeCourse.code).length > 0 ? (
+                assignments.filter(a => a.course === activeCourse.code).map((a) => (
+                  <div 
+                    key={a.id}
+                    onClick={() => toggleAssignment(a.id)}
+                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                      a.completed 
+                        ? 'bg-white/[0.01] border-white/5 text-slate-500 line-through' 
+                        : 'bg-white/[0.03] border-white/10 hover:border-white/20 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <button className="shrink-0">
+                        {a.completed ? (
+                          <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                        ) : (
+                          <Circle className="w-4 h-4 text-slate-500" />
+                        )}
+                      </button>
+                      <div className="truncate">
+                        <div className="text-xs font-semibold text-white">{a.title}</div>
+                        {a.weight && <div className="text-[10px] text-slate-400 font-mono">Weight: {a.weight}</div>}
+                      </div>
+                    </div>
+
+                    {a.dueDate && (
+                      <span className="text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded bg-black/30 border border-white/5 shrink-0">
+                        Due: {a.dueDate}
+                      </span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-400">
+                  No upcoming deliverables logged for {activeCourse.code}.
+                </div>
+              )}
+            </div>
+          </GlassCard>
         </div>
 
         {/* Right: Deep Focus Study Shield */}
