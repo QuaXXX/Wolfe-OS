@@ -314,7 +314,7 @@ export function expandSectionLectures({ courseCode, section, term, topics = [], 
 /**
  * Call Gemini API with model rotation
  */
-async function callGemini(prompt, systemInstruction, config, timeoutMs = 12000) {
+export async function callGemini(prompt, systemInstruction, config, timeoutMs = 12000) {
   const apiKey = config?.apiKey || API_KEY;
   if (!apiKey) throw new Error("No Gemini API key configured.");
 

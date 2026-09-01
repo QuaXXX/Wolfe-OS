@@ -1,0 +1,350 @@
+/**
+ * Trading Storage & State Management for Wolfe OS
+ * Persists Hyperliquid Agent credentials, Watchlist, Positions, Trade Journal, Webhook Logs, and Hermes Briefings.
+ */
+
+const STORAGE_KEY_CONFIG = 'wolfe_trading_config_v1';
+const STORAGE_KEY_WATCHLIST = 'wolfe_trading_watchlist_v1';
+const STORAGE_KEY_POSITIONS = 'wolfe_trading_positions_v1';
+const STORAGE_KEY_JOURNAL = 'wolfe_trading_journal_v1';
+const STORAGE_KEY_WEBHOOK_LOGS = 'wolfe_trading_webhook_logs_v1';
+const STORAGE_KEY_HERMES_BRIEFS = 'wolfe_trading_hermes_briefs_v1';
+
+// Default Tickers for High-Liquidity Crypto & Stocks
+export const DEFAULT_WATCHLIST = [
+  { symbol: 'BTC', name: 'Bitcoin Perp', price: 92450.00, change: '+3.42%', isPositive: true, category: 'Crypto' },
+  { symbol: 'ETH', name: 'Ethereum Perp', price: 3420.50, change: '+2.15%', isPositive: true, category: 'Crypto' },
+  { symbol: 'SOL', name: 'Solana Perp', price: 188.75, change: '+5.80%', isPositive: true, category: 'Crypto' },
+  { symbol: 'HYPE', name: 'Hyperliquid Perp', price: 28.40, change: '+8.12%', isPositive: true, category: 'Crypto' },
+  { symbol: 'NVDA', name: 'Nvidia Corp', price: 132.80, change: '+1.94%', isPositive: true, category: 'Equity' },
+  { symbol: 'SPY', name: 'S&P 500 ETF', price: 588.20, change: '+0.45%', isPositive: true, category: 'Equity' }
+];
+
+export const DEFAULT_TRADING_CONFIG = {
+  broker: 'hyperliquid',
+  isLive: true,
+  testnet: false,
+  agentWalletAddress: '',
+  agentPrivateKey: '', // Stored locally only for trade-only signing
+  accountEquity: 10000,
+  maxDailyRiskUSD: 300,
+  maxDailyLossLimitUSD: 500,
+  defaultRiskPercent: 1.5,
+  maxLeverage: 10,
+  autoSlTpEnabled: true,
+  defaultRiskRewardRatio: 2.0,
+  webhookSecret: 'wolfe_wh_' + Math.random().toString(36).substring(2, 10),
+  hermesAutoScanHour: 5 // 5:00 AM MST
+};
+
+// ------------------------------------------------------------------
+// 1. CONFIGURATION
+// ------------------------------------------------------------------
+export function getTradingConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
+    return raw ? { ...DEFAULT_TRADING_CONFIG, ...JSON.parse(raw) } : DEFAULT_TRADING_CONFIG;
+  } catch {
+    return DEFAULT_TRADING_CONFIG;
+  }
+}
+
+export function saveTradingConfig(config) {
+  try {
+    const current = getTradingConfig();
+    const updated = { ...current, ...config, updatedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(updated));
+    return updated;
+  } catch (err) {
+    console.warn("Failed to save trading config:", err);
+    return config;
+  }
+}
+
+// ------------------------------------------------------------------
+// 2. WATCHLIST
+// ------------------------------------------------------------------
+export function getWatchlist() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_WATCHLIST);
+    return raw ? JSON.parse(raw) : DEFAULT_WATCHLIST;
+  } catch {
+    return DEFAULT_WATCHLIST;
+  }
+}
+
+export function saveWatchlist(list) {
+  try {
+    localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+    return list;
+  } catch {
+    return list;
+  }
+}
+
+export function addWatchlistTicker(tickerObj) {
+  const list = getWatchlist();
+  const symbol = (tickerObj.symbol || '').toUpperCase().trim();
+  if (!symbol) return list;
+  
+  const existingIdx = list.findIndex(item => item.symbol === symbol);
+  const newItem = {
+    symbol,
+    name: tickerObj.name || `${symbol} Asset`,
+    price: tickerObj.price || 100.00,
+    change: tickerObj.change || '0.00%',
+    isPositive: !tickerObj.change?.includes('-'),
+    category: tickerObj.category || 'Crypto'
+  };
+
+  let updatedList;
+  if (existingIdx >= 0) {
+    updatedList = [...list];
+    updatedList[existingIdx] = { ...updatedList[existingIdx], ...newItem };
+  } else {
+    updatedList = [newItem, ...list];
+  }
+
+  saveWatchlist(updatedList);
+  return updatedList;
+}
+
+export function removeWatchlistTicker(symbol) {
+  const list = getWatchlist().filter(item => item.symbol !== symbol);
+  saveWatchlist(list);
+  return list;
+}
+
+// ------------------------------------------------------------------
+// 3. OPEN POSITIONS
+// ------------------------------------------------------------------
+export function getOpenPositions() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_POSITIONS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveOpenPositions(positions) {
+  try {
+    localStorage.setItem(STORAGE_KEY_POSITIONS, JSON.stringify(positions));
+    return positions;
+  } catch {
+    return positions;
+  }
+}
+
+export function closePositionRecord(positionId, exitPrice, pnlUSD) {
+  const positions = getOpenPositions();
+  const pos = positions.find(p => p.id === positionId);
+  if (!pos) return false;
+
+  // 1. Remove from active positions
+  const remaining = positions.filter(p => p.id !== positionId);
+  saveOpenPositions(remaining);
+
+  // 2. Log to Journal
+  logCompletedTrade({
+    ticker: pos.ticker,
+    side: pos.side,
+    entryPrice: pos.entryPrice,
+    exitPrice: exitPrice || pos.currentPrice || pos.entryPrice,
+    size: pos.size,
+    leverage: pos.leverage || 1,
+    pnlUSD: pnlUSD !== undefined ? pnlUSD : ((exitPrice - pos.entryPrice) * pos.size * (pos.side === 'SHORT' ? -1 : 1)),
+    strategy: pos.strategy || 'Discretionary',
+    openedAt: pos.openedAt || new Date().toISOString(),
+    closedAt: new Date().toISOString()
+  });
+
+  return true;
+}
+
+// ------------------------------------------------------------------
+// 4. TRADE JOURNAL & PNL HISTORY
+// ------------------------------------------------------------------
+export function getTradeJournal() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_JOURNAL);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function logCompletedTrade(trade) {
+  try {
+    const journal = getTradeJournal();
+    const pnl = Number(trade.pnlUSD || 0);
+    const returnPct = trade.entryPrice ? Number((((trade.exitPrice - trade.entryPrice) / trade.entryPrice) * 100 * (trade.side === 'SHORT' ? -1 : 1)).toFixed(2)) : 0;
+    
+    const newEntry = {
+      id: trade.id || `tr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      ticker: (trade.ticker || 'BTC').toUpperCase(),
+      side: trade.side || 'LONG',
+      entryPrice: Number(trade.entryPrice || 0),
+      exitPrice: Number(trade.exitPrice || 0),
+      size: Number(trade.size || 0),
+      leverage: Number(trade.leverage || 1),
+      pnlUSD: pnl,
+      returnPct: returnPct,
+      isWin: pnl > 0,
+      strategy: trade.strategy || 'Trend Follow',
+      openedAt: trade.openedAt || new Date().toISOString(),
+      closedAt: trade.closedAt || new Date().toISOString(),
+      tags: trade.tags || [],
+      notes: trade.notes || '',
+      aiPostMortem: trade.aiPostMortem || null
+    };
+
+    journal.unshift(newEntry);
+    localStorage.setItem(STORAGE_KEY_JOURNAL, JSON.stringify(journal));
+    return newEntry;
+  } catch (err) {
+    console.warn("Failed to log trade:", err);
+    return trade;
+  }
+}
+
+export function deleteJournalTrade(tradeId) {
+  try {
+    const journal = getTradeJournal().filter(t => t.id !== tradeId);
+    localStorage.setItem(STORAGE_KEY_JOURNAL, JSON.stringify(journal));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Calculate Aggregate Performance Stats
+export function calculateTradingStats() {
+  const journal = getTradeJournal();
+  if (journal.length === 0) {
+    return {
+      totalTrades: 0,
+      winRate: 0,
+      totalPnlUSD: 0,
+      avgWinUSD: 0,
+      avgLossUSD: 0,
+      profitFactor: 0,
+      bestTradeUSD: 0,
+      worstTradeUSD: 0
+    };
+  }
+
+  let totalPnl = 0;
+  let wins = 0;
+  let grossWins = 0;
+  let grossLosses = 0;
+  let best = 0;
+  let worst = 0;
+
+  journal.forEach(t => {
+    const pnl = t.pnlUSD || 0;
+    totalPnl += pnl;
+    if (pnl > 0) {
+      wins++;
+      grossWins += pnl;
+      if (pnl > best) best = pnl;
+    } else {
+      grossLosses += Math.abs(pnl);
+      if (pnl < worst) worst = pnl;
+    }
+  });
+
+  const winRate = Math.round((wins / journal.length) * 100);
+  const profitFactor = grossLosses > 0 ? Number((grossWins / grossLosses).toFixed(2)) : grossWins > 0 ? 99 : 0;
+
+  return {
+    totalTrades: journal.length,
+    winRate,
+    totalPnlUSD: Number(totalPnl.toFixed(2)),
+    avgWinUSD: wins > 0 ? Number((grossWins / wins).toFixed(2)) : 0,
+    avgLossUSD: (journal.length - wins) > 0 ? Number((grossLosses / (journal.length - wins)).toFixed(2)) : 0,
+    profitFactor,
+    bestTradeUSD: Number(best.toFixed(2)),
+    worstTradeUSD: Number(worst.toFixed(2))
+  };
+}
+
+// ------------------------------------------------------------------
+// 5. WEBHOOK SIGNALS LOG
+// ------------------------------------------------------------------
+export function getWebhookLogs() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_WEBHOOK_LOGS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function logWebhookSignal(signal) {
+  try {
+    const logs = getWebhookLogs();
+    const entry = {
+      id: `wh_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      source: signal.source || 'TradingView',
+      ticker: (signal.ticker || 'UNKNOWN').toUpperCase(),
+      action: signal.action || 'BUY',
+      price: signal.price || 0,
+      stopLoss: signal.stopLoss || null,
+      takeProfit: signal.takeProfit || null,
+      strategy: signal.strategy || 'Alert',
+      status: signal.status || 'EXECUTED', // 'EXECUTED' | 'REJECTED' | 'FILTERED'
+      executionDetails: signal.executionDetails || null,
+      rawPayload: signal.rawPayload || signal
+    };
+
+    logs.unshift(entry);
+    localStorage.setItem(STORAGE_KEY_WEBHOOK_LOGS, JSON.stringify(logs.slice(0, 100)));
+    return entry;
+  } catch (err) {
+    console.warn("Failed to log webhook:", err);
+    return signal;
+  }
+}
+
+// ------------------------------------------------------------------
+// 6. HERMES MORNING WAR ROOM BRIEFS
+// ------------------------------------------------------------------
+export function getSavedHermesBriefs() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_HERMES_BRIEFS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveHermesBrief(brief) {
+  try {
+    const briefs = getSavedHermesBriefs();
+    const entry = {
+      id: brief.id || `brief_${new Date().toISOString().split('T')[0]}_${Date.now()}`,
+      date: brief.date || new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      macroRegime: brief.macroRegime || 'Neutral / Rangebound',
+      macroAnalysis: brief.macroAnalysis || '',
+      highConvictionPlays: brief.highConvictionPlays || [],
+      whaleFlowSignals: brief.whaleFlowSignals || [],
+      adversarialReview: brief.adversarialReview || '',
+      riskNotice: brief.riskNotice || ''
+    };
+
+    const updated = [entry, ...briefs.filter(b => b.date !== entry.date)].slice(0, 30);
+    localStorage.setItem(STORAGE_KEY_HERMES_BRIEFS, JSON.stringify(updated));
+    return entry;
+  } catch (err) {
+    console.warn("Failed to save Hermes brief:", err);
+    return brief;
+  }
+}
+
+export function getLatestHermesBrief() {
+  const briefs = getSavedHermesBriefs();
+  return briefs.length > 0 ? briefs[0] : null;
+}
