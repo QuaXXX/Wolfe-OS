@@ -28,7 +28,7 @@ import { FlashcardDeckModal } from '../school/FlashcardDeckModal';
 import { PracticeQuizModal } from '../school/PracticeQuizModal';
 import { VaultSearchModal } from '../school/VaultSearchModal';
 import { DeepFocusModal } from '../school/DeepFocusModal';
-import { getVaultMetadata, getVaultHandle, scanVaultDirectory } from '../../utils/obsidianService';
+import { getVaultMetadata, getVaultHandle, scanVaultDirectory, getCachedVaultFiles } from '../../utils/obsidianService';
 import { 
   getSavedDecks, 
   getSavedQuizzes, 
@@ -68,17 +68,33 @@ export const SchoolView = ({
 
   const loadVaultFiles = async () => {
     try {
+      // 1. Instantly load from persistent cache
+      const cached = getCachedVaultFiles();
+      if (cached && cached.files && cached.files.length > 0) {
+        setScannedFiles(cached.files);
+        setVaultMeta(prev => ({
+          ...prev,
+          connected: true,
+          folderName: cached.folderName || prev.folderName || 'school',
+          totalNotes: cached.files.length,
+          courses: cached.courses || prev.courses || []
+        }));
+      }
+
+      // 2. Try live handle scan
       const handle = await getVaultHandle();
       if (handle) {
         const scanned = await scanVaultDirectory(handle);
-        setScannedFiles(scanned.files);
-        setVaultMeta({
-          connected: true,
-          folderName: handle.name,
-          totalNotes: scanned.files.length,
-          courses: scanned.courses,
-          lastScanned: new Date().toISOString()
-        });
+        if (scanned && scanned.files.length > 0) {
+          setScannedFiles(scanned.files);
+          setVaultMeta({
+            connected: true,
+            folderName: handle.name,
+            totalNotes: scanned.files.length,
+            courses: scanned.courses,
+            lastScanned: new Date().toISOString()
+          });
+        }
       }
     } catch (e) {
       console.warn("Auto-load vault files notice:", e);

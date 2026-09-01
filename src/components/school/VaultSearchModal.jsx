@@ -28,10 +28,14 @@ export const VaultSearchModal = ({
 
   if (!isOpen) return null;
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!query.trim() || isSearching || !isConnected) return;
+  const hasConnectedFiles = isConnected || (scannedFiles && scannedFiles.length > 0);
 
+  const handleSearch = async (e, customQuery = null) => {
+    if (e) e.preventDefault();
+    const targetQ = (customQuery || query).trim();
+    if (!targetQ || isSearching || !hasConnectedFiles) return;
+
+    if (customQuery) setQuery(customQuery);
     playSound('click', soundEnabled);
     setIsSearching(true);
     setError(null);
@@ -39,7 +43,7 @@ export const VaultSearchModal = ({
 
     try {
       const res = await searchVaultWithAI({
-        query: query.trim(),
+        query: targetQ,
         filesIndex: scannedFiles,
         sampleNotes: scannedFiles
       });
@@ -47,7 +51,7 @@ export const VaultSearchModal = ({
       playSound('success', soundEnabled);
     } catch (err) {
       console.warn("Vault search error:", err);
-      setError(err.message || "Failed to search Obsidian notes.");
+      setError(err.message || "Failed to search notes.");
     } finally {
       setIsSearching(false);
     }
@@ -83,13 +87,16 @@ export const VaultSearchModal = ({
                 <Search className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">
-                  Search Obsidian Vault
+                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
+                  <span>Ask Course Notes</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
+                    Personal NotebookLM
+                  </span>
                 </h3>
                 <p className="text-[11px] sm:text-xs text-slate-400 truncate">
-                  {isConnected 
-                    ? `Search across ${scannedFiles.length} indexed files` 
-                    : "Connect notes folder for AI vault search"}
+                  {hasConnectedFiles 
+                    ? `AI synthesis across ${scannedFiles.length} course documents` 
+                    : "Connect school notes for instant AI study answers"}
                 </p>
               </div>
             </div>
@@ -106,15 +113,15 @@ export const VaultSearchModal = ({
           </div>
 
           {/* 1. NOT CONNECTED STATE */}
-          {!isConnected ? (
+          {!hasConnectedFiles ? (
             <div className="py-8 px-4 text-center space-y-4 rounded-2xl bg-white/[0.02] border border-white/10">
               <div className="w-12 h-12 rounded-2xl bg-[#6d28d9]/20 border border-[#7c3aed]/30 flex items-center justify-center mx-auto text-[#a78bfa]">
                 <FolderSync className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <h4 className="text-sm font-bold text-white">Obsidian Vault Not Connected</h4>
+                <h4 className="text-sm font-bold text-white">Course Notes Not Connected</h4>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                  To search and ask questions about your course notes, link your local Obsidian vault folder.
+                  To ask questions and study concepts across your course outlines and notes, connect your school folder.
                 </p>
               </div>
 
@@ -129,7 +136,7 @@ export const VaultSearchModal = ({
                   className="px-5 py-2.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-2 mx-auto cursor-pointer"
                 >
                   <FolderSync className="w-4 h-4" />
-                  <span>Connect Obsidian Vault</span>
+                  <span>Connect School Folder</span>
                 </button>
               </div>
             </div>

@@ -8,6 +8,7 @@ import { extractTextFromFile } from './documentParser.js';
 const DB_NAME = 'wolfe_os_vault_db';
 const STORE_NAME = 'handles';
 const HANDLE_KEY = 'obsidian_dir_handle';
+const FILES_CACHE_KEY = 'wolfe_obsidian_files_cache';
 const VAULT_METADATA_KEY = 'wolfe_obsidian_vault_meta';
 
 // Helper to open IndexedDB
@@ -16,7 +17,7 @@ function openDB() {
     if (typeof indexedDB === 'undefined') {
       return reject(new Error("IndexedDB is not supported"));
     }
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -48,6 +49,51 @@ export async function saveVaultHandle(handle) {
 }
 
 /**
+ * Save indexed files cache to IndexedDB / LocalStorage
+ */
+export async function saveCachedVaultFiles(files = [], courses = [], folderName = 'school') {
+  try {
+    const safeFiles = files.map(f => ({
+      name: f.name,
+      path: f.path,
+      extension: f.extension,
+      course: f.course,
+      size: f.size || 0,
+      cachedContent: f.cachedContent ? f.cachedContent.slice(0, 10000) : ''
+    }));
+
+    const payload = {
+      folderName,
+      files: safeFiles,
+      courses,
+      lastUpdated: new Date().toISOString()
+    };
+
+    localStorage.setItem(FILES_CACHE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn("Files cache warning:", e);
+  }
+}
+
+/**
+ * Retrieve cached files from storage
+ */
+export function getCachedVaultFiles() {
+  try {
+    const raw = localStorage.getItem(FILES_CACHE_KEY);
+    if (!raw) return { files: [], courses: [], folderName: null };
+    const data = JSON.parse(raw);
+    return {
+      files: data.files || [],
+      courses: data.courses || [],
+      folderName: data.folderName || 'school'
+    };
+  } catch {
+    return { files: [], courses: [], folderName: null };
+  }
+}
+
+/**
  * Retrieve directory handle from IndexedDB
  */
 export async function getVaultHandle() {
@@ -66,7 +112,7 @@ export async function getVaultHandle() {
 }
 
 /**
- * Remove stored vault handle
+ * Remove stored vault handle & cache
  */
 export async function clearVaultHandle() {
   try {
@@ -74,6 +120,7 @@ export async function clearVaultHandle() {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     tx.objectStore(STORE_NAME).delete(HANDLE_KEY);
     localStorage.removeItem(VAULT_METADATA_KEY);
+    localStorage.removeItem(FILES_CACHE_KEY);
   } catch (err) {
     console.warn("Clear handle notice:", err);
   }
@@ -82,15 +129,17 @@ export async function clearVaultHandle() {
 /**
  * Verify / request permission for stored handle
  */
-export async function verifyHandlePermission(handle, readWrite = true) {
+export async function verifyHandlePermission(handle, readWrite = false) {
   if (!handle) return false;
   const options = { mode: readWrite ? 'readwrite' : 'read' };
   try {
-    if ((await handle.queryPermission(options)) === 'granted') {
-      return true;
+    if (handle.queryPermission) {
+      const status = await handle.queryPermission(options);
+      if (status === 'granted') return true;
     }
-    if ((await handle.requestPermission(options)) === 'granted') {
-      return true;
+    if (handle.requestPermission) {
+      const status = await handle.requestPermission(options);
+      if (status === 'granted') return true;
     }
   } catch (e) {
     console.warn("Permission query notice:", e);
@@ -103,11 +152,11 @@ export async function verifyHandlePermission(handle, readWrite = true) {
  */
 export async function connectObsidianVault() {
   if (typeof window === 'undefined' || !window.showDirectoryPicker) {
-    throw new Error("Your browser does not support the File System Access API. Please use Chrome, Edge, or Brave.");
+    throw new Error("Your browser does not support the File System Access API. Please use the folder selector below.");
   }
 
   const handle = await window.showDirectoryPicker({
-    mode: 'readwrite',
+    mode: 'read',
     startIn: 'documents'
   });
 
@@ -122,40 +171,165 @@ export async function connectObsidianVault() {
     lastScanned: new Date().toISOString()
   };
   localStorage.setItem(VAULT_METADATA_KEY, JSON.stringify(meta));
+  await saveCachedVaultFiles(scanned.files, scanned.courses, handle.name);
 
   return { handle, ...scanned };
 }
 
 /**
- * Recursively scan directory handle for .md, .txt, .pdf files
+ * Universal HTML5 FileList processor for folder selection (works across ALL browsers & mobile)
+ */
+export async function processUploadedFolderFiles(fileList) {
+  if (!fileList || fileList.length === 0) return { files: [], courses: [] };
+
+  const files = [];
+  const coursesSet = new Set();
+
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
+    const rawPath = file.webkitRelativePath || file.name;
+    
+    // Skip hidden files (.obsidian, .git, .DS_Store)
+    if (rawPath.split('/').some(part => part.startsWith('.'))) continue;
+
+    const lowerName = file.name.toLowerCase();
+    const isDoc = lowerName.endsWith('.md') || lowerName.endsWith('.pdf') || lowerName.endsWith('.txt') || 
+                  lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerName.endsWith('.canvas') || 
+                  lowerName.endsWith('.csv') || lowerName.endsWith('.html') || lowerName.endsWith('.rtf') || 
+                  !file.name.includes('.');
+
+    if (!isDoc) continue;
+
+    // Detect course from path parts or regex
+    const pathParts = rawPath.split('/');
+    let detectedCourse = null;
+    
+    // Subfolder name (e.g. school/FNCE 317/outline.pdf -> "FNCE 317")
+    if (pathParts.length > 1) {
+      const folderCandidate = pathParts[pathParts.length - 2];
+      if (folderCandidate && folderCandidate.toLowerCase() !== 'school') {
+        detectedCourse = folderCandidate.trim();
+      }
+    }
+
+    // Regex fallback
+    if (!detectedCourse) {
+      const match = rawPath.match(/([A-Z]{2,6}\s*\d{0,4})/i);
+      if (match && match[1].length >= 2) detectedCourse = match[1].toUpperCase();
+    }
+
+    if (detectedCourse) coursesSet.add(detectedCourse);
+
+    let cachedText = '';
+    try {
+      cachedText = await extractTextFromFile(file);
+    } catch {}
+
+    files.push({
+      name: file.name,
+      path: rawPath,
+      extension: file.name.split('.').pop().toLowerCase(),
+      course: detectedCourse || 'Course Material',
+      fileObject: file,
+      size: file.size,
+      cachedContent: cachedText
+    });
+  }
+
+  const courses = Array.from(coursesSet);
+  const meta = {
+    connected: true,
+    folderName: files[0]?.path.split('/')[0] || 'school',
+    totalNotes: files.length,
+    courses,
+    lastScanned: new Date().toISOString()
+  };
+  localStorage.setItem(VAULT_METADATA_KEY, JSON.stringify(meta));
+  await saveCachedVaultFiles(files, courses, meta.folderName);
+
+  return { files, courses };
+}
+
+/**
+ * Recursively scan directory handle for notes, outlines & PDFs
  */
 export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
   const files = [];
   const coursesSet = new Set();
 
   async function traverse(currentHandle, currentPath) {
-    for await (const entry of currentHandle.values()) {
+    let entriesIterable = null;
+    try {
+      if (typeof currentHandle.values === 'function') {
+        entriesIterable = currentHandle.values();
+      } else if (typeof currentHandle.entries === 'function') {
+        entriesIterable = (async function* () {
+          for await (const [, entry] of currentHandle.entries()) {
+            yield entry;
+          }
+        })();
+      }
+    } catch (e) {
+      console.warn("Could not get entries iterable:", e);
+      return;
+    }
+
+    if (!entriesIterable) return;
+
+    for await (const entry of entriesIterable) {
       const entryPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
       
       // Skip hidden folders (.obsidian, .trash, .git, etc.)
       if (entry.name.startsWith('.')) continue;
 
       if (entry.kind === 'directory') {
+        // Detect course folder name
+        const folderName = entry.name.trim();
+        if (folderName.toLowerCase() !== 'school') {
+          coursesSet.add(folderName);
+        }
         await traverse(entry, entryPath);
       } else if (entry.kind === 'file') {
         const lowerName = entry.name.toLowerCase();
-        if (lowerName.endsWith('.md') || lowerName.endsWith('.txt') || lowerName.endsWith('.pdf')) {
-          // Detect course codes from filename or path (e.g. CPSC 331, MATH 211, PSYC 203)
-          const courseMatch = entryPath.match(/([A-Z]{2,6}\s*\d{3,4})/i);
-          const detectedCourse = courseMatch ? courseMatch[1].toUpperCase() : null;
+        // Support any study file format
+        const isDoc = lowerName.endsWith('.md') || lowerName.endsWith('.txt') || lowerName.endsWith('.pdf') || 
+                      lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerName.endsWith('.canvas') || 
+                      lowerName.endsWith('.csv') || lowerName.endsWith('.html') || lowerName.endsWith('.rtf') ||
+                      !entry.name.includes('.');
+
+        if (isDoc) {
+          // Detect course from directory parent or course code
+          const parts = entryPath.split('/');
+          let detectedCourse = null;
+          if (parts.length > 1) {
+            const parent = parts[parts.length - 2];
+            if (parent && parent.toLowerCase() !== 'school') {
+              detectedCourse = parent.trim();
+            }
+          }
+
+          if (!detectedCourse) {
+            const courseMatch = entryPath.match(/([A-Z]{2,6}\s*\d{0,4})/i);
+            if (courseMatch && courseMatch[1].length >= 2) {
+              detectedCourse = courseMatch[1].toUpperCase();
+            }
+          }
+
           if (detectedCourse) coursesSet.add(detectedCourse);
+
+          let cachedContent = '';
+          try {
+            const fileObj = await entry.getFile();
+            cachedContent = await extractTextFromFile(fileObj);
+          } catch {}
 
           files.push({
             name: entry.name,
             path: entryPath,
             extension: entry.name.split('.').pop().toLowerCase(),
-            course: detectedCourse,
-            handle: entry
+            course: detectedCourse || 'Course Material',
+            handle: entry,
+            cachedContent
           });
         }
       }
@@ -168,61 +342,11 @@ export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
     console.warn("Vault scan error:", err);
   }
 
+  const courses = Array.from(coursesSet);
   return {
     files,
-    courses: Array.from(coursesSet)
+    courses
   };
-}
-
-/**
- * Read text content from a file handle
- */
-export async function readVaultFileContent(fileHandle) {
-  if (!fileHandle) return '';
-  try {
-    const file = await fileHandle.getFile();
-    return await extractTextFromFile(file);
-  } catch (err) {
-    console.warn("Read file error:", err);
-    return '';
-  }
-}
-
-/**
- * Save a new or updated Markdown note into the Obsidian Vault
- */
-export async function saveMarkdownToVault(dirHandle, subfolder, filename, content) {
-  if (!dirHandle) throw new Error("No Obsidian vault connected.");
-  const hasPermission = await verifyHandlePermission(dirHandle, true);
-  if (!hasPermission) throw new Error("Permission to write to Obsidian vault was not granted.");
-
-  let targetDir = dirHandle;
-  if (subfolder && subfolder !== '.') {
-    const parts = subfolder.split('/').filter(Boolean);
-    for (const part of parts) {
-      targetDir = await targetDir.getDirectoryHandle(part, { create: true });
-    }
-  }
-
-  const cleanFilename = filename.endsWith('.md') ? filename : `${filename}.md`;
-  const fileHandle = await targetDir.getFileHandle(cleanFilename, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close();
-
-  return { success: true, path: subfolder ? `${subfolder}/${cleanFilename}` : cleanFilename };
-}
-
-/**
- * Get current connected vault metadata
- */
-export function getVaultMetadata() {
-  try {
-    const meta = localStorage.getItem(VAULT_METADATA_KEY);
-    return meta ? JSON.parse(meta) : { connected: false, folderName: null, totalNotes: 0, courses: [] };
-  } catch {
-    return { connected: false, folderName: null, totalNotes: 0, courses: [] };
-  }
 }
 
 /**
@@ -299,7 +423,74 @@ export async function findCourseOutlineContent(scannedFiles = [], courseQuery = 
 }
 
 /**
+ * Read text content from a file or file handle
+ */
+export async function readVaultFileContent(fileOrHandle) {
+  if (!fileOrHandle) return '';
+  if (typeof fileOrHandle === 'string') return fileOrHandle;
+  if (fileOrHandle.cachedContent) return fileOrHandle.cachedContent;
+  
+  try {
+    if (fileOrHandle.fileObject) {
+      return await extractTextFromFile(fileOrHandle.fileObject);
+    }
+    if (fileOrHandle.handle) {
+      const fileObj = await fileOrHandle.handle.getFile();
+      return await extractTextFromFile(fileObj);
+    }
+    if (fileOrHandle.getFile) {
+      const fileObj = await fileOrHandle.getFile();
+      return await extractTextFromFile(fileObj);
+    }
+    if (typeof File !== 'undefined' && fileOrHandle instanceof File) {
+      return await extractTextFromFile(fileOrHandle);
+    }
+  } catch (err) {
+    console.warn("Read file error:", err);
+  }
+  return fileOrHandle.cachedContent || '';
+}
+
+/**
+ * Save a new or updated Markdown note into the Obsidian Vault
+ */
+export async function saveMarkdownToVault(dirHandle, subfolder, filename, content) {
+  if (!dirHandle) throw new Error("No Obsidian vault connected.");
+  const hasPermission = await verifyHandlePermission(dirHandle, true);
+  if (!hasPermission) throw new Error("Permission to write to Obsidian vault was not granted.");
+
+  let targetDir = dirHandle;
+  if (subfolder && subfolder !== '.') {
+    const parts = subfolder.split('/').filter(Boolean);
+    for (const part of parts) {
+      targetDir = await targetDir.getDirectoryHandle(part, { create: true });
+    }
+  }
+
+  const cleanFilename = filename.endsWith('.md') ? filename : `${filename}.md`;
+  const fileHandle = await targetDir.getFileHandle(cleanFilename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(content);
+  await writable.close();
+
+  return { success: true, path: subfolder ? `${subfolder}/${cleanFilename}` : cleanFilename };
+}
+
+/**
+ * Get current connected vault metadata
+ */
+export function getVaultMetadata() {
+  try {
+    const meta = localStorage.getItem(VAULT_METADATA_KEY);
+    return meta ? JSON.parse(meta) : { connected: false, folderName: null, totalNotes: 0, courses: [] };
+  } catch {
+    return { connected: false, folderName: null, totalNotes: 0, courses: [] };
+  }
+}
+
+/**
  * Vault sample notes (empty until user connects their personal Obsidian vault)
  */
 export const SAMPLE_OBSIDIAN_VAULT = [];
+
 

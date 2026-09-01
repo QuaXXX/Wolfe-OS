@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -12,7 +12,8 @@ import {
   ExternalLink,
   BookOpen,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Upload
 } from 'lucide-react';
 import { 
   connectObsidianVault, 
@@ -21,6 +22,8 @@ import {
   clearVaultHandle, 
   getVaultMetadata,
   readVaultFileContent,
+  getCachedVaultFiles,
+  processUploadedFolderFiles,
   SAMPLE_OBSIDIAN_VAULT
 } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
@@ -37,48 +40,56 @@ export const ObsidianVaultManagerModal = ({
   const [scannedFiles, setScannedFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileContent, setFileContent] = useState('');
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState('ALL');
   const [error, setError] = useState(null);
+
+  const folderInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
       setError(null);
       setSelectedFile(null);
       setFileContent('');
+      
+      // 1. Instantly load cached files from storage so UI is never blank
+      const cached = getCachedVaultFiles();
+      if (cached && cached.files && cached.files.length > 0) {
+        setScannedFiles(cached.files);
+        setVaultMeta(prev => ({
+          ...prev,
+          connected: true,
+          folderName: cached.folderName || prev.folderName || 'school',
+          totalNotes: cached.files.length,
+          courses: cached.courses || prev.courses || []
+        }));
+      }
+
+      // 2. Try background handle verification
       loadExistingHandle();
     }
   }, [isOpen]);
 
   const loadExistingHandle = async () => {
-    setIsLoading(true);
     try {
       const handle = await getVaultHandle();
       if (handle) {
         setActiveHandle(handle);
         const scanned = await scanVaultDirectory(handle);
-        setScannedFiles(scanned.files);
-        setVaultMeta({
-          connected: true,
-          folderName: handle.name,
-          totalNotes: scanned.files.length,
-          courses: scanned.courses,
-          lastScanned: new Date().toISOString()
-        });
-      } else {
-        setActiveHandle(null);
-        // Fallback sample files for instant demonstration
-        setScannedFiles(SAMPLE_OBSIDIAN_VAULT.map(s => ({
-          name: s.name,
-          path: s.path,
-          extension: 'md',
-          course: s.course,
-          isSample: true,
-          sampleContent: s.content
-        })));
+        if (scanned && scanned.files.length > 0) {
+          setScannedFiles(scanned.files);
+          const newMeta = {
+            connected: true,
+            folderName: handle.name,
+            totalNotes: scanned.files.length,
+            courses: scanned.courses,
+            lastScanned: new Date().toISOString()
+          };
+          setVaultMeta(newMeta);
+          if (onVaultUpdated) onVaultUpdated(newMeta, scanned.files);
+        }
       }
     } catch (err) {
       console.warn("Load handle notice:", err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -89,13 +100,52 @@ export const ObsidianVaultManagerModal = ({
     setIsLoading(true);
     setError(null);
 
+    // Try Native Directory Picker (Chrome/Edge/Desktop)
+    if (typeof window !== 'undefined' && window.showDirectoryPicker) {
+      try {
+        const { handle, files, courses } = await connectObsidianVault();
+        setActiveHandle(handle);
+        setScannedFiles(files);
+        const newMeta = {
+          connected: true,
+          folderName: handle.name,
+          totalNotes: files.length,
+          courses,
+          lastScanned: new Date().toISOString()
+        };
+        setVaultMeta(newMeta);
+        playSound('success', soundEnabled);
+        if (onVaultUpdated) onVaultUpdated(newMeta, files);
+        setIsLoading(false);
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          setIsLoading(false);
+          return;
+        }
+        console.warn("Directory picker fallback to file input:", err);
+      }
+    }
+
+    // Fallback: Trigger standard universal folder upload input
+    setIsLoading(false);
+    if (folderInputRef.current) {
+      folderInputRef.current.click();
+    }
+  };
+
+  const handleFolderUploadChange = async (e) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    setIsLoading(true);
+    setError(null);
     try {
-      const { handle, files, courses } = await connectObsidianVault();
-      setActiveHandle(handle);
+      const { files, courses } = await processUploadedFolderFiles(fileList);
       setScannedFiles(files);
       const newMeta = {
         connected: true,
-        folderName: handle.name,
+        folderName: files[0]?.path.split('/')[0] || 'school',
         totalNotes: files.length,
         courses,
         lastScanned: new Date().toISOString()
@@ -104,11 +154,10 @@ export const ObsidianVaultManagerModal = ({
       playSound('success', soundEnabled);
       if (onVaultUpdated) onVaultUpdated(newMeta, files);
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        setError(err.message || "Could not connect to the selected folder.");
-      }
+      setError(err.message || "Failed to process folder files.");
     } finally {
       setIsLoading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -117,30 +166,21 @@ export const ObsidianVaultManagerModal = ({
     await clearVaultHandle();
     setActiveHandle(null);
     setVaultMeta({ connected: false, folderName: null, totalNotes: 0, courses: [] });
-    setScannedFiles(SAMPLE_OBSIDIAN_VAULT.map(s => ({
-      name: s.name,
-      path: s.path,
-      extension: 'md',
-      course: s.course,
-      isSample: true,
-      sampleContent: s.content
-    })));
+    setScannedFiles([]);
     setSelectedFile(null);
     setFileContent('');
-    if (onVaultUpdated) onVaultUpdated({ connected: false }, []);
+    if (onVaultUpdated) onVaultUpdated({ connected: false, folderName: null, totalNotes: 0, courses: [] }, []);
   };
 
   const handleFileClick = async (file) => {
     playSound('click', soundEnabled);
     setSelectedFile(file);
-    if (file.isSample) {
-      setFileContent(file.sampleContent || '');
+    if (file.cachedContent) {
+      setFileContent(file.cachedContent);
       return;
     }
-    if (file.handle) {
-      const text = await readVaultFileContent(file.handle);
-      setFileContent(text);
-    }
+    const text = await readVaultFileContent(file);
+    setFileContent(text || "No readable text content in this file.");
   };
 
   const modalContent = (
@@ -227,11 +267,56 @@ export const ObsidianVaultManagerModal = ({
               )}
             </div>
 
+            {/* Hidden Native / Webkit Folder Upload Input */}
+            <input 
+              ref={folderInputRef}
+              type="file"
+              webkitdirectory="true"
+              directory="true"
+              multiple
+              onChange={handleFolderUploadChange}
+              className="hidden"
+            />
+
             <p className="text-xs text-slate-300">
               {vaultMeta.connected 
-                ? `Wolfe OS has live read & write access to ${scannedFiles.length} notes across ${vaultMeta.courses?.length || 0} detected courses. AI automatically retrieves context for study decks and email drafts.`
-                : "Select your local Obsidian vault folder once. Wolfe OS uses the browser's File System Access API to index your notes privately on your device without uploading anything to external servers."}
+                ? `Wolfe OS has indexed ${scannedFiles.length} course documents across ${vaultMeta.courses?.length || 0} classes. Your notes act as your private study NotebookLM for practice quizzes, flashcards, and instant concept queries.`
+                : "Connect your local school folder with your course outlines and notes. Wolfe OS scans your classes privately on-device for instant AI active-recall studying."}
             </p>
+
+            {/* Course Filter Tags (If courses found) */}
+            {vaultMeta.courses && vaultMeta.courses.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourseFilter('ALL')}
+                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-semibold border transition-all cursor-pointer ${
+                    selectedCourseFilter === 'ALL'
+                      ? 'bg-purple-500/25 text-purple-200 border-purple-500/40'
+                      : 'bg-white/[0.02] text-slate-400 border-white/5 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  All ({scannedFiles.length})
+                </button>
+                {vaultMeta.courses.map((course, idx) => {
+                  const count = scannedFiles.filter(f => f.course === course).length;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setSelectedCourseFilter(course)}
+                      className={`px-2.5 py-0.5 rounded-lg text-[10px] font-semibold border transition-all cursor-pointer ${
+                        selectedCourseFilter === course
+                          ? 'bg-purple-500/25 text-purple-200 border-purple-500/40'
+                          : 'bg-white/[0.02] text-slate-400 border-white/5 hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      {course} {count > 0 ? `(${count})` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Scanned Files Tree & Preview */}
@@ -239,43 +324,51 @@ export const ObsidianVaultManagerModal = ({
             {/* File List */}
             <div className="space-y-1.5 overflow-y-auto pr-1">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between pb-1">
-                <span>Indexed Notes ({scannedFiles.length})</span>
-                {activeHandle && (
+                <span>Indexed Documents ({scannedFiles.filter(f => selectedCourseFilter === 'ALL' || f.course === selectedCourseFilter).length})</span>
+                {vaultMeta.connected && (
                   <button 
-                    onClick={loadExistingHandle} 
-                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                    onClick={handleConnectFolder} 
+                    className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer font-medium"
                   >
                     <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
-                    <span>Rescan</span>
+                    <span>Sync / Rescan</span>
                   </button>
                 )}
               </div>
 
-              {scannedFiles.map((file, idx) => {
-                const isSelected = selectedFile?.path === file.path;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleFileClick(file)}
-                    className={`w-full text-left p-2 rounded-xl text-xs border transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                      isSelected
-                        ? 'bg-white/[0.08] border-white/30 text-white shadow-sm'
-                        : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      <span className="truncate">{file.name}</span>
-                    </div>
-                    {file.course && (
-                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-slate-400 border border-white/10 shrink-0">
-                        {file.course}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+              {scannedFiles
+                .filter(f => selectedCourseFilter === 'ALL' || f.course === selectedCourseFilter)
+                .map((file, idx) => {
+                  const isSelected = selectedFile?.path === file.path;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleFileClick(file)}
+                      className={`w-full text-left p-2 rounded-xl text-xs border transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                        isSelected
+                          ? 'bg-purple-500/20 border-purple-500/40 text-white shadow-sm'
+                          : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <span className="truncate">{file.name}</span>
+                      </div>
+                      {file.course && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-purple-300 border border-white/10 shrink-0">
+                          {file.course}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+
+              {scannedFiles.length === 0 && (
+                <div className="text-center py-6 text-slate-500 text-xs">
+                  No files found yet. Click "Select Obsidian Vault Folder" above.
+                </div>
+              )}
             </div>
 
             {/* Note Preview Box */}
@@ -284,7 +377,7 @@ export const ObsidianVaultManagerModal = ({
                 <div className="space-y-2">
                   <div className="text-xs font-bold font-sans text-white border-b border-white/10 pb-1 flex items-center justify-between">
                     <span className="truncate">{selectedFile.name}</span>
-                    <span className="text-[10px] text-purple-300 font-mono">Preview</span>
+                    <span className="text-[10px] text-purple-300 font-mono">{selectedFile.course || 'Document'}</span>
                   </div>
                   <pre className="whitespace-pre-wrap font-sans text-xs text-slate-300 leading-relaxed">
                     {fileContent || "Loading content..."}
@@ -293,7 +386,7 @@ export const ObsidianVaultManagerModal = ({
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-500">
                   <BookOpen className="w-6 h-6 mb-2 opacity-50 text-purple-400" />
-                  <p className="text-xs">Click any note to preview its contents and structure.</p>
+                  <p className="text-xs">Click any course outline or note to preview its contents.</p>
                 </div>
               )}
             </div>
