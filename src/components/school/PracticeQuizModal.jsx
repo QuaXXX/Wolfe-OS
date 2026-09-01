@@ -11,64 +11,87 @@ import {
   X, 
   Loader2, 
   Lightbulb, 
-  GraduationCap,
-  Sliders,
-  Flame,
-  AlertOctagon,
-  BookOpen
+  GraduationCap, 
+  Sliders, 
+  Flame, 
+  BookmarkPlus, 
+  BookOpen, 
+  FolderSync, 
+  Check 
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { generatePracticeQuizWithAI } from '../../utils/aiService';
-import { saveQuizResult } from '../../utils/studyStorage';
-import { getCachedVaultFiles } from '../../utils/obsidianService';
+import { saveQuizResult, saveActiveQuizProgress } from '../../utils/studyStorage';
+import { getCachedVaultFiles, saveQuizToObsidian } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
 
 export const PracticeQuizModal = ({ 
   isOpen, 
   onClose, 
-  initialCourse = "",
-  initialTopic = "Exam Practice Questions",
-  initialQuestions = null,
-  courseNotes = "",
+  initialCourse = "", 
+  initialTopic = "Exam Practice Questions", 
+  initialQuestions = null, 
+  initialQuiz = null, 
+  courseNotes = "", 
   soundEnabled = true 
 }) => {
   // Wizard / Setup State
-  const [isConfiguring, setIsConfiguring] = useState(!initialQuestions);
-  const [courseCode, setCourseCode] = useState(initialCourse || "Course");
-  const [topic, setTopic] = useState(initialTopic);
-  const [chapterScope, setChapterScope] = useState("");
-  const [questionCount, setQuestionCount] = useState(5);
-  const [depthMode, setDepthMode] = useState("high-yield");
+  const [isConfiguring, setIsConfiguring] = useState(!initialQuestions && !initialQuiz);
+  const [quizId, setQuizId] = useState(initialQuiz?.id || null);
+  const [courseCode, setCourseCode] = useState(initialQuiz?.courseCode || initialCourse || "Course");
+  const [topic, setTopic] = useState(initialQuiz?.topic || initialTopic);
+  const [chapterScope, setChapterScope] = useState(initialQuiz?.chapterScope || "");
+  const [questionCount, setQuestionCount] = useState(initialQuiz?.questions?.length || 5);
+  const [depthMode, setDepthMode] = useState(initialQuiz?.depthMode || "high-yield");
 
   // Quiz State
-  const [questions, setQuestions] = useState(initialQuestions || []);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [questions, setQuestions] = useState(initialQuiz?.questions || initialQuestions || []);
+  const [currentIndex, setCurrentIndex] = useState(initialQuiz?.currentIndex || 0);
   const [selectedOption, setSelectedOption] = useState(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
-  const [score, setScore] = useState(0);
+  const [isFinished, setIsFinished] = useState(initialQuiz ? (!initialQuiz.isInProgress && !!initialQuiz.completedAt) : false);
+  const [score, setScore] = useState(initialQuiz?.score || 0);
   const [showHint, setShowHint] = useState(false);
-  const [userAnswers, setUserAnswers] = useState([]);
+  const [userAnswers, setUserAnswers] = useState(initialQuiz?.userAnswers || []);
+  const [savedToObsidianSuccess, setSavedToObsidianSuccess] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      if (initialQuestions && initialQuestions.length > 0) {
+      if (initialQuiz) {
+        setQuizId(initialQuiz.id);
+        setCourseCode(initialQuiz.courseCode || initialCourse);
+        setTopic(initialQuiz.topic || initialTopic);
+        setQuestions(initialQuiz.questions || []);
+        setUserAnswers(initialQuiz.userAnswers || []);
+        setScore(initialQuiz.score || 0);
+        setCurrentIndex(initialQuiz.currentIndex || 0);
+        setIsFinished(!initialQuiz.isInProgress && !!initialQuiz.completedAt);
+        setIsConfiguring(false);
+      } else if (initialQuestions && initialQuestions.length > 0) {
+        setQuizId(null);
         setQuestions(initialQuestions);
         setCourseCode(initialCourse || "Course");
+        setUserAnswers([]);
+        setScore(0);
+        setCurrentIndex(0);
+        setIsFinished(false);
         setIsConfiguring(false);
       } else {
+        setQuizId(null);
         setCourseCode(initialCourse || "");
         setIsConfiguring(true);
+        setIsFinished(false);
+        setScore(0);
+        setCurrentIndex(0);
+        setUserAnswers([]);
       }
-      setIsFinished(false);
-      setScore(0);
-      setCurrentIndex(0);
       setSelectedOption(null);
       setIsAnswerSubmitted(false);
       setShowHint(false);
-      setUserAnswers([]);
+      setSavedToObsidianSuccess(false);
     }
-  }, [isOpen, initialCourse, initialQuestions]);
+  }, [isOpen, initialCourse, initialQuestions, initialQuiz]);
 
   const handleStartGeneration = async (e) => {
     if (e) e.preventDefault();
@@ -84,7 +107,6 @@ export const PracticeQuizModal = ({
     playSound('click', soundEnabled);
 
     try {
-      // Auto-fetch syllabus text from cache if not explicitly passed
       let notes = courseNotes || '';
       if (!notes) {
         const cached = getCachedVaultFiles();
@@ -107,7 +129,24 @@ export const PracticeQuizModal = ({
         count: questionCount,
         depthMode
       });
-      setQuestions(quiz.questions || []);
+
+      const newQuestions = quiz.questions || [];
+      setQuestions(newQuestions);
+
+      // Initialize in study storage
+      const activeEntry = saveActiveQuizProgress({
+        courseCode: courseCode.trim() || "General",
+        topic: topic.trim(),
+        chapterScope: chapterScope.trim(),
+        depthMode,
+        score: 0,
+        totalQuestions: newQuestions.length,
+        questions: newQuestions,
+        userAnswers: [],
+        currentIndex: 0
+      });
+      setQuizId(activeEntry.id);
+
       playSound('success', soundEnabled);
     } catch (err) {
       console.warn("Quiz generation notice:", err);
@@ -122,36 +161,72 @@ export const PracticeQuizModal = ({
 
     const currentQuestion = questions[currentIndex];
     const isCorrect = selectedOption === currentQuestion.correctIndex;
-    
-    setUserAnswers(prev => [...prev, selectedOption]);
+    const nextAnswers = [...userAnswers, selectedOption];
+    setUserAnswers(nextAnswers);
 
+    const nextScore = isCorrect ? score + 1 : score;
     if (isCorrect) {
       playSound('success', soundEnabled);
-      setScore(prev => prev + 1);
+      setScore(nextScore);
     } else {
       playSound('switch', soundEnabled);
     }
+
+    // Auto-update progress
+    saveActiveQuizProgress({
+      id: quizId,
+      courseCode: courseCode.trim() || "General",
+      topic: topic.trim(),
+      chapterScope: chapterScope.trim(),
+      depthMode,
+      score: nextScore,
+      totalQuestions: questions.length,
+      questions,
+      userAnswers: nextAnswers,
+      currentIndex
+    });
   };
 
   const handleNextQuestion = () => {
     playSound('click', soundEnabled);
     if (currentIndex + 1 < questions.length) {
-      setCurrentIndex(prev => prev + 1);
+      const nextIdx = currentIndex + 1;
+      setCurrentIndex(nextIdx);
       setSelectedOption(null);
       setIsAnswerSubmitted(false);
       setShowHint(false);
-    } else {
-      setIsFinished(true);
-      
-      // Auto-save quiz attempt and populate Weak-Spots
-      saveQuizResult({
+
+      saveActiveQuizProgress({
+        id: quizId,
         courseCode: courseCode.trim() || "General",
         topic: topic.trim(),
         chapterScope: chapterScope.trim(),
-        score: score + (selectedOption === questions[currentIndex]?.correctIndex ? 1 : 0),
+        depthMode,
+        score,
         totalQuestions: questions.length,
         questions,
-        userAnswers: [...userAnswers, selectedOption]
+        userAnswers,
+        currentIndex: nextIdx
+      });
+    } else {
+      setIsFinished(true);
+      
+      // Auto-save completed quiz attempt and export to Obsidian
+      const finishedQuiz = {
+        id: quizId,
+        courseCode: courseCode.trim() || "General",
+        topic: topic.trim(),
+        chapterScope: chapterScope.trim(),
+        depthMode,
+        score,
+        totalQuestions: questions.length,
+        questions,
+        userAnswers
+      };
+
+      saveQuizResult(finishedQuiz);
+      saveQuizToObsidian(finishedQuiz).then(ok => {
+        if (ok) setSavedToObsidianSuccess(true);
       });
 
       if (score >= Math.ceil(questions.length * 0.7)) {
@@ -163,6 +238,26 @@ export const PracticeQuizModal = ({
     }
   };
 
+  const handleSaveAndExit = async () => {
+    playSound('click', soundEnabled);
+    const activeQuiz = {
+      id: quizId,
+      courseCode: courseCode.trim() || "General",
+      topic: topic.trim(),
+      chapterScope: chapterScope.trim(),
+      depthMode,
+      score,
+      totalQuestions: questions.length,
+      questions,
+      userAnswers,
+      currentIndex
+    };
+
+    saveActiveQuizProgress(activeQuiz);
+    await saveQuizToObsidian(activeQuiz);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   const currentQuestion = questions[currentIndex];
@@ -172,7 +267,6 @@ export const PracticeQuizModal = ({
   const modalContent = (
     <AnimatePresence>
       <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-4 select-none">
-        {/* Frosted Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -184,48 +278,53 @@ export const PracticeQuizModal = ({
           className="fixed inset-0 top-0 left-0 w-full h-full bg-black/50 backdrop-blur-xl transition-all"
         />
 
-        {/* Modal Window */}
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-4 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] overflow-y-auto"
+          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-4 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0">
-                <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">
-                  {courseCode ? `${courseCode} Practice Exam` : "Practice Quiz"}
-                </h3>
-                <p className="text-[11px] sm:text-xs text-slate-400 truncate">MCQ problem sets with instant explanations</p>
-              </div>
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-white/[0.04] text-white border border-white/10 shrink-0">
+                {courseCode || "Quiz"}
+              </span>
+              <h3 className="text-sm font-bold text-white tracking-tight truncate">
+                {topic || "Practice Exam"}
+              </h3>
             </div>
 
-            <button
-              onClick={() => {
-                playSound('click', soundEnabled);
-                onClose();
-              }}
-              className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {!isConfiguring && !isFinished && questions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleSaveAndExit}
+                  className="px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-xs font-medium flex items-center gap-1 transition-all cursor-pointer"
+                  title="Save progress and resume later"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5" />
+                  <span>Save & Exit</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  onClose();
+                }}
+                className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* 1. QUIZ CUSTOMIZATION SETUP WIZARD */}
           {isConfiguring ? (
             <form onSubmit={handleStartGeneration} className="space-y-4 pt-1">
               <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
-                <div className="text-xs font-bold text-white flex items-center gap-2">
-                  <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Customize Quiz Generation</span>
-                </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] font-semibold text-slate-300 block mb-1">Course Code</label>
@@ -233,71 +332,64 @@ export const PracticeQuizModal = ({
                       type="text"
                       value={courseCode}
                       onChange={(e) => setCourseCode(e.target.value)}
-                      placeholder="e.g. CPSC 331, MATH 211"
-                      className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-emerald-500/40"
+                      placeholder="e.g. FNCE 317, OPMA 317"
+                      className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-white/30 font-sans"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Focus Chapter / Scope</label>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Focus Chapter / Topic</label>
                     <input
                       type="text"
                       value={chapterScope}
                       onChange={(e) => setChapterScope(e.target.value)}
                       placeholder="e.g. Midterm 1, Chapters 1-4"
-                      className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-emerald-500/40"
+                      className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-white/30 font-sans"
                     />
                   </div>
                 </div>
 
-                {/* Question Quantity Selector (Clean 2x2 on mobile, 1x4 on desktop) */}
+                {/* Question Count Selector */}
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Quiz Length (Questions)</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { count: 5, label: "5 Questions", sub: "Quick" },
-                      { count: 10, label: "10 Questions", sub: "Standard" },
-                      { count: 15, label: "15 Questions", sub: "Intensive" },
-                      { count: 25, label: "25 Questions", sub: "Full Mock" }
-                    ].map(c => (
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Question Count</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[5, 10, 15, 20].map(c => (
                       <button
-                        key={c.count}
+                        key={c}
                         type="button"
-                        onClick={() => setQuestionCount(c.count)}
-                        className={`py-2 px-2 rounded-xl border transition-all text-center cursor-pointer ${
-                          questionCount === c.count
-                            ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200 shadow-sm'
+                        onClick={() => setQuestionCount(c)}
+                        className={`py-1.5 rounded-xl border text-center text-xs font-semibold transition-all cursor-pointer ${
+                          questionCount === c
+                            ? 'bg-white/[0.1] border-white/20 text-white shadow-sm'
                             : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
                         }`}
                       >
-                        <div className="text-xs font-bold">{c.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{c.sub}</div>
+                        {c} Qs
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Depth & Priority Mode (Responsive 1-col on mobile, 3-col on desktop) */}
+                {/* Depth Mode */}
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Quiz Focus</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Focus Mode</label>
+                  <div className="grid grid-cols-3 gap-1.5">
                     {[
-                      { id: 'high-yield', label: '🔥 High-Yield Exam', desc: 'Highest probability questions' },
-                      { id: 'deep-dive', label: '🧠 Multi-Step Problems', desc: 'Calculations & scenarios' },
-                      { id: 'definitions', label: '⚡ Rapid Fundamentals', desc: 'Classifications & concepts' }
+                      { id: 'high-yield', label: 'High-Yield Exam' },
+                      { id: 'deep-dive', label: 'Calculations' },
+                      { id: 'definitions', label: 'Fundamentals' }
                     ].map(m => (
                       <button
                         key={m.id}
                         type="button"
                         onClick={() => setDepthMode(m.id)}
-                        className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                        className={`py-2 px-1.5 rounded-xl text-center border text-xs font-semibold transition-all cursor-pointer truncate ${
                           depthMode === m.id
-                            ? 'bg-emerald-500/25 border-emerald-400 text-emerald-100 shadow-sm'
+                            ? 'bg-white/[0.1] border-white/20 text-white shadow-sm'
                             : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
                         }`}
                       >
-                        <div className="text-xs font-bold truncate">{m.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{m.desc}</div>
+                        {m.label}
                       </button>
                     ))}
                   </div>
@@ -306,7 +398,8 @@ export const PracticeQuizModal = ({
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 rounded-xl text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                style={{ backgroundColor: 'var(--accent-primary)' }}
               >
                 <span>Start Practice Quiz</span>
                 <ArrowRight className="w-4 h-4" />
@@ -314,72 +407,70 @@ export const PracticeQuizModal = ({
             </form>
           ) : (
             /* 2. QUIZ INTERACTION & PROGRESS */
-            <div className="space-y-4">
-              {/* Progress Bar */}
-              <div className="space-y-1.5">
+            <div className="space-y-3">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
                   <span>Question {isFinished ? questions.length : currentIndex + 1} of {questions.length}</span>
-                  <span className="text-emerald-400 font-semibold">Score: {score}/{currentIndex + (isAnswerSubmitted ? 1 : 0)}</span>
+                  <span className="text-white font-semibold">Score: {score}/{currentIndex + (isAnswerSubmitted ? 1 : 0)}</span>
                 </div>
-                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
                   <motion.div 
-                    className="h-full bg-emerald-500 rounded-full"
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
                     animate={{ width: `${progressPercent}%` }}
                     transition={{ duration: 0.3 }}
                   />
                 </div>
               </div>
 
-              {/* Generating Loader */}
               {isGenerating ? (
-                <div className="min-h-[260px] rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-3 p-6 text-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-                  <div>
-                    <div className="text-xs font-bold text-white">Constructing Exam Questions with AI...</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">Synthesizing realistic problem sets, scenarios & distractor options</div>
-                  </div>
+                <div className="min-h-[220px] rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-2.5 p-6 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+                  <div className="text-xs font-bold text-white">Generating {courseCode} Questions from Notes...</div>
                 </div>
               ) : isFinished ? (
-                /* Quiz Results Summary Screen */
-                <div className="min-h-[260px] rounded-3xl bg-gradient-to-b from-emerald-950/20 to-transparent border border-emerald-500/20 p-6 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                    <Award className="w-6 h-6" />
+                /* Results Screen */
+                <div className="min-h-[220px] rounded-2xl bg-white/[0.02] border border-white/10 p-6 flex flex-col items-center justify-center text-center space-y-3">
+                  <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-white">
+                    <Award className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-white">Quiz Completed!</h4>
+                    <h4 className="text-base font-bold text-white">Quiz Completed</h4>
                     <p className="text-xs text-slate-300 mt-1">
-                      You scored <strong className="text-emerald-400 font-mono text-sm">{score} / {questions.length}</strong> ({scorePercent}%)
+                      Final Score: <strong className="text-white font-mono text-sm">{score} / {questions.length}</strong> ({scorePercent}%)
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Missed questions have been automatically logged into your <strong>Weak-Spot Bank</strong> for review.
-                    </p>
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 mt-2">
+                      <FolderSync className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Saved & Synced to Obsidian (`School/{courseCode}/`)</span>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 pt-2">
                     <button
                       type="button"
                       onClick={() => setIsConfiguring(true)}
-                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+                      className="px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
+                      style={{ backgroundColor: 'var(--accent-primary)' }}
                     >
-                      Take Another Quiz
+                      New Quiz
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white text-xs font-semibold border border-white/10 transition-all cursor-pointer"
+                    >
+                      Close
                     </button>
                   </div>
                 </div>
               ) : (
-                /* Question & Multiple Choice Options */
-                <div className="space-y-4">
-                  <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+                /* Active Question & Options */
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
-                          {currentQuestion?.topic || "Exam Question"}
-                        </span>
-                        {currentQuestion?.yieldRating === 'high' && (
-                          <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30 flex items-center gap-1">
-                            <Flame className="w-3 h-3 text-amber-400" /> High-Yield
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-white/[0.04] text-slate-300 font-semibold border border-white/10">
+                        {currentQuestion?.topic || "Question"}
+                      </span>
 
                       {currentQuestion?.hint && (
                         <button
@@ -387,13 +478,13 @@ export const PracticeQuizModal = ({
                           onClick={() => setShowHint(prev => !prev)}
                           className="text-[11px] font-medium text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer transition-colors"
                         >
-                          <Lightbulb className="w-3.5 h-3.5" />
+                          <Lightbulb className="w-3 h-3" />
                           <span>{showHint ? "Hide Hint" : "Hint"}</span>
                         </button>
                       )}
                     </div>
 
-                    <p className="text-xs sm:text-sm font-semibold text-slate-100 leading-relaxed">
+                    <p className="text-xs sm:text-sm font-semibold text-slate-100 leading-relaxed font-sans">
                       {currentQuestion?.question}
                     </p>
 
@@ -401,15 +492,15 @@ export const PracticeQuizModal = ({
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
-                        className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs font-sans"
+                        className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs font-sans"
                       >
-                        💡 <strong>Hint</strong>: {currentQuestion.hint}
+                        💡 {currentQuestion.hint}
                       </motion.div>
                     )}
                   </div>
 
-                  {/* Multiple Choice Options List */}
-                  <div className="space-y-2">
+                  {/* Options List */}
+                  <div className="space-y-1.5">
                     {currentQuestion?.options?.map((opt, idx) => {
                       const isSelected = selectedOption === idx;
                       const isCorrect = idx === currentQuestion.correctIndex;
@@ -424,7 +515,7 @@ export const PracticeQuizModal = ({
                           btnStyle = "bg-white/[0.01] border-white/5 text-slate-500 opacity-50";
                         }
                       } else if (isSelected) {
-                        btnStyle = "bg-emerald-500/20 border-emerald-400 text-emerald-100 shadow-sm";
+                        btnStyle = "bg-white/[0.1] border-white/20 text-white shadow-sm";
                       }
 
                       return (
@@ -436,12 +527,12 @@ export const PracticeQuizModal = ({
                             playSound('click', soundEnabled);
                             setSelectedOption(idx);
                           }}
-                          className={`w-full p-3 rounded-xl text-xs text-left border transition-all flex items-start gap-3 cursor-pointer ${btnStyle}`}
+                          className={`w-full p-2.5 rounded-xl text-xs text-left border transition-all flex items-start gap-2.5 cursor-pointer ${btnStyle}`}
                         >
-                          <span className="w-5 h-5 rounded-lg bg-black/40 flex items-center justify-center font-mono text-[10px] shrink-0 font-bold">
+                          <span className="w-4 h-4 rounded bg-black/40 flex items-center justify-center font-mono text-[10px] shrink-0 font-bold">
                             {String.fromCharCode(65 + idx)}
                           </span>
-                          <span className="leading-relaxed">{opt}</span>
+                          <span className="leading-relaxed font-sans">{opt}</span>
                           {isAnswerSubmitted && isCorrect && (
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-auto shrink-0 mt-0.5" />
                           )}
@@ -453,16 +544,16 @@ export const PracticeQuizModal = ({
                     })}
                   </div>
 
-                  {/* Explanation Box (Revealed after submit) */}
+                  {/* Explanation Box */}
                   {isAnswerSubmitted && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1.5 font-sans"
+                      className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1 font-sans"
                     >
                       <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Explanation:</span>
+                        <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Explanation</span>
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
                         {currentQuestion?.explanation}
@@ -470,14 +561,15 @@ export const PracticeQuizModal = ({
                     </motion.div>
                   )}
 
-                  {/* Action Buttons: Submit / Next */}
-                  <div className="pt-2">
+                  {/* Next / Submit */}
+                  <div className="pt-1">
                     {!isAnswerSubmitted ? (
                       <button
                         type="button"
                         onClick={handleSubmitAnswer}
                         disabled={selectedOption === null}
-                        className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md active:scale-98 transition-all disabled:opacity-40 cursor-pointer"
+                        className="w-full py-2.5 rounded-xl text-white text-xs font-bold shadow-sm active:scale-98 transition-all disabled:opacity-40 cursor-pointer"
+                        style={{ backgroundColor: 'var(--accent-primary)' }}
                       >
                         Submit Answer
                       </button>
@@ -485,7 +577,7 @@ export const PracticeQuizModal = ({
                       <button
                         type="button"
                         onClick={handleNextQuestion}
-                        className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <span>{currentIndex + 1 < questions.length ? "Next Question" : "View Final Results"}</span>
                         <ArrowRight className="w-3.5 h-3.5" />

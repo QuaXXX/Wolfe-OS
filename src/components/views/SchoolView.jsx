@@ -15,7 +15,9 @@ import {
   FileText, 
   Loader2, 
   Sparkles,
-  Flame
+  Flame,
+  CheckCircle2,
+  BookmarkPlus
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GlassCard } from '../common/GlassCard';
@@ -34,8 +36,10 @@ import {
 import { streamSearchVaultWithAI } from '../../utils/aiService';
 import { 
   getSavedDecks, 
+  getSavedQuizzes,
   getWeakSpots, 
-  deleteDeckFromLibrary
+  deleteDeckFromLibrary,
+  deleteQuizFromLibrary
 } from '../../utils/studyStorage';
 import { playSound } from '../../utils/soundFX';
 
@@ -53,7 +57,6 @@ export const SchoolView = ({
     { id: 'psyc203', code: 'PSYC 203', name: 'Psychology Principles', instructor: 'Rona Sari Kertesz' }
   ];
 
-  // Filter out any stale MGST 391 from storage
   const courses = (schoolData.courses && schoolData.courses.length > 0)
     ? schoolData.courses.filter(c => !c.code?.includes('391') && !c.id?.includes('391'))
     : defaultUniversityCourses;
@@ -64,8 +67,11 @@ export const SchoolView = ({
 
   // Study Storage data
   const [savedDecks, setSavedDecks] = useState([]);
+  const [savedQuizzes, setSavedQuizzes] = useState([]);
   const [weakSpots, setWeakSpots] = useState([]);
+  const [studyTab, setStudyTab] = useState('quizzes'); // 'quizzes' | 'decks'
   const [selectedDeckForStudy, setSelectedDeckForStudy] = useState(null);
+  const [selectedQuizForStudy, setSelectedQuizForStudy] = useState(null);
   const [selectedQuizQuestions, setSelectedQuizQuestions] = useState(null);
 
   // Modals state
@@ -267,6 +273,7 @@ export const SchoolView = ({
 
   const refreshStudyLibrary = () => {
     setSavedDecks(getSavedDecks());
+    setSavedQuizzes(getSavedQuizzes());
     setWeakSpots(getWeakSpots());
   };
 
@@ -280,6 +287,23 @@ export const SchoolView = ({
     });
   }, [scannedFiles, activeCourse]);
 
+  // Filter saved materials for active course
+  const activeCourseQuizzes = useMemo(() => {
+    return savedQuizzes.filter(q => {
+      const code = (q.courseCode || '').toUpperCase();
+      const target = (activeCourse?.code || '').toUpperCase();
+      return code.includes(target) || target.includes(code);
+    });
+  }, [savedQuizzes, activeCourse]);
+
+  const activeCourseDecks = useMemo(() => {
+    return savedDecks.filter(d => {
+      const code = (d.courseCode || '').toUpperCase();
+      const target = (activeCourse?.code || '').toUpperCase();
+      return code.includes(target) || target.includes(code);
+    });
+  }, [savedDecks, activeCourse]);
+
   const handleLaunchSavedDeck = (deck) => {
     playSound('click', soundEnabled);
     setSelectedDeckForStudy(deck);
@@ -290,6 +314,20 @@ export const SchoolView = ({
     e.stopPropagation();
     playSound('click', soundEnabled);
     deleteDeckFromLibrary(deckId);
+    refreshStudyLibrary();
+  };
+
+  const handleLaunchSavedQuiz = (quiz) => {
+    playSound('click', soundEnabled);
+    setSelectedQuizForStudy(quiz);
+    setSelectedQuizQuestions(null);
+    setIsQuizOpen(true);
+  };
+
+  const handleDeleteQuiz = (quizId, e) => {
+    e.stopPropagation();
+    playSound('click', soundEnabled);
+    deleteQuizFromLibrary(quizId);
     refreshStudyLibrary();
   };
 
@@ -307,6 +345,7 @@ export const SchoolView = ({
       topic: `Weak-Spot Review (${ws.courseCode || 'Academics'})`
     }));
 
+    setSelectedQuizForStudy(null);
     setSelectedQuizQuestions(drillQuestions);
     setIsQuizOpen(true);
   };
@@ -554,6 +593,8 @@ export const SchoolView = ({
                   type="button"
                   onClick={() => {
                     playSound('click', soundEnabled);
+                    setSelectedQuizForStudy(null);
+                    setSelectedQuizQuestions(null);
                     setSelectedCourse(activeCourse.code);
                     setIsQuizOpen(true);
                   }}
@@ -642,34 +683,111 @@ export const SchoolView = ({
             </form>
           </GlassCard>
 
-          {/* SAVED DECKS (Minimal) */}
-          {savedDecks.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Saved Decks ({savedDecks.length})
+          {/* SAVED STUDY MATERIALS: QUIZZES & FLASHCARD DECKS (Clean Switcher) */}
+          {(savedQuizzes.length > 0 || savedDecks.length > 0) && (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStudyTab('quizzes')}
+                    className={`text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      studyTab === 'quizzes'
+                        ? 'text-white border-b-2 border-white pb-0.5'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    Saved Quizzes ({activeCourseQuizzes.length})
+                  </button>
+                  <span className="text-slate-600">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setStudyTab('decks')}
+                    className={`text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      studyTab === 'decks'
+                        ? 'text-white border-b-2 border-white pb-0.5'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    Flashcard Decks ({activeCourseDecks.length})
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {savedDecks.map(d => (
-                  <div
-                    key={d.id}
-                    onClick={() => handleLaunchSavedDeck(d)}
-                    className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/15 transition-all cursor-pointer flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-white truncate">{d.title || d.topic}</div>
-                      <div className="text-[10px] font-mono text-slate-400">{d.courseCode} • {d.cards?.length || 0} cards</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteDeck(d.id, e)}
-                      className="text-slate-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+              {/* Quizzes List */}
+              {studyTab === 'quizzes' ? (
+                activeCourseQuizzes.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {activeCourseQuizzes.map(q => (
+                      <div
+                        key={q.id}
+                        onClick={() => handleLaunchSavedQuiz(q)}
+                        className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/15 transition-all cursor-pointer flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
+                            <span>{q.topic || 'Practice Quiz'}</span>
+                            {q.isInProgress && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                In Progress
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                            {q.isInProgress 
+                              ? `${q.userAnswers?.length || 0}/${q.questions?.length || 0} answered` 
+                              : `Score: ${q.score || 0}/${q.questions?.length || 0} (${Math.round(((q.score || 0) / (q.questions?.length || 1)) * 100)}%)`}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteQuiz(q.id, e)}
+                            className="text-slate-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                            title="Delete Quiz"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-500">
+                    No quizzes saved for {activeCourse.code} yet. Click <strong className="text-slate-300">+ Quiz</strong> to start!
+                  </div>
+                )
+              ) : (
+                /* Decks List */
+                activeCourseDecks.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {activeCourseDecks.map(d => (
+                      <div
+                        key={d.id}
+                        onClick={() => handleLaunchSavedDeck(d)}
+                        className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/15 transition-all cursor-pointer flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-white truncate">{d.title || d.topic}</div>
+                          <div className="text-[10px] font-mono text-slate-400">{d.courseCode} • {d.cards?.length || 0} cards</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteDeck(d.id, e)}
+                          className="text-slate-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-500">
+                    No flashcard decks created for {activeCourse.code} yet. Click <strong className="text-slate-300">+ Flashcards</strong> above!
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>
@@ -847,7 +965,9 @@ export const SchoolView = ({
           setIsQuizOpen(false);
           refreshStudyLibrary();
         }}
-        initialCourse={activeCourse?.code || "School"}
+        initialCourse={selectedQuizForStudy?.courseCode || activeCourse?.code || "School"}
+        initialTopic={selectedQuizForStudy?.topic || "Exam Practice Questions"}
+        initialQuiz={selectedQuizForStudy}
         initialQuestions={selectedQuizQuestions}
         soundEnabled={soundEnabled}
       />

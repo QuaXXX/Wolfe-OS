@@ -488,6 +488,59 @@ export function getVaultMetadata() {
 }
 
 /**
+ * Export quiz results or in-progress quizzes as formatted Markdown notes into Obsidian Vault
+ */
+export async function saveQuizToObsidian(quiz) {
+  try {
+    const handle = await getVaultHandle();
+    if (!handle) return false;
+
+    const courseFolder = quiz.courseCode ? quiz.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() : 'General';
+    const subfolder = `School/${courseFolder}`;
+    const cleanDate = new Date(quiz.completedAt || quiz.lastUpdated || Date.now()).toISOString().split('T')[0];
+    const safeTitle = (quiz.topic || quiz.title || 'Practice Quiz').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Quiz';
+    const filename = `${safeTitle} Quiz (${cleanDate})`;
+
+    const scoreLine = quiz.isInProgress 
+      ? `**Status:** In Progress (${quiz.userAnswers ? quiz.userAnswers.filter(a => a !== null && a !== undefined).length : 0}/${quiz.questions?.length || 0} Answered)` 
+      : `**Score:** ${quiz.score || 0}/${quiz.questions?.length || 0} (${Math.round(((quiz.score || 0) / (quiz.questions?.length || 1)) * 100)}%)`;
+
+    let md = `# 📝 ${quiz.courseCode || 'Course'}: ${quiz.topic || quiz.title || 'Practice Exam'}\n\n`;
+    md += `- **Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}\n`;
+    md += `- ${scoreLine}\n`;
+    md += `- **Mode:** ${quiz.depthMode || 'Exam Prep'}\n\n`;
+    md += `---\n\n## Questions & Detailed Solutions\n\n`;
+
+    (quiz.questions || []).forEach((q, idx) => {
+      const userChoice = quiz.userAnswers?.[idx];
+      const isCorrect = userChoice === q.correctIndex;
+      const statusIcon = userChoice === undefined ? '⚪' : (isCorrect ? '✅' : '❌');
+      
+      md += `### ${idx + 1}. ${q.question}\n\n`;
+      (q.options || []).forEach((opt, optIdx) => {
+        const isSelected = userChoice === optIdx;
+        const isRight = q.correctIndex === optIdx;
+        let prefix = '- [ ]';
+        if (isRight) prefix = '- [x] 🟢';
+        else if (isSelected && !isRight) prefix = '- [x] 🔴';
+        md += `${prefix} ${opt}\n`;
+      });
+      md += `\n> **Result:** ${statusIcon} ${userChoice !== undefined ? (isCorrect ? 'Correct' : 'Incorrect') : 'Unanswered'}\n`;
+      if (q.explanation) {
+        md += `> **Explanation:** ${q.explanation}\n`;
+      }
+      md += `\n---\n\n`;
+    });
+
+    await saveMarkdownToVault(handle, subfolder, filename, md);
+    return true;
+  } catch (err) {
+    console.warn("Could not export quiz to Obsidian:", err);
+    return false;
+  }
+}
+
+/**
  * Vault sample notes (empty until user connects their personal Obsidian vault)
  */
 export const SAMPLE_OBSIDIAN_VAULT = [];

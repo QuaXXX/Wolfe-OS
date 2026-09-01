@@ -95,16 +95,58 @@ export function getSavedQuizzes() {
   }
 }
 
-export function saveQuizResult(quizData) {
+export function deleteQuizFromLibrary(quizId) {
+  try {
+    const quizzes = getSavedQuizzes().filter(q => q.id !== quizId);
+    localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify(quizzes));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function saveActiveQuizProgress(quizData) {
   try {
     const quizzes = getSavedQuizzes();
+    const existingIndex = quizzes.findIndex(q => q.id === quizData.id);
     const updatedQuiz = {
       ...quizData,
       id: quizData.id || `quiz_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      isInProgress: true,
+      lastUpdated: new Date().toISOString()
+    };
+
+    if (existingIndex >= 0) {
+      quizzes[existingIndex] = updatedQuiz;
+    } else {
+      quizzes.unshift(updatedQuiz);
+    }
+
+    localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify(quizzes.slice(0, 50)));
+    return updatedQuiz;
+  } catch (err) {
+    console.warn("Failed to save active quiz progress:", err);
+    return quizData;
+  }
+}
+
+export function saveQuizResult(quizData) {
+  try {
+    const quizzes = getSavedQuizzes();
+    const existingIndex = quizzes.findIndex(q => q.id === quizData.id);
+    const updatedQuiz = {
+      ...quizData,
+      id: quizData.id || `quiz_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      isInProgress: false,
       completedAt: new Date().toISOString()
     };
 
-    quizzes.unshift(updatedQuiz);
+    if (existingIndex >= 0) {
+      quizzes[existingIndex] = updatedQuiz;
+    } else {
+      quizzes.unshift(updatedQuiz);
+    }
+
     localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify(quizzes.slice(0, 50)));
 
     // Track missed questions into Weak-Spot Bank
