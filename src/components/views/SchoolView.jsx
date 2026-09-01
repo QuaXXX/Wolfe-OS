@@ -29,12 +29,12 @@ import { PracticeQuizModal } from '../school/PracticeQuizModal';
 import { ProfEmailDraftModal } from '../school/ProfEmailDraftModal';
 import { VaultSearchModal } from '../school/VaultSearchModal';
 import { DeepFocusModal } from '../school/DeepFocusModal';
-import { getVaultMetadata } from '../../utils/obsidianService';
+import { getVaultMetadata, getVaultHandle, scanVaultDirectory } from '../../utils/obsidianService';
 import { 
   getSavedDecks, 
   getSavedQuizzes, 
   getWeakSpots, 
-  deleteDeckFromLibrary,
+  deleteDeckFromLibrary, 
   clearWeakSpot 
 } from '../../utils/studyStorage';
 
@@ -65,7 +65,27 @@ export const SchoolView = ({
 
   useEffect(() => {
     refreshStudyLibrary();
+    loadVaultFiles();
   }, []);
+
+  const loadVaultFiles = async () => {
+    try {
+      const handle = await getVaultHandle();
+      if (handle) {
+        const scanned = await scanVaultDirectory(handle);
+        setScannedFiles(scanned.files);
+        setVaultMeta({
+          connected: true,
+          folderName: handle.name,
+          totalNotes: scanned.files.length,
+          courses: scanned.courses,
+          lastScanned: new Date().toISOString()
+        });
+      }
+    } catch (e) {
+      console.warn("Auto-load vault files notice:", e);
+    }
+  };
 
   const refreshStudyLibrary = () => {
     setSavedDecks(getSavedDecks());
@@ -525,7 +545,11 @@ export const SchoolView = ({
         onClose={() => setIsEmailModalOpen(false)}
         courseCode={activeCourse?.code || "Course"}
         instructorName={activeCourse?.instructor || "Professor"}
-        instructorEmail={activeCourse?.instructorEmail || "instructor@university.edu"}
+        instructorEmail={activeCourse?.instructorEmail || ""}
+        sectionCode={activeCourse?.section || "L01"}
+        scannedFiles={scannedFiles}
+        courses={courses}
+        vaultMeta={vaultMeta}
         soundEnabled={soundEnabled}
       />
 

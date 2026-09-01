@@ -226,6 +226,80 @@ export function getVaultMetadata() {
 }
 
 /**
+ * Extract instructor name, email, section, and course code from outline / syllabus text
+ */
+export function extractInstructorFromOutline(text) {
+  if (!text) return { name: '', email: '', section: '', course: '' };
+  
+  // 1. Course Code
+  const courseMatch = text.match(/([A-Z]{2,6}\s*\d{3,4})/i);
+  const course = courseMatch ? courseMatch[1].toUpperCase() : '';
+
+  // 2. Email extraction (prefer university emails like .edu or .ca)
+  const emails = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g) || [];
+  const instructorEmail = emails.find(e => !e.includes('example') && !e.includes('placeholder')) || emails[0] || '';
+
+  // 3. Instructor / Professor Name extraction
+  let instructorName = '';
+  const profMatch = text.match(/(?:Instructor|Professor|Prof\.|Dr\.)\s*:?\s*([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){1,2})(?:\s*[\r\n]|\s*[,;\-]|\s*Email|\s*Office|$)/i);
+  if (profMatch) {
+    instructorName = profMatch[1].trim();
+  } else {
+    const drMatch = text.match(/Dr\.\s*([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){1,2})/i);
+    if (drMatch) instructorName = `Dr. ${drMatch[1].trim()}`;
+  }
+
+  // 4. Section extraction
+  let section = '';
+  const secMatch = text.match(/\b(L\d{2}|LEC\s*\d{1,2}|Section\s*\d{1,2})\b/i);
+  if (secMatch) {
+    section = secMatch[1].toUpperCase().trim();
+  }
+
+  return {
+    course,
+    name: instructorName,
+    email: instructorEmail,
+    section: section || 'L01'
+  };
+}
+
+/**
+ * Search scanned files for a course outline matching a target course keyword (e.g. "FNCE", "BTMA", "OPMA")
+ */
+export async function findCourseOutlineContent(scannedFiles = [], courseQuery = "") {
+  if (!scannedFiles || scannedFiles.length === 0 || !courseQuery) return null;
+  const cleanQ = courseQuery.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // 1. Find file with matching course in path or filename
+  const matchingFile = scannedFiles.find(f => {
+    const p = (f.path || f.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return p.includes(cleanQ) && (p.includes('outline') || p.includes('syllabus') || p.includes('course') || f.name.endsWith('.pdf') || f.name.endsWith('.md'));
+  }) || scannedFiles.find(f => {
+    const p = (f.path || f.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return p.includes(cleanQ);
+  });
+
+  if (!matchingFile) return null;
+
+  try {
+    if (matchingFile.handle) {
+      const content = await readVaultFileContent(matchingFile.handle);
+      return {
+        file: matchingFile,
+        content,
+        info: extractInstructorFromOutline(content)
+      };
+    }
+  } catch (err) {
+    console.warn("Could not read matching outline:", err);
+  }
+
+  return null;
+}
+
+/**
  * Vault sample notes (empty until user connects their personal Obsidian vault)
  */
 export const SAMPLE_OBSIDIAN_VAULT = [];
+

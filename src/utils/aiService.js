@@ -359,7 +359,7 @@ async function callGemini(prompt, systemInstruction, config, timeoutMs = 12000) 
 
       if (rawText) {
         const parsed = safeParseJson(rawText);
-        if (parsed && (parsed.message || parsed.items || parsed.actionType || parsed.courseCode || parsed.sections)) {
+        if (parsed) {
           return parsed;
         }
         return {
@@ -1276,65 +1276,105 @@ Return ONLY valid JSON matching this schema:
 /**
  * Draft a Syllabus-Compliant Professional Email to a Professor or TA
  */
+/**
+ * Draft a Syllabus-Compliant Professional Email to a Professor or TA
+ */
 export async function draftProfEmailWithAI({
   courseCode = "Course",
   instructorName = "Professor",
   instructorEmail = "",
   sectionCode = "L01",
-  reason = "Regrade Request",
+  reason = "Student Inquiry",
   details = "",
   syllabusContext = "",
-  studentName = "Zach Wolfe"
+  studentName = "Zach Wolfe",
+  studentId = "30100000"
 }) {
-  const prompt = `You are an academic advisor helping university student "${studentName}" draft a professional, polite, and syllabus-compliant email to their instructor.
+  const cleanProfName = instructorName && instructorName !== "Professor" 
+    ? (instructorName.startsWith("Dr.") ? instructorName : `Professor ${instructorName.split(' ').pop()}`) 
+    : "Professor";
 
-Course: ${courseCode} (Section: ${sectionCode})
-Instructor: ${instructorName} ${instructorEmail ? `(${instructorEmail})` : ''}
-Email Reason / Category: ${reason}
-Student's Specific Situation & Details:
+  const prompt = `You are an expert university academic advisor drafting a formal, highly articulate, polite, and syllabus-compliant email on behalf of university student "${studentName}" (Student ID: ${studentId}).
+
+RECIPIENT & COURSE INFORMATION:
+- Course: ${courseCode} (${sectionCode ? `Section ${sectionCode}` : 'Lecture'})
+- Instructor: ${cleanProfName} ${instructorEmail ? `<${instructorEmail}>` : ''}
+- Course Syllabus Context & Policies:
 """
-${details || "Requesting office hours meeting or clarification on recent course material."}
-"""
-Syllabus Communication Policies & Guidelines:
-"""
-${syllabusContext ? syllabusContext.slice(0, 6000) : `Standard university policy: Include course and section in subject line, professional salutation, concise rationale, and student ID.`}
+${syllabusContext ? syllabusContext.slice(0, 8000) : "Standard academic policy: Professional tone, concise subject line with course/section, student ID in signature."}
 """
 
-Requirements:
-1. Subject line MUST include course code and section formatted per syllabus rules (e.g. "[${courseCode}-${sectionCode}] ${reason} - ${studentName}").
-2. Formal, respectful academic salutation ("Dear Dr. [Last Name] / Professor [Last Name]").
-3. Clear, concise body following syllabus policies (referencing specific quiz/assignment numbers, polite tone, clear proposed times if asking for a meeting).
-4. Professional sign-off with student name and placeholder student ID.
-5. Highlight any detected syllabus policy (e.g. "Syllabus Note: Regrades must be submitted within 7 business days").
+STUDENT'S REQUEST & SITUATION:
+"""
+${details}
+"""
+
+STRICT DRAFTING INSTRUCTIONS:
+1. SUBJECT LINE: Create an ultra-clear, professional subject line (e.g. "[${courseCode} ${sectionCode ? `- ${sectionCode}` : ''}] Absence Notification (Week of Sept 1-5) - ${studentName}" or "[${courseCode}] Question regarding Quiz 2 - ${studentName}").
+2. SALUTATION: Use formal academic title ("Dear ${cleanProfName},").
+3. EMAIL BODY:
+   - Write a beautifully structured, polite 2-to-3 paragraph email.
+   - DO NOT repeat the student's prompt verbatim. Instead, smoothly translate their informal notes into eloquent, professional, and respectful academic language.
+   - If the student mentions missing class / being out of town (e.g. working in Banff): Politely explain the absence, take full personal accountability for staying on top of coursework, state that they will study the lecture slides and materials on D2L, and respectfully ask if there are any specific in-class exercises or announcements they should be aware of.
+   - If asking for a meeting: Propose 2 flexible time slots during or near their office hours.
+   - Include a courteous closing.
+4. SIGN-OFF:
+   - "Sincerely," or "Best regards," followed by student's name (${studentName}) and Student ID (${studentId}).
+5. SYLLABUS POLICY NOTE:
+   - A brief 1-line reminder of relevant syllabus policies (e.g. "Note: Per syllabus, lecture slides and course notes are uploaded to D2L; attendance policies apply for in-class exams.").
 
 Return ONLY valid JSON matching this schema:
 {
-  "recipientEmail": "${instructorEmail || 'instructor@university.edu'}",
-  "subject": "[${courseCode}-${sectionCode}] ${reason} - ${studentName}",
-  "salutation": "Dear Professor ${instructorName.split(' ').pop() || 'Instructor'},",
-  "body": "I hope you are having a great week.\\n\\nI am writing to respectfully request...",
-  "syllabusPolicyNote": "Remember to submit within 7 business days per course syllabus policy."
+  "recipientEmail": "${instructorEmail || ''}",
+  "subject": "[${courseCode}] Subject Line - ${studentName}",
+  "salutation": "Dear ${cleanProfName},",
+  "body": "Opening paragraph...\\n\\nSecond paragraph...",
+  "syllabusPolicyNote": "Brief policy tip for student."
 }`;
 
-  const systemInstruction = "You are a professional university communications expert. Return only valid JSON.";
+  const systemInstruction = "You are an elite university communications advisor writing polished, formal academic correspondence. Return only valid JSON.";
 
   try {
     const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 15000);
-    if (res && res.subject && res.body) {
-      return res;
+    if (res && (res.body || res.message)) {
+      const body = res.body || res.message;
+      const salutation = res.salutation || `Dear ${cleanProfName},`;
+      const subject = res.subject || `[${courseCode}] Inquiry - ${studentName}`;
+      const recipientEmail = res.recipientEmail || instructorEmail || '';
+      return {
+        recipientEmail,
+        subject,
+        salutation,
+        body,
+        syllabusPolicyNote: res.syllabusPolicyNote || "Ensure you send this email from your official university student account."
+      };
     }
   } catch (err) {
     console.warn("AI Email draft notice:", err);
   }
 
-  // Fallback Email Draft
-  const profLastName = instructorName.split(' ').pop() || "Professor";
+  // Intelligent Contextual Fallback
+  const lowerDetails = details.toLowerCase();
+  let generatedBody = "";
+  let subjectLine = `[${courseCode}${sectionCode ? ` - ${sectionCode}` : ''}] Course Inquiry - ${studentName}`;
+
+  if (lowerDetails.includes('banff') || lowerDetails.includes('away') || lowerDetails.includes('out of town') || lowerDetails.includes('absence') || lowerDetails.includes('miss')) {
+    subjectLine = `[${courseCode}${sectionCode ? ` - ${sectionCode}` : ''}] Lecture Absence & Coursework Catch-Up - ${studentName}`;
+    generatedBody = `I hope you are having a productive week.\n\nI am writing to respectfully inform you that I will be away working out of town in Banff this week and will regrettably be unable to attend our ${courseCode} lectures in person.\n\nTo ensure I remain fully up to date with our curriculum, I plan to diligently review all lecture slides and course materials uploaded to D2L. Could you kindly let me know if there are any specific in-class exercises, problem sets, or announcements from this week that I should be mindful of?\n\nThank you very much for your time, understanding, and guidance.\n\nSincerely,\n${studentName}\nStudent ID: ${studentId}`;
+  } else if (lowerDetails.includes('office hour') || lowerDetails.includes('meeting') || lowerDetails.includes('clarif')) {
+    subjectLine = `[${courseCode}${sectionCode ? ` - ${sectionCode}` : ''}] Office Hours Meeting Request - ${studentName}`;
+    generatedBody = `I hope your semester is going smoothly.\n\nI am currently enrolled in your ${courseCode} course. I have been reviewing our recent lecture material and wanted to ask if you might have 10–15 minutes available during your upcoming office hours for a brief clarification.\n\nPlease let me know if your scheduled office hours work best, or if there is another time that suits your schedule.\n\nThank you for your time and guidance.\n\nBest regards,\n${studentName}\nStudent ID: ${studentId}`;
+  } else {
+    subjectLine = `[${courseCode}${sectionCode ? ` - ${sectionCode}` : ''}] Inquiry Regarding Coursework - ${studentName}`;
+    generatedBody = `I hope you are having a wonderful week.\n\nI am writing to respectfully ask for your guidance regarding our ${courseCode} coursework.\n\n${details}\n\nI truly appreciate your time and support.\n\nSincerely,\n${studentName}\nStudent ID: ${studentId}`;
+  }
+
   return {
-    recipientEmail: instructorEmail || `${courseCode.toLowerCase().replace(/\s+/g, '')}@university.edu`,
-    subject: `[${courseCode} - ${sectionCode}] ${reason} - ${studentName}`,
-    salutation: `Dear Professor ${profLastName},`,
-    body: `I hope your week is going well.\n\nI am currently enrolled in your ${courseCode} (${sectionCode}) course. I am writing regarding ${reason.toLowerCase()}.\n\n${details || "I wanted to kindly check in regarding the recent lecture concepts and ask if you might have 10 minutes during your upcoming office hours for a brief clarification."}\n\nThank you very much for your time and guidance.\n\nBest regards,\n${studentName}\nStudent ID: 30100000`,
-    syllabusPolicyNote: `Ensure you send from your official university email and include your section number [${sectionCode}].`
+    recipientEmail: instructorEmail || `${courseCode.toLowerCase().replace(/[^a-z0-9]/g, '')}@university.edu`,
+    subject: subjectLine,
+    salutation: `Dear ${cleanProfName},`,
+    body: generatedBody,
+    syllabusPolicyNote: "Syllabus Tip: Send from your official university email and reference your section code in all correspondence."
   };
 }
 

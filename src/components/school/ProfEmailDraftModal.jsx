@@ -9,9 +9,13 @@ import {
   X, 
   Loader2, 
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  FolderSync
 } from 'lucide-react';
 import { draftProfEmailWithAI } from '../../utils/aiService';
+import { findCourseOutlineContent, extractInstructorFromOutline } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
 
 export const ProfEmailDraftModal = ({ 
@@ -22,24 +26,84 @@ export const ProfEmailDraftModal = ({
   instructorEmail = "",
   sectionCode = "",
   syllabusContext = "",
+  scannedFiles = [],
+  courses = [],
+  vaultMeta = {},
   soundEnabled = true 
 }) => {
+  const [selectedCourse, setSelectedCourse] = useState(courseCode || "AUTO");
   const [promptInput, setPromptInput] = useState('');
   const [recipient, setRecipient] = useState(instructorEmail);
   const [subject, setSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [detectedProfInfo, setDetectedProfInfo] = useState(null);
+
+  // Available course list (combining courses prop and vault courses)
+  const availableCourses = Array.from(new Set([
+    ...(courses.map(c => c.code || c.id || c.name)),
+    ...(vaultMeta?.courses || []),
+    ...(scannedFiles.map(f => f.course).filter(Boolean))
+  ])).filter(Boolean);
 
   useEffect(() => {
     if (isOpen) {
-      setRecipient(instructorEmail || 'instructor@university.edu');
+      setRecipient(instructorEmail || '');
       setCopied(false);
       setSubject('');
       setEmailBody('');
       setPromptInput('');
+      setDetectedProfInfo(null);
+      setSelectedCourse(courseCode && courseCode !== "Course" ? courseCode : "AUTO");
     }
   }, [isOpen, courseCode, instructorEmail]);
+
+  // Live Course & Instructor Detection from Prompt Input
+  useEffect(() => {
+    if (!promptInput.trim()) {
+      if (selectedCourse === 'AUTO') {
+        setDetectedProfInfo(null);
+      }
+      return;
+    }
+
+    let targetCourse = selectedCourse !== 'AUTO' ? selectedCourse : '';
+    if (!targetCourse) {
+      // Detect mentioned course in prompt (e.g. FNCE, BTMA, OPMA, MGST, MKTG, CPSC, MATH)
+      const match = promptInput.match(/\b([A-Z]{2,6}\s*\d{0,4})\b/i);
+      if (match) {
+        const query = match[1].trim().toUpperCase();
+        targetCourse = availableCourses.find(c => c.toUpperCase().includes(query) || query.includes(c.toUpperCase())) || query;
+      }
+    }
+
+    if (targetCourse) {
+      findCourseOutlineContent(scannedFiles, targetCourse).then(res => {
+        if (res && res.info) {
+          setDetectedProfInfo({
+            course: res.info.course || targetCourse,
+            name: res.info.name,
+            email: res.info.email,
+            section: res.info.section || 'L01',
+            fileName: res.file?.name,
+            content: res.content
+          });
+          if (res.info.email && !recipient) {
+            setRecipient(res.info.email);
+          }
+        } else {
+          setDetectedProfInfo({
+            course: targetCourse,
+            name: instructorName || '',
+            email: instructorEmail || '',
+            section: sectionCode || 'L01',
+            content: ''
+          });
+        }
+      });
+    }
+  }, [promptInput, selectedCourse, scannedFiles, availableCourses]);
 
   const handleGenerateEmail = async (e) => {
     if (e) e.preventDefault();
@@ -50,21 +114,51 @@ export const ProfEmailDraftModal = ({
     playSound('click', soundEnabled);
 
     try {
+      // 1. Resolve Target Course
+      let activeTargetCourse = selectedCourse !== 'AUTO' ? selectedCourse : (detectedProfInfo?.course || '');
+      if (!activeTargetCourse) {
+        const match = promptInput.match(/\b([A-Z]{2,6}\s*\d{0,4})\b/i);
+        activeTargetCourse = match ? match[1].toUpperCase() : (availableCourses[0] || "Course");
+      }
+
+      // 2. Fetch or Use Outline Context
+      let outlineContext = syllabusContext || '';
+      let profName = instructorName;
+      let profEmail = recipient || instructorEmail;
+      let sec = sectionCode || 'L01';
+
+      if (detectedProfInfo) {
+        if (detectedProfInfo.name) profName = detectedProfInfo.name;
+        if (detectedProfInfo.email) profEmail = detectedProfInfo.email;
+        if (detectedProfInfo.section) sec = detectedProfInfo.section;
+        if (detectedProfInfo.content) outlineContext = detectedProfInfo.content;
+      } else if (scannedFiles.length > 0) {
+        const found = await findCourseOutlineContent(scannedFiles, activeTargetCourse);
+        if (found) {
+          if (found.info.name) profName = found.info.name;
+          if (found.info.email) profEmail = found.info.email;
+          if (found.info.section) sec = found.info.section;
+          outlineContext = found.content;
+        }
+      }
+
       const draft = await draftProfEmailWithAI({
-        courseCode: courseCode || "Course",
-        instructorName: instructorName || "Professor",
-        instructorEmail: recipient,
-        sectionCode,
+        courseCode: activeTargetCourse,
+        instructorName: profName || "Professor",
+        instructorEmail: profEmail || recipient,
+        sectionCode: sec,
         reason: "Student Inquiry",
         details: promptInput.trim(),
-        syllabusContext,
-        studentName: "Zach Wolfe"
+        syllabusContext: outlineContext,
+        studentName: "Zach Wolfe",
+        studentId: "30100000"
       });
 
       if (draft) {
-        setSubject(draft.subject || `[${courseCode}] Inquiry - Zach Wolfe`);
-        setEmailBody(draft.body ? `${draft.salutation || ''}\n\n${draft.body}` : '');
+        setSubject(draft.subject || `[${activeTargetCourse}] Inquiry - Zach Wolfe`);
+        setEmailBody(draft.body || '');
         if (draft.recipientEmail) setRecipient(draft.recipientEmail);
+        else if (profEmail) setRecipient(profEmail);
         playSound('success', soundEnabled);
       }
     } catch (err) {
@@ -137,6 +231,61 @@ export const ProfEmailDraftModal = ({
             </button>
           </div>
 
+          {/* Course Selector & Auto-Detected Instructor Status */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+              <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                <BookOpen className="w-3.5 h-3.5 text-rose-400" />
+                <span>Target Class:</span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourse('AUTO')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
+                    selectedCourse === 'AUTO'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      : 'bg-white/[0.03] text-slate-400 border-white/5 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  ✨ Auto-Detect
+                </button>
+                {availableCourses.map((c, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setSelectedCourse(c)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
+                      selectedCourse === c
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        : 'bg-white/[0.03] text-slate-400 border-white/5 hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Live Detected Info Banner from Obsidian Vault */}
+            {detectedProfInfo && (
+              <div className="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-200 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FolderSync className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="truncate">
+                    <strong>{detectedProfInfo.course}:</strong> {detectedProfInfo.name ? `${detectedProfInfo.name}` : "Professor"}
+                    {detectedProfInfo.email ? ` (${detectedProfInfo.email})` : ""}
+                  </span>
+                </div>
+                {detectedProfInfo.fileName && (
+                  <span className="text-[10px] font-mono text-rose-300/80 shrink-0">
+                    from {detectedProfInfo.fileName}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Clean Prompt Chat Input */}
           <form onSubmit={handleGenerateEmail} className="space-y-3">
             <div className="space-y-1">
@@ -148,7 +297,7 @@ export const ProfEmailDraftModal = ({
                   rows={2}
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
-                  placeholder="e.g. Ask for clarification on problem set 3 question 2, or request office hours meeting..."
+                  placeholder="e.g. For FNCE, I'm away working in Banff this week, won't make lectures, taking care of D2L slides..."
                   className="flex-1 px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 resize-none font-sans"
                   autoFocus
                 />
