@@ -94,7 +94,10 @@ EXECUTION CHAIN INSTRUCTIONS:
 3. POSEIDON (Flow & Whales): Analyze institutional dark pool positioning, options sweeps, and smart money accumulation.
 4. HERMES-PRIME (Synthesis): Fuse macro + technicals + flow into candidate setups.
 5. THE SKEPTIC (Stress-Test): Ruthlessly attack each setup. Reject any trade with R:R < 1:2.5, ambiguous invalidation, or conflicting macro flow. Assign an A+ or B+ Conviction Grade.
-6. MERCURY (Morning Brief): Synthesize the top 2-3 verified trade setups with exact Entry, Stop Loss, 2R Take Profit, and Invalidation Levels.
+6. MERCURY (Morning Brief): Synthesize 4 to 5 multi-tiered candidate setups across tracked assets:
+   - Tier 1 (A+ Grade): Highest conviction institutional confluence (e.g. SOL, BTC).
+   - Tier 2 (B+ Grade): High-momentum breakout / catalyst plays (e.g. NVDA, HYPE).
+   - Tier 3 (B or C Grade): Lower-tier experimental test plays (e.g. mean-reversion counter-trend or scalp) so the desk can forward-test and compare performance against A-tier plays.
 
 Return ONLY valid JSON matching this schema:
 {
@@ -104,9 +107,9 @@ Return ONLY valid JSON matching this schema:
   "macroAnalysis": "Concise 2-sentence breakdown of macro conditions, bond yields, and market sentiment.",
   "agentLogs": [
     { "agent": "Atlas (Macro)", "status": "COMPLETED", "summary": "Global futures green, DXY softening, no high-impact Fed speakers today." },
-    { "agent": "Artemis (Screener)", "status": "COMPLETED", "summary": "Key consolidation breakout identified on SOL and NVDA." },
+    { "agent": "Artemis (Screener)", "status": "COMPLETED", "summary": "Identified high-probability structures across SOL, BTC, NVDA, and HYPE." },
     { "agent": "Poseidon (Flow)", "status": "COMPLETED", "summary": "Heavy aggressive OTM call sweeps detected in tech and crypto perps." },
-    { "agent": "The Skeptic (Risk)", "status": "COMPLETED", "summary": "Filtered out 3 noisy setups. Approved 2 asymmetric setups with R:R >= 1:2.5." }
+    { "agent": "The Skeptic (Risk)", "status": "COMPLETED", "summary": "Stress-tested plays into tiered grades (A+, B+, and experimental C)." }
   ],
   "highConvictionPlays": [
     {
@@ -115,7 +118,7 @@ Return ONLY valid JSON matching this schema:
       "convictionGrade": "A+",
       "timeframe": "1H - 4H Intraday",
       "expectedDuration": "3 - 8 Hours",
-      "optimalWindow": "NY Session / Volatility Push",
+      "optimalWindow": "NY Session Open",
       "entryTrigger": "$100.20 - $100.80 (Pullback to 1H EMA20 & High Volume Node)",
       "stopLoss": "$98.20",
       "target2R": "$105.40",
@@ -138,13 +141,58 @@ Return ONLY valid JSON matching this schema:
       "riskRewardRatio": "1:2.7",
       "thesis": "Strong buyer delta on Hyperliquid perp book with multi-hour bull flag consolidation retest.",
       "invalidation": "1H close below $75,500."
+    },
+    {
+      "ticker": "NVDA",
+      "bias": "LONG",
+      "convictionGrade": "B+",
+      "timeframe": "Intraday (NY Session)",
+      "expectedDuration": "2 - 5 Hours",
+      "optimalWindow": "NY 9:30 AM - 10:30 AM EST",
+      "entryTrigger": "$131.80 (Opening Range Breakout above VWAP)",
+      "stopLoss": "$129.20",
+      "target2R": "$137.00",
+      "target3R": "$139.50",
+      "riskRewardRatio": "1:2.5",
+      "thesis": "Semi-conductor sector momentum with aggressive call sweep flow into weekly resistance breakout.",
+      "invalidation": "Loss of $129.00 key pivot."
+    },
+    {
+      "ticker": "HYPE",
+      "bias": "LONG",
+      "convictionGrade": "B",
+      "timeframe": "1H Scalp",
+      "expectedDuration": "1 - 4 Hours",
+      "optimalWindow": "Asian / London Handover",
+      "entryTrigger": "$81.20 - $81.50 (Pullback to support flip)",
+      "stopLoss": "$78.80",
+      "target2R": "$86.50",
+      "target3R": "$89.00",
+      "riskRewardRatio": "1:2.2",
+      "thesis": "Ecosystem token momentum and high open interest expansion on spot volume.",
+      "invalidation": "1H close below $78.50."
+    },
+    {
+      "ticker": "TSLA",
+      "bias": "SHORT",
+      "convictionGrade": "C (Experimental)",
+      "timeframe": "15m - 1H Scalp",
+      "expectedDuration": "1 - 3 Hours",
+      "optimalWindow": "NY Morning Fade",
+      "entryTrigger": "$218.50 (Failed breakout fade at upper deviation band)",
+      "stopLoss": "$222.00",
+      "target2R": "$211.50",
+      "target3R": "$208.00",
+      "riskRewardRatio": "1:2.0",
+      "thesis": "Mean-reversion experimental short testing intraday exhaust volume against VWAP.",
+      "invalidation": "15m close above $222.50."
     }
   ],
   "whaleFlowSignals": [
     { "asset": "SOL", "type": "Hyperliquid Perp Depth", "detail": "Significant bid liquidity layered between $99.00 - $100.50." },
     { "asset": "BTC", "type": "Dark Pool Print", "detail": "$45M net accumulation block near $77,000 level." }
   ],
-  "adversarialReview": "Skeptic Warning: Keep max leverage capped at 5x due to potential pre-market volatility whipsaws.",
+  "adversarialReview": "Skeptic Warning: Lower-tier C grade plays are experimental mean-reversion tests. Keep position sizing strictly conservative.",
   "riskNotice": "Adhere strictly to 1.5% max account risk per position. Move stop to breakeven once 1.5R target is achieved."
 }`;
 
@@ -173,9 +221,10 @@ Return ONLY valid JSON matching this schema:
     console.warn("Hermes Swarm AI run warning:", err);
   }
 
-  // 3. Fallback War Room Brief with Live Prices
+  // 3. Fallback Multi-Tiered War Room Brief with Live Prices
   const solPrice = livePrices.SOL || 100.61;
   const btcPrice = livePrices.BTC || 77336.50;
+  const hypePrice = livePrices.HYPE || 81.94;
 
   const fallbackBrief = {
     date: new Date().toISOString().split('T')[0],
@@ -184,9 +233,9 @@ Return ONLY valid JSON matching this schema:
     macroAnalysis: "Overnight liquidity indices remain buoyant with modest dollar cooling. Momentum favors continuation on leading crypto assets and AI infrastructure equities.",
     agentLogs: [
       { agent: "Atlas (Macro Radar)", status: "COMPLETED", summary: "Overnight indices green (+0.6%), yields stable at 4.28%." },
-      { agent: "Artemis (Screener)", status: "COMPLETED", summary: `Identified high relative volume (RVOL > 2.2) on SOL ($${solPrice.toFixed(2)}) and BTC ($${btcPrice.toFixed(2)}).` },
+      { agent: "Artemis (Screener)", status: "COMPLETED", summary: `Identified tiered setups on SOL ($${solPrice.toFixed(2)}), BTC ($${btcPrice.toFixed(2)}), NVDA, HYPE, and TSLA.` },
       { agent: "Poseidon (Flow & Whales)", status: "COMPLETED", summary: "Aggressive taker buy volume detected on Hyperliquid perp book." },
-      { agent: "The Skeptic (Risk Officer)", status: "COMPLETED", summary: "Filtered 4 choppy setups. Retained top 2 clean risk-reward plays (R:R >= 1:2.5)." }
+      { agent: "The Skeptic (Risk Officer)", status: "COMPLETED", summary: "Tiered setups: 2 A+ institutional plays, 1 B+ catalyst, 1 B scalp, and 1 experimental C grade play." }
     ],
     highConvictionPlays: [
       {
@@ -218,13 +267,58 @@ Return ONLY valid JSON matching this schema:
         riskRewardRatio: "1:2.7",
         thesis: "Clean structural retest of previous resistance flipped into dynamic support. Open interest expanding on spot premiums.",
         invalidation: `1H close below $${(btcPrice * 0.975).toFixed(2)}.`
+      },
+      {
+        ticker: "NVDA",
+        bias: "LONG",
+        convictionGrade: "B+",
+        timeframe: "Intraday (NY Session)",
+        expectedDuration: "2 - 5 Hours",
+        optimalWindow: "NY 9:30 AM - 10:30 AM EST",
+        entryTrigger: "$131.80 (Opening Range Breakout above VWAP)",
+        stopLoss: "$129.20",
+        target2R: "$137.00",
+        target3R: "$139.50",
+        riskRewardRatio: "1:2.5",
+        thesis: "Semi-conductor sector momentum with aggressive call sweep flow into weekly resistance breakout.",
+        invalidation: "Loss of $129.00 key pivot."
+      },
+      {
+        ticker: "HYPE",
+        bias: "LONG",
+        convictionGrade: "B",
+        timeframe: "1H Scalp",
+        expectedDuration: "1 - 4 Hours",
+        optimalWindow: "Asian / London Handover",
+        entryTrigger: `$${(hypePrice * 0.99).toFixed(2)} (Pullback to support flip)`,
+        stopLoss: `$${(hypePrice * 0.965).toFixed(2)}`,
+        target2R: `$${(hypePrice * 1.06).toFixed(2)}`,
+        target3R: `$${(hypePrice * 1.09).toFixed(2)}`,
+        riskRewardRatio: "1:2.2",
+        thesis: "Ecosystem token momentum and high open interest expansion on spot volume.",
+        invalidation: `1H close below $${(hypePrice * 0.96).toFixed(2)}.`
+      },
+      {
+        ticker: "TSLA",
+        bias: "SHORT",
+        convictionGrade: "C (Experimental)",
+        timeframe: "15m - 1H Scalp",
+        expectedDuration: "1 - 3 Hours",
+        optimalWindow: "NY Morning Fade",
+        entryTrigger: "$218.50 (Failed breakout fade at upper deviation band)",
+        stopLoss: "$222.00",
+        target2R: "$211.50",
+        target3R: "$208.00",
+        riskRewardRatio: "1:2.0",
+        thesis: "Mean-reversion experimental short testing intraday exhaust volume against VWAP.",
+        invalidation: "15m close above $222.50."
       }
     ],
     whaleFlowSignals: [
       { asset: "SOL", type: "Hyperliquid Perp Depth", detail: `Significant bid wall layered between $${(solPrice * 0.985).toFixed(2)} - $${solPrice.toFixed(2)}.` },
       { asset: "BTC", type: "Taker Flow Print", detail: "Over $32M in net buyer market orders during Asian session." }
     ],
-    adversarialReview: "The Skeptic: Beware of sudden liquidity sweeps near psychological round numbers. Lock in 50% profits at 2R.",
+    adversarialReview: "The Skeptic: Lower-tier C grade plays are experimental mean-reversion tests. Keep position sizing strictly conservative.",
     riskNotice: "Enforce strict 1.5% max account risk with automatic stop loss placement on entry."
   };
 

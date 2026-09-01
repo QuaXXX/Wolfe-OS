@@ -17,7 +17,7 @@ import {
   Bot,
   Clock,
   Zap,
-  RefreshCw
+  Check
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { HermesWarRoomModal } from '../trading/HermesWarRoomModal';
@@ -40,7 +40,12 @@ import {
 } from '../../utils/tradingStorage';
 import { fetchHyperliquidAccount, fetchLiveMarketPrices } from '../../utils/hyperliquidService';
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
-import { tickPaperPositionsWithLivePrices, autoExecuteHermesPlays } from '../../utils/hermesPaperTrader';
+import { 
+  tickPaperPositionsWithLivePrices, 
+  autoExecuteHermesPlays, 
+  enterSingleHermesPlay,
+  getPaperPositions 
+} from '../../utils/hermesPaperTrader';
 import { playSound } from '../../utils/soundFX';
 
 export const TradingView = ({ 
@@ -54,6 +59,7 @@ export const TradingView = ({
   const [config, setConfig] = useState(getTradingConfig());
   const [watchlist, setWatchlist] = useState(getWatchlist());
   const [openPositions, setOpenPositions] = useState(getOpenPositions());
+  const [paperPositions, setPaperPositions] = useState(getPaperPositions());
   const [tradeJournal, setTradeJournal] = useState(getTradeJournal());
   const [webhookLogs, setWebhookLogs] = useState(getWebhookLogs());
   const [hermesBrief, setHermesBrief] = useState(getLatestHermesBrief());
@@ -110,6 +116,7 @@ export const TradingView = ({
       runHermesSwarmAnalysis().then(b => {
         setHermesBrief(b);
         autoExecuteHermesPlays(b);
+        setPaperPositions(getPaperPositions());
       });
     }
 
@@ -120,12 +127,20 @@ export const TradingView = ({
     setConfig(getTradingConfig());
     setWatchlist(getWatchlist());
     setOpenPositions(getOpenPositions());
+    setPaperPositions(getPaperPositions());
     setTradeJournal(getTradeJournal());
     setWebhookLogs(getWebhookLogs());
     setHermesBrief(getLatestHermesBrief());
   };
 
   const stats = useMemo(() => calculateTradingStats(), [tradeJournal]);
+
+  const handleEnterIndividualPlay = (play) => {
+    playSound('click', soundEnabled);
+    enterSingleHermesPlay(play, hermesBrief?.date, livePricesMap);
+    setPaperPositions(getPaperPositions());
+    playSound('success', soundEnabled);
+  };
 
   const handleAddTicker = (e) => {
     if (e) e.preventDefault();
@@ -164,15 +179,15 @@ export const TradingView = ({
 
   return (
     <div className="space-y-4 max-w-6xl mx-auto pb-24 select-none font-sans">
-      {/* 1. MINIMAL TOP COMMAND BAR */}
+      {/* 1. INSTITUTIONAL TOP COMMAND BAR */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
         <div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>
-            <TrendingUp className="w-4 h-4" />
-            <span>Quantitative Desk</span>
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Institutional Trading Desk</span>
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight mt-0.5">
-            Trading Command Center
+          <h1 className="text-lg font-bold text-white tracking-tight mt-0.5">
+            Command Center & Forward-Test Engine
           </h1>
         </div>
 
@@ -185,9 +200,9 @@ export const TradingView = ({
               playSound('click', soundEnabled);
               setIsWarRoomOpen(true);
             }}
-            className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+            className="px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Hermes Council</span>
           </button>
 
@@ -198,9 +213,9 @@ export const TradingView = ({
               playSound('click', soundEnabled);
               setIsWebhookModalOpen(true);
             }}
-            className="px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+            className="px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
           >
-            <Radio className="w-3.5 h-3.5" />
+            <Radio className="w-3.5 h-3.5 text-slate-400" />
             <span>Webhooks</span>
           </button>
 
@@ -211,15 +226,15 @@ export const TradingView = ({
               playSound('click', soundEnabled);
               setIsHyperliquidOpen(true);
             }}
-            className="px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+            className="px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
           >
-            <Key className="w-3.5 h-3.5 text-blue-400" />
+            <Key className="w-3.5 h-3.5 text-slate-400" />
             <span>Hyperliquid</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           </button>
 
           {/* Performance Pill */}
-          <div className="px-3 py-1 rounded-xl bg-white/[0.03] text-right border border-white/10 min-w-[120px]">
+          <div className="px-3 py-1 rounded-xl bg-white/[0.02] text-right border border-white/10 min-w-[110px]">
             <div className="text-[9px] uppercase font-semibold text-slate-400">Realized P&L</div>
             <div className={`text-sm font-mono font-bold ${stats.totalPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {stats.totalPnlUSD >= 0 ? `+$${stats.totalPnlUSD.toFixed(2)}` : `-$${Math.abs(stats.totalPnlUSD).toFixed(2)}`}
@@ -229,7 +244,7 @@ export const TradingView = ({
       </div>
 
       {/* 2. NAVIGATION TABS */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar border-b border-white/5">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-white/5">
         {[
           { id: 'overview', label: '🌅 Morning War Room', icon: Compass },
           { id: 'papertrader', label: '🤖 Forward-Test Paper Desk', icon: Bot },
@@ -249,10 +264,9 @@ export const TradingView = ({
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
                 isActive
-                  ? 'bg-white/[0.1] text-white border border-white/20 shadow-sm'
+                  ? 'bg-white/[0.1] text-white border border-white/15 shadow-sm'
                   : 'bg-white/[0.02] text-slate-400 hover:text-slate-200 border border-white/5 hover:bg-white/[0.04]'
               }`}
-              style={isActive ? { borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' } : {}}
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
@@ -266,15 +280,15 @@ export const TradingView = ({
         <div className="space-y-4">
           {/* Macro Regime Banner */}
           {hermesBrief && (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-transparent border border-blue-500/20 space-y-1">
+            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Compass className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-blue-300 font-bold">
+                  <Compass className="w-3.5 h-3.5 text-slate-300" />
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate-300 font-bold">
                     Macro Regime Synthesis
                   </span>
                   <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    Skeptic Approved
+                    Skeptic Validated
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-slate-400">{hermesBrief.date}</span>
@@ -284,19 +298,19 @@ export const TradingView = ({
             </div>
           )}
 
-          {/* High Conviction Play Cards */}
-          <div className="space-y-2">
+          {/* Plays of the Day with Individual Test Buttons */}
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Target className="w-3.5 h-3.5 text-amber-400" />
-                <span>Today's Verified Plays</span>
+                <span>Plays of the Day ({hermesBrief?.highConvictionPlays?.length || 4} Setups)</span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsWarRoomOpen(true)}
-                className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 flex items-center gap-1 cursor-pointer"
               >
-                <span>Full Agent Logs</span>
+                <span>Council Logs</span>
                 <ArrowUpRight className="w-3 h-3" />
               </button>
             </div>
@@ -304,25 +318,42 @@ export const TradingView = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {(hermesBrief?.highConvictionPlays || []).map((play, idx) => {
                 const isLong = play.bias === 'LONG';
+                const isAlreadyTracking = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
+
                 return (
-                  <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3">
+                  <GlassCard key={idx} hoverEffect={false} className="p-3.5 space-y-2.5 border-white/10">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-white font-mono">{play.ticker}</span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold flex items-center gap-0.5 ${
-                          isLong ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          isLong ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
                         }`}>
                           {isLong ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                           {play.bias}
                         </span>
+                        <span className="text-[10px] font-mono text-amber-300 font-bold">Grade: {play.convictionGrade}</span>
                       </div>
-                      <span className="text-xs font-mono font-bold text-amber-300">Grade: {play.convictionGrade}</span>
+
+                      {/* Individual Forward-Test Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleEnterIndividualPlay(play)}
+                        disabled={isAlreadyTracking}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                          isAlreadyTracking
+                            ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 opacity-90'
+                            : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        {isAlreadyTracking ? <Check className="w-3 h-3 text-emerald-400" /> : <Plus className="w-3 h-3 text-amber-400" />}
+                        <span>{isAlreadyTracking ? 'In Paper Desk' : 'Forward-Test Play'}</span>
+                      </button>
                     </div>
 
                     {/* Timeframe & Trade Duration */}
                     <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <Clock className="w-3 h-3 text-amber-400 shrink-0" />
-                      <span className="text-slate-200 font-semibold">{play.timeframe || '1H - 4H Intraday'}</span>
+                      <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="text-slate-200 font-medium">{play.timeframe || '1H - 4H Intraday'}</span>
                       <span>•</span>
                       <span>{play.expectedDuration || '3 - 8 Hours'}</span>
                       {play.optimalWindow && (
@@ -333,6 +364,7 @@ export const TradingView = ({
                       )}
                     </div>
 
+                    {/* Entry, Stop Loss, 2R Take Profit Matrix */}
                     <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-xs">
                       <div>
                         <div className="text-[9px] text-slate-400 uppercase">Trigger</div>
@@ -361,7 +393,7 @@ export const TradingView = ({
             </div>
           </div>
 
-          {/* Forward-Test Paper Desk Mini Section */}
+          {/* Forward-Test Paper Desk Live Section */}
           <div className="pt-2">
             <HermesPaperTraderCard
               latestBrief={hermesBrief}
@@ -408,10 +440,10 @@ export const TradingView = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
               {watchlist.map((stock) => (
-                <GlassCard key={stock.symbol} hoverEffect={false} className="p-2.5">
+                <GlassCard key={stock.symbol} hoverEffect={false} className="p-2.5 border-white/10">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-white text-xs font-mono">{stock.symbol}</span>
-                    <span className="text-[10px] text-emerald-400 font-mono">Live</span>
+                    <span className="text-[9px] text-emerald-400 font-mono">Live</span>
                   </div>
                   <div className="font-mono text-sm font-bold text-slate-100 mt-0.5">
                     ${stock.price?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -447,12 +479,12 @@ export const TradingView = ({
               {openPositions.map((pos) => {
                 const isLong = pos.side === 'LONG';
                 return (
-                  <GlassCard key={pos.id} hoverEffect={false} className="p-4 space-y-3">
+                  <GlassCard key={pos.id} hoverEffect={false} className="p-4 space-y-3 border-white/10">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-base font-bold text-white">{pos.ticker}</span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
-                          isLong ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          isLong ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
                         }`}>
                           {pos.side} {pos.leverage}x
                         </span>
@@ -490,7 +522,7 @@ export const TradingView = ({
               })}
             </div>
           ) : (
-            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2 border-white/10">
               <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
                 <Layers className="w-5 h-5" />
               </div>
@@ -530,7 +562,7 @@ export const TradingView = ({
                 return (
                   <div
                     key={trade.id}
-                    className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-xs ${
@@ -547,6 +579,7 @@ export const TradingView = ({
                       </div>
                     </div>
 
+                    {/* AI Post-Mortem Quote */}
                     {trade.aiPostMortem && (
                       <div className="flex-1 max-w-md text-[11px] text-slate-300 italic truncate hidden lg:block">
                         "{trade.aiPostMortem}"
@@ -573,7 +606,7 @@ export const TradingView = ({
               })}
             </div>
           ) : (
-            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2 border-white/10">
               <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
                 <BookOpen className="w-5 h-5" />
               </div>
@@ -596,7 +629,7 @@ export const TradingView = ({
             <button
               type="button"
               onClick={() => setIsWebhookModalOpen(true)}
-              className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer font-semibold"
+              className="text-xs text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer font-semibold"
             >
               <Radio className="w-3.5 h-3.5" />
               <span>Configure Alerts & Payloads</span>
@@ -622,7 +655,7 @@ export const TradingView = ({
               ))}
             </div>
           ) : (
-            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2 border-white/10">
               <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
                 <Radio className="w-5 h-5" />
               </div>
