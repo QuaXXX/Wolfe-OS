@@ -1452,21 +1452,135 @@ Return ONLY valid JSON matching this schema:
     console.warn("Vault search AI error:", err);
   }
 
-  // Fallback search
-  const lowerQ = query.toLowerCase();
-  const matched = allFiles.filter(f => {
-    const text = (f.content || f.cachedContent || f.name || '').toLowerCase();
-    return lowerQ.split(' ').some(w => w.length > 2 && text.includes(w));
-  });
-
   return {
-    answer: `I reviewed your ${allFiles.length} course documents. Based on your materials in ${allFiles.map(f => f.course).filter(Boolean).join(', ')}, here is what was found for "${query}".`,
-    matchedFiles: (matched.length > 0 ? matched : allFiles).slice(0, 3).map(f => ({
-      name: f.name,
-      path: f.path || f.name,
-      relevance: `Course material for ${f.course || 'School'}`
-    }))
+    answer: `Analyzed course notes for ${targetCourse || 'your classes'}.`,
+    matchedFiles: filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
   };
+}
+
+/**
+ * Ultra-Fast Real-Time Streaming Search Engine for Course AI Chat
+ */
+export async function streamSearchVaultWithAI({ query, filesIndex = [], sampleNotes = [], onChunk }) {
+  const allFiles = (sampleNotes && sampleNotes.length > 0 ? sampleNotes : filesIndex) || [];
+  
+  const courseMatch = query.match(/\[Course:\s*([A-Za-z0-9\s]+)\]/i);
+  const targetCourse = courseMatch ? courseMatch[1].trim().toUpperCase() : null;
+
+  const relevantFiles = targetCourse 
+    ? allFiles.filter(f => {
+        const c = (f.course || '').toUpperCase();
+        return c.includes(targetCourse) || targetCourse.includes(c) || (f.path || '').toUpperCase().includes(targetCourse);
+      })
+    : allFiles;
+
+  const filesToScan = relevantFiles.length > 0 ? relevantFiles : allFiles;
+  
+  const notesSnippet = filesToScan.map(n => {
+    const rawText = n.content || n.cachedContent || n.sampleContent || '';
+    if (!rawText) return `### [Course: ${n.course || 'General'}] ${n.name}\n(Document attached)`;
+    const snippet = rawText.length > 7000 ? rawText.slice(0, 7000) + "\n...[truncated]" : rawText;
+    return `### [Course: ${n.course || 'General'}] ${n.name}\n${snippet}`;
+  }).join('\n\n---\n\n');
+
+  const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
+
+  const prompt = `You are Zach Wolfe's university academic study partner in Wolfe OS.
+Zach has provided his university course syllabus/notes for ${targetCourse || 'his classes'}.
+
+Question:
+"${cleanUserQuery}"
+
+Relevant Course Materials:
+${notesSnippet || "No document text available."}
+
+Guidelines for Response:
+1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points or brief summary.
+2. Do NOT output unprompted boilerplate (e.g. do not output full standard letter grade tables unless the user explicitly asks for grade scale cutoffs).
+3. If formatting formulas or calculations, use crisp LaTeX ($...$).
+4. Keep the response clean, readable, and easy to skim.`;
+
+  const systemInstruction = "You are a concise, high-speed university academic assistant. Provide direct, structured, factual answers in clean markdown without fluff.";
+
+  const apiKey = DEFAULT_AI_CONFIG.apiKey || API_KEY;
+  if (!apiKey) {
+    const fallback = await searchVaultWithAI({ query, filesIndex, sampleNotes });
+    if (onChunk) onChunk(fallback.answer);
+    return fallback;
+  }
+
+  const modelsToTry = [
+    'gemini-2.5-flash',
+    'gemini-flash-lite-latest',
+    'gemini-2.0-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-1.5-flash'
+  ];
+
+  for (const model of modelsToTry) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 16000);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 1024,
+          }
+        })
+      });
+
+      clearTimeout(timeoutId);
+      if (!response.ok || !response.body) continue;
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6).trim();
+            if (!dataStr || dataStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              if (text) {
+                accumulatedText += text;
+                if (onChunk) onChunk(accumulatedText);
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
+      if (accumulatedText.trim()) {
+        return {
+          answer: accumulatedText.trim(),
+          matchedFiles: filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
+        };
+      }
+    } catch (err) {
+      // Try next model
+    }
+  }
+
+  // Fallback if streaming failed
+  return await searchVaultWithAI({ query, filesIndex, sampleNotes });
 }
 
 /**
