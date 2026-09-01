@@ -177,7 +177,7 @@ export async function connectObsidianVault() {
 }
 
 /**
- * Extract course tag from any nested subfolder path (e.g. school/FNCE 317/Week 1/Lecture.md -> FNCE 317)
+ * Extract course tag from any nested subfolder path (e.g. school/FNCE 317/Quizzes/Lecture.md -> FNCE 317)
  */
 export function extractCourseFromPath(filePath) {
   if (!filePath) return 'Course Material';
@@ -185,18 +185,19 @@ export function extractCourseFromPath(filePath) {
   
   // 1. Check if any path segment matches university course code patterns (e.g. FNCE 317, PSYC 203)
   for (const part of parts) {
-    if (part.toLowerCase() === 'school' || part.toLowerCase().endsWith('.pdf') || part.toLowerCase().endsWith('.md')) continue;
+    const p = part.toLowerCase();
+    if (p === 'school' || p === 'quizzes' || p.endsWith('.pdf') || p.endsWith('.md')) continue;
     const match = part.match(/([A-Z]{2,6}\s*\d{2,4})/i);
     if (match) return match[1].toUpperCase().replace(/\s+/, ' ').trim();
   }
 
-  // 2. If under school/ (e.g. school/FNCE 317/Week 1/doc.md -> parts[1])
+  // 2. If under school/ (e.g. school/FNCE 317/Quizzes/doc.md -> parts[1])
   if (parts.length >= 2) {
     const schoolIdx = parts.findIndex(p => p.toLowerCase() === 'school');
     if (schoolIdx !== -1 && parts.length > schoolIdx + 1) {
       const candidate = parts[schoolIdx + 1];
-      if (candidate && !candidate.includes('.')) return candidate.trim();
-    } else if (parts.length > 1 && !parts[0].includes('.')) {
+      if (candidate && !candidate.includes('.') && candidate.toLowerCase() !== 'quizzes') return candidate.trim();
+    } else if (parts.length > 1 && !parts[0].includes('.') && parts[0].toLowerCase() !== 'quizzes') {
       return parts[0].trim();
     }
   }
@@ -495,8 +496,21 @@ export async function saveQuizToObsidian(quiz) {
     const handle = await getVaultHandle();
     if (!handle) return false;
 
-    const courseFolder = quiz.courseCode ? quiz.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() : 'General';
-    const subfolder = `School/${courseFolder}`;
+    const rootName = (handle.name || '').toLowerCase();
+    const isSchoolFolder = rootName === 'school';
+
+    let courseFolder = 'General';
+    if (quiz.courseCode) {
+      const match = quiz.courseCode.toUpperCase().match(/([A-Z]{2,6}\s*\d{2,4})/);
+      if (match) {
+        courseFolder = match[1].trim();
+      } else {
+        courseFolder = quiz.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() || 'General';
+      }
+    }
+
+    // Save directly into {Course}/Quizzes
+    const subfolder = isSchoolFolder ? `${courseFolder}/Quizzes` : `School/${courseFolder}/Quizzes`;
     const cleanDate = new Date(quiz.completedAt || quiz.lastUpdated || Date.now()).toISOString().split('T')[0];
     const safeTitle = (quiz.topic || quiz.title || 'Practice Quiz').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Quiz';
     const filename = `${safeTitle} Quiz (${cleanDate})`;
