@@ -103,6 +103,50 @@ export function deletePaperHistoryTrade(tradeId) {
 }
 
 /**
+ * Instantly convert a resting pending limit order into an active position at current market price
+ */
+export function executePendingPositionAtMarket(posId, livePrice) {
+  const positions = getPaperPositions();
+  const target = positions.find(p => p.id === posId);
+  if (!target) return positions;
+
+  const currentLivePrice = livePrice ? Number(livePrice) : target.entryPrice;
+  const isLong = target.side === 'LONG';
+  const riskDistance = Math.abs(target.entryPrice - target.stopLoss);
+
+  const newStopLoss = isLong 
+    ? Number((currentLivePrice - riskDistance).toFixed(2))
+    : Number((currentLivePrice + riskDistance).toFixed(2));
+
+  const newTakeProfit = isLong
+    ? Number((currentLivePrice + riskDistance * 2).toFixed(2))
+    : Number((currentLivePrice - riskDistance * 2).toFixed(2));
+
+  const updatedPositions = positions.map(pos => {
+    if (pos.id === posId) {
+      return {
+        ...pos,
+        status: 'ACTIVE',
+        executionType: 'MARKET_FILL',
+        entryPrice: currentLivePrice,
+        currentPrice: currentLivePrice,
+        stopLoss: newStopLoss,
+        takeProfit: newTakeProfit,
+        triggeredAt: new Date().toISOString(),
+        unrealizedPnlUSD: 0.00,
+        spotMovePct: 0.00,
+        roePct: 0.00,
+        rMultiple: 0.00
+      };
+    }
+    return pos;
+  });
+
+  savePaperPositions(updatedPositions);
+  return updatedPositions;
+}
+
+/**
  * 1. Enter a Single Play with Exact Sizing, Limit Trigger or Immediate Market Fill
  * @param {Object} play - Candidate trade setup
  * @param {string} briefDate - Date of the brief

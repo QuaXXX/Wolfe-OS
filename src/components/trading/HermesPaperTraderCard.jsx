@@ -17,9 +17,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   SlidersHorizontal,
-  ChevronRight,
   Hourglass,
-  Layers
+  Layers,
+  Zap
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { 
@@ -29,7 +29,8 @@ import {
   getPaperTradeHistory, 
   deletePaperPosition, 
   deletePaperHistoryTrade, 
-  resetPaperTradingAccount 
+  resetPaperTradingAccount,
+  executePendingPositionAtMarket
 } from '../../utils/hermesPaperTrader';
 import { playSound } from '../../utils/soundFX';
 
@@ -67,6 +68,15 @@ export const HermesPaperTraderCard = ({
     playSound('click', soundEnabled);
     const updated = deletePaperHistoryTrade(tradeId);
     setPaperHistory(updated);
+    if (onPositionChanged) onPositionChanged();
+  };
+
+  const handleFillPendingAtMarket = (posId, currentLivePrice, e) => {
+    if (e) e.stopPropagation();
+    playSound('click', soundEnabled);
+    const updated = executePendingPositionAtMarket(posId, currentLivePrice);
+    setPaperPositions(updated);
+    playSound('success', soundEnabled);
     if (onPositionChanged) onPositionChanged();
   };
 
@@ -284,9 +294,26 @@ export const HermesPaperTraderCard = ({
 
                     {/* Pending Entry Highlight Banner */}
                     {isPending && (
-                      <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs font-mono text-amber-200 flex items-center justify-between">
-                        <span>⏳ Waiting for Limit Fill @ <strong>${pos.entryPrice}</strong></span>
-                        <span className="text-[10px] text-slate-300">Live: ${currentPrice} ({Number(distanceToEntryPct) > 0 ? `+${distanceToEntryPct}` : distanceToEntryPct}% away)</span>
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-1.5 font-mono">
+                        <div className="flex items-center justify-between text-xs text-amber-200">
+                          <span className="font-bold flex items-center gap-1">
+                            <Hourglass className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Resting Limit Order: <strong>${pos.entryPrice}</strong></span>
+                          </span>
+                          <span className="text-[11px] text-slate-300">Live Market: <strong className="text-white">${currentPrice}</strong> ({Number(distanceToEntryPct) > 0 ? `+${distanceToEntryPct}` : distanceToEntryPct}%)</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-amber-500/15">
+                          <span>Order unfilled • Zero risk until filled</span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleFillPendingAtMarket(pos.id, currentPrice, e)}
+                            className="px-2 py-0.5 rounded-md font-bold text-white flex items-center gap-1 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                            style={{ backgroundColor: 'var(--accent-primary)' }}
+                          >
+                            <Zap className="w-3 h-3" />
+                            <span>Fill at Market Now (${currentPrice})</span>
+                          </button>
+                        </div>
                       </div>
                     )}
 
