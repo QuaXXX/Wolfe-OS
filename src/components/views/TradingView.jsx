@@ -213,8 +213,11 @@ export const TradingView = ({
 
   return (
     <div className="space-y-4 max-w-6xl mx-auto pb-24 select-none font-sans">
-      {/* 1. SIGNATURE WOLFE OS TOP HEADER WITH CLEAN DROPDOWNS */}
-      <div className="flex items-center justify-between gap-3 pb-3 border-b border-blue-500/10">
+      {/* 1. DYNAMIC SYSTEM ACCENT HEADER WITH CLEAN DROPDOWNS */}
+      <div 
+        className="flex items-center justify-between gap-3 pb-3 border-b"
+        style={{ borderColor: 'var(--accent-border)' }}
+      >
         {/* Left: View Selector Dropdown */}
         <div className="relative" ref={viewDropdownRef}>
           <button
@@ -223,22 +226,36 @@ export const TradingView = ({
               playSound('click', soundEnabled);
               setIsViewDropdownOpen(prev => !prev);
             }}
-            className="px-3.5 py-1.5 rounded-xl bg-blue-950/40 hover:bg-blue-900/40 text-blue-100 border border-blue-500/20 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_15px_-3px_rgba(59,130,246,0.15)] active:scale-95"
+            className="px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer active:scale-95 shadow-sm"
+            style={{ 
+              backgroundColor: 'var(--accent-subtle)',
+              border: '1px solid var(--accent-border)',
+              boxShadow: '0 0 15px -3px var(--accent-glow)'
+            }}
           >
-            <CurrentIcon className="w-4 h-4 text-blue-400" />
+            <CurrentIcon className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
             <span className="font-bold">{currentTabObj.label}</span>
             {currentTabObj.count > 0 && (
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+              <span 
+                className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold"
+                style={{ 
+                  backgroundColor: 'var(--accent-primary)',
+                  color: '#ffffff'
+                }}
+              >
                 {currentTabObj.count}
               </span>
             )}
-            <ChevronDown className="w-3.5 h-3.5 text-blue-400/70" />
+            <ChevronDown className="w-3.5 h-3.5 opacity-70" style={{ color: 'var(--accent-primary)' }} />
           </button>
 
           {/* Dropdown Menu */}
           {isViewDropdownOpen && (
-            <div className="absolute left-0 top-full mt-1.5 w-56 rounded-2xl theme-card border border-blue-500/20 shadow-2xl backdrop-blur-2xl py-1.5 z-50 space-y-0.5 font-sans">
-              <div className="px-3 py-1 text-[10px] font-semibold text-blue-300/70 uppercase tracking-wider">
+            <div 
+              className="absolute left-0 top-full mt-1.5 w-56 rounded-2xl theme-card shadow-2xl backdrop-blur-2xl py-1.5 z-50 space-y-0.5 font-sans"
+              style={{ border: '1px solid var(--accent-border)' }}
+            >
+              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                 Select Workspace View
               </div>
               {tabsConfig.map(tab => {
@@ -255,16 +272,26 @@ export const TradingView = ({
                     }}
                     className={`w-full px-3 py-2 text-left text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
                       isSelected
-                        ? 'bg-blue-500/20 text-blue-200 border-l-2 border-blue-400'
-                        : 'text-slate-300 hover:text-white hover:bg-blue-900/30'
+                        ? 'text-white'
+                        : 'text-slate-300 hover:text-white hover:bg-white/[0.04]'
                     }`}
+                    style={isSelected ? { 
+                      backgroundColor: 'var(--accent-subtle)',
+                      borderLeft: '2px solid var(--accent-primary)'
+                    } : {}}
                   >
                     <div className="flex items-center gap-2">
-                      <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-400' : 'text-slate-400'}`} />
+                      <Icon 
+                        className="w-3.5 h-3.5" 
+                        style={isSelected ? { color: 'var(--accent-primary)' } : { color: 'rgb(148 163 184)' }} 
+                      />
                       <span>{tab.label}</span>
                     </div>
                     {tab.count > 0 && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-950/60 text-blue-300 border border-blue-500/20">
+                      <span 
+                        className="text-[10px] font-mono px-1.5 py-0.2 rounded"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                      >
                         {tab.count}
                       </span>
                     )}
@@ -285,16 +312,23 @@ export const TradingView = ({
                 playSound('click', soundEnabled);
                 setIsActionsDropdownOpen(prev => !prev);
               }}
-              className="px-3 py-1.5 rounded-xl bg-blue-950/30 hover:bg-blue-900/40 text-blue-200 border border-blue-500/20 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer text-slate-200 hover:text-white"
+              style={{ 
+                backgroundColor: 'var(--accent-subtle)',
+                border: '1px solid var(--accent-border)'
+              }}
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
               <span>Actions</span>
-              <ChevronDown className="w-3 h-3 text-blue-400/60" />
+              <ChevronDown className="w-3 h-3 opacity-60" style={{ color: 'var(--accent-primary)' }} />
             </button>
 
             {isActionsDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-48 rounded-2xl theme-card border border-blue-500/20 shadow-2xl backdrop-blur-2xl py-1.5 z-50 space-y-0.5 font-sans">
-                <div className="px-3 py-1 text-[10px] font-semibold text-blue-300/70 uppercase tracking-wider">
+              <div 
+                className="absolute right-0 top-full mt-1.5 w-48 rounded-2xl theme-card shadow-2xl backdrop-blur-2xl py-1.5 z-50 space-y-0.5 font-sans"
+                style={{ border: '1px solid var(--accent-border)' }}
+              >
+                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                   Desk Actions
                 </div>
                 <button
@@ -304,9 +338,9 @@ export const TradingView = ({
                     setIsWarRoomOpen(true);
                     setIsActionsDropdownOpen(false);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Hermes Council</span>
                 </button>
                 <button
@@ -316,9 +350,9 @@ export const TradingView = ({
                     setIsWebhookModalOpen(true);
                     setIsActionsDropdownOpen(false);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
-                  <Radio className="w-3.5 h-3.5 text-blue-400" />
+                  <Radio className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Webhooks Setup</span>
                 </button>
                 <button
@@ -328,9 +362,9 @@ export const TradingView = ({
                     setIsHyperliquidOpen(true);
                     setIsActionsDropdownOpen(false);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
-                  <Key className="w-3.5 h-3.5 text-blue-400" />
+                  <Key className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Hyperliquid Bridge</span>
                 </button>
                 <button
@@ -341,9 +375,9 @@ export const TradingView = ({
                     setIsJournalModalOpen(true);
                     setIsActionsDropdownOpen(false);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+                  <BookOpen className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Log Manual Trade</span>
                 </button>
               </div>
@@ -351,7 +385,13 @@ export const TradingView = ({
           </div>
 
           {/* Realized PnL */}
-          <div className="px-3 py-1 rounded-xl bg-blue-950/30 text-right border border-blue-500/15 min-w-[100px]">
+          <div 
+            className="px-3 py-1 rounded-xl text-right min-w-[100px]"
+            style={{ 
+              backgroundColor: 'rgba(0,0,0,0.4)',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}
+          >
             <div className="text-[9px] uppercase font-semibold text-slate-400">Realized P&L</div>
             <div className={`text-xs font-mono font-bold ${stats.totalPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {stats.totalPnlUSD >= 0 ? `+$${stats.totalPnlUSD.toFixed(2)}` : `-$${Math.abs(stats.totalPnlUSD).toFixed(2)}`}
@@ -365,25 +405,25 @@ export const TradingView = ({
         <div className="space-y-4">
           {/* Collapsible Macro Regime Summary */}
           {hermesBrief && (
-            <GlassCard hoverEffect={false} className="p-3.5 space-y-1 border-blue-500/20">
+            <GlassCard hoverEffect={false} className="p-3.5 space-y-1">
               <div 
                 onClick={() => setIsMacroExpanded(prev => !prev)}
                 className="flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <Compass className="w-4 h-4 text-blue-400" />
+                  <Compass className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
                   <span className="text-xs font-bold text-white tracking-wide">{hermesBrief.macroRegime}</span>
                   <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
                     Skeptic Approved
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400 text-xs">
-                  <span className="text-[10px] font-mono text-blue-300/80">{hermesBrief.date}</span>
-                  {isMacroExpanded ? <ChevronUp className="w-3.5 h-3.5 text-blue-400" /> : <ChevronDown className="w-3.5 h-3.5 text-blue-400" />}
+                  <span className="text-[10px] font-mono" style={{ color: 'var(--accent-primary)' }}>{hermesBrief.date}</span>
+                  {isMacroExpanded ? <ChevronUp className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />}
                 </div>
               </div>
               {isMacroExpanded && (
-                <p className="text-xs text-slate-300 leading-relaxed pt-1.5 border-t border-blue-500/10">
+                <p className="text-xs text-slate-300 leading-relaxed pt-1.5 border-t border-white/5">
                   {hermesBrief.macroAnalysis}
                 </p>
               )}
@@ -393,8 +433,8 @@ export const TradingView = ({
           {/* Plays of the Day Grid */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-bold uppercase tracking-wider text-blue-200/90 flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5 text-blue-400" />
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                 <span>Plays of the Day ({hermesBrief?.highConvictionPlays?.length || 4})</span>
               </div>
             </div>
@@ -405,7 +445,7 @@ export const TradingView = ({
                 const isAlreadyTracking = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
 
                 return (
-                  <GlassCard key={idx} hoverEffect={false} className="p-3.5 space-y-2.5 border-blue-500/15">
+                  <GlassCard key={idx} hoverEffect={false} className="p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-white font-mono">{play.ticker}</span>
@@ -415,7 +455,7 @@ export const TradingView = ({
                           {isLong ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                           {play.bias}
                         </span>
-                        <span className="text-[10px] font-mono text-blue-300 font-semibold">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
+                        <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
                       </div>
 
                       {/* Forward-Test Button */}
@@ -426,24 +466,28 @@ export const TradingView = ({
                         className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
                           isAlreadyTracking
                             ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 opacity-90'
-                            : 'bg-blue-950/40 hover:bg-blue-900/50 text-blue-200 border border-blue-500/20 hover:border-blue-500/40'
+                            : 'text-white'
                         }`}
+                        style={!isAlreadyTracking ? {
+                          backgroundColor: 'var(--accent-subtle)',
+                          border: '1px solid var(--accent-border)'
+                        } : {}}
                       >
-                        {isAlreadyTracking ? <Check className="w-3 h-3 text-emerald-400" /> : <Plus className="w-3 h-3 text-blue-400" />}
+                        {isAlreadyTracking ? <Check className="w-3 h-3 text-emerald-400" /> : <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />}
                         <span>{isAlreadyTracking ? 'In Desk' : 'Forward-Test'}</span>
                       </button>
                     </div>
 
                     {/* Timeframe & Trade Duration */}
                     <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <Clock className="w-3 h-3 text-blue-400 shrink-0" />
-                      <span className="text-blue-100 font-medium">{play.timeframe || '1H - 4H Intraday'}</span>
+                      <Clock className="w-3 h-3 shrink-0" style={{ color: 'var(--accent-primary)' }} />
+                      <span className="text-slate-200 font-medium">{play.timeframe || '1H - 4H Intraday'}</span>
                       <span>•</span>
                       <span>{play.expectedDuration || '3 - 8h'}</span>
                     </div>
 
                     {/* Entry, Stop Loss, 2R Take Profit Matrix */}
-                    <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-blue-950/50 border border-blue-500/15 font-mono text-xs">
+                    <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-xs">
                       <div>
                         <div className="text-[9px] text-slate-400 uppercase">Trigger</div>
                         <div className="font-bold text-white truncate">{play.entryTrigger.split(' ')[0]}</div>
@@ -459,10 +503,10 @@ export const TradingView = ({
                     </div>
 
                     <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                      <strong className="text-blue-300/80">Thesis:</strong> {play.thesis}
+                      <strong className="text-slate-400">Thesis:</strong> {play.thesis}
                     </p>
 
-                    <div className="text-[11px] text-slate-400 pt-1 border-t border-blue-500/10 font-sans">
+                    <div className="text-[11px] text-slate-400 pt-1 border-t border-white/5 font-sans">
                       <strong className="text-rose-400">Invalidation:</strong> {play.invalidation}
                     </div>
                   </GlassCard>
@@ -474,13 +518,14 @@ export const TradingView = ({
           {/* Clean Real-Time Watchlist */}
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-blue-200/90">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                 Live Watchlist ({watchlist.length})
               </h2>
               <button
                 type="button"
                 onClick={() => setIsAddingTicker(prev => !prev)}
-                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer font-medium"
+                className="text-xs flex items-center gap-1 cursor-pointer font-medium"
+                style={{ color: 'var(--accent-primary)' }}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Ticker</span>
@@ -488,17 +533,19 @@ export const TradingView = ({
             </div>
 
             {isAddingTicker && (
-              <form onSubmit={handleAddTicker} className="flex gap-2 p-2 rounded-2xl theme-card border border-blue-500/20">
+              <form onSubmit={handleAddTicker} className="flex gap-2 p-2 rounded-2xl theme-card border" style={{ borderColor: 'var(--accent-border)' }}>
                 <input
                   type="text"
                   value={newTickerInput}
                   onChange={(e) => setNewTickerInput(e.target.value)}
                   placeholder="Ticker (e.g. SUI, AVAX)..."
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/20 text-white font-mono text-xs outline-none focus:border-blue-400"
+                  className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
+                  style={{ borderColor: 'var(--accent-border)' }}
                 />
                 <button
                   type="submit"
-                  className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold cursor-pointer bg-blue-600 hover:bg-blue-500 transition-all shadow-md"
+                  className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold cursor-pointer shadow-md transition-all active:scale-95"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
                 >
                   Add
                 </button>
@@ -507,12 +554,12 @@ export const TradingView = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
               {watchlist.map((stock) => (
-                <GlassCard key={stock.symbol} hoverEffect={false} className="p-2.5 border-blue-500/15">
+                <GlassCard key={stock.symbol} hoverEffect={false} className="p-2.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-white text-xs font-mono">{stock.symbol}</span>
                     <span className="text-[9px] text-emerald-400 font-mono">Live</span>
                   </div>
-                  <div className="font-mono text-sm font-bold text-blue-100 mt-0.5">
+                  <div className="font-mono text-sm font-bold text-white mt-0.5">
                     ${stock.price?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </GlassCard>
@@ -536,7 +583,7 @@ export const TradingView = ({
       {activeTab === 'positions' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-200/90">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
               Active Hyperliquid Positions ({openPositions.length})
             </h3>
           </div>
@@ -546,7 +593,7 @@ export const TradingView = ({
               {openPositions.map((pos) => {
                 const isLong = pos.side === 'LONG';
                 return (
-                  <GlassCard key={pos.id} hoverEffect={false} className="p-4 space-y-3 border-blue-500/15">
+                  <GlassCard key={pos.id} hoverEffect={false} className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-base font-bold text-white">{pos.ticker}</span>
@@ -565,7 +612,7 @@ export const TradingView = ({
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-blue-950/50 border border-blue-500/15 font-mono text-xs">
+                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-black/40 border border-white/5 font-mono text-xs">
                       <div>
                         <div className="text-[10px] text-slate-400 uppercase">Size</div>
                         <div className="font-bold text-white">{pos.size}</div>
@@ -589,9 +636,15 @@ export const TradingView = ({
               })}
             </div>
           ) : (
-            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2 border-blue-500/15">
-              <div className="w-10 h-10 rounded-2xl bg-blue-950/40 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
-                <Layers className="w-5 h-5" />
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+              <div 
+                className="w-10 h-10 rounded-2xl border flex items-center justify-center mx-auto"
+                style={{ 
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)'
+                }}
+              >
+                <Layers className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div className="text-sm font-bold text-white">No Open Positions</div>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
@@ -606,7 +659,7 @@ export const TradingView = ({
       {activeTab === 'journal' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-200/90">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
               Completed Trade History & AI Reviews ({tradeJournal.length})
             </h3>
             <button
@@ -615,9 +668,13 @@ export const TradingView = ({
                 setSelectedTradeForEdit(null);
                 setIsJournalModalOpen(true);
               }}
-              className="px-3 py-1.5 rounded-xl bg-blue-950/40 hover:bg-blue-900/50 text-white border border-blue-500/20 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              style={{ 
+                backgroundColor: 'var(--accent-subtle)',
+                border: '1px solid var(--accent-border)'
+              }}
             >
-              <Plus className="w-3.5 h-3.5 text-blue-400" />
+              <Plus className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
               <span>Log Trade Manually</span>
             </button>
           </div>
@@ -630,7 +687,7 @@ export const TradingView = ({
                   <GlassCard
                     key={trade.id}
                     hoverEffect={false}
-                    className="p-3 border-blue-500/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-xs ${
@@ -649,7 +706,7 @@ export const TradingView = ({
 
                     {/* AI Post-Mortem Quote */}
                     {trade.aiPostMortem && (
-                      <div className="flex-1 max-w-md text-[11px] text-blue-200/80 italic truncate hidden lg:block">
+                      <div className="flex-1 max-w-md text-[11px] text-slate-300 italic truncate hidden lg:block">
                         "{trade.aiPostMortem}"
                       </div>
                     )}
@@ -674,9 +731,15 @@ export const TradingView = ({
               })}
             </div>
           ) : (
-            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2 border-blue-500/15">
-              <div className="w-10 h-10 rounded-2xl bg-blue-950/40 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
-                <BookOpen className="w-5 h-5" />
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+              <div 
+                className="w-10 h-10 rounded-2xl border flex items-center justify-center mx-auto"
+                style={{ 
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)'
+                }}
+              >
+                <BookOpen className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div className="text-sm font-bold text-white">Trade Journal Empty</div>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
@@ -691,13 +754,14 @@ export const TradingView = ({
       {activeTab === 'webhooks' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-200/90">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
               TradingView Webhook Signals ({webhookLogs.length})
             </h3>
             <button
               type="button"
               onClick={() => setIsWebhookModalOpen(true)}
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer font-semibold"
+              className="text-xs hover:text-white flex items-center gap-1 cursor-pointer font-semibold"
+              style={{ color: 'var(--accent-primary)' }}
             >
               <Radio className="w-3.5 h-3.5" />
               <span>Configure Alerts</span>
@@ -707,12 +771,12 @@ export const TradingView = ({
           {webhookLogs.length > 0 ? (
             <div className="space-y-2">
               {webhookLogs.map((log) => (
-                <GlassCard key={log.id} hoverEffect={false} className="p-3 border-blue-500/15 text-xs font-mono flex items-center justify-between">
+                <GlassCard key={log.id} hoverEffect={false} className="p-3 text-xs font-mono flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <div>
                       <span className="font-bold text-white">{log.action} {log.ticker}</span>
-                      <span className="text-blue-200 ml-2">@ ${log.price}</span>
+                      <span className="text-slate-200 ml-2">@ ${log.price}</span>
                       <div className="text-[10px] text-slate-400 font-sans">{log.strategy} • {new Date(log.timestamp).toLocaleTimeString()}</div>
                     </div>
                   </div>
@@ -723,9 +787,15 @@ export const TradingView = ({
               ))}
             </div>
           ) : (
-            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2 border-blue-500/15">
-              <div className="w-10 h-10 rounded-2xl bg-blue-950/40 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
-                <Radio className="w-5 h-5" />
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+              <div 
+                className="w-10 h-10 rounded-2xl border flex items-center justify-center mx-auto"
+                style={{ 
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)'
+                }}
+              >
+                <Radio className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div className="text-sm font-bold text-white">No Webhooks Received Yet</div>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
