@@ -606,7 +606,9 @@ export const TradingView = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {(hermesBrief?.highConvictionPlays || []).map((play, idx) => {
                     const isLong = play.bias === 'LONG';
-                    const isAlreadyTracking = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
+                    const trackedPosition = paperPositions.find(p => p.ticker === play.ticker && p.status !== 'CLOSED');
+                    const isAlreadyTracking = !!trackedPosition;
+                    const isPending = trackedPosition?.status === 'PENDING_ENTRY';
                     const isDossierOpen = expandedDossierIdx === idx;
 
                     return (
@@ -623,24 +625,35 @@ export const TradingView = ({
                             <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
                           </div>
 
-                          {/* Forward-Test Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleEnterIndividualPlay(play)}
-                            disabled={isAlreadyTracking}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                              isAlreadyTracking
-                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 opacity-90'
-                                : 'text-white'
-                            }`}
-                            style={!isAlreadyTracking ? {
-                              backgroundColor: 'var(--accent-subtle)',
-                              border: '1px solid var(--accent-border)'
-                            } : {}}
-                          >
-                            {isAlreadyTracking ? <Check className="w-3 h-3 text-emerald-400" /> : <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />}
-                            <span>{isAlreadyTracking ? 'In Desk' : 'Forward-Test'}</span>
-                          </button>
+                          {/* Forward-Test Status / Action Button */}
+                          {isAlreadyTracking ? (
+                            <div className="flex items-center gap-1.5">
+                              {isPending ? (
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1 font-bold animate-pulse">
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  <span>Waiting for Entry Fill</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 font-bold">
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span>Active in Market</span>
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleEnterIndividualPlay(play)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer text-white"
+                              style={{
+                                backgroundColor: 'var(--accent-subtle)',
+                                border: '1px solid var(--accent-border)'
+                              }}
+                            >
+                              <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                              <span>+ Forward-Test</span>
+                            </button>
+                          )}
                         </div>
 
                         {/* Timeframe & Trade Duration */}

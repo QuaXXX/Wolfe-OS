@@ -3,21 +3,23 @@ import {
   Bot, 
   TrendingUp, 
   TrendingDown, 
+  Plus, 
+  CheckCircle2, 
+  AlertTriangle, 
+  X, 
+  Clock, 
   Target, 
   ShieldAlert, 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  CheckCircle2, 
-  XCircle, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Layers,
+  Trash2, 
+  RefreshCw, 
+  RotateCcw,
   Sparkles,
-  Zap,
-  Trash2,
-  Clock,
-  Hourglass
+  ArrowUpRight,
+  ArrowDownRight,
+  SlidersHorizontal,
+  ChevronRight,
+  Hourglass,
+  Layers
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { 
@@ -25,18 +27,17 @@ import {
   savePaperAccount, 
   getPaperPositions, 
   getPaperTradeHistory, 
-  resetPaperTradingAccount, 
-  autoExecuteHermesPlays,
-  deletePaperPosition,
-  deletePaperHistoryTrade
+  deletePaperPosition, 
+  deletePaperHistoryTrade, 
+  resetPaperTradingAccount 
 } from '../../utils/hermesPaperTrader';
 import { playSound } from '../../utils/soundFX';
 
-export const HermesPaperTraderCard = ({ 
-  latestBrief, 
-  livePrices = {}, 
-  onPositionChanged, 
-  soundEnabled = true 
+export const HermesPaperTraderCard = ({
+  latestBrief,
+  livePrices = {},
+  onPositionChanged,
+  soundEnabled = true
 }) => {
   const [account, setAccount] = useState(getPaperAccount());
   const [paperPositions, setPaperPositions] = useState(getPaperPositions());
@@ -52,25 +53,6 @@ export const HermesPaperTraderCard = ({
   useEffect(() => {
     refreshState();
   }, [livePrices]);
-
-  const handleToggleAutoTrader = () => {
-    playSound('click', soundEnabled);
-    const updated = savePaperAccount({
-      ...account,
-      isAutoTradingEnabled: !account.isAutoTradingEnabled
-    });
-    setAccount(updated);
-  };
-
-  const handleForceExecuteToday = () => {
-    playSound('click', soundEnabled);
-    if (latestBrief) {
-      const created = autoExecuteHermesPlays(latestBrief, true, livePrices);
-      refreshState();
-      if (onPositionChanged) onPositionChanged();
-      playSound('success', soundEnabled);
-    }
-  };
 
   const handleDeletePosition = (posId, e) => {
     if (e) e.stopPropagation();
@@ -130,17 +112,13 @@ export const HermesPaperTraderCard = ({
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">
                   Forward-Test Paper Desk
                 </h3>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
-                  account.isAutoTradingEnabled 
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
-                    : 'bg-white/[0.04] text-slate-400 border border-white/5'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${account.isAutoTradingEnabled ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-                  <span>{account.isAutoTradingEnabled ? 'Auto-Test Active' : 'Paused'}</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>Individual Selection Active</span>
                 </span>
               </div>
               <div className="text-[11px] text-slate-400">
-                Pending limit orders trigger upon price touch, calculating exact live PnL, ROE %, and TP/SL execution.
+                100% Exchange Clearinghouse Math • 5x Leverage ROE Tracking
               </div>
             </div>
           </div>
@@ -148,42 +126,12 @@ export const HermesPaperTraderCard = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleToggleAutoTrader}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                account.isAutoTradingEnabled
-                  ? 'text-white'
-                  : 'text-slate-400 bg-white/[0.02] border-white/5'
-              }`}
-              style={account.isAutoTradingEnabled ? { 
-                backgroundColor: 'var(--accent-subtle)',
-                borderColor: 'var(--accent-border)'
-              } : {}}
-            >
-              {account.isAutoTradingEnabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              <span>{account.isAutoTradingEnabled ? 'Pause' : 'Resume'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleForceExecuteToday}
-              title="Force enter current morning brief plays into paper trader"
-              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer text-white shadow-sm"
-              style={{ 
-                backgroundColor: 'var(--accent-subtle)',
-                border: '1px solid var(--accent-border)'
-              }}
-            >
-              <Zap className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-              <span>Enter All Plays</span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleResetAccount}
               title="Reset paper account"
-              className="p-1.5 rounded-xl bg-white/[0.02] hover:bg-rose-500/15 text-slate-400 hover:text-rose-400 border border-white/5 cursor-pointer transition-all"
+              className="p-1.5 rounded-xl bg-white/[0.02] hover:bg-rose-500/15 text-slate-400 hover:text-rose-400 border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs"
             >
               <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Desk</span>
             </button>
           </div>
         </div>
@@ -275,6 +223,11 @@ export const HermesPaperTraderCard = ({
                 const distanceCovered = isLong ? (currentPrice - pos.stopLoss) : (pos.stopLoss - currentPrice);
                 const progressPct = Math.max(0, Math.min(100, (distanceCovered / totalRange) * 100));
 
+                // Price distance from Entry for pending orders
+                const distanceToEntryPct = pos.entryPrice > 0 
+                  ? (((currentPrice - pos.entryPrice) / pos.entryPrice) * 100).toFixed(2)
+                  : '0.00';
+
                 return (
                   <GlassCard key={pos.id} hoverEffect={false} className="p-3.5 space-y-2.5 relative">
                     <div className="flex items-center justify-between">
@@ -288,34 +241,33 @@ export const HermesPaperTraderCard = ({
 
                         {isPending ? (
                           <span 
-                            className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1"
-                            style={{ 
-                              backgroundColor: 'var(--accent-subtle)',
-                              border: '1px solid var(--accent-border)',
-                              color: 'var(--accent-primary)'
-                            }}
+                            className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse"
                           >
-                            <Hourglass className="w-3 h-3" />
-                            <span>Pending Entry</span>
+                            <Hourglass className="w-3 h-3 text-amber-400" />
+                            <span>Waiting for Entry Trigger</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 font-bold">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            <span>Active</span>
+                            <span>Active in Market</span>
                           </span>
                         )}
-                        <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{pos.convictionGrade}</strong></span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {!isPending && (
+                        {!isPending ? (
                           <div className="text-right font-mono">
                             <div className={`text-xs font-bold ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {isProfitable ? `+$${(pos.unrealizedPnlUSD || 0).toFixed(2)}` : `-$${Math.abs(pos.unrealizedPnlUSD || 0).toFixed(2)}`}
                             </div>
-                            <div className="text-[10px] text-slate-400">
-                              ROE: <strong className={isProfitable ? 'text-emerald-400' : 'text-rose-400'}>{pos.roePct > 0 ? `+${pos.roePct}` : pos.roePct}%</strong> ({pos.spotMovePct > 0 ? `+${pos.spotMovePct}` : pos.spotMovePct}% Spot)
+                            <div className="text-[10px] text-slate-300">
+                              ROE: <strong className={isProfitable ? 'text-emerald-400' : 'text-rose-400'}>{pos.roePct > 0 ? `+${pos.roePct}` : pos.roePct}%</strong> <span className="text-slate-400">({pos.spotMovePct > 0 ? `+${pos.spotMovePct}` : pos.spotMovePct}% Spot × {pos.leverage}x)</span>
                             </div>
+                          </div>
+                        ) : (
+                          <div className="text-right font-mono">
+                            <div className="text-xs font-bold text-slate-400">$0.00 PnL</div>
+                            <div className="text-[10px] text-amber-300/90 font-sans">Resting Limit Order</div>
                           </div>
                         )}
 
@@ -330,6 +282,14 @@ export const HermesPaperTraderCard = ({
                       </div>
                     </div>
 
+                    {/* Pending Entry Highlight Banner */}
+                    {isPending && (
+                      <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs font-mono text-amber-200 flex items-center justify-between">
+                        <span>⏳ Waiting for Limit Fill @ <strong>${pos.entryPrice}</strong></span>
+                        <span className="text-[10px] text-slate-300">Live: ${currentPrice} ({Number(distanceToEntryPct) > 0 ? `+${distanceToEntryPct}` : distanceToEntryPct}% away)</span>
+                      </div>
+                    )}
+
                     {/* Stats Matrix: Size, Margin, Notional, Current R */}
                     <div className="grid grid-cols-4 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-[10px]">
                       <div>
@@ -337,7 +297,7 @@ export const HermesPaperTraderCard = ({
                         <div className="text-white font-bold">{pos.size}</div>
                       </div>
                       <div>
-                        <div className="text-[9px] text-slate-400 uppercase">Margin</div>
+                        <div className="text-[9px] text-slate-400 uppercase">Margin (5x)</div>
                         <div className="text-slate-200">${pos.marginUSD}</div>
                       </div>
                       <div>
@@ -395,69 +355,90 @@ export const HermesPaperTraderCard = ({
               })}
             </div>
           ) : (
-            <GlassCard hoverEffect={false} className="p-6 text-center space-y-1">
-              <div className="text-xs font-bold text-white">No Forward-Test Trades Tracked</div>
-              <p className="text-[11px] text-slate-400">
-                Click "Forward-Test Play" on any play of the day to track it.
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+              <div 
+                className="w-10 h-10 rounded-2xl border flex items-center justify-center mx-auto"
+                style={{ 
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)'
+                }}
+              >
+                <Bot className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
+              </div>
+              <div className="text-sm font-bold text-white">No Tracked Trades Yet</div>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Review the candidate plays in the Morning War Room and tap <strong>"+ Forward-Test"</strong> on any individual setup you'd like to test!
               </p>
             </GlassCard>
           )}
         </div>
       )}
 
-      {/* 4. Sub-Tab 2: History */}
+      {/* 4. Sub-Tab 2: Trade History */}
       {activeSubTab === 'history' && (
         <div className="space-y-2">
           {paperHistory.length > 0 ? (
-            <div className="space-y-1.5">
-              {paperHistory.map((trade) => {
-                const isWin = trade.isWin || trade.pnlUSD >= 0;
-                return (
-                  <GlassCard 
-                    key={trade.id}
-                    hoverEffect={false}
-                    className="p-2.5 flex items-center justify-between text-xs font-mono"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      {isWin ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                      )}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white">{trade.ticker} {trade.side}</span>
-                          <span className="text-[10px] text-slate-400">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
-                          <span className="text-[10px] font-sans" style={{ color: 'var(--accent-primary)' }}>({trade.timeframe || 'Intraday'})</span>
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-sans">{trade.exitReason}</div>
+            paperHistory.map((trade) => {
+              const isWin = trade.isWin || trade.pnlUSD >= 0;
+              return (
+                <GlassCard key={trade.id} hoverEffect={false} className="p-3 text-xs font-mono flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
+                      isWin ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
+                    }`}>
+                      {trade.ticker}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">{trade.side}</span>
+                        <span className="text-slate-300">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                          isWin ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                        }`}>
+                          {trade.exitReason}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 font-sans">
+                        {new Date(trade.closedAt).toLocaleString()} • {trade.strategy}
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
-                        </div>
-                        <span className="text-[10px] text-slate-400">ROE: {trade.roePct}% ({trade.spotMovePct}% Spot)</span>
+                  <div className="flex items-center gap-3 text-right">
+                    <div>
+                      <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteHistory(trade.id, e)}
-                        title="Remove from history"
-                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-white/[0.04] transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="text-[10px] text-slate-400">
+                        ROE: {trade.roePct > 0 ? `+${trade.roePct}` : trade.roePct}%
+                      </div>
                     </div>
-                  </GlassCard>
-                );
-              })}
-            </div>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteHistory(trade.id, e)}
+                      className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </GlassCard>
+              );
+            })
           ) : (
-            <GlassCard hoverEffect={false} className="p-6 text-center text-xs text-slate-400">
-              No forward-test history logged yet.
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+              <div 
+                className="w-10 h-10 rounded-2xl border flex items-center justify-center mx-auto"
+                style={{ 
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)'
+                }}
+              >
+                <Layers className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
+              </div>
+              <div className="text-sm font-bold text-white">No Completed Trades Yet</div>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                When active forward-test trades hit their 2R Take-Profit or Stop Loss targets, they will appear here.
+              </p>
             </GlassCard>
           )}
         </div>
