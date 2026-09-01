@@ -23,39 +23,30 @@ export const GOOGLE_CALENDAR_CONFIG = {
 };
 
 /**
- * Initialize default credentials in localStorage (only if not already set)
- */
-function initDefaultCredentials() {
-  if (typeof localStorage === 'undefined') return;
-  if (!localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY)) {
-    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, DEFAULT_REFRESH_TOKEN);
-  }
-  if (!localStorage.getItem(GOOGLE_CLIENT_ID_KEY)) {
-    localStorage.setItem(GOOGLE_CLIENT_ID_KEY, DEFAULT_CLIENT_ID);
-  }
-  if (!localStorage.getItem(GOOGLE_CLIENT_SECRET_KEY)) {
-    localStorage.setItem(GOOGLE_CLIENT_SECRET_KEY, DEFAULT_CLIENT_SECRET);
-  }
-}
-
-// Run initialization
-initDefaultCredentials();
-
-/**
  * Check if user is authenticated with a valid or refreshable token
  */
 export function isGoogleCalendarConnected() {
-  return true; // Permanently connected with refresh token
+  if (typeof localStorage === 'undefined') return false;
+  const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  return Boolean(token || refreshToken);
 }
 
 /**
  * Save tokens
  */
 export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = null) {
-  localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, token);
-  localStorage.setItem(GOOGLE_EXPIRY_KEY, String(Date.now() + (expiresInSeconds * 1000)));
+  if (!token) return;
+  const clean = token.trim();
+  if (clean.startsWith('1//')) {
+    // It's a permanent refresh token!
+    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
+  } else {
+    localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, clean);
+    localStorage.setItem(GOOGLE_EXPIRY_KEY, String(Date.now() + (expiresInSeconds * 1000)));
+  }
   if (refreshToken) {
-    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, refreshToken);
+    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, refreshToken.trim());
   }
 }
 
@@ -72,7 +63,8 @@ export function disconnectGoogleCalendar() {
  * Force refresh access token using refresh_token
  */
 export async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY) || DEFAULT_REFRESH_TOKEN;
+  if (typeof localStorage === 'undefined') return null;
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
   const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID;
   const clientSecret = localStorage.getItem(GOOGLE_CLIENT_SECRET_KEY) || DEFAULT_CLIENT_SECRET;
 

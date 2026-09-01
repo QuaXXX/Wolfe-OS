@@ -239,7 +239,7 @@ export const GoogleCalendarModal = ({
                       type="password"
                       value={manualToken}
                       onChange={(e) => setManualToken(e.target.value)}
-                      placeholder="Paste token (starts with ya29.a0...)"
+                      placeholder="Paste Refresh Token (1//...) or Access Token (ya29...)"
                       className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder:text-slate-600 outline-none font-mono focus:border-white/30"
                     />
                     <button
