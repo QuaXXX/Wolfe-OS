@@ -19,11 +19,7 @@ import {
   Loader2, 
   AlertCircle, 
   Send,
-  GraduationCap,
-  Calculator,
-  Compass,
-  CheckCircle2,
-  Maximize2
+  GraduationCap
 } from 'lucide-react';
 import { 
   getVaultMetadata, 
@@ -49,11 +45,11 @@ export const NotebookLMStudyHubModal = ({
 }) => {
   const [vaultMeta, setVaultMeta] = useState(getVaultMetadata());
   const [scannedFiles, setScannedFiles] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState('ALL');
+  const [selectedCourse, setSelectedCourse] = useState('FNCE 317');
   const [activeTab, setActiveTab] = useState('briefing'); // 'briefing' | 'cheatsheet' | 'chat' | 'documents'
   
   // AI Course Briefing State
-  const [briefings, setBriefings] = useState({}); // { [courseCode]: briefingData }
+  const [briefings, setBriefings] = useState({});
   const [isLoadingBriefing, setIsLoadingBriefing] = useState(false);
   
   // Interactive Chat State
@@ -83,20 +79,21 @@ export const NotebookLMStudyHubModal = ({
           totalNotes: cached.files.length,
           courses: cached.courses || prev.courses || []
         }));
-        if (cached.courses && cached.courses.length > 0 && selectedCourse === 'ALL') {
+        if (cached.courses && cached.courses.length > 0) {
           setSelectedCourse(cached.courses[0]);
         }
       }
     }
   }, [isOpen]);
 
-  // Detected courses list
+  // Detected courses list (combining all university classes including PSYC 203)
   const availableCourses = useMemo(() => {
-    const list = Array.from(new Set([
+    const detected = Array.from(new Set([
       ...(vaultMeta?.courses || []),
       ...(scannedFiles.map(f => f.course).filter(Boolean))
     ])).filter(c => c && c !== 'school' && c !== 'General');
-    return list.length > 0 ? list : ['FNCE 317', 'BTMA 317', 'OPMA 317', 'MGST 391', 'MKTG 317'];
+    const defaultList = ['FNCE 317', 'BTMA 317', 'OPMA 317', 'MGST 391', 'MKTG 317', 'PSYC 203'];
+    return detected.length > 0 ? detected : defaultList;
   }, [vaultMeta?.courses, scannedFiles]);
 
   // Current active course files
@@ -233,7 +230,6 @@ export const NotebookLMStudyHubModal = ({
     setIsChatSearching(true);
 
     try {
-      // Pass all current course files
       const enrichedFiles = await Promise.all(currentCourseFiles.map(async (file) => {
         let text = file.cachedContent || '';
         if (!text) {
@@ -286,7 +282,7 @@ export const NotebookLMStudyHubModal = ({
 
   const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-3 sm:p-5 select-none">
+      <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-3 sm:p-5">
         {/* Frosted Glass Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -296,7 +292,7 @@ export const NotebookLMStudyHubModal = ({
             playSound('click', soundEnabled);
             onClose();
           }}
-          className="fixed inset-0 top-0 left-0 w-full h-full bg-black/60 backdrop-blur-xl transition-all"
+          className="fixed inset-0 top-0 left-0 w-full h-full bg-black/70 backdrop-blur-xl z-0 cursor-pointer"
         />
 
         {/* Main Modal Window */}
@@ -305,7 +301,7 @@ export const NotebookLMStudyHubModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-4xl bg-[#0a0c16]/95 border border-purple-500/25 rounded-3xl shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)] backdrop-blur-3xl z-10 flex flex-col max-h-[92vh] overflow-hidden"
+          className="relative w-full max-w-4xl bg-[#0a0c16] border border-purple-500/30 rounded-3xl shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)] backdrop-blur-3xl z-10 flex flex-col max-h-[92vh] overflow-hidden"
         >
           {/* TOP BAR: Brand Header & Course Tabs */}
           <div className="p-4 sm:p-5 border-b border-white/10 space-y-3 shrink-0 bg-white/[0.01]">
@@ -339,6 +335,7 @@ export const NotebookLMStudyHubModal = ({
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => {
                     playSound('click', soundEnabled);
                     onClose();
@@ -395,11 +392,14 @@ export const NotebookLMStudyHubModal = ({
           </div>
 
           {/* SECONDARY NAVIGATION: Module Tabs */}
-          <div className="flex items-center justify-between px-5 py-2.5 bg-black/40 border-b border-white/5 text-xs">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between px-5 py-2.5 bg-black/40 border-b border-white/5 text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => setActiveTab('briefing')}
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  setActiveTab('briefing');
+                }}
                 className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'briefing'
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
@@ -412,7 +412,10 @@ export const NotebookLMStudyHubModal = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('cheatsheet')}
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  setActiveTab('cheatsheet');
+                }}
                 className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'cheatsheet'
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
@@ -425,7 +428,10 @@ export const NotebookLMStudyHubModal = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('chat')}
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  setActiveTab('chat');
+                }}
                 className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'chat'
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
@@ -438,7 +444,10 @@ export const NotebookLMStudyHubModal = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('documents')}
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  setActiveTab('documents');
+                }}
                 className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'documents'
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
