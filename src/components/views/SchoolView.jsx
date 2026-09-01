@@ -22,8 +22,7 @@ import {
   ListTodo
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
-import { playSound } from '../../utils/soundFX';
-import { ObsidianVaultManagerModal } from '../school/ObsidianVaultManagerModal';
+import { NotebookLMStudyHubModal } from '../school/NotebookLMStudyHubModal';
 import { FlashcardDeckModal } from '../school/FlashcardDeckModal';
 import { PracticeQuizModal } from '../school/PracticeQuizModal';
 import { VaultSearchModal } from '../school/VaultSearchModal';
@@ -185,26 +184,19 @@ export const SchoolView = ({
 
         {/* Action Controls & Stats */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Obsidian Vault Status Pill */}
-          {!vaultMeta.connected ? (
-            <button
-              type="button"
-              onClick={() => {
-                playSound('click', soundEnabled);
-                setIsVaultModalOpen(true);
-              }}
-              className="px-3 py-1.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white border border-[#7c3aed]/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
-            >
-              <FolderSync className="w-3.5 h-3.5" />
-              <span>Connect Obsidian</span>
-            </button>
-          ) : (
-            <div className="px-3 py-1.5 rounded-xl bg-[#6d28d9]/15 border border-[#7c3aed]/30 text-[#c4b5fd] text-xs font-semibold flex items-center gap-2">
-              <FolderSync className="w-3.5 h-3.5 text-[#a78bfa]" />
-              <span>{vaultMeta.totalNotes || 0} Notes</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            </div>
-          )}
+          {/* NotebookLM Study Brain Status Pill */}
+          <button
+            type="button"
+            onClick={() => {
+              playSound('click', soundEnabled);
+              setIsVaultModalOpen(true);
+            }}
+            className="px-3 py-1.5 rounded-xl bg-[#6d28d9]/20 hover:bg-[#6d28d9]/30 text-[#c4b5fd] border border-[#7c3aed]/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#a78bfa]" />
+            <span>{vaultMeta.connected ? `NotebookLM (${scannedFiles.length} Docs)` : "Connect School Folder"}</span>
+            {vaultMeta.connected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+          </button>
 
           <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-white/[0.03] border border-white/10 text-center">
             <div className="text-[9px] uppercase font-semibold text-slate-400">Mastery</div>
@@ -285,21 +277,23 @@ export const SchoolView = ({
           </p>
         </div>
 
-        {/* Ask My Vault */}
+        {/* NotebookLM Study Brain */}
         <div
-          onClick={() => handleOpenStudyTool('search')}
-          className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
+          onClick={() => {
+            playSound('click', soundEnabled);
+            setIsVaultModalOpen(true);
+          }}
+          className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-purple-950/20 to-indigo-950/20 hover:from-purple-950/35 hover:to-indigo-950/35 border border-purple-500/25 hover:border-purple-500/45 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#6d28d9]/20 text-[#a78bfa] border border-[#7c3aed]/30 flex items-center justify-center mb-2">
-            {vaultMeta.connected ? <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <FolderSync className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#6d28d9]/25 text-[#c4b5fd] border border-[#7c3aed]/40 flex items-center justify-center mb-2">
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#a78bfa]" />
           </div>
-          <h3 className="text-xs font-bold text-white group-hover:text-[#c4b5fd] transition-colors">
-            {vaultMeta.connected ? "Ask Obsidian Vault" : "Connect Obsidian Vault"}
+          <h3 className="text-xs font-bold text-white group-hover:text-[#c4b5fd] transition-colors flex items-center gap-1.5">
+            <span>Study Brain (NotebookLM)</span>
+            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/30 text-purple-200 uppercase font-bold">AI</span>
           </h3>
           <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-            {vaultMeta.connected 
-              ? `AI query across ${vaultMeta.totalNotes || 0} indexed notes.` 
-              : "Link notes folder for AI vault search."}
+            Grade weights, exam cheatsheets & AI notes chat for all 5 classes.
           </p>
         </div>
       </div>
@@ -500,10 +494,18 @@ export const SchoolView = ({
       </div>
 
       {/* ALL STUDY MODALS */}
-      {/* 1. Obsidian Vault Manager Modal */}
-      <ObsidianVaultManagerModal
+      {/* 1. NotebookLM Study Hub Modal */}
+      <NotebookLMStudyHubModal
         isOpen={isVaultModalOpen}
         onClose={() => setIsVaultModalOpen(false)}
+        onLaunchFlashcards={(course) => {
+          setSelectedDeckForStudy({ courseCode: course });
+          setIsFlashcardsOpen(true);
+        }}
+        onLaunchQuiz={(course) => {
+          setSelectedCourse(course);
+          setIsQuizOpen(true);
+        }}
         onVaultUpdated={(meta, files) => {
           setVaultMeta(meta);
           setScannedFiles(files);
