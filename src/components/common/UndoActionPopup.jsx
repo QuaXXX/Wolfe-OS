@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Undo2, X, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { Undo2, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 
 export const UndoActionPopup = ({ 
@@ -38,10 +38,8 @@ export const UndoActionPopup = ({
           <div className="relative w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
             {sync?.inProgress ? (
               <Loader2 className="w-4 h-4 animate-spin text-slate-200" />
-            ) : sync && !sync.inProgress ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             ) : (
-              <Sparkles className="w-4 h-4 text-slate-200" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             )}
           </div>
 

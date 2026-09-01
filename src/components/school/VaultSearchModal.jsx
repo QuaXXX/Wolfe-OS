@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
-  Sparkles, 
   FileText, 
   X, 
   Loader2, 
@@ -23,27 +22,28 @@ export const VaultSearchModal = ({
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
   if (!isOpen) return null;
 
   const handleSearch = async (e) => {
-    e?.preventDefault();
-    if (!query.trim()) return;
+    e.preventDefault();
+    if (!query.trim() || isSearching) return;
 
     playSound('click', soundEnabled);
     setIsSearching(true);
+    setError(null);
     setResult(null);
 
     try {
-      const res = await searchVaultWithAI({
-        query: query.trim(),
-        filesIndex: scannedFiles.length > 0 ? scannedFiles : SAMPLE_OBSIDIAN_VAULT,
-        sampleNotes: SAMPLE_OBSIDIAN_VAULT
-      });
+      // Use scanned real files if available, otherwise sample notes
+      const notesToSearch = scannedFiles.length > 0 ? scannedFiles : SAMPLE_OBSIDIAN_VAULT;
+      const res = await searchVaultWithAI(query.trim(), notesToSearch);
       setResult(res);
       playSound('success', soundEnabled);
     } catch (err) {
-      console.warn("Search error:", err);
+      console.warn("Vault search error:", err);
+      setError(err.message || "Failed to search Obsidian notes.");
     } finally {
       setIsSearching(false);
     }
@@ -52,7 +52,7 @@ export const VaultSearchModal = ({
   const modalContent = (
     <AnimatePresence>
       <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-4 select-none">
-        {/* Frosted Glass Backdrop */}
+        {/* Frosted Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -70,24 +70,24 @@ export const VaultSearchModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[90vh] overflow-y-auto"
+          className="relative w-full max-w-xl bg-[#0e0c18]/95 border border-purple-500/20 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[90vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
             <div className="flex items-center gap-3">
-              <div 
-                className="w-10 h-10 rounded-2xl flex items-center justify-center bg-[#6d28d9]/15 border border-[#7c3aed]/30 text-[#a78bfa]"
-              >
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-purple-500/10 border border-purple-500/30 text-purple-400">
                 <Search className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Ask My Obsidian Vault</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#6d28d9]/25 text-[#c4b5fd] font-semibold border border-[#7c3aed]/30">
+                  <span>Search Knowledge Vault</span>
+                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
                     Semantic Search
                   </span>
                 </h3>
-                <p className="text-xs text-slate-400">Ask any question across your class notes, summaries and outlines</p>
+                <p className="text-xs text-slate-400">
+                  Ask conceptual questions across all course notes in your Obsidian vault
+                </p>
               </div>
             </div>
 
@@ -102,16 +102,16 @@ export const VaultSearchModal = ({
             </button>
           </div>
 
-          {/* Search Form */}
+          {/* Search Bar */}
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="e.g. Where is the formula for WACC? What are AVL tree balance rules?"
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#7c3aed]"
+                placeholder="Ask about a formula, concept, lecture topic or question..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-white text-xs placeholder:text-slate-500 outline-none focus:border-purple-500/50"
                 autoFocus
               />
             </div>
@@ -121,7 +121,7 @@ export const VaultSearchModal = ({
               disabled={isSearching || !query.trim()}
               className="px-4 py-2.5 rounded-2xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0"
             >
-              {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
               <span>Search</span>
             </button>
           </form>
@@ -159,7 +159,7 @@ export const VaultSearchModal = ({
               {/* Answer Box */}
               <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-2">
                 <div className="text-[11px] font-bold font-mono text-purple-300 uppercase tracking-wide flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <BookOpen className="w-3.5 h-3.5" />
                   <span>Synthesized Answer:</span>
                 </div>
                 <p className="text-xs text-slate-100 leading-relaxed font-sans whitespace-pre-wrap">

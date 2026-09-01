@@ -754,6 +754,7 @@ export function App() {
             onClearDeadlines={handleClearDeadlines}
             onDeleteItem={handleDeleteItem}
             onToggleTask={handleToggleTask}
+            onOpenGoogleCalendar={() => setIsGCalModalOpen(true)}
             {...commonProps}
           />
         );

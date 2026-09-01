@@ -23,6 +23,7 @@ import {
   GOOGLE_COLOR_MAP
 } from '../../utils/calendarUtils';
 import { SyllabusIngestionModal } from '../school/SyllabusIngestionModal';
+import { isGoogleCalendarConnected } from '../../utils/googleCalendarService';
 
 export const CalendarView = ({ 
   calendarData, 
@@ -31,6 +32,7 @@ export const CalendarView = ({
   onClearDeadlines,
   onDeleteItem,
   onToggleTask,
+  onOpenGoogleCalendar,
   soundEnabled = true 
 }) => {
   const todayIso = getTodayIso();
@@ -146,11 +148,8 @@ export const CalendarView = ({
       {/* 1. TOP HEADER & NAVIGATION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            <span>Schedule & Timeline</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 border border-white/10 font-normal">
-              {formatDateTitle(selectedDate)}
-            </span>
+          <h2 className="text-xl font-extrabold text-white tracking-tight">
+            Schedule & Timeline
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             Full academic timetable, hard deadlines, tasks & calendar
@@ -188,25 +187,38 @@ export const CalendarView = ({
             </button>
           </div>
 
-          {/* Import Syllabus AI Button */}
-          <button
-            onClick={() => {
-              playSound('click', soundEnabled);
-              setIsSyllabusModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0"
-          >
-            <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-            <span>Import Syllabus (AI)</span>
-          </button>
+          {/* Connect Google Calendar OR Import Syllabus based on connection state */}
+          {!isGoogleCalendarConnected() ? (
+            <button
+              onClick={() => {
+                playSound('click', soundEnabled);
+                if (onOpenGoogleCalendar) onOpenGoogleCalendar();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
+            >
+              <CalendarIcon className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+              <span>Connect Google Calendar</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                playSound('click', soundEnabled);
+                setIsSyllabusModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+              <span>Import Syllabus</span>
+            </button>
+          )}
 
           <button
             onClick={() => handleOpenAddModal('event')}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-md active:scale-95 transition-all shrink-0"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
             style={{ backgroundColor: 'var(--accent-primary)' }}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Item</span>
+            <span>+ Event</span>
           </button>
         </div>
       </div>
@@ -254,7 +266,7 @@ export const CalendarView = ({
             {/* Left 2 Cols: Deadlines (Only if present) & Timed Schedule Blocks */}
             <div className="lg:col-span-2 space-y-4">
               
-              {/* --- DEADLINES (PURE RED CONTAINER - ZERO BLUE 1PX STRIPE) --- */}
+              {/* --- DEADLINES CONTAINER --- */}
               {selectedDayDeadlines.length > 0 && (
                 <div className="rounded-2xl border border-rose-500/30 bg-gradient-to-b from-rose-950/20 via-[#140b12] to-[#0e101d] backdrop-blur-xl p-4 shadow-lg overflow-hidden space-y-2.5">
                   <div className="flex items-center justify-between pb-2 border-b border-rose-500/20 mb-2">
@@ -266,13 +278,6 @@ export const CalendarView = ({
                         Deadlines & Due Dates
                       </h3>
                     </div>
-                    <button
-                      onClick={() => handleOpenAddModal('deadline')}
-                      className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Deadline</span>
-                    </button>
                   </div>
 
                   <div className="space-y-2">
@@ -316,25 +321,14 @@ export const CalendarView = ({
                       Timed Schedule & Events
                     </h3>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {selectedDayDeadlines.length === 0 && (
-                      <button
-                        onClick={() => handleOpenAddModal('deadline')}
-                        className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-1"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Deadline</span>
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleOpenAddModal('event')}
-                      className="text-[11px] font-semibold text-slate-300 hover:text-white flex items-center gap-1"
-                      style={{ color: 'var(--accent-primary)' }}
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Event</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleOpenAddModal('event')}
+                    className="text-[11px] font-semibold text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                    style={{ color: 'var(--accent-primary)' }}
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ Event</span>
+                  </button>
                 </div>
 
                 {selectedDayTimedEvents.length === 0 ? (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Bell, CheckCircle2 } from 'lucide-react';
+import { X, Zap, Bell, CheckCircle2 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 
 export const ComingSoonModal = ({
@@ -54,7 +54,7 @@ export const ComingSoonModal = ({
 
           {/* Badge */}
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-white/5 text-slate-300 border border-white/10 mb-3">
-            <Sparkles className="w-3 h-3 text-slate-400" />
+            <Zap className="w-3 h-3 text-slate-400" />
             {badge}
           </div>
 

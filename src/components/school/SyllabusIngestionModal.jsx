@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
   Upload, 
-  Sparkles, 
   CheckCircle2, 
   Circle, 
   AlertOctagon, 
@@ -293,8 +292,8 @@ export const SyllabusIngestionModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Import Course Outline / Syllabus</span>
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/30 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> AI Powered
+                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-white/[0.06] text-slate-300 font-semibold border border-white/10">
+                    Syllabus Parser
                   </span>
                 </h3>
                 <p className="text-xs text-slate-400">
@@ -387,12 +386,12 @@ export const SyllabusIngestionModal = ({
                   {isProcessing ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Analyzing Course Syllabus with AI...</span>
+                      <span>Analyzing Course Syllabus...</span>
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Parse Syllabus with AI</span>
+                      <FileText className="w-4 h-4" />
+                      <span>Parse Syllabus</span>
                     </>
                   )}
                 </button>
