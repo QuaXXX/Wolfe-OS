@@ -15,7 +15,8 @@ import {
   createGoogleCalendarEvent, 
   deleteGoogleCalendarEvent,
   updateGoogleTaskStatus,
-  purgeGoogleCalendarEntriesByKeywords
+  purgeGoogleCalendarEntriesByKeywords,
+  checkAndHandleOAuthRedirect
 } from './utils/googleCalendarService';
 
 // Views
@@ -129,10 +130,13 @@ export function App() {
     };
   });
 
-  // Clean out any legacy tokens and purge all FNCE and OPMA items on load
+  // Clean out any legacy tokens and handle Google OAuth redirect
   useEffect(() => {
+    // 1. Check if returning from Google OAuth redirect (mobile Safari/Chrome)
+    const justAuthorized = checkAndHandleOAuthRedirect();
+
     try {
-      if (typeof localStorage !== 'undefined' && !localStorage.getItem('wolfe_user_signed_in_google')) {
+      if (!justAuthorized && typeof localStorage !== 'undefined' && !localStorage.getItem('wolfe_user_signed_in_google')) {
         localStorage.removeItem('wolfe_gcal_token');
         localStorage.removeItem('wolfe_gcal_refresh_token');
         localStorage.removeItem('wolfe_gcal_expiry');
@@ -145,13 +149,13 @@ export function App() {
     }));
 
     if (isGoogleCalendarConnected()) {
-      purgeGoogleCalendarEntriesByKeywords(['FNCE', 'OPMA'])
-        .then(({ deletedCount }) => {
-          if (deletedCount > 0) {
-            console.log(`[Wolfe OS] Purged ${deletedCount} FNCE/OPMA entries from Google Calendar & Tasks.`);
+      fetchGoogleCalendarEvents()
+        .then(events => {
+          if (events && events.length > 0) {
+            setCalendarData(prev => ({ ...prev, items: events }));
           }
         })
-        .catch(err => console.warn("Purge error:", err));
+        .catch(err => console.warn("Google sync on startup:", err));
     }
   }, []);
 

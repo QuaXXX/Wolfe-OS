@@ -62,6 +62,29 @@ export function disconnectGoogleCalendar() {
 }
 
 /**
+ * Check and handle OAuth redirect from URL hash (essential for mobile browsers)
+ */
+export function checkAndHandleOAuthRedirect() {
+  if (typeof window === 'undefined') return false;
+  if (window.location.hash && window.location.hash.includes('access_token=')) {
+    try {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const token = params.get('access_token');
+      const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
+      if (token) {
+        saveGoogleToken(token, expiresIn);
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        return true;
+      }
+    } catch (e) {
+      console.warn("OAuth redirect parse notice:", e);
+    }
+  }
+  return false;
+}
+
+/**
  * One-Click Official Google Sign-In using Google Identity Services (GIS)
  * Works seamlessly on mobile Safari/Chrome and desktop browsers.
  */
@@ -98,7 +121,7 @@ export function signInWithGooglePopup(clientIdOverride = null) {
             reject(new Error(err.message || "Google Sign-In was closed or interrupted."));
           }
         });
-        client.requestAccessToken({ prompt: 'consent' });
+        client.requestAccessToken();
         return;
       } catch (err) {
         console.warn("GIS token client initialization fallback:", err);
@@ -108,7 +131,14 @@ export function signInWithGooglePopup(clientIdOverride = null) {
     // 2. Mobile/Popup Fallback OAuth 2.0 Flow
     const redirectUri = window.location.origin;
     const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&prompt=consent`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&include_granted_scopes=true`;
+
+    const isMobile = window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      // On mobile devices, redirect directly to avoid popup blocking
+      window.location.href = authUrl;
+      return;
+    }
 
     const width = 500;
     const height = 620;
@@ -117,7 +147,9 @@ export function signInWithGooglePopup(clientIdOverride = null) {
     const popup = window.open(authUrl, 'google_signin_popup', `width=${width},height=${height},left=${left},top=${top}`);
 
     if (!popup) {
-      return reject(new Error("Sign-in popup blocked. Please allow popups for this site."));
+      // If popup blocked, fallback to full page redirect
+      window.location.href = authUrl;
+      return;
     }
 
     const pollTimer = setInterval(() => {
