@@ -120,25 +120,27 @@ export default async function handler(req, res) {
     const executionSummary = {
       timestamp: new Date().toISOString(),
       ticker,
-      side: isLong ? 'LONG' : 'SHORT',
-      action,
+      side: isClose ? 'FLAT' : (isLong ? 'LONG' : 'SHORT'),
+      action: isClose ? 'FLAT' : (isLong ? 'BUY' : 'SELL'),
       strategy,
       entryPrice: price,
-      stopLoss: effectiveStopLoss,
-      takeProfit: effectiveTakeProfit,
-      executedContracts: contracts,
-      notionalUSD: Number(notionalUSD.toFixed(2)),
-      marginUSD: Number(marginUSD.toFixed(2)),
-      riskUSD: Number(riskUSD.toFixed(2)),
+      stopLoss: isClose ? null : effectiveStopLoss,
+      takeProfit: isClose ? null : effectiveTakeProfit,
+      executedContracts: isClose ? 0 : contracts,
+      notionalUSD: isClose ? 0 : Number(notionalUSD.toFixed(2)),
+      marginUSD: isClose ? 0 : Number(marginUSD.toFixed(2)),
+      riskUSD: isClose ? 0 : Number(riskUSD.toFixed(2)),
       accountEquity: Number(accountEquity.toFixed(2)),
       leverage,
-      status: 'EXECUTED_SUCCESS'
+      status: isClose ? 'CLOSED_SUCCESS' : 'EXECUTED_SUCCESS'
     };
 
     // 4. Output Response
     return res.status(200).json({
       success: true,
-      message: `24/7 Cloud Webhook Executed: ${action} ${contracts} ${ticker} @ $${price}`,
+      message: isClose
+        ? `24/7 Cloud Webhook Executed: FLAT / CLOSE ${ticker} @ $${price}`
+        : `24/7 Cloud Webhook Executed: ${action} ${contracts} ${ticker} @ $${price}`,
       execution: executionSummary
     });
   } catch (error) {
