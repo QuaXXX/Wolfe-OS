@@ -331,10 +331,14 @@ export function saveHermesBrief(brief) {
       id: brief.id || `brief_${new Date().toISOString().split('T')[0]}_${Date.now()}`,
       date: brief.date || new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
-      macroRegime: brief.macroRegime || 'Neutral / Rangebound',
+      aiEngine: brief.aiEngine || 'Nous Hermes 3 Deep Quantitative Council',
+      macroRegime: brief.macroRegime || 'Selective Risk-On',
       macroAnalysis: brief.macroAnalysis || '',
-      highConvictionPlays: brief.highConvictionPlays || [],
+      agentLogs: brief.agentLogs || [],
+      councilDialogue: brief.councilDialogue || [],
+      fundIntelligence: brief.fundIntelligence || [],
       whaleFlowSignals: brief.whaleFlowSignals || [],
+      highConvictionPlays: brief.highConvictionPlays || [],
       adversarialReview: brief.adversarialReview || '',
       riskNotice: brief.riskNotice || ''
     };
