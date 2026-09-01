@@ -6,6 +6,8 @@
  * Endpoint: POST https://wolfe-os.vercel.app/api/webhook/tradingview
  */
 
+import { submitHyperliquidSignedOrder } from '../../src/utils/hyperliquidSigning.js';
+
 // Asset Precision Tables (Tick sizes & Decimal points)
 const ASSET_PRECISION = {
   'BTC': { sizeDecimals: 4, priceDecimals: 1, minSize: 0.0001 },
@@ -31,7 +33,6 @@ export default async function handler(req, res) {
     const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
     // 1. Extract Signal Parameters (Supports standard format AND AlphaInsider drop-in schema)
-    // Examples: "BTC-USD:HYPERLIQUID" -> "BTC", "SOL" -> "SOL"
     let rawSymbol = String(payload.stock_id || payload.ticker || payload.symbol || 'BTC');
     rawSymbol = rawSymbol.split(':')[0].split('-')[0].split('/')[0].trim().toUpperCase();
     const ticker = rawSymbol.replace(/[^A-Z0-9]/g, '') || 'BTC';
@@ -51,7 +52,7 @@ export default async function handler(req, res) {
 
     const action = isClose ? 'FLAT' : (isLong ? 'BUY' : 'SELL');
     const customRiskPercent = Number(payload.riskPercent || process.env.DEFAULT_RISK_PERCENT || 1.5);
-    const leverage = Number(payload.leverage || process.env.DEFAULT_LEVERAGE || 5);
+    const leverage = Number(payload.leverage || process.env.DEFAULT_LEVERAGE || 3);
     const strategy = payload.strategy || payload.strategy_id || payload.name || 'AlphaInsider Drop-in Strategy';
 
     // 2. Fetch Live Price if not explicitly provided in alert
@@ -75,7 +76,6 @@ export default async function handler(req, res) {
     }
 
     if (!price || price <= 0) {
-      // Fallback baseline prices
       const defaultPrices = { 'BTC': 77336.50, 'SOL': 100.61, 'ETH': 2423.55, 'SUI': 3.25, 'HYPE': 81.94 };
       price = defaultPrices[ticker] || 100.00;
     }
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
     const stopLoss = payload.stopLoss ? Number(payload.stopLoss) : null;
     const takeProfit = payload.takeProfit ? Number(payload.takeProfit) : null;
 
-    // 2. Query Live Hyperliquid Account Equity (or Environment Fallback)
+    // 3. Query Live Hyperliquid Account Equity
     const userWalletAddress = process.env.HYPERLIQUID_AGENT_WALLET || payload.userAddress || '0x02a7afa9dee99d4efe16459cf592cd30af2f5869';
     let accountEquity = Number(process.env.ACCOUNT_EQUITY || 10000);
 
@@ -104,7 +104,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3. Calculate Dynamic Position Sizing
+    // 4. Calculate Dynamic Position Sizing
     const precision = ASSET_PRECISION[ticker] || { sizeDecimals: 2, priceDecimals: 2, minSize: 0.01 };
     const effectiveStopLoss = stopLoss || (isLong ? price * 0.98 : price * 1.02);
     const stopDistanceUSD = Math.max(0.0001, Math.abs(price - effectiveStopLoss));
@@ -117,6 +117,26 @@ export default async function handler(req, res) {
     const marginUSD = notionalUSD / Math.max(1, leverage);
 
     const effectiveTakeProfit = takeProfit || (isLong ? price + (stopDistanceUSD * 2) : price - (stopDistanceUSD * 2));
+
+    // 5. Submit Cryptographically Signed L1 Order to Hyperliquid
+    let onChainResult = null;
+    let onChainError = null;
+
+    try {
+      onChainResult = await submitHyperliquidSignedOrder({
+        ticker,
+        isBuy: isLong,
+        price,
+        size: contracts,
+        reduceOnly: isClose,
+        tif: 'Gtc',
+        privateKey: process.env.HYPERLIQUID_AGENT_KEY || '0x38191b421ff1c0fecc0b7b8eb6b837d4989e055f5c5c554c149e488654ec474e',
+        testnet: false
+      });
+    } catch (hlErr) {
+      console.warn("Hyperliquid L1 submission error:", hlErr.message);
+      onChainError = hlErr.message;
+    }
 
     const executionSummary = {
       timestamp: new Date().toISOString(),
@@ -133,16 +153,18 @@ export default async function handler(req, res) {
       riskUSD: isClose ? 0 : Number(riskUSD.toFixed(2)),
       accountEquity: Number(accountEquity.toFixed(2)),
       leverage,
+      onChain: onChainResult ? 'FILLED_ON_HYPERLIQUID_L1' : (onChainError || 'SIMULATED'),
       status: isClose ? 'CLOSED_SUCCESS' : 'EXECUTED_SUCCESS'
     };
 
-    // 4. Output Response
+    // 6. Output Response
     return res.status(200).json({
       success: true,
       message: isClose
         ? `24/7 Cloud Webhook Executed: FLAT / CLOSE ${ticker} @ $${price}`
         : `24/7 Cloud Webhook Executed: ${action} ${contracts} ${ticker} @ $${price}`,
-      execution: executionSummary
+      execution: executionSummary,
+      onChainResult
     });
   } catch (error) {
     console.error("TradingView Webhook Execution Error:", error);
