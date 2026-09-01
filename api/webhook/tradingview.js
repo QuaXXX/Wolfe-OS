@@ -83,7 +83,7 @@ export default async function handler(req, res) {
     const takeProfit = payload.takeProfit ? Number(payload.takeProfit) : null;
 
     // 2. Query Live Hyperliquid Account Equity (or Environment Fallback)
-    const userWalletAddress = process.env.HYPERLIQUID_AGENT_WALLET || payload.userAddress || '';
+    const userWalletAddress = process.env.HYPERLIQUID_AGENT_WALLET || payload.userAddress || '0x02a7afa9dee99d4efe16459cf592cd30af2f5869';
     let accountEquity = Number(process.env.ACCOUNT_EQUITY || 10000);
 
     if (userWalletAddress) {

@@ -24,8 +24,8 @@ export const DEFAULT_TRADING_CONFIG = {
   broker: 'hyperliquid',
   isLive: true,
   testnet: false,
-  agentWalletAddress: '',
-  agentPrivateKey: '', // Stored locally only for trade-only signing
+  agentWalletAddress: '0x02a7afa9dee99d4efe16459cf592cd30af2f5869',
+  agentPrivateKey: '0x38191b421ff1c0fecc0b7b8eb6b837d4989e055f5c5c554c149e488654ec474e', // Stored locally only for trade-only signing
   aiProvider: 'hermes3', // 'hermes3' | 'gemini'
   hermesModel: 'nousresearch/hermes-3-llama-3.1-405b', // 'nousresearch/hermes-3-llama-3.1-405b' | 'nousresearch/hermes-3-llama-3.1-70b'
   openRouterApiKey: '', // Optional OpenRouter key for Nous Hermes 3
@@ -37,7 +37,7 @@ export const DEFAULT_TRADING_CONFIG = {
   maxLeverage: 10,
   autoSlTpEnabled: true,
   defaultRiskRewardRatio: 2.0,
-  webhookSecret: 'wolfe_wh_' + Math.random().toString(36).substring(2, 10),
+  webhookSecret: 'wolfe_wh_live_auth',
   hermesAutoScanHour: 5 // 5:00 AM MST
 };
 
