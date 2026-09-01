@@ -19,13 +19,15 @@ import {
   ArrowDownRight, 
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Bot
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { HermesWarRoomModal } from '../trading/HermesWarRoomModal';
 import { HyperliquidConnectModal } from '../trading/HyperliquidConnectModal';
 import { WebhookConfigModal } from '../trading/WebhookConfigModal';
 import { TradeJournalModal } from '../trading/TradeJournalModal';
+import { HermesPaperTraderCard } from '../trading/HermesPaperTraderCard';
 import { 
   getTradingConfig, 
   getWatchlist, 
@@ -41,6 +43,7 @@ import {
 } from '../../utils/tradingStorage';
 import { calculateDynamicPositionSize, fetchHyperliquidAccount, fetchLiveMarketPrices } from '../../utils/hyperliquidService';
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
+import { tickPaperPositionsWithLivePrices, autoExecuteHermesPlays } from '../../utils/hermesPaperTrader';
 import { playSound } from '../../utils/soundFX';
 
 export const TradingView = ({ 
@@ -48,7 +51,7 @@ export const TradingView = ({
   soundEnabled = true 
 }) => {
   // Navigation & Tabs
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'positions' | 'journal' | 'webhooks'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'papertrader' | 'positions' | 'journal' | 'webhooks'
 
   // Data States
   const [config, setConfig] = useState(getTradingConfig());
@@ -58,6 +61,7 @@ export const TradingView = ({
   const [webhookLogs, setWebhookLogs] = useState(getWebhookLogs());
   const [hermesBrief, setHermesBrief] = useState(getLatestHermesBrief());
   const [selectedStock, setSelectedStock] = useState(watchlist[0] || null);
+  const [livePricesMap, setLivePricesMap] = useState({});
 
   // Modals
   const [isWarRoomOpen, setIsWarRoomOpen] = useState(false);
@@ -85,6 +89,15 @@ export const TradingView = ({
       try {
         const livePrices = await fetchLiveMarketPrices();
         if (livePrices && Object.keys(livePrices).length > 0) {
+          setLivePricesMap(livePrices);
+
+          // Real-Time TP / SL Evaluation for Paper Desk
+          const tickResult = tickPaperPositionsWithLivePrices(livePrices);
+          if (tickResult.closedTrades && tickResult.closedTrades.length > 0) {
+            playSound('success', soundEnabled);
+            refreshAllData();
+          }
+
           setWatchlist(prev => prev.map(item => {
             const symbol = item.symbol.toUpperCase();
             if (livePrices[symbol]) {
@@ -105,7 +118,10 @@ export const TradingView = ({
 
     // 2. Auto-generate initial Hermes brief if none exists
     if (!hermesBrief) {
-      runHermesSwarmAnalysis().then(b => setHermesBrief(b));
+      runHermesSwarmAnalysis().then(b => {
+        setHermesBrief(b);
+        autoExecuteHermesPlays(b);
+      });
     }
 
     return () => clearInterval(interval);
@@ -250,7 +266,8 @@ export const TradingView = ({
       {/* 2. SUB-NAVIGATION TABS */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar border-b border-white/5">
         {[
-          { id: 'overview', label: '🌅 Morning War Room & Setups', icon: Compass },
+          { id: 'overview', label: '🌅 Morning War Room', icon: Compass },
+          { id: 'papertrader', label: '🤖 Forward-Test Paper Desk', icon: Bot },
           { id: 'positions', label: `💼 Live Positions (${openPositions.length})`, icon: Layers },
           { id: 'journal', label: `📖 Trade Journal (${tradeJournal.length})`, icon: BookOpen },
           { id: 'webhooks', label: `⚡ Webhook Logs (${webhookLogs.length})`, icon: Radio }
@@ -363,6 +380,16 @@ export const TradingView = ({
                 );
               })}
             </div>
+          </div>
+
+          {/* Forward-Test Paper Desk Mini Section */}
+          <div className="pt-2">
+            <HermesPaperTraderCard
+              latestBrief={hermesBrief}
+              livePrices={livePricesMap}
+              onPositionChanged={refreshAllData}
+              soundEnabled={soundEnabled}
+            />
           </div>
 
           {/* Watchlist & Position Sizer Grid */}
@@ -522,7 +549,17 @@ export const TradingView = ({
         </div>
       )}
 
-      {/* 4. TAB 2: LIVE OPEN POSITIONS */}
+      {/* 4. TAB 2: FORWARD-TEST PAPER DESK */}
+      {activeTab === 'papertrader' && (
+        <HermesPaperTraderCard
+          latestBrief={hermesBrief}
+          livePrices={livePricesMap}
+          onPositionChanged={refreshAllData}
+          soundEnabled={soundEnabled}
+        />
+      )}
+
+      {/* 5. TAB 3: LIVE OPEN POSITIONS */}
       {activeTab === 'positions' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
