@@ -10,7 +10,9 @@ import {
   Unlink, 
   X, 
   AlertCircle,
-  ListTodo
+  Copy,
+  Check,
+  ShieldAlert
 } from 'lucide-react';
 import { 
   isGoogleCalendarConnected, 
@@ -33,6 +35,9 @@ export const GoogleCalendarModal = ({
   const [syncMessage, setSyncMessage] = useState(null);
   const [error, setError] = useState(null);
   const [showManualInput, setShowManualInput] = useState(false);
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
+
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
 
   // Check connection status on open
   useEffect(() => {
@@ -41,7 +46,6 @@ export const GoogleCalendarModal = ({
       setError(null);
       setSyncMessage(null);
       setManualToken('');
-      setShowManualInput(false);
     }
   }, [isOpen]);
 
@@ -84,12 +88,16 @@ export const GoogleCalendarModal = ({
     try {
       const events = await fetchGoogleCalendarEvents();
       playSound('success', soundEnabled);
-      setSyncMessage(`Successfully synced ${events.length} item(s) from your Google Calendar & Tasks!`);
+      setSyncMessage(`Successfully synced ${events.length} item(s) across all your Google Calendars & Tasks!`);
       if (onSyncSuccess) {
         onSyncSuccess(events);
       }
     } catch (err) {
       setError(err.message || "Failed to fetch events from Google Calendar.");
+      if (err.message?.includes('expired') || err.message?.includes('401')) {
+        disconnectGoogleCalendar();
+        setIsConnected(false);
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -101,6 +109,14 @@ export const GoogleCalendarModal = ({
     setIsConnected(false);
     setSyncMessage(null);
     setError(null);
+  };
+
+  const handleCopyOrigin = () => {
+    if (navigator.clipboard && currentOrigin) {
+      navigator.clipboard.writeText(currentOrigin);
+      setCopiedOrigin(true);
+      setTimeout(() => setCopiedOrigin(false), 2500);
+    }
   };
 
   const modalContent = (
@@ -137,7 +153,7 @@ export const GoogleCalendarModal = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight">Google Calendar & Tasks 2-Way Sync</h3>
-                <p className="text-xs text-slate-400">Stream schedule & voice-book events (Full 1-Year Sync)</p>
+                <p className="text-xs text-slate-400">Stream schedule & events across phone and desktop</p>
               </div>
             </div>
 
@@ -165,7 +181,7 @@ export const GoogleCalendarModal = ({
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Your Google Calendar & Tasks are synchronized. Full 1-year timeline streaming is active. Adding or deleting items in Wolfe OS updates Google instantly.
+                Your Google Calendar & Tasks are synchronized 2-way. Events added in Google Calendar on your phone or in Wolfe OS sync automatically.
               </p>
 
               <div className="pt-2 border-t border-emerald-500/20">
@@ -177,7 +193,7 @@ export const GoogleCalendarModal = ({
                     style={{ backgroundColor: 'var(--accent-primary)' }}
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing ? "Syncing..." : "Sync / Refresh Full Year"}</span>
+                    <span>{isSyncing ? "Syncing..." : "Sync 2-Way Now"}</span>
                   </button>
 
                   <button
@@ -197,7 +213,7 @@ export const GoogleCalendarModal = ({
                 <div className="space-y-1.5 text-center">
                   <h4 className="text-sm font-bold text-white tracking-tight">Connect Your Google Account</h4>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    Sign in with Google to sync your calendar events, exams, assignments, and Google Tasks directly into Wolfe OS.
+                    Sign in with Google to sync your calendar events, exams, assignments, and Google Tasks directly with Wolfe OS.
                   </p>
                 </div>
 
@@ -208,7 +224,6 @@ export const GoogleCalendarModal = ({
                   disabled={isSyncing}
                   className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-slate-900 font-semibold text-sm shadow-xl transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  {/* Google Official 4-Color SVG Icon */}
                   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -219,75 +234,92 @@ export const GoogleCalendarModal = ({
                 </button>
 
                 {/* Collapsible Manual Token Option */}
-                <div className="pt-2 border-t border-white/5">
+                <div className="pt-2 border-t border-white/5 space-y-2">
                   <button
                     type="button"
                     onClick={() => setShowManualInput(prev => !prev)}
-                    className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors underline cursor-pointer"
+                    className="text-[11px] text-slate-400 hover:text-white transition-colors underline cursor-pointer"
                   >
-                    {showManualInput ? "Hide manual token option" : "Or enter token manually"}
+                    {showManualInput ? "Hide manual token option" : "Or enter token manually / Vercel Domain Setup"}
                   </button>
 
                   {showManualInput && (
-                    <form onSubmit={handleManualTokenSubmit} className="mt-3 space-y-2 text-left">
-                      <div className="flex gap-2">
-                        <input
-                          type="password"
-                          value={manualToken}
-                          onChange={(e) => setManualToken(e.target.value)}
-                          placeholder="Paste Token (ya29... or 1//...)"
-                          className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder:text-slate-600 outline-none font-mono focus:border-white/30"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!manualToken.trim() || isSyncing}
-                          className="px-3.5 py-2 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 disabled:opacity-30 shrink-0 cursor-pointer"
-                          style={{ backgroundColor: 'var(--accent-primary)' }}
-                        >
-                          Connect
-                        </button>
+                    <div className="space-y-3 pt-2 text-left">
+                      {/* Vercel Origin Info */}
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-1.5 font-sans">
+                        <div className="text-[11px] font-bold text-white flex items-center justify-between">
+                          <span>Current Domain (For Google Cloud):</span>
+                          <button
+                            type="button"
+                            onClick={handleCopyOrigin}
+                            className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 font-mono cursor-pointer"
+                          >
+                            {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedOrigin ? "Copied" : "Copy URL"}</span>
+                          </button>
+                        </div>
+                        <div className="text-xs font-mono text-purple-300 truncate bg-black/40 p-2 rounded-lg border border-white/5">
+                          {currentOrigin}
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-normal">
+                          In Google Cloud Console &gt; Credentials, ensure <code>{currentOrigin}</code> is listed under <strong>Authorized JavaScript origins</strong>.
+                        </p>
                       </div>
-                    </form>
+
+                      {/* Manual Token Form */}
+                      <form onSubmit={handleManualTokenSubmit} className="space-y-2">
+                        <label className="text-[11px] font-semibold text-slate-300 block">
+                          Paste Access / Refresh Token (ya29... or 1//...):
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={manualToken}
+                            onChange={(e) => setManualToken(e.target.value)}
+                            placeholder="Paste Token..."
+                            className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder:text-slate-600 outline-none font-mono focus:border-white/30"
+                          />
+                          <button
+                            type="submit"
+                            disabled={!manualToken.trim() || isSyncing}
+                            className="px-3.5 py-2 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 disabled:opacity-30 shrink-0 cursor-pointer"
+                            style={{ backgroundColor: 'var(--accent-primary)' }}
+                          >
+                            Connect
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   )}
                 </div>
               </div>
-
-              {/* Information Cards */}
-              <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                  <div className="font-semibold text-slate-300 flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-rose-400" />
-                    <span>Deadlines & Events</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500">Deadlines display in bold red at the top of due dates.</p>
-                </div>
-
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                  <div className="font-semibold text-slate-300 flex items-center gap-1">
-                    <ListTodo className="w-3 h-3 text-blue-400" />
-                    <span>Tasks & 1-Year Sync</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500">Syncs your upcoming 365 days of events and tasks.</p>
-                </div>
-              </div>
             </div>
           )}
 
-          {/* Feedback Banners */}
+          {/* Feedback & Error Messages */}
           {syncMessage && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2"
+            >
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{syncMessage}</span>
-            </div>
+            </motion.div>
           )}
 
           {error && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <div className="flex-1">
-                <p className="font-semibold">{error}</p>
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs space-y-1.5"
+            >
+              <div className="flex items-center gap-2 font-semibold text-rose-200">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>Sync Notice:</span>
               </div>
-            </div>
+              <p className="text-[11px] leading-relaxed text-rose-300/90">{error}</p>
+            </motion.div>
           )}
         </motion.div>
       </div>

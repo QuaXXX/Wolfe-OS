@@ -11,7 +11,8 @@ import {
   Circle, 
   ListTodo, 
   X,
-  FileText
+  FileText,
+  RefreshCw
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { playSound } from '../../utils/soundFX';
@@ -33,6 +34,8 @@ export const CalendarView = ({
   onDeleteItem,
   onToggleTask,
   onOpenGoogleCalendar,
+  onSyncGoogle,
+  isSyncingGoogle = false,
   soundEnabled = true 
 }) => {
   const todayIso = getTodayIso();
@@ -200,16 +203,31 @@ export const CalendarView = ({
               <span>Connect Google Calendar</span>
             </button>
           ) : (
-            <button
-              onClick={() => {
-                playSound('click', soundEnabled);
-                setIsSyllabusModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-              <span>Import Syllabus</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  if (onSyncGoogle) onSyncGoogle();
+                }}
+                disabled={isSyncingGoogle}
+                title="Sync 2-way with Google Calendar"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingGoogle ? 'animate-spin text-emerald-400' : ''}`} style={!isSyncingGoogle ? { color: 'var(--accent-primary)' } : {}} />
+                <span>{isSyncingGoogle ? "Syncing..." : "Sync Google"}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  setIsSyllabusModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                <span>Import Syllabus</span>
+              </button>
+            </div>
           )}
 
           <button

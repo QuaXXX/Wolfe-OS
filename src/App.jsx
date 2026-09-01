@@ -194,15 +194,17 @@ export function App() {
       localStorage.setItem('wolfe_os_nutrition_v5', JSON.stringify(nutritionData));
       localStorage.setItem('wolfe_os_workout_v5', JSON.stringify(workoutData));
       localStorage.setItem('wolfe_os_trading_v5', JSON.stringify(tradingData));
-      localStorage.setItem('wolfe_os_school_v5', JSON.stringify(schoolData));
     } catch (e) {
       console.warn("Storage notice:", e);
     }
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData]);
 
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+
   // Automatic Real-Time 2-Way Sync with Google Calendar & Google Tasks
-  const syncWithGoogle = useCallback(async () => {
+  const syncWithGoogle = useCallback(async (showFeedback = false) => {
     if (!isGoogleCalendarConnected()) return;
+    setIsSyncingGoogle(true);
     try {
       const liveGoogleItems = await fetchGoogleCalendarEvents();
       if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
@@ -212,15 +214,34 @@ export function App() {
           selectedDate: getTodayIso(),
           items: liveGoogleItems
         }));
+        if (showFeedback) {
+          playSound('success', settings.soundEnabled);
+        }
       }
     } catch (err) {
-      console.debug("Auto sync check:", err);
+      console.warn("Auto sync check error:", err);
+      if (err.message?.includes('expired') || err.message?.includes('401') || err.message?.includes('not connected')) {
+        disconnectGoogleCalendar();
+      }
+    } finally {
+      setIsSyncingGoogle(false);
     }
-  }, []);
+  }, [settings.soundEnabled]);
 
-  // Sync from Google ONLY once on initial app load
+  // Sync from Google on initial app load
   useEffect(() => {
-    syncWithGoogle();
+    syncWithGoogle(false);
+  }, [syncWithGoogle]);
+
+  // Real-Time Auto Sync when tab gains focus (e.g. returning from phone/Google Calendar edits)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isGoogleCalendarConnected()) {
+        syncWithGoogle(false);
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [syncWithGoogle]);
 
   // Touch Swipe Gesture State
@@ -755,6 +776,8 @@ export function App() {
             onDeleteItem={handleDeleteItem}
             onToggleTask={handleToggleTask}
             onOpenGoogleCalendar={() => setIsGCalModalOpen(true)}
+            onSyncGoogle={() => syncWithGoogle(true)}
+            isSyncingGoogle={isSyncingGoogle}
             {...commonProps}
           />
         );

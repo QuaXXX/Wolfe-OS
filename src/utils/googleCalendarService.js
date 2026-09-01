@@ -1,6 +1,6 @@
 /**
  * Google Calendar & Tasks Integration Service for Wolfe OS
- * Uses Google Calendar REST API v3, Google Tasks API v1, and Automated Refresh Token Exchange
+ * Uses Google Calendar REST API v3, Google Tasks API v1, and Automated Token Exchange
  */
 
 import { addDays, getTodayIso, formatEventTimeRange, GOOGLE_COLOR_MAP } from './calendarUtils.js';
@@ -23,28 +23,54 @@ export const GOOGLE_CALENDAR_CONFIG = {
 };
 
 /**
- * Check if user is authenticated with a valid or refreshable token
+ * Check if user has an active, non-expired Google Calendar connection
  */
 export function isGoogleCalendarConnected() {
   if (typeof localStorage === 'undefined') return false;
   const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
-  return Boolean(token || refreshToken);
+  
+  if (refreshToken) return true;
+  if (!token) return false;
+
+  const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
+  if (expiry && Date.now() > Number(expiry)) {
+    // Token has expired
+    return false;
+  }
+  return true;
 }
 
 /**
- * Save tokens
+ * Check if token exists but has expired
+ */
+export function isGoogleTokenExpired() {
+  if (typeof localStorage === 'undefined') return true;
+  const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  if (refreshToken) return false;
+  if (!token) return true;
+
+  const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
+  if (!expiry) return false;
+  return Date.now() > Number(expiry);
+}
+
+/**
+ * Save tokens to localStorage
  */
 export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = null) {
   if (!token) return;
   const clean = token.trim();
   localStorage.setItem('wolfe_user_signed_in_google', 'true');
+  
   if (clean.startsWith('1//')) {
-    // It's a permanent refresh token!
     localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
   } else {
     localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, clean);
-    localStorage.setItem(GOOGLE_EXPIRY_KEY, String(Date.now() + (expiresInSeconds * 1000)));
+    // Buffer expiry by 60 seconds
+    const expiryTime = Date.now() + Math.max(300, expiresInSeconds - 60) * 1000;
+    localStorage.setItem(GOOGLE_EXPIRY_KEY, String(expiryTime));
   }
   if (refreshToken) {
     localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, refreshToken.trim());
@@ -86,7 +112,6 @@ export function checkAndHandleOAuthRedirect() {
 
 /**
  * One-Click Official Google Sign-In using Google Identity Services (GIS)
- * Works seamlessly on mobile Safari/Chrome and desktop browsers.
  */
 export function signInWithGooglePopup(clientIdOverride = null) {
   return new Promise((resolve, reject) => {
@@ -100,7 +125,7 @@ export function signInWithGooglePopup(clientIdOverride = null) {
       return reject(new Error("Window is not defined."));
     }
 
-    // 1. Google Identity Services (GIS) Token Client (Official modern flow)
+    // 1. Google Identity Services (GIS) Token Client (Official flow)
     if (window.google?.accounts?.oauth2) {
       try {
         const client = window.google.accounts.oauth2.initTokenClient({
@@ -121,21 +146,20 @@ export function signInWithGooglePopup(clientIdOverride = null) {
             reject(new Error(err.message || "Google Sign-In was closed or interrupted."));
           }
         });
-        client.requestAccessToken();
+        client.requestAccessToken({ prompt: 'consent' });
         return;
       } catch (err) {
-        console.warn("GIS token client initialization fallback:", err);
+        console.warn("GIS token client fallback:", err);
       }
     }
 
     // 2. Mobile/Popup Fallback OAuth 2.0 Flow
     const redirectUri = window.location.origin;
     const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&include_granted_scopes=true`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&include_granted_scopes=true&prompt=consent`;
 
     const isMobile = window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
-      // On mobile devices, redirect directly to avoid popup blocking
       window.location.href = authUrl;
       return;
     }
@@ -147,7 +171,6 @@ export function signInWithGooglePopup(clientIdOverride = null) {
     const popup = window.open(authUrl, 'google_signin_popup', `width=${width},height=${height},left=${left},top=${top}`);
 
     if (!popup) {
-      // If popup blocked, fallback to full page redirect
       window.location.href = authUrl;
       return;
     }
@@ -179,11 +202,11 @@ export function signInWithGooglePopup(clientIdOverride = null) {
 }
 
 /**
- * Force refresh access token using refresh_token
+ * Force refresh access token using refresh_token if available
  */
 export async function refreshAccessToken() {
   if (typeof localStorage === 'undefined') return null;
-  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY) || DEFAULT_REFRESH_TOKEN;
   const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID;
   const clientSecret = localStorage.getItem(GOOGLE_CLIENT_SECRET_KEY) || DEFAULT_CLIENT_SECRET;
 
@@ -215,20 +238,26 @@ export async function refreshAccessToken() {
 }
 
 /**
- * Automatically get a valid access token, auto-refreshing via refresh_token if expired
+ * Get valid access token or refresh
  */
 export async function getValidAccessToken() {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
 
-  // If token exists and has >120s remaining, use it
-  if (token && expiry && Date.now() < (Number(expiry) - 120000)) {
+  // If token exists and hasn't expired, return it
+  if (token && expiry && Date.now() < Number(expiry)) {
     return token;
   }
 
-  // Otherwise, refresh it
+  // Otherwise, attempt refresh if refresh token is available
   const freshToken = await refreshAccessToken();
-  return freshToken || token || DEFAULT_ACCESS_TOKEN;
+  if (freshToken) return freshToken;
+
+  if (token && (!expiry || Date.now() < Number(expiry))) {
+    return token;
+  }
+
+  return DEFAULT_ACCESS_TOKEN || null;
 }
 
 /**
@@ -311,118 +340,162 @@ async function fetchGoogleTasks() {
 }
 
 /**
- * Fetch full calendar events & tasks across past and future
+ * Fetch all calendars on user's account to ensure complete 2-way sync
+ */
+async function getUserCalendarIds(token) {
+  const calIds = ['primary'];
+  try {
+    const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const items = data.items || [];
+      items.forEach(c => {
+        if (c.id && c.id !== 'primary' && c.selected !== false) {
+          // Include secondary active calendars (e.g. Deadlines, School, Classes)
+          calIds.push(c.id);
+        }
+      });
+    }
+  } catch (e) {
+    console.debug("Calendar list check notice:", e);
+  }
+  return calIds;
+}
+
+/**
+ * Fetch full calendar events & tasks across all user calendars
  */
 export async function fetchGoogleCalendarEvents() {
   let token = await getValidAccessToken();
   if (!token) {
-    throw new Error("Google Calendar is not connected.");
+    disconnectGoogleCalendar();
+    throw new Error("Google Calendar is not connected or session expired.");
   }
 
-  let calendarEvents = [];
+  const startRange = new Date();
+  startRange.setFullYear(startRange.getFullYear() - 2);
+  startRange.setHours(0, 0, 0, 0);
 
-  try {
-    const startRange = new Date();
-    startRange.setFullYear(startRange.getFullYear() - 2); // 2 years in past
-    startRange.setHours(0, 0, 0, 0);
+  const endRange = new Date();
+  endRange.setFullYear(endRange.getFullYear() + 2);
+  endRange.setHours(23, 59, 59, 999);
 
-    const endRange = new Date();
-    endRange.setFullYear(endRange.getFullYear() + 2); // 2 years in future
-    endRange.setHours(23, 59, 59, 999);
+  let allEvents = [];
+  const calendarIds = await getUserCalendarIds(token);
 
-    const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
-    url.searchParams.append('timeMin', startRange.toISOString());
-    url.searchParams.append('timeMax', endRange.toISOString());
-    url.searchParams.append('singleEvents', 'true');
-    url.searchParams.append('orderBy', 'startTime');
-    url.searchParams.append('maxResults', '500');
+  for (const calId of calendarIds) {
+    try {
+      const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`);
+      url.searchParams.append('timeMin', startRange.toISOString());
+      url.searchParams.append('timeMax', endRange.toISOString());
+      url.searchParams.append('singleEvents', 'true');
+      url.searchParams.append('orderBy', 'startTime');
+      url.searchParams.append('maxResults', '500');
 
-    let response = await fetch(url.toString(), {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
-    });
-
-    if (response.status === 401) {
-      token = await refreshAccessToken();
-      if (token) {
-        response = await fetch(url.toString(), {
-          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-        });
-      }
-    }
-
-    if (response.ok) {
-      const data = await response.json();
-      const rawItems = data.items || [];
-
-      calendarEvents = rawItems.map(item => {
-        const isAllDay = !item.start?.dateTime && !!item.start?.date;
-        const dateStr = item.start?.dateTime ? item.start.dateTime.split('T')[0] : (item.start?.date || getTodayIso());
-        const timeString = isAllDay ? "All Day" : formatEventTimeRange(item.start?.dateTime, item.end?.dateTime);
-
-        const summary = item.summary || "Untitled Event";
-        const lowerSummary = summary.toLowerCase().trim();
-
-        let type = "event";
-        if (item.colorId === "11" || summary.startsWith('🚨') || lowerSummary.startsWith('deadline:') || (isAllDay && lowerSummary.includes('deadline'))) {
-          type = "deadline";
-        } else if (item.colorId === "8" || summary.startsWith('✅') || lowerSummary.startsWith('task:')) {
-          type = "task";
-        } else if (summary.startsWith('🔔') || lowerSummary.startsWith('reminder:')) {
-          type = "reminder";
+      let response = await fetch(url.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
-
-        let category = "General";
-        if (lowerSummary.includes('class') || lowerSummary.includes('study') || lowerSummary.includes('exam') || lowerSummary.includes('cs ') || lowerSummary.includes('homework') || lowerSummary.includes('math') || lowerSummary.includes('chemistry') || lowerSummary.includes('physics') || lowerSummary.includes('diploma') || lowerSummary.includes('calculus') || lowerSummary.includes('statistics')) {
-          category = "School";
-        } else if (lowerSummary.includes('trade') || lowerSummary.includes('market') || lowerSummary.includes('stock')) {
-          category = "Trading";
-        } else if (lowerSummary.includes('gym') || lowerSummary.includes('workout') || lowerSummary.includes('push') || lowerSummary.includes('pull') || lowerSummary.includes('legs') || lowerSummary.includes('run')) {
-          category = "Fitness";
-        } else if (lowerSummary.includes('lunch') || lowerSummary.includes('dinner') || lowerSummary.includes('meal')) {
-          category = "Nutrition";
-        }
-
-        const cleanTitle = summary
-          .replace(/^🚨\s*Deadline:\s*/i, '')
-          .replace(/^✅\s*Task:\s*/i, '')
-          .replace(/^🔔\s*Reminder:\s*/i, '')
-          .trim();
-
-        return {
-          id: item.id || `gcal-${Date.now()}-${Math.random()}`,
-          type,
-          title: cleanTitle || summary,
-          date: dateStr,
-          time: timeString,
-          isAllDay,
-          colorId: item.colorId || (type === 'deadline' ? '11' : type === 'task' ? '8' : '9'),
-          category,
-          priority: type === 'deadline' ? 'urgent' : 'normal',
-          completed: false,
-          isGoogle: true,
-          htmlLink: item.htmlLink,
-        };
       });
-    } else {
-      console.warn(`Google Calendar fetch notice (${response.status})`);
+
+      if (response.status === 401) {
+        token = await refreshAccessToken();
+        if (token) {
+          response = await fetch(url.toString(), {
+            headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+          });
+        } else {
+          disconnectGoogleCalendar();
+          throw new Error("Google Calendar authentication expired. Please reconnect.");
+        }
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        const rawItems = data.items || [];
+
+        const parsed = rawItems.map(item => {
+          const isAllDay = !item.start?.dateTime && !!item.start?.date;
+          const dateStr = item.start?.dateTime ? item.start.dateTime.split('T')[0] : (item.start?.date || getTodayIso());
+          const timeString = isAllDay ? "All Day" : formatEventTimeRange(item.start?.dateTime, item.end?.dateTime);
+
+          const summary = item.summary || "Untitled Event";
+          const lowerSummary = summary.toLowerCase().trim();
+
+          let type = "event";
+          if (item.colorId === "11" || summary.startsWith('🚨') || lowerSummary.startsWith('deadline:') || (isAllDay && lowerSummary.includes('deadline')) || calId.toLowerCase().includes('deadline')) {
+            type = "deadline";
+          } else if (item.colorId === "8" || summary.startsWith('✅') || lowerSummary.startsWith('task:')) {
+            type = "task";
+          } else if (summary.startsWith('🔔') || lowerSummary.startsWith('reminder:')) {
+            type = "reminder";
+          }
+
+          let category = "General";
+          if (lowerSummary.includes('class') || lowerSummary.includes('study') || lowerSummary.includes('exam') || lowerSummary.includes('cs ') || lowerSummary.includes('homework') || lowerSummary.includes('math') || lowerSummary.includes('chemistry') || lowerSummary.includes('physics') || lowerSummary.includes('diploma') || lowerSummary.includes('calculus') || lowerSummary.includes('statistics') || calId.toLowerCase().includes('school')) {
+            category = "School";
+          } else if (lowerSummary.includes('trade') || lowerSummary.includes('market') || lowerSummary.includes('stock')) {
+            category = "Trading";
+          } else if (lowerSummary.includes('gym') || lowerSummary.includes('workout') || lowerSummary.includes('push') || lowerSummary.includes('pull') || lowerSummary.includes('legs') || lowerSummary.includes('run')) {
+            category = "Fitness";
+          } else if (lowerSummary.includes('lunch') || lowerSummary.includes('dinner') || lowerSummary.includes('meal')) {
+            category = "Nutrition";
+          }
+
+          const cleanTitle = summary
+            .replace(/^🚨\s*Deadline:\s*/i, '')
+            .replace(/^✅\s*Task:\s*/i, '')
+            .replace(/^🔔\s*Reminder:\s*/i, '')
+            .trim();
+
+          return {
+            id: item.id || `gcal-${Date.now()}-${Math.random()}`,
+            type,
+            title: cleanTitle || summary,
+            date: dateStr,
+            time: timeString,
+            isAllDay,
+            colorId: item.colorId || (type === 'deadline' ? '11' : type === 'task' ? '8' : '9'),
+            category,
+            priority: type === 'deadline' ? 'urgent' : 'normal',
+            completed: false,
+            isGoogle: true,
+            htmlLink: item.htmlLink,
+            calendarId: calId
+          };
+        });
+
+        allEvents = [...allEvents, ...parsed];
+      }
+    } catch (err) {
+      console.warn(`Calendar fetch error for ${calId}:`, err);
     }
-  } catch (err) {
-    console.warn("Calendar API fetch error:", err);
   }
 
   // Also fetch Google Tasks
   const googleTasks = await fetchGoogleTasks();
+  allEvents = [...allEvents, ...googleTasks];
 
-  return [...calendarEvents, ...googleTasks];
+  // Deduplicate by ID
+  const seenIds = new Set();
+  const deduped = [];
+  for (const it of allEvents) {
+    if (!seenIds.has(it.id)) {
+      seenIds.add(it.id);
+      deduped.push(it);
+    }
+  }
+
+  return deduped;
 }
 
 let cachedDeadlinesCalId = null;
 
 /**
- * Get or locate the 'Deadlines' calendar ID from Google Calendar
+ * Locate the 'Deadlines' calendar ID if available, otherwise return primary
  */
 export async function getDeadlinesCalendarId(token) {
   if (cachedDeadlinesCalId) return cachedDeadlinesCalId;
@@ -466,7 +539,8 @@ export async function getDeadlinesCalendarId(token) {
 export async function createGoogleCalendarEvent(itemData) {
   let token = await getValidAccessToken();
   if (!token) {
-    throw new Error("Google Calendar is not connected.");
+    disconnectGoogleCalendar();
+    throw new Error("Google Calendar is not connected or session expired.");
   }
 
   const { type, title, startTime, endTime, dateStr, isAllDay } = itemData;
@@ -511,7 +585,6 @@ export async function createGoogleCalendarEvent(itemData) {
     }
   }
 
-  // Deadlines go to the "Deadlines" calendar (Red), normal events go to primary ("Zach Wolfe")
   let targetCalendarId = 'primary';
   let colorId = "9"; // Blue (default for events)
 
@@ -567,6 +640,9 @@ export async function createGoogleCalendarEvent(itemData) {
         },
         body: JSON.stringify(body)
       });
+    } else {
+      disconnectGoogleCalendar();
+      throw new Error("Google Calendar authentication expired. Please reconnect.");
     }
   }
 
@@ -616,13 +692,12 @@ export async function updateGoogleTaskStatus(taskId, completed) {
   let token = await getValidAccessToken();
   if (!token || !taskId) return;
 
-  // 1. Update on Google Tasks API
   try {
     const taskBody = completed
       ? { status: 'completed', completed: new Date().toISOString() }
       : { status: 'needsAction', completed: null };
 
-    let res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${taskId}`, {
+    await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${taskId}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -630,25 +705,8 @@ export async function updateGoogleTaskStatus(taskId, completed) {
       },
       body: JSON.stringify(taskBody)
     });
+  } catch (e) {}
 
-    if (res.status === 401) {
-      token = await refreshAccessToken();
-      if (token) {
-        await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${taskId}`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(taskBody)
-        });
-      }
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  // 2. Also update if stored as a Calendar Event
   try {
     const getRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${taskId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -667,9 +725,7 @@ export async function updateGoogleTaskStatus(taskId, completed) {
         body: JSON.stringify({ summary: newSummary })
       });
     }
-  } catch (err) {
-    // Ignore
-  }
+  } catch (err) {}
 }
 
 /**
@@ -689,6 +745,37 @@ export async function clearCompletedGoogleTasks() {
   }
 }
 
+export const clearGoogleTasks = clearCompletedGoogleTasks;
+
+/**
+ * Clear events for a specific date from Google Calendar
+ */
+export async function clearGoogleCalendarEventsForDate(dateStr) {
+  let token = await getValidAccessToken();
+  if (!token || !dateStr) return;
+
+  try {
+    const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    url.searchParams.append('timeMin', `${dateStr}T00:00:00Z`);
+    url.searchParams.append('timeMax', `${dateStr}T23:59:59Z`);
+    url.searchParams.append('singleEvents', 'true');
+
+    const res = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const items = data.items || [];
+      for (const item of items) {
+        await deleteGoogleCalendarEvent(item.id, false);
+      }
+    }
+  } catch (e) {
+    console.warn("Clear events for date notice:", e);
+  }
+}
+
 /**
  * Delete an event directly from Google Calendar or Tasks
  */
@@ -696,46 +783,24 @@ export async function deleteGoogleCalendarEvent(eventId, isGoogleTask = false) {
   let token = await getValidAccessToken();
   if (!token || !eventId) return;
 
-  // Try the most likely API first based on item type, then fall back to the other
   if (isGoogleTask) {
-    // 1. Try Google Tasks API first
     try {
       let taskRes = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${eventId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (taskRes.status === 401) {
-        token = await refreshAccessToken();
-        if (token) {
-          taskRes = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${eventId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-        }
-      }
-      if (taskRes.ok || taskRes.status === 204) return; // Success
+      if (taskRes.ok || taskRes.status === 204) return;
     } catch (e) {}
   }
 
-  // 2. Try Google Calendar API
   try {
     let calRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (calRes.status === 401) {
-      token = await refreshAccessToken();
-      if (token) {
-        calRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      }
-    }
-    if (calRes.ok || calRes.status === 204) return; // Success
+    if (calRes.ok || calRes.status === 204) return;
   } catch (err) {}
 
-  // 2b. Also try Deadlines secondary calendar if exists
   const deadlinesId = typeof localStorage !== 'undefined' ? localStorage.getItem('wolfe_gcal_deadlines_id') : null;
   if (deadlinesId && deadlinesId !== 'primary') {
     try {
@@ -747,7 +812,6 @@ export async function deleteGoogleCalendarEvent(eventId, isGoogleTask = false) {
     } catch (e) {}
   }
 
-  // 3. If not a task initially, try Tasks API as fallback
   if (!isGoogleTask) {
     try {
       await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${eventId}`, {
@@ -755,60 +819,5 @@ export async function deleteGoogleCalendarEvent(eventId, isGoogleTask = false) {
         headers: { 'Authorization': `Bearer ${token}` }
       });
     } catch (e) {}
-  }
-}
-
-
-
-/**
- * Delete all tasks from Google Tasks API (or tasks matching a specific date)
- */
-export async function clearGoogleTasks(targetDate = 'ALL') {
-  let token = await getValidAccessToken();
-  if (!token) return;
-
-  try {
-    const tasks = await fetchGoogleTasks();
-    const toDelete = targetDate === 'ALL' 
-      ? tasks 
-      : tasks.filter(t => t.date === targetDate);
-
-    for (const t of toDelete) {
-      await deleteGoogleCalendarEvent(t.id, true);
-    }
-  } catch (err) {
-    console.warn("Clear Google Tasks error:", err);
-  }
-}
-
-/**
- * Clear all events for a specific date on Google Calendar
- */
-export async function clearGoogleCalendarEventsForDate(dateStr) {
-  let token = await getValidAccessToken();
-  if (!token) return;
-
-  try {
-    const startOfDay = new Date(`${dateStr}T00:00:00`);
-    const endOfDay = new Date(`${dateStr}T23:59:59`);
-
-    const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
-    url.searchParams.append('timeMin', startOfDay.toISOString());
-    url.searchParams.append('timeMax', endOfDay.toISOString());
-    url.searchParams.append('singleEvents', 'true');
-
-    const res = await fetch(url.toString(), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (!res.ok) return;
-    const data = await res.json();
-    const items = data.items || [];
-
-    for (const item of items) {
-      await deleteGoogleCalendarEvent(item.id);
-    }
-  } catch (err) {
-    console.warn("Clear Google Calendar failed:", err);
   }
 }
