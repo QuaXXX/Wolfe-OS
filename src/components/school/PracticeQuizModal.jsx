@@ -175,19 +175,19 @@ export const PracticeQuizModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] overflow-y-auto"
+          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-4 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                <GraduationCap className="w-5 h-5" />
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0">
+                <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <h3 className="text-base font-bold text-white tracking-tight">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">
                   {courseCode ? `${courseCode} Practice Exam` : "Practice Quiz"}
                 </h3>
-                <p className="text-xs text-slate-400">Multi-choice problem sets with instant explanations & weak-spot tracking</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 truncate">MCQ problem sets with instant explanations</p>
               </div>
             </div>
 
@@ -196,7 +196,7 @@ export const PracticeQuizModal = ({
                 playSound('click', soundEnabled);
                 onClose();
               }}
-              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -235,36 +235,37 @@ export const PracticeQuizModal = ({
                   </div>
                 </div>
 
-                {/* Question Quantity Selector */}
+                {/* Question Quantity Selector (Clean 2x2 on mobile, 1x4 on desktop) */}
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Quiz Length (Questions)</label>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Quiz Length (Questions)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { count: 5, label: "5 Questions (Quick)" },
-                      { count: 10, label: "10 Questions (Standard)" },
-                      { count: 15, label: "15 Questions (Intensive)" },
-                      { count: 25, label: "25 Questions (Full Mock)" }
+                      { count: 5, label: "5 Questions", sub: "Quick" },
+                      { count: 10, label: "10 Questions", sub: "Standard" },
+                      { count: 15, label: "15 Questions", sub: "Intensive" },
+                      { count: 25, label: "25 Questions", sub: "Full Mock" }
                     ].map(c => (
                       <button
                         key={c.count}
                         type="button"
                         onClick={() => setQuestionCount(c.count)}
-                        className={`py-2 px-1 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
+                        className={`py-2 px-2 rounded-xl border transition-all text-center cursor-pointer ${
                           questionCount === c.count
                             ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200 shadow-sm'
                             : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
                         }`}
                       >
-                        {c.label}
+                        <div className="text-xs font-bold">{c.label}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{c.sub}</div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Depth & Priority Mode */}
+                {/* Depth & Priority Mode (Responsive 1-col on mobile, 3-col on desktop) */}
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Quiz Focus</label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Quiz Focus</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
                       { id: 'high-yield', label: '🔥 High-Yield Exam', desc: 'Highest probability questions' },
                       { id: 'deep-dive', label: '🧠 Multi-Step Problems', desc: 'Calculations & scenarios' },
@@ -274,14 +275,14 @@ export const PracticeQuizModal = ({
                         key={m.id}
                         type="button"
                         onClick={() => setDepthMode(m.id)}
-                        className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                        className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
                           depthMode === m.id
                             ? 'bg-emerald-500/25 border-emerald-400 text-emerald-100 shadow-sm'
                             : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
                         }`}
                       >
-                        <div className="text-xs font-bold">{m.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
+                        <div className="text-xs font-bold truncate">{m.label}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{m.desc}</div>
                       </button>
                     ))}
                   </div>

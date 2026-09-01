@@ -306,19 +306,19 @@ pause
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-[#080a12]/95 border border-white/15 rounded-3xl p-6 sm:p-8 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9)] backdrop-blur-2xl z-10 space-y-5 text-center max-h-[92vh] overflow-y-auto"
+          className="relative w-full max-w-xl bg-[#080a12]/95 border border-white/15 rounded-3xl p-4 sm:p-7 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9)] backdrop-blur-2xl z-10 space-y-4 text-center max-h-[92vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <div className="flex items-center gap-2 text-left">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center">
+            <div className="flex items-center gap-2 text-left min-w-0 pr-2">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
                 <Shield className="w-4 h-4" />
               </div>
-              <div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+              <div className="min-w-0">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider truncate">
                   Deep Focus Shield • {courseCode}
                 </h3>
-                <p className="text-[11px] text-slate-400">Anti-distraction deep work mode</p>
+                <p className="text-[11px] text-slate-400 truncate">Anti-distraction deep work mode</p>
               </div>
             </div>
 
@@ -328,7 +328,7 @@ pause
                 stopAmbientSynth();
                 onClose();
               }}
-              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
             </button>

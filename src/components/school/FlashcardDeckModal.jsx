@@ -193,19 +193,19 @@ export const FlashcardDeckModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] overflow-y-auto"
+          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-4 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-blue-500/10 border border-blue-500/30 text-blue-400">
-                <Layers className="w-5 h-5" />
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center bg-blue-500/10 border border-blue-500/30 text-blue-400 shrink-0">
+                <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <h3 className="text-base font-bold text-white tracking-tight">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">
                   {courseCode ? `${courseCode} Flashcards` : "Study Flashcards"}
                 </h3>
-                <p className="text-xs text-slate-400">High-yield active recall with custom scope & importance rating</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 truncate">High-yield active recall with custom scope</p>
               </div>
             </div>
 
@@ -214,7 +214,7 @@ export const FlashcardDeckModal = ({
                 playSound('click', soundEnabled);
                 onClose();
               }}
-              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -253,36 +253,37 @@ export const FlashcardDeckModal = ({
                   </div>
                 </div>
 
-                {/* Card Quantity Selector */}
+                {/* Card Quantity Selector (Clean 2x2 on mobile, 1x4 on desktop) */}
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Deck Size (Card Count)</label>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Deck Size (Card Count)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { count: 5, label: "5 Cards (Quick)" },
-                      { count: 8, label: "8 Cards (Standard)" },
-                      { count: 12, label: "12 Cards (Deep)" },
-                      { count: 20, label: "20 Cards (Exam Drill)" }
+                      { count: 5, label: "5 Cards", sub: "Quick" },
+                      { count: 8, label: "8 Cards", sub: "Standard" },
+                      { count: 12, label: "12 Cards", sub: "Deep" },
+                      { count: 20, label: "20 Cards", sub: "Exam Drill" }
                     ].map(c => (
                       <button
                         key={c.count}
                         type="button"
                         onClick={() => setCardCount(c.count)}
-                        className={`py-2 px-1 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
+                        className={`py-2 px-2 rounded-xl border transition-all text-center cursor-pointer ${
                           cardCount === c.count
                             ? 'bg-blue-500/25 border-blue-400 text-blue-200 shadow-sm'
                             : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
                         }`}
                       >
-                        {c.label}
+                        <div className="text-xs font-bold">{c.label}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{c.sub}</div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Depth & Yield Mode */}
+                {/* Depth & Yield Mode (Responsive 1-col on mobile, 3-col on desktop) */}
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Study Priority Mode</label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">Study Priority Mode</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
                       { id: 'high-yield', label: '🔥 High-Yield Exam', desc: 'Core theorems & test questions' },
                       { id: 'deep-dive', label: '🧠 Problem Solving', desc: 'Calculations & scenarios' },
@@ -292,14 +293,14 @@ export const FlashcardDeckModal = ({
                         key={m.id}
                         type="button"
                         onClick={() => setDepthMode(m.id)}
-                        className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                        className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
                           depthMode === m.id
                             ? 'bg-blue-500/25 border-blue-400 text-blue-100 shadow-sm'
                             : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
                         }`}
                       >
-                        <div className="text-xs font-bold">{m.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
+                        <div className="text-xs font-bold truncate">{m.label}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{m.desc}</div>
                       </button>
                     ))}
                   </div>

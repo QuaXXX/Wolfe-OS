@@ -21,9 +21,34 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Google Identity Services for 1-Click Sign-In -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+      html, body {
+        background-color: #08090d !important;
+        color: #f1f5f9;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow-x: hidden;
+      }
+      #root {
+        min-height: 100%;
+        background-color: #08090d;
+      }
+    </style>
   </head>
-  <body class="bg-obsidian-950 text-slate-100 font-sans antialiased selection:bg-brand-500/30 selection:text-brand-300 overflow-x-hidden min-h-screen">
-    <div id="root"></div>
+  <body class="bg-[#08090d] text-slate-100 font-sans antialiased selection:bg-white/10 selection:text-white overflow-x-hidden min-h-screen">
+    <div id="root">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background-color:#08090d;color:#ffffff;font-family:'Plus Jakarta Sans',sans-serif;user-select:none;">
+        <div style="width:48px;height:48px;margin-bottom:14px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;box-shadow:0 0 25px rgba(59,130,246,0.3);">
+          <svg style="width:24px;height:24px;color:#3b82f6;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </div>
+        <div style="font-weight:700;font-size:13px;letter-spacing:0.08em;color:#e2e8f0;">WOLFE OS</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
