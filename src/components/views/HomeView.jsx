@@ -36,6 +36,7 @@ export const HomeView = ({
   onClearCalendar,
   onClearDeadlines,
   onDeleteSpecificItem,
+  onPurgeItems,
   onToggleTask,
   onOpenSettings,
   onNavigate,
@@ -58,7 +59,8 @@ export const HomeView = ({
     setTradingData,
     setSchoolData,
     setCalendarData,
-    onClearDeadlines
+    onClearDeadlines,
+    onPurgeItems
   };
 
   const items = calendarData?.items || [];
@@ -87,6 +89,7 @@ export const HomeView = ({
         onEventCreated={onItemCreated}
         onClearCalendar={onClearCalendar}
         onDeleteSpecificItem={onDeleteSpecificItem}
+        onPurgeItems={onPurgeItems}
         onOpenSettings={onOpenSettings}
         soundEnabled={soundEnabled}
       />

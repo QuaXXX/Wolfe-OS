@@ -649,41 +649,58 @@ export function App() {
     });
   };
 
-  // Comprehensive Purge Command Handler (e.g. "Purge timetable", "Purge FNCE", "Purge all", "Purge 2026-09-02")
+  // Comprehensive Purge Command Handler with Live Progress Tracking (e.g. "Purge BTMA", "Purge timetable", "Purge all")
   const handlePurgeItems = async (filterQuery = 'all') => {
     playSound('switch', settings.soundEnabled);
-    // Cancel any active in-flight batch upload immediately
     activeBatchSyncRef.current = null;
 
-    const q = (filterQuery || 'all').toLowerCase().trim();
+    const rawQ = (filterQuery || 'all').trim();
+    const q = rawQ.toLowerCase().replace(/^(all\s+)?(my\s+)?/i, '').trim();
 
     let itemsToPurge = [];
-    if (q === 'all' || q === 'everything' || q === 'calendar') {
+    if (q === 'all' || q === 'everything' || q === 'calendar' || q === '') {
       itemsToPurge = [...calendarData.items];
     } else if (q === 'timetable' || q === 'schedule' || q === 'classes' || q === 'lectures' || q === 'syllabus') {
       itemsToPurge = calendarData.items.filter(it => 
         it.category === 'School' || 
-        /\b(?:class|lecture|lab|tutorial|seminar|session)\b/i.test(it.title) ||
-        /\b[A-Z]{2,5}\s*\d{2,4}\b/i.test(it.title)
+        /\b(?:class|lecture|lab|tutorial|seminar|session)\b/i.test(it.title || '') ||
+        /\b[A-Z]{2,5}\s*\d{2,4}\b/i.test(it.title || '')
       );
     } else if (q === 'deadlines' || q === 'deadline') {
       itemsToPurge = calendarData.items.filter(it => it.type === 'deadline');
     } else if (q === 'tasks' || q === 'task') {
       itemsToPurge = calendarData.items.filter(it => it.type === 'task' || it.type === 'reminder');
+    } else if (q === 'today') {
+      const today = getTodayIso();
+      itemsToPurge = calendarData.items.filter(it => it.date === today);
+    } else if (q === 'tomorrow') {
+      const tom = addDays(getTodayIso(), 1);
+      itemsToPurge = calendarData.items.filter(it => it.date === tom);
     } else {
-      // Search matching title, category, or date
+      // Clean query and match title, category, description, or date (e.g. "BTMA", "BTMA 317", "btma-317")
+      const cleanQ = q.replace(/[^a-z0-9]/gi, '').toLowerCase();
+
       itemsToPurge = calendarData.items.filter(it => {
-        const titleLower = (it.title || '').toLowerCase();
-        const categoryLower = (it.category || '').toLowerCase();
-        const dateStr = (it.date || '');
-        return titleLower.includes(q) || categoryLower.includes(q) || dateStr.includes(q);
+        const title = (it.title || '').toLowerCase();
+        const cleanTitle = title.replace(/[^a-z0-9]/gi, '');
+        const category = (it.category || '').toLowerCase();
+        const desc = (it.description || '').toLowerCase();
+        const date = (it.date || '');
+
+        return (
+          title.includes(q) ||
+          cleanTitle.includes(cleanQ) ||
+          category.includes(q) ||
+          desc.includes(q) ||
+          date.includes(q)
+        );
       });
     }
 
     if (itemsToPurge.length === 0) {
       setUndoAction({
         title: "🔍 No Matching Items",
-        description: `Found 0 events matching "${filterQuery}" to purge.`,
+        description: `Found 0 events matching "${rawQ}" to purge.`,
         type: "PURGE_EMPTY",
         itemsAdded: [],
         itemsRemoved: []
@@ -692,29 +709,51 @@ export function App() {
     }
 
     const purgeIds = new Set(itemsToPurge.map(it => it.id));
+    const isGcal = isGoogleCalendarConnected();
 
-    // 1. Instantly remove from local calendarData
+    // 1. Instantly remove from local calendarData for 0ms visual lag
     setCalendarData(prev => ({
       ...prev,
       items: prev.items.filter(it => !purgeIds.has(it.id))
     }));
 
-    // 2. Delete each purged item from Google Calendar & Tasks
-    if (isGoogleCalendarConnected()) {
-      for (const it of itemsToPurge) {
-        deleteGoogleCalendarEvent(it.id, it.isGoogleTask || it.type === 'task').catch(console.warn);
-      }
-    }
-
-    // 3. Show Undo Toast
+    // 2. Show Live Real-Time Progress Popup
     setUndoAction({
-      title: `🗑️ Purged ${itemsToPurge.length} Item(s)`,
-      description: `Purged "${filterQuery}" (${itemsToPurge.length} items) from Wolfe OS & Google Calendar`,
+      title: `🗑️ Purging "${rawQ.toUpperCase()}"`,
+      description: isGcal ? `Purging ${itemsToPurge.length} items from Google Calendar (0/${itemsToPurge.length})...` : `Purged ${itemsToPurge.length} items from calendar`,
       type: "PURGE_ITEMS",
       itemsAdded: [],
       itemsRemoved: itemsToPurge,
-      query: q
+      syncProgress: isGcal ? { current: 0, total: itemsToPurge.length, inProgress: true } : null
     });
+
+    // 3. Delete from Google Calendar & Tasks in Background with Live Counter & Progress Bar
+    if (isGcal) {
+      (async () => {
+        let deletedCount = 0;
+        for (const it of itemsToPurge) {
+          try {
+            await deleteGoogleCalendarEvent(it.id, it.isGoogleTask || it.type === 'task');
+          } catch (err) {
+            console.warn("Purge delete notice:", err);
+          }
+          deletedCount++;
+
+          // Update progress bar in toast in real time!
+          setUndoAction(prev => (prev && prev.type === 'PURGE_ITEMS') ? {
+            ...prev,
+            syncProgress: {
+              current: deletedCount,
+              total: itemsToPurge.length,
+              inProgress: deletedCount < itemsToPurge.length
+            },
+            description: deletedCount < itemsToPurge.length
+              ? `Purging from Google Calendar (${deletedCount}/${itemsToPurge.length})...`
+              : `✅ Purged all ${itemsToPurge.length} "${rawQ.toUpperCase()}" items`
+          } : prev);
+        }
+      })();
+    }
 
     return { count: itemsToPurge.length, query: q };
   };
@@ -840,6 +879,7 @@ export function App() {
             onClearCalendar={handleClearCalendar}
             onClearDeadlines={handleClearDeadlines}
             onDeleteSpecificItem={handleDeleteSpecificItem}
+            onPurgeItems={handlePurgeItems}
             onToggleTask={handleToggleTask}
             {...commonProps}
           />

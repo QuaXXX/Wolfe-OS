@@ -25,6 +25,7 @@ export const CompactVoiceWidget = forwardRef(({
   onEventCreated, 
   onClearCalendar, 
   onDeleteSpecificItem, 
+  onPurgeItems,
   onOpenSettings, 
   soundEnabled = true 
 }, ref) => {
@@ -188,6 +189,7 @@ export const CompactVoiceWidget = forwardRef(({
       onNavigate,
       onClearCalendar,
       onDeleteSpecificItem,
+      onPurgeItems: onPurgeItems || osData?.onPurgeItems,
       onEventCreated
     });
 
@@ -223,7 +225,8 @@ export const CompactVoiceWidget = forwardRef(({
         onEventCreated, 
         onClearCalendar, 
         onDeleteSpecificItem,
-        updatedHistory
+        updatedHistory,
+        onPurgeItems || osData?.onPurgeItems
       );
       setAiResponse(response);
       if (response?.message && (response.message.length > 120 || response.message.includes('\n'))) {
