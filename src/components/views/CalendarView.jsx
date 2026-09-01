@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft, 
@@ -145,8 +145,97 @@ export const CalendarView = ({
     setIsAddModalOpen(false);
   };
 
+  // Side Swipe Gesture Refs (Mobile & Desktop)
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+  const mouseStartX = useRef(null);
+  const mouseStartY = useRef(null);
+  const isDraggingMouse = useRef(false);
+
+  // Keyboard navigation when in calendar view
+  useEffect(() => {
+    const handleCalendarKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || isAddModalOpen || isSyllabusModalOpen) return;
+      if (e.key === 'ArrowLeft') {
+        if (viewMode === 'day') handlePrevDay();
+        else handlePrevMonth();
+      } else if (e.key === 'ArrowRight') {
+        if (viewMode === 'day') handleNextDay();
+        else handleNextMonth();
+      }
+    };
+    window.addEventListener('keydown', handleCalendarKeyDown);
+    return () => window.removeEventListener('keydown', handleCalendarKeyDown);
+  }, [viewMode, currentMonthDate, selectedDate, isAddModalOpen, isSyllabusModalOpen]);
+
+  // Touch Swipe Handlers for Mobile
+  const handleCalendarTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleCalendarTouchEnd = (e) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const diffX = touchStartX.current - e.changedTouches[0].clientX;
+    const diffY = touchStartY.current - e.changedTouches[0].clientY;
+
+    // Must be predominantly horizontal and over threshold
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) {
+      if (diffX > 0) {
+        // Swiped Left -> Next Day / Next Month
+        if (viewMode === 'day') handleNextDay();
+        else handleNextMonth();
+      } else {
+        // Swiped Right -> Prev Day / Prev Month
+        if (viewMode === 'day') handlePrevDay();
+        else handlePrevMonth();
+      }
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
+  // Desktop Mouse Drag Swipe Handlers
+  const handleCalendarMouseDown = (e) => {
+    // Only track left click and avoid interactive elements
+    if (e.button !== 0 || e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return;
+    mouseStartX.current = e.clientX;
+    mouseStartY.current = e.clientY;
+    isDraggingMouse.current = true;
+  };
+
+  const handleCalendarMouseUp = (e) => {
+    if (!isDraggingMouse.current || mouseStartX.current === null || mouseStartY.current === null) {
+      isDraggingMouse.current = false;
+      return;
+    }
+    const diffX = mouseStartX.current - e.clientX;
+    const diffY = mouseStartY.current - e.clientY;
+
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
+      if (diffX > 0) {
+        // Dragged Left -> Next
+        if (viewMode === 'day') handleNextDay();
+        else handleNextMonth();
+      } else {
+        // Dragged Right -> Prev
+        if (viewMode === 'day') handlePrevDay();
+        else handlePrevMonth();
+      }
+    }
+    isDraggingMouse.current = false;
+    mouseStartX.current = null;
+    mouseStartY.current = null;
+  };
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-24 select-none">
+    <div 
+      onTouchStart={handleCalendarTouchStart}
+      onTouchEnd={handleCalendarTouchEnd}
+      onMouseDown={handleCalendarMouseDown}
+      onMouseUp={handleCalendarMouseUp}
+      className="max-w-6xl mx-auto space-y-6 pb-24 select-none cursor-default"
+    >
       
       {/* 1. TOP HEADER & NAVIGATION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

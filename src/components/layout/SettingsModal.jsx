@@ -56,11 +56,42 @@ export const SettingsModal = ({
   const [isSyncingGCal, setIsSyncingGCal] = useState(false);
   const [gcalMsg, setGcalMsg] = useState(null);
   const [vaultMeta, setVaultMeta] = useState(getVaultMetadata());
+  const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
 
   useEffect(() => {
     setIsGCalConnected(isGoogleCalendarConnected());
     setVaultMeta(getVaultMetadata());
+    setIsFullscreen(!!document.fullscreenElement);
+
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
   }, [isOpen]);
+
+  const handleToggleFullscreen = () => {
+    playSound('click', soundEnabled);
+    if (!document.fullscreenElement) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(e => {
+          document.documentElement.requestFullscreen().catch(console.warn);
+        });
+      } else if (document.documentElement.webkitRequestFullscreen) {
+        document.documentElement.webkitRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(console.warn);
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    }
+  };
 
   const handleConnectVault = async () => {
     playSound('click', soundEnabled);
@@ -357,6 +388,24 @@ export const SettingsModal = ({
                 }`}>
                   <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
                     settings.compactMode ? 'translate-x-5' : 'translate-x-0'
+                  }`} />
+                </div>
+              </div>
+
+              {/* Immersive Fullscreen Mode (Hide Android bars) */}
+              <div
+                onClick={handleToggleFullscreen}
+                className="flex items-center justify-between pt-2 border-t border-white/5 cursor-pointer text-xs"
+              >
+                <div>
+                  <div className="text-slate-200 font-medium">Immersive Fullscreen Mode</div>
+                  <div className="text-[10px] text-slate-400">Hides Android top status bar & bottom navigation bar</div>
+                </div>
+                <div className={`relative w-11 h-6 rounded-full transition-colors p-0.5 shrink-0 ${
+                  isFullscreen ? 'bg-emerald-600' : 'bg-zinc-800'
+                }`}>
+                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                    isFullscreen ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </div>
               </div>

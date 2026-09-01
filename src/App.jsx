@@ -336,6 +336,12 @@ export function App() {
 
   const handleTouchEnd = (e) => {
     if (touchStartX.current === null || touchStartY.current === null) return;
+    // Let Calendar View have exclusive control over its own Day / Month swipe navigation
+    if (activeView === 'calendar') {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
 
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
