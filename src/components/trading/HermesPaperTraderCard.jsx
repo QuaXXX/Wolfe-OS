@@ -14,7 +14,10 @@ import {
   ArrowDownRight,
   Layers,
   Sparkles,
-  Zap
+  Zap,
+  Trash2,
+  Clock,
+  Hourglass
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { 
@@ -23,7 +26,9 @@ import {
   getPaperPositions, 
   getPaperTradeHistory, 
   resetPaperTradingAccount, 
-  autoExecuteHermesPlays 
+  autoExecuteHermesPlays,
+  deletePaperPosition,
+  deletePaperHistoryTrade
 } from '../../utils/hermesPaperTrader';
 import { playSound } from '../../utils/soundFX';
 
@@ -60,11 +65,27 @@ export const HermesPaperTraderCard = ({
   const handleForceExecuteToday = () => {
     playSound('click', soundEnabled);
     if (latestBrief) {
-      const created = autoExecuteHermesPlays(latestBrief, true);
+      const created = autoExecuteHermesPlays(latestBrief, true, livePrices);
       refreshState();
       if (onPositionChanged) onPositionChanged();
       playSound('success', soundEnabled);
     }
+  };
+
+  const handleDeletePosition = (posId, e) => {
+    if (e) e.stopPropagation();
+    playSound('click', soundEnabled);
+    const updated = deletePaperPosition(posId);
+    setPaperPositions(updated);
+    if (onPositionChanged) onPositionChanged();
+  };
+
+  const handleDeleteHistory = (tradeId, e) => {
+    if (e) e.stopPropagation();
+    playSound('click', soundEnabled);
+    const updated = deletePaperHistoryTrade(tradeId);
+    setPaperHistory(updated);
+    if (onPositionChanged) onPositionChanged();
   };
 
   const handleResetAccount = () => {
@@ -82,12 +103,14 @@ export const HermesPaperTraderCard = ({
     ? ((account.winningTrades / account.totalTrades) * 100).toFixed(1)
     : '0.0';
 
-  const totalUnrealizedPnl = paperPositions.reduce((acc, pos) => acc + (pos.unrealizedPnlUSD || 0), 0);
+  const totalUnrealizedPnl = paperPositions
+    .filter(p => p.status === 'ACTIVE')
+    .reduce((acc, pos) => acc + (pos.unrealizedPnlUSD || 0), 0);
 
   return (
     <div className="space-y-3 font-sans">
       {/* 1. Header & Performance Metrics HUD */}
-      <GlassCard hoverEffect={false} className="p-4 space-y-3 border-amber-500/20 bg-gradient-to-br from-amber-500/[0.04] via-black/40 to-transparent">
+      <GlassCard hoverEffect={false} className="p-4 space-y-3 border-amber-500/20 bg-gradient-to-br from-amber-500/[0.03] via-black/40 to-transparent">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -96,7 +119,7 @@ export const HermesPaperTraderCard = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Hermes Forward-Test Engine (Live Paper Desk)
+                  Hermes Forward-Test Engine
                 </h3>
                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
                   account.isAutoTradingEnabled 
@@ -104,11 +127,11 @@ export const HermesPaperTraderCard = ({
                     : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${account.isAutoTradingEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-                  <span>{account.isAutoTradingEnabled ? 'Auto-Execute Active' : 'Paused'}</span>
+                  <span>{account.isAutoTradingEnabled ? 'Auto-Test Active' : 'Paused'}</span>
                 </span>
               </div>
               <div className="text-[11px] text-slate-400">
-                Automatically enters all high-conviction plays and evaluates live TP/SL hits in real-time.
+                Orders remain pending until entry price is touched, executing real-market TP (2R) & SL.
               </div>
             </div>
           </div>
@@ -124,7 +147,7 @@ export const HermesPaperTraderCard = ({
               }`}
             >
               {account.isAutoTradingEnabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
-              <span>{account.isAutoTradingEnabled ? 'Pause Auto-Trader' : 'Resume Auto-Trader'}</span>
+              <span>{account.isAutoTradingEnabled ? 'Pause' : 'Resume'}</span>
             </button>
 
             <button
@@ -134,7 +157,7 @@ export const HermesPaperTraderCard = ({
               className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1 cursor-pointer"
             >
               <Zap className="w-3.5 h-3.5" />
-              <span>Enter Plays Now</span>
+              <span>Enter Plays</span>
             </button>
 
             <button
@@ -191,7 +214,7 @@ export const HermesPaperTraderCard = ({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Live Forward-Test Positions ({paperPositions.length})
+          Tracked Trades ({paperPositions.length})
         </button>
         <button
           type="button"
@@ -202,27 +225,28 @@ export const HermesPaperTraderCard = ({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Forward-Test History ({paperHistory.length})
+          Completed History ({paperHistory.length})
         </button>
       </div>
 
-      {/* 3. Sub-Tab 1: Live Positions with Real-Time TP/SL Proximity */}
+      {/* 3. Sub-Tab 1: Live Positions */}
       {activeSubTab === 'open' && (
         <div className="space-y-2">
           {paperPositions.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {paperPositions.map((pos) => {
                 const isLong = pos.side === 'LONG';
+                const isPending = pos.status === 'PENDING_ENTRY';
                 const currentPrice = pos.currentPrice || pos.entryPrice;
                 const isProfitable = (pos.unrealizedPnlUSD || 0) >= 0;
 
-                // Calculate progress % towards Take Profit vs Stop Loss
+                // Progress towards TP vs SL
                 const totalRange = Math.abs(pos.takeProfit - pos.stopLoss);
                 const distanceCovered = isLong ? (currentPrice - pos.stopLoss) : (pos.stopLoss - currentPrice);
                 const progressPct = Math.max(0, Math.min(100, (distanceCovered / totalRange) * 100));
 
                 return (
-                  <GlassCard key={pos.id} hoverEffect={false} className="p-3.5 space-y-3">
+                  <GlassCard key={pos.id} hoverEffect={false} className="p-3.5 space-y-2.5 relative group">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-sm font-bold text-white">{pos.ticker}</span>
@@ -231,21 +255,55 @@ export const HermesPaperTraderCard = ({
                         }`}>
                           {pos.side} {pos.leverage}x
                         </span>
-                        <span className="text-[10px] font-mono text-amber-300 font-bold">Grade: {pos.convictionGrade}</span>
+
+                        {isPending ? (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1">
+                            <Hourglass className="w-3 h-3 animate-spin" />
+                            <span>Pending Entry</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>Active</span>
+                          </span>
+                        )}
                       </div>
 
-                      <div className="text-right font-mono">
-                        <div className={`text-xs font-bold ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {isProfitable ? `+$${(pos.unrealizedPnlUSD || 0).toFixed(2)}` : `-$${Math.abs(pos.unrealizedPnlUSD || 0).toFixed(2)}`}
-                        </div>
-                        <span className="text-[10px] text-slate-400">({pos.unrealizedRoiPct || 0}%)</span>
+                      <div className="flex items-center gap-2">
+                        {!isPending && (
+                          <div className="text-right font-mono">
+                            <div className={`text-xs font-bold ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {isProfitable ? `+$${(pos.unrealizedPnlUSD || 0).toFixed(2)}` : `-$${Math.abs(pos.unrealizedPnlUSD || 0).toFixed(2)}`}
+                            </div>
+                            <span className="text-[10px] text-slate-400">({pos.unrealizedRoiPct || 0}%)</span>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeletePosition(pos.id, e)}
+                          title="Remove trade"
+                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-white/[0.04] transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
-                    {/* Entry, Stop Loss, 2R Take Profit Matrix */}
+                    {/* Timeframe & Target Duration Badge */}
+                    <div className="flex items-center gap-3 text-[11px] text-slate-400 font-sans">
+                      <div className="flex items-center gap-1 text-slate-300">
+                        <Clock className="w-3 h-3 text-amber-400" />
+                        <span><strong>Timeframe:</strong> {pos.timeframe || '1H - 4H Intraday'}</span>
+                      </div>
+                      <span>•</span>
+                      <div><strong>Est. Duration:</strong> {pos.expectedDuration || '2 - 8h'}</div>
+                    </div>
+
+                    {/* Matrix */}
                     <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-[11px]">
                       <div>
-                        <div className="text-[9px] text-slate-400 uppercase">Entry</div>
+                        <div className="text-[9px] text-slate-400 uppercase">Entry Trigger</div>
                         <div className="text-white font-bold">${pos.entryPrice}</div>
                       </div>
                       <div>
@@ -258,7 +316,7 @@ export const HermesPaperTraderCard = ({
                       </div>
                     </div>
 
-                    {/* Real-time Distance to TP / SL Progress Bar */}
+                    {/* Live Progress Bar */}
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px] font-mono text-slate-400">
                         <span className="text-rose-400">SL: ${pos.stopLoss}</span>
@@ -268,7 +326,7 @@ export const HermesPaperTraderCard = ({
                       <div className="w-full h-1.5 rounded-full bg-rose-500/20 overflow-hidden relative">
                         <div 
                           className="h-full bg-emerald-400 transition-all duration-500 rounded-full"
-                          style={{ width: `${progressPct}%` }}
+                          style={{ width: `${isPending ? 0 : progressPct}%` }}
                         />
                       </div>
                     </div>
@@ -278,16 +336,16 @@ export const HermesPaperTraderCard = ({
             </div>
           ) : (
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-1">
-              <div className="text-xs font-bold text-white">No Active Forward-Test Trades</div>
+              <div className="text-xs font-bold text-white">No Forward-Test Trades Tracked</div>
               <p className="text-[11px] text-slate-400">
-                Click "Enter Plays Now" or wait for tomorrow's morning brief to auto-enter all high-conviction plays.
+                Click "Enter Plays" to forward-test today's plays.
               </p>
             </div>
           )}
         </div>
       )}
 
-      {/* 4. Sub-Tab 2: History Ledger */}
+      {/* 4. Sub-Tab 2: History */}
       {activeSubTab === 'history' && (
         <div className="space-y-2">
           {paperHistory.length > 0 ? (
@@ -309,16 +367,28 @@ export const HermesPaperTraderCard = ({
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-white">{trade.ticker} {trade.side}</span>
                           <span className="text-[10px] text-slate-400">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
+                          <span className="text-[10px] font-sans text-slate-500">({trade.timeframe || 'Intraday'})</span>
                         </div>
                         <div className="text-[10px] text-slate-500 font-sans">{trade.exitReason}</div>
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
+                        </div>
+                        <span className="text-[10px] text-slate-400">{trade.roiPct}%</span>
                       </div>
-                      <span className="text-[10px] text-slate-400">{trade.roiPct}%</span>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteHistory(trade.id, e)}
+                        title="Remove from history"
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-white/[0.04] transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -326,7 +396,7 @@ export const HermesPaperTraderCard = ({
             </div>
           ) : (
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center text-xs text-slate-400">
-              No forward-test trades completed yet.
+              No forward-test history logged yet.
             </div>
           )}
         </div>

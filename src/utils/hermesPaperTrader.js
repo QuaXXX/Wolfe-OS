@@ -1,8 +1,7 @@
 /**
  * Hermes Autonomous Forward-Test Paper Trader Engine
- * Automatically enters all Skeptic-approved high-conviction plays upon morning brief generation,
- * monitors real-time Hyperliquid L1 prices every 10 seconds, and executes instant Take-Profit
- * or Stop-Loss closures with live PnL accounting.
+ * Realistic market execution: places limit/trigger orders that remain PENDING until entry price is touched,
+ * then activates real-time PnL tracking and Take-Profit (2R) / Stop-Loss closures.
  */
 
 import { calculateDynamicPositionSize } from './hyperliquidService.js';
@@ -79,10 +78,24 @@ export function savePaperTradeHistory(history) {
   }
 }
 
+export function deletePaperPosition(posId) {
+  const current = getPaperPositions();
+  const filtered = current.filter(p => p.id !== posId);
+  savePaperPositions(filtered);
+  return filtered;
+}
+
+export function deletePaperHistoryTrade(tradeId) {
+  const current = getPaperTradeHistory();
+  const filtered = current.filter(t => t.id !== tradeId);
+  savePaperTradeHistory(filtered);
+  return filtered;
+}
+
 /**
- * 1. Automatically Enter All Skeptic-Approved High Conviction Plays
+ * 1. Automatically Parse & Place Pending / Active Orders from Hermes Plays
  */
-export function autoExecuteHermesPlays(brief, force = false) {
+export function autoExecuteHermesPlays(brief, force = false, livePrices = {}) {
   if (!brief || !brief.highConvictionPlays || !Array.isArray(brief.highConvictionPlays)) return [];
   const account = getPaperAccount();
   if (!account.isAutoTradingEnabled && !force) return [];
@@ -95,10 +108,10 @@ export function autoExecuteHermesPlays(brief, force = false) {
     const isLong = (play.bias || 'LONG').toUpperCase() === 'LONG';
 
     // Prevent duplicate entries for same asset on same day
-    const alreadyOpen = existingPositions.some(p => p.ticker === ticker && p.briefDate === brief.date);
-    if (alreadyOpen && !force) continue;
+    const alreadyExists = existingPositions.some(p => p.ticker === ticker && p.briefDate === brief.date);
+    if (alreadyExists && !force) continue;
 
-    // Parse numeric prices
+    // Parse numeric entry price
     const entryMatches = String(play.entryTrigger).match(/\$?([0-9,.]+)/);
     const entryPrice = entryMatches ? Number(entryMatches[1].replace(/,/g, '')) : 100;
 
@@ -117,12 +130,24 @@ export function autoExecuteHermesPlays(brief, force = false) {
       asset: ticker
     });
 
+    const currentLivePrice = livePrices[ticker] || entryPrice;
+    
+    // Realistic trigger check:
+    // If current market price has already touched or passed the entry price, mark as ACTIVE immediately.
+    // Otherwise, mark as PENDING_ENTRY until market moves into the entry zone.
+    let isImmediatelyActive = false;
+    if (isLong) {
+      if (currentLivePrice <= entryPrice * 1.002) isImmediatelyActive = true;
+    } else {
+      if (currentLivePrice >= entryPrice * 0.998) isImmediatelyActive = true;
+    }
+
     const position = {
       id: `paper_${Date.now()}_${ticker}_${Math.random().toString(36).substring(2, 6)}`,
       ticker,
       side: isLong ? 'LONG' : 'SHORT',
       entryPrice,
-      currentPrice: entryPrice,
+      currentPrice: currentLivePrice,
       stopLoss,
       takeProfit,
       target3R: play.target3R,
@@ -131,11 +156,14 @@ export function autoExecuteHermesPlays(brief, force = false) {
       marginUSD: sizing.requiredMarginUSD,
       riskUSD: sizing.riskUSD,
       leverage: sizing.leverage,
+      timeframe: play.timeframe || '1H - 4H Intraday',
+      expectedDuration: play.expectedDuration || '2 - 8 Hours',
       thesis: play.thesis,
       convictionGrade: play.convictionGrade || 'A+',
       briefDate: brief.date || new Date().toISOString().split('T')[0],
-      openedAt: new Date().toISOString(),
-      status: 'OPEN',
+      createdAt: new Date().toISOString(),
+      triggeredAt: isImmediatelyActive ? new Date().toISOString() : null,
+      status: isImmediatelyActive ? 'ACTIVE' : 'PENDING_ENTRY',
       unrealizedPnlUSD: 0.00,
       unrealizedRoiPct: 0.00
     };
@@ -153,8 +181,7 @@ export function autoExecuteHermesPlays(brief, force = false) {
 }
 
 /**
- * 2. Real-Time TP / SL Monitor Engine
- * Evaluates open positions against live Hyperliquid L1 prices and triggers instant closures.
+ * 2. Real-Time Limit Entry & TP / SL Monitor Engine
  */
 export function tickPaperPositionsWithLivePrices(livePrices) {
   if (!livePrices || Object.keys(livePrices).length === 0) return { closedTrades: [], openPositions: getPaperPositions() };
@@ -176,11 +203,41 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
     }
 
     const isLong = pos.side === 'LONG';
+
+    // 1. If Position is PENDING ENTRY: check if entry limit/trigger price has been touched
+    if (pos.status === 'PENDING_ENTRY') {
+      let isEntryTriggered = false;
+      if (isLong && currentPrice <= pos.entryPrice * 1.001) {
+        isEntryTriggered = true;
+      } else if (!isLong && currentPrice >= pos.entryPrice * 0.999) {
+        isEntryTriggered = true;
+      }
+
+      if (isEntryTriggered) {
+        // Order filled at Entry Price!
+        remainingPositions.push({
+          ...pos,
+          status: 'ACTIVE',
+          triggeredAt: new Date().toISOString(),
+          currentPrice,
+          unrealizedPnlUSD: 0.00,
+          unrealizedRoiPct: 0.00
+        });
+      } else {
+        // Still pending
+        remainingPositions.push({
+          ...pos,
+          currentPrice
+        });
+      }
+      continue;
+    }
+
+    // 2. If Position is ACTIVE: Calculate live PnL and check TP / SL
     const priceDiff = isLong ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
     const unrealizedPnlUSD = Number((priceDiff * pos.size).toFixed(2));
     const unrealizedRoiPct = Number(((priceDiff / pos.entryPrice) * 100 * pos.leverage).toFixed(2));
 
-    // Check Trigger Conditions
     let isTpHit = false;
     let isSlHit = false;
 
@@ -208,17 +265,18 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
         size: pos.size,
         pnlUSD: realizedPnlUSD,
         roiPct: realizedRoiPct,
-        openedAt: pos.openedAt,
+        openedAt: pos.triggeredAt || pos.createdAt,
         closedAt: new Date().toISOString(),
+        timeframe: pos.timeframe || '1H - 4H Intraday',
         exitReason: isTpHit ? 'TAKE_PROFIT_HIT (2R)' : 'STOP_LOSS_HIT (Invalidation)',
-        strategy: `Hermes Auto (${pos.convictionGrade} Setup)`,
+        strategy: `Hermes Forward-Test (${pos.convictionGrade})`,
         thesis: pos.thesis,
         isWin: isTpHit
       };
 
       newlyClosedTrades.push(closedTrade);
 
-      // Log into global Trade Journal too
+      // Log into global Trade Journal
       logCompletedTrade({
         ticker: pos.ticker,
         side: pos.side,
@@ -226,9 +284,9 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
         exitPrice,
         size: pos.size,
         pnlUSD: realizedPnlUSD,
-        strategy: `Hermes Auto (${pos.convictionGrade})`,
-        tags: [isTpHit ? '2R Target Hit' : 'Stop Loss Executed', 'Hermes Forward-Test', 'Followed Plan'],
-        notes: `Autonomous Forward-Test Execution: ${closedTrade.exitReason}. Thesis: ${pos.thesis}`
+        strategy: `Hermes Forward-Test (${pos.convictionGrade})`,
+        tags: [isTpHit ? '2R Target Hit' : 'Stop Loss Hit', 'Hermes Forward-Test', pos.timeframe || 'Intraday'],
+        notes: `Forward-Test Outcome: ${closedTrade.exitReason}. Timeframe: ${pos.timeframe}. Thesis: ${pos.thesis}`
       });
 
       // Update paper balance
@@ -239,7 +297,7 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
       else account.losingTrades += 1;
 
     } else {
-      // Position remains open, update unrealized metrics
+      // Position remains active
       remainingPositions.push({
         ...pos,
         currentPrice,
@@ -264,7 +322,7 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
 }
 
 /**
- * Reset Paper Trading Account & History
+ * Reset Paper Account
  */
 export function resetPaperTradingAccount() {
   savePaperAccount(DEFAULT_PAPER_ACCOUNT);

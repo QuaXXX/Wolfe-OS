@@ -2,25 +2,22 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
-  Calculator, 
   Plus, 
-  LineChart, 
   Sparkles, 
   Radio, 
   Key, 
   BookOpen, 
   Trash2, 
-  ExternalLink, 
   Layers, 
-  ShieldCheck, 
   Target, 
   Compass, 
   ArrowUpRight, 
   ArrowDownRight, 
   CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Bot
+  Bot,
+  Clock,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { HermesWarRoomModal } from '../trading/HermesWarRoomModal';
@@ -41,7 +38,7 @@ import {
   getWebhookLogs, 
   getLatestHermesBrief 
 } from '../../utils/tradingStorage';
-import { calculateDynamicPositionSize, fetchHyperliquidAccount, fetchLiveMarketPrices } from '../../utils/hyperliquidService';
+import { fetchHyperliquidAccount, fetchLiveMarketPrices } from '../../utils/hyperliquidService';
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
 import { tickPaperPositionsWithLivePrices, autoExecuteHermesPlays } from '../../utils/hermesPaperTrader';
 import { playSound } from '../../utils/soundFX';
@@ -50,7 +47,7 @@ export const TradingView = ({
   tradingData, 
   soundEnabled = true 
 }) => {
-  // Navigation & Tabs
+  // Navigation
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'papertrader' | 'positions' | 'journal' | 'webhooks'
 
   // Data States
@@ -60,7 +57,6 @@ export const TradingView = ({
   const [tradeJournal, setTradeJournal] = useState(getTradeJournal());
   const [webhookLogs, setWebhookLogs] = useState(getWebhookLogs());
   const [hermesBrief, setHermesBrief] = useState(getLatestHermesBrief());
-  const [selectedStock, setSelectedStock] = useState(watchlist[0] || null);
   const [livePricesMap, setLivePricesMap] = useState({});
 
   // Modals
@@ -74,13 +70,6 @@ export const TradingView = ({
   const [newTickerInput, setNewTickerInput] = useState('');
   const [isAddingTicker, setIsAddingTicker] = useState(false);
 
-  // Interactive Position Sizer State
-  const [accountSize, setAccountSize] = useState(config.accountEquity || 10000);
-  const [riskPercent, setRiskPercent] = useState(config.defaultRiskPercent || 1.5);
-  const [entryPrice, setEntryPrice] = useState(selectedStock?.price || 100.61);
-  const [stopLoss, setStopLoss] = useState(Number(((selectedStock?.price || 100.61) * 0.985).toFixed(2)));
-  const [leverage, setLeverage] = useState(config.maxLeverage || 5);
-
   useEffect(() => {
     refreshAllData();
 
@@ -91,7 +80,7 @@ export const TradingView = ({
         if (livePrices && Object.keys(livePrices).length > 0) {
           setLivePricesMap(livePrices);
 
-          // Real-Time TP / SL Evaluation for Paper Desk
+          // Real-Time TP / SL Trigger Engine
           const tickResult = tickPaperPositionsWithLivePrices(livePrices);
           if (tickResult.closedTrades && tickResult.closedTrades.length > 0) {
             playSound('success', soundEnabled);
@@ -136,27 +125,7 @@ export const TradingView = ({
     setHermesBrief(getLatestHermesBrief());
   };
 
-  // Performance Stats Calculation
   const stats = useMemo(() => calculateTradingStats(), [tradeJournal]);
-
-  // Dynamic Sizing Result
-  const sizingResult = useMemo(() => {
-    return calculateDynamicPositionSize({
-      accountEquity: accountSize,
-      riskPercent,
-      entryPrice,
-      stopLossPrice: stopLoss,
-      leverage,
-      asset: selectedStock?.symbol || 'BTC'
-    });
-  }, [accountSize, riskPercent, entryPrice, stopLoss, leverage, selectedStock]);
-
-  const handleSelectTicker = (stock) => {
-    playSound('click', soundEnabled);
-    setSelectedStock(stock);
-    setEntryPrice(stock.price);
-    setStopLoss(Number((stock.price * 0.985).toFixed(2)));
-  };
 
   const handleAddTicker = (e) => {
     if (e) e.preventDefault();
@@ -178,7 +147,6 @@ export const TradingView = ({
     playSound('click', soundEnabled);
     const updated = removeWatchlistTicker(symbol);
     setWatchlist(updated);
-    if (selectedStock?.symbol === symbol) setSelectedStock(updated[0] || null);
   };
 
   const handleClosePosition = (posId) => {
@@ -195,22 +163,22 @@ export const TradingView = ({
   };
 
   return (
-    <div className="space-y-5 max-w-6xl mx-auto pb-24 select-none">
-      {/* 1. TOP COMMAND HUD */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
+    <div className="space-y-4 max-w-6xl mx-auto pb-24 select-none font-sans">
+      {/* 1. MINIMAL TOP COMMAND BAR */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
         <div>
           <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>
             <TrendingUp className="w-4 h-4" />
-            <span>Autonomous Trading Desk & Execution Hub</span>
+            <span>Quantitative Desk</span>
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight mt-0.5">
-            Institutional Command & Webhook Engine
+            Trading Command Center
           </h1>
         </div>
 
-        {/* Action Buttons & Realized P&L */}
+        {/* Quick Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Hermes War Room Button */}
+          {/* Hermes Council */}
           <button
             type="button"
             onClick={() => {
@@ -223,7 +191,7 @@ export const TradingView = ({
             <span>Hermes Council</span>
           </button>
 
-          {/* Webhook Bridge */}
+          {/* Webhooks */}
           <button
             type="button"
             onClick={() => {
@@ -236,7 +204,7 @@ export const TradingView = ({
             <span>Webhooks</span>
           </button>
 
-          {/* Hyperliquid Bridge Status */}
+          {/* Hyperliquid Bridge */}
           <button
             type="button"
             onClick={() => {
@@ -250,20 +218,17 @@ export const TradingView = ({
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           </button>
 
-          {/* Realized PnL Card */}
-          <div className="px-3.5 py-1 rounded-xl bg-white/[0.03] text-right border border-white/10 min-w-[130px]">
-            <div className="text-[9px] uppercase font-semibold text-slate-400">Total P&L</div>
-            <div className={`text-base font-mono font-bold ${stats.totalPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {stats.totalPnlUSD >= 0 ? `+$${stats.totalPnlUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `-$${Math.abs(stats.totalPnlUSD).toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+          {/* Performance Pill */}
+          <div className="px-3 py-1 rounded-xl bg-white/[0.03] text-right border border-white/10 min-w-[120px]">
+            <div className="text-[9px] uppercase font-semibold text-slate-400">Realized P&L</div>
+            <div className={`text-sm font-mono font-bold ${stats.totalPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {stats.totalPnlUSD >= 0 ? `+$${stats.totalPnlUSD.toFixed(2)}` : `-$${Math.abs(stats.totalPnlUSD).toFixed(2)}`}
             </div>
-            <span className="text-[10px] font-mono text-slate-400">
-              Win Rate: <strong className="text-white">{stats.winRate}%</strong>
-            </span>
           </div>
         </div>
       </div>
 
-      {/* 2. SUB-NAVIGATION TABS */}
+      {/* 2. NAVIGATION TABS */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar border-b border-white/5">
         {[
           { id: 'overview', label: '🌅 Morning War Room', icon: Compass },
@@ -282,7 +247,7 @@ export const TradingView = ({
                 playSound('click', soundEnabled);
                 setActiveTab(tab.id);
               }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
                 isActive
                   ? 'bg-white/[0.1] text-white border border-white/20 shadow-sm'
                   : 'bg-white/[0.02] text-slate-400 hover:text-slate-200 border border-white/5 hover:bg-white/[0.04]'
@@ -296,25 +261,25 @@ export const TradingView = ({
         })}
       </div>
 
-      {/* 3. TAB 1: MORNING WAR ROOM & HERMES OVERVIEW */}
+      {/* 3. TAB 1: MORNING WAR ROOM & HIGH CONVICTION SETUPS */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
-          {/* Macro Banner */}
+          {/* Macro Regime Banner */}
           {hermesBrief && (
-            <div className="p-4 rounded-3xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-transparent border border-blue-500/20 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-transparent border border-blue-500/20 space-y-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Compass className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-mono uppercase tracking-wider text-blue-300 font-bold">
-                    Overnight Macro Synthesis
+                  <Compass className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-blue-300 font-bold">
+                    Macro Regime Synthesis
                   </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     Skeptic Approved
                   </span>
                 </div>
-                <span className="text-xs font-mono text-slate-400">{hermesBrief.date}</span>
+                <span className="text-[10px] font-mono text-slate-400">{hermesBrief.date}</span>
               </div>
-              <h2 className="text-sm font-bold text-white">{hermesBrief.macroRegime}</h2>
+              <h2 className="text-xs font-bold text-white">{hermesBrief.macroRegime}</h2>
               <p className="text-xs text-slate-300 leading-relaxed max-w-4xl">{hermesBrief.macroAnalysis}</p>
             </div>
           )}
@@ -324,14 +289,14 @@ export const TradingView = ({
             <div className="flex items-center justify-between">
               <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Target className="w-3.5 h-3.5 text-amber-400" />
-                <span>Today's High Conviction Playbook</span>
+                <span>Today's Verified Plays</span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsWarRoomOpen(true)}
                 className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
               >
-                <span>View Full Agent Logs</span>
+                <span>Full Agent Logs</span>
                 <ArrowUpRight className="w-3 h-3" />
               </button>
             </div>
@@ -343,7 +308,7 @@ export const TradingView = ({
                   <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-white font-mono">{play.ticker}</span>
+                        <span className="text-sm font-bold text-white font-mono">{play.ticker}</span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold flex items-center gap-0.5 ${
                           isLong ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                         }`}>
@@ -352,6 +317,20 @@ export const TradingView = ({
                         </span>
                       </div>
                       <span className="text-xs font-mono font-bold text-amber-300">Grade: {play.convictionGrade}</span>
+                    </div>
+
+                    {/* Timeframe & Trade Duration */}
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span className="text-slate-200 font-semibold">{play.timeframe || '1H - 4H Intraday'}</span>
+                      <span>•</span>
+                      <span>{play.expectedDuration || '3 - 8 Hours'}</span>
+                      {play.optimalWindow && (
+                        <>
+                          <span>•</span>
+                          <span className="text-slate-400">{play.optimalWindow}</span>
+                        </>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-xs">
@@ -392,158 +371,53 @@ export const TradingView = ({
             />
           </div>
 
-          {/* Watchlist & Position Sizer Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
-            {/* Watchlist */}
-            <div className="lg:col-span-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                  Tracked Assets ({watchlist.length})
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setIsAddingTicker(prev => !prev)}
-                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer font-medium"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Ticker</span>
-                </button>
-              </div>
-
-              {/* Add Ticker Input */}
-              {isAddingTicker && (
-                <form onSubmit={handleAddTicker} className="flex gap-2 p-2 rounded-2xl bg-black/40 border border-white/10">
-                  <input
-                    type="text"
-                    value={newTickerInput}
-                    onChange={(e) => setNewTickerInput(e.target.value)}
-                    placeholder="Ticker Symbol (e.g. SUI, AVAX, TSLA)..."
-                    className="flex-1 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 text-white font-mono text-xs outline-none"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold cursor-pointer"
-                    style={{ backgroundColor: 'var(--accent-primary)' }}
-                  >
-                    Add
-                  </button>
-                </form>
-              )}
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {watchlist.map((stock) => {
-                  const isSelected = selectedStock?.symbol === stock.symbol;
-                  return (
-                    <GlassCard
-                      key={stock.symbol}
-                      onClick={() => handleSelectTicker(stock)}
-                      className={`p-3 cursor-pointer transition-all ${
-                        isSelected ? 'ring-1 bg-[#14182a]' : 'hover:bg-white/[0.04]'
-                      }`}
-                      style={isSelected ? { borderColor: 'var(--accent-primary)' } : {}}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white text-xs font-mono">{stock.symbol}</span>
-                        <span className={`text-[10px] font-mono font-semibold ${
-                          stock.isPositive !== false ? 'text-emerald-400' : 'text-rose-400'
-                        }`}>
-                          {stock.change}
-                        </span>
-                      </div>
-                      <div className="font-mono text-sm font-bold text-slate-100 mt-0.5">
-                        ${stock.price?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </div>
-                    </GlassCard>
-                  );
-                })}
-              </div>
+          {/* Clean Real-Time Watchlist */}
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Tracked Assets ({watchlist.length})
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsAddingTicker(prev => !prev)}
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Ticker</span>
+              </button>
             </div>
 
-            {/* Dynamic Position Sizer */}
-            <div className="space-y-2">
-              <GlassCard hoverEffect={false} className="p-4 space-y-3 font-sans">
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <div className="flex items-center gap-1.5">
-                    <Calculator className="w-3.5 h-3.5 text-amber-400" />
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-                      Dynamic Risk Sizer
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-amber-300">
-                    {selectedStock?.symbol || 'BTC'}
-                  </span>
-                </div>
+            {isAddingTicker && (
+              <form onSubmit={handleAddTicker} className="flex gap-2 p-2 rounded-2xl bg-black/40 border border-white/10">
+                <input
+                  type="text"
+                  value={newTickerInput}
+                  onChange={(e) => setNewTickerInput(e.target.value)}
+                  placeholder="Ticker Symbol (e.g. SUI, AVAX)..."
+                  className="flex-1 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 text-white font-mono text-xs outline-none"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold cursor-pointer"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                >
+                  Add
+                </button>
+              </form>
+            )}
 
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Account Equity ($)</label>
-                    <input
-                      type="number"
-                      value={accountSize}
-                      onChange={(e) => setAccountSize(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
-                    />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+              {watchlist.map((stock) => (
+                <GlassCard key={stock.symbol} hoverEffect={false} className="p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-xs font-mono">{stock.symbol}</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">Live</span>
                   </div>
-
-                  <div>
-                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                      <span>Risk: <strong className="text-white font-mono">{riskPercent}%</strong></span>
-                      <span className="font-mono text-amber-300">${sizingResult.riskUSD} Risk</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="3"
-                      step="0.25"
-                      value={riskPercent}
-                      onChange={(e) => setRiskPercent(Number(e.target.value))}
-                      className="w-full cursor-pointer"
-                    />
+                  <div className="font-mono text-sm font-bold text-slate-100 mt-0.5">
+                    ${stock.price?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-slate-400 block mb-1">Entry ($)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={entryPrice}
-                        onChange={(e) => setEntryPrice(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-400 block mb-1">Stop ($)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={stopLoss}
-                        onChange={(e) => setStopLoss(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-white/10 space-y-1 text-xs font-mono">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Position Size:</span>
-                    <span className="font-bold text-white">{sizingResult.contracts} {sizingResult.asset}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Notional Value:</span>
-                    <span className="text-slate-200">${sizingResult.notionalValueUSD}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Margin Required ({leverage}x):</span>
-                    <span className="text-slate-200">${sizingResult.requiredMarginUSD}</span>
-                  </div>
-                  <div className="flex justify-between pt-1 border-t border-white/5">
-                    <span className="text-emerald-400">2R Take Profit:</span>
-                    <span className="font-bold text-emerald-300">${sizingResult.targetPrice2R}</span>
-                  </div>
-                </div>
-              </GlassCard>
+                </GlassCard>
+              ))}
             </div>
           </div>
         </div>
@@ -629,7 +503,7 @@ export const TradingView = ({
         </div>
       )}
 
-      {/* 5. TAB 3: TRADE JOURNAL */}
+      {/* 6. TAB 4: TRADE JOURNAL */}
       {activeTab === 'journal' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
@@ -673,7 +547,6 @@ export const TradingView = ({
                       </div>
                     </div>
 
-                    {/* AI Post-Mortem Quote */}
                     {trade.aiPostMortem && (
                       <div className="flex-1 max-w-md text-[11px] text-slate-300 italic truncate hidden lg:block">
                         "{trade.aiPostMortem}"
@@ -713,7 +586,7 @@ export const TradingView = ({
         </div>
       )}
 
-      {/* 6. TAB 4: WEBHOOK LOGS */}
+      {/* 7. TAB 5: WEBHOOK LOGS */}
       {activeTab === 'webhooks' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
