@@ -243,22 +243,20 @@ export const HermesPaperTraderCard = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-sm font-bold text-white">{pos.ticker}</span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
-                          isLong ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
-                        }`}>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10">
                           {pos.side} {pos.leverage}x
                         </span>
 
                         {isPending ? (
                           <span 
-                            className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse"
+                            className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold bg-white/[0.04] text-slate-300 border border-white/10"
                           >
-                            <Hourglass className="w-3 h-3 text-amber-400" />
+                            <Hourglass className="w-3 h-3 text-slate-400" />
                             <span>Waiting for Entry Trigger</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 font-bold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
                             <span>Active in Market</span>
                           </span>
                         )}
@@ -277,7 +275,7 @@ export const HermesPaperTraderCard = ({
                         ) : (
                           <div className="text-right font-mono">
                             <div className="text-xs font-bold text-slate-400">$0.00 PnL</div>
-                            <div className="text-[10px] text-amber-300/90 font-sans">Resting Limit Order</div>
+                            <div className="text-[10px] text-slate-400 font-sans">Resting Limit Order</div>
                           </div>
                         )}
 
@@ -294,15 +292,15 @@ export const HermesPaperTraderCard = ({
 
                     {/* Pending Entry Highlight Banner */}
                     {isPending && (
-                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-1.5 font-mono">
-                        <div className="flex items-center justify-between text-xs text-amber-200">
-                          <span className="font-bold flex items-center gap-1">
-                            <Hourglass className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Resting Limit Order: <strong>${pos.entryPrice}</strong></span>
+                      <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5 font-mono">
+                        <div className="flex items-center justify-between text-xs text-slate-200">
+                          <span className="font-semibold flex items-center gap-1">
+                            <Hourglass className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Resting Limit Order: <strong className="text-white">${pos.entryPrice}</strong></span>
                           </span>
                           <span className="text-[11px] text-slate-300">Live Market: <strong className="text-white">${currentPrice}</strong> ({Number(distanceToEntryPct) > 0 ? `+${distanceToEntryPct}` : distanceToEntryPct}%)</span>
                         </div>
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-amber-500/15">
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
                           <span>Order unfilled • Zero risk until filled</span>
                           <button
                             type="button"
@@ -354,25 +352,25 @@ export const HermesPaperTraderCard = ({
                         <div className="text-white font-bold">${pos.entryPrice}</div>
                       </div>
                       <div>
-                        <div className="text-[9px] text-rose-400 uppercase">Stop Loss</div>
-                        <div className="text-rose-300 font-bold">${pos.stopLoss}</div>
+                        <div className="text-[9px] text-slate-400 uppercase">Stop Loss</div>
+                        <div className="text-slate-200 font-bold">${pos.stopLoss}</div>
                       </div>
                       <div>
-                        <div className="text-[9px] text-emerald-400 uppercase">2R Target</div>
-                        <div className="text-emerald-300 font-bold">${pos.takeProfit}</div>
+                        <div className="text-[9px] text-slate-400 uppercase">2R Target</div>
+                        <div className="text-slate-200 font-bold">${pos.takeProfit}</div>
                       </div>
                     </div>
 
                     {/* Live Progress Bar */}
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                        <span className="text-rose-400">SL: ${pos.stopLoss}</span>
+                        <span>SL: ${pos.stopLoss}</span>
                         <span className="text-white font-bold">Current: ${currentPrice}</span>
-                        <span className="text-emerald-400">TP: ${pos.takeProfit}</span>
+                        <span>TP: ${pos.takeProfit}</span>
                       </div>
-                      <div className="w-full h-1.5 rounded-full bg-rose-500/20 overflow-hidden relative">
+                      <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden relative">
                         <div 
-                          className="h-full bg-emerald-400 transition-all duration-500 rounded-full"
+                          className="h-full bg-white/30 transition-all duration-500 rounded-full"
                           style={{ width: `${isPending ? 0 : progressPct}%` }}
                         />
                       </div>

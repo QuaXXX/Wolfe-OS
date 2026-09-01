@@ -318,11 +318,9 @@ export const HermesWarRoomModal = ({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-bold text-white font-mono">{play.ticker}</span>
-                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold flex items-center gap-0.5 ${
-                                isLong ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
-                              }`}>
-                                {isLong ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                                {play.bias}
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10 flex items-center gap-0.5">
+                                {isLong ? <ArrowUpRight className="w-3 h-3 text-slate-300" /> : <ArrowDownRight className="w-3 h-3 text-slate-300" />}
+                                {play.bias} 5x
                               </span>
                               <span className="text-[10px] font-mono text-slate-300 font-semibold">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
                             </div>
@@ -331,13 +329,13 @@ export const HermesWarRoomModal = ({
                             {isAlreadyTracking ? (
                               <div className="flex items-center gap-1.5">
                                 {isPending ? (
-                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1 font-bold animate-pulse">
-                                    <Clock className="w-3 h-3 text-amber-400" />
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
+                                    <Clock className="w-3 h-3 text-slate-400" />
                                     <span>Waiting for Fill</span>
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 font-bold">
-                                    <Check className="w-3 h-3 text-emerald-400" />
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
+                                    <Check className="w-3 h-3 text-slate-400" />
                                     <span>Active</span>
                                   </span>
                                 )}
@@ -372,12 +370,12 @@ export const HermesWarRoomModal = ({
                               <div className="font-bold text-white truncate">{play.entryTrigger.split(' ')[0]}</div>
                             </div>
                             <div>
-                              <div className="text-[9px] text-rose-400 uppercase">Stop Loss</div>
-                              <div className="font-bold text-rose-300">{play.stopLoss}</div>
+                              <div className="text-[9px] text-slate-400 uppercase">Stop Loss</div>
+                              <div className="font-bold text-slate-200">{play.stopLoss}</div>
                             </div>
                             <div>
-                              <div className="text-[9px] text-emerald-400 uppercase">2R Target</div>
-                              <div className="font-bold text-emerald-300">{play.target2R}</div>
+                              <div className="text-[9px] text-slate-400 uppercase">2R Target</div>
+                              <div className="font-bold text-slate-200">{play.target2R}</div>
                             </div>
                           </div>
 

@@ -88,10 +88,8 @@ export const HermesOrderEntryModal = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white tracking-tight">Execute Forward-Test</h3>
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold flex items-center gap-0.5 ${
-                    isLong ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
-                  }`}>
-                    {isLong ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10 flex items-center gap-0.5">
+                    {isLong ? <ArrowUpRight className="w-3 h-3 text-slate-300" /> : <ArrowDownRight className="w-3 h-3 text-slate-300" />}
                     {play.bias} 5x
                   </span>
                   <span className="text-[10px] font-mono text-slate-300 font-semibold">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
@@ -120,11 +118,11 @@ export const HermesOrderEntryModal = ({
             </div>
             <div className="flex items-center justify-between text-slate-300">
               <span className="text-[11px] font-sans text-slate-400">Current Live Market Price:</span>
-              <span className="font-bold" style={{ color: 'var(--accent-primary)' }}>${currentPrice}</span>
+              <span className="font-bold text-slate-200">${currentPrice}</span>
             </div>
             {isPriceDifferent && (
-              <div className="text-[10px] font-sans pt-1 border-t border-white/5 flex items-center justify-between text-amber-300/90">
-                <span>⚡ Live price is {Math.abs(Number(diffPct))}% {Number(diffPct) > 0 ? 'above' : 'below'} planned limit level</span>
+              <div className="text-[10px] font-sans pt-1 border-t border-white/5 flex items-center justify-between text-slate-400">
+                <span>Live price is {Math.abs(Number(diffPct))}% {Number(diffPct) > 0 ? 'above' : 'below'} planned limit level</span>
                 <span>5x Leverage</span>
               </div>
             )}
@@ -149,7 +147,7 @@ export const HermesOrderEntryModal = ({
                   </div>
                   <span className="text-xs font-bold text-white">Buy at Live Market Price (${currentPrice})</span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-slate-300 border border-white/10 font-semibold">
                   Instant Fill
                 </span>
               </div>
@@ -166,12 +164,12 @@ export const HermesOrderEntryModal = ({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center font-bold text-slate-300 bg-white/[0.05] border border-white/10">
                     <Hourglass className="w-3.5 h-3.5" />
                   </div>
                   <span className="text-xs font-bold text-white">Wait for Planned Entry Trigger (${plannedLimitPrice})</span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25 font-bold">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-slate-300 border border-white/10 font-semibold">
                   Resting Limit
                 </span>
               </div>
