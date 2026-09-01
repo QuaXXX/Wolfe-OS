@@ -7,12 +7,7 @@ import {
   Copy, 
   Check, 
   X, 
-  Loader2, 
-  Sparkles,
-  ArrowRight,
-  BookOpen,
-  CheckCircle2,
-  FolderSync
+  Loader2
 } from 'lucide-react';
 import { draftProfEmailWithAI } from '../../utils/aiService';
 import { findCourseOutlineContent, extractInstructorFromOutline } from '../../utils/obsidianService';
@@ -277,61 +272,6 @@ export const ProfEmailDraftModal = ({
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
-
-          {/* Course Selector & Auto-Detected Instructor Status */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-              <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
-                <BookOpen className="w-3.5 h-3.5 text-rose-400" />
-                <span>Target Class:</span>
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCourse('AUTO')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
-                    selectedCourse === 'AUTO'
-                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                      : 'bg-white/[0.03] text-slate-400 border-white/5 hover:bg-white/[0.06]'
-                  }`}
-                >
-                  ✨ Auto-Detect
-                </button>
-                {availableCourses.map((c, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setSelectedCourse(c)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
-                      selectedCourse === c
-                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                        : 'bg-white/[0.03] text-slate-400 border-white/5 hover:bg-white/[0.06]'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Live Detected Info Banner from Obsidian Vault */}
-            {detectedProfInfo && (
-              <div className="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-200 flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 min-w-0">
-                  <FolderSync className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span className="truncate">
-                    <strong>{detectedProfInfo.course}:</strong> {detectedProfInfo.name ? `${detectedProfInfo.name}` : "Professor"}
-                    {detectedProfInfo.email ? ` (${detectedProfInfo.email})` : ""}
-                  </span>
-                </div>
-                {detectedProfInfo.fileName && (
-                  <span className="text-[10px] font-mono text-rose-300/80 shrink-0">
-                    from {detectedProfInfo.fileName}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Clean Prompt Chat Input */}
