@@ -352,3 +352,19 @@ export function getLatestHermesBrief() {
   const briefs = getSavedHermesBriefs();
   return briefs.length > 0 ? briefs[0] : null;
 }
+
+export function clearTradingWorkspaceState() {
+  try {
+    localStorage.removeItem(STORAGE_KEY_HERMES_BRIEFS);
+    localStorage.removeItem('wolfe_hermes_paper_positions_v1');
+    localStorage.removeItem('wolfe_hermes_paper_history_v1');
+    localStorage.removeItem('wolfe_hermes_paper_account_v1');
+    localStorage.removeItem(STORAGE_KEY_POSITIONS);
+    localStorage.removeItem(STORAGE_KEY_JOURNAL);
+    localStorage.removeItem(STORAGE_KEY_WEBHOOK_LOGS);
+    return true;
+  } catch (err) {
+    console.warn("Notice clearing trading state:", err);
+    return false;
+  }
+}
