@@ -12,19 +12,15 @@ import {
   HelpCircle, 
   Search, 
   FolderSync, 
-  Shield, 
-  Flame, 
   Trash2, 
-  Sparkles,
   Send,
   Volume2,
   VolumeX,
   Maximize2,
   FileText,
   Loader2,
-  Zap,
-  Percent,
-  Calendar,
+  Sparkles,
+  Flame,
   MessageSquare
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -86,17 +82,17 @@ export const SchoolView = ({
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isDeepFocusOpen, setIsDeepFocusOpen] = useState(false);
 
-  // --- RIGHT COLUMN: INTERACTIVE POMODORO TIMER STATE ---
+  // --- RIGHT COLUMN: POMODORO TIMER STATE ---
   const [focusDuration, setFocusDuration] = useState(25 * 60);
   const [focusTimeLeft, setFocusTimeLeft] = useState(25 * 60);
   const [isFocusActive, setIsFocusActive] = useState(false);
-  const [focusMode, setFocusMode] = useState('pomodoro'); // 'pomodoro' | 'deep' | 'break'
+  const [focusMode, setFocusMode] = useState('pomodoro');
   const [sessionsCompleted, setSessionsCompleted] = useState(0);
-  const [ambientAudio, setAmbientAudio] = useState('none'); // 'none' | 'binaural' | 'rain'
+  const [ambientAudio, setAmbientAudio] = useState('none');
   const audioCtxRef = useRef(null);
   const noiseNodeRef = useRef(null);
 
-  // --- SMART COURSE AI STUDY CHAT STATE ---
+  // --- SMART COURSE AI CHAT STATE ---
   const [chatQuery, setChatQuery] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [isAiSearching, setIsAiSearching] = useState(false);
@@ -130,7 +126,7 @@ export const SchoolView = ({
     playSound('success', soundEnabled);
     setSessionsCompleted(prev => prev + 1);
     try {
-      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
     } catch {}
   };
 
@@ -160,7 +156,6 @@ export const SchoolView = ({
     stopAmbientAudio();
   };
 
-  // Web Audio Synth for Ambient Sound
   const startAmbientAudio = (type) => {
     stopAmbientAudio();
     if (type === 'none') return;
@@ -178,8 +173,8 @@ export const SchoolView = ({
         const gain = ctx.createGain();
 
         osc1.frequency.value = 200;
-        osc2.frequency.value = 240; // 40Hz Gamma frequency beat
-        gain.gain.value = 0.07;
+        osc2.frequency.value = 240;
+        gain.gain.value = 0.06;
 
         osc1.connect(merger, 0, 0);
         osc2.connect(merger, 0, 1);
@@ -194,7 +189,7 @@ export const SchoolView = ({
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
-          data[i] = (Math.random() * 2 - 1) * 0.04;
+          data[i] = (Math.random() * 2 - 1) * 0.035;
         }
 
         const noise = ctx.createBufferSource();
@@ -203,10 +198,10 @@ export const SchoolView = ({
 
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.value = 800;
+        filter.frequency.value = 750;
 
         const gain = ctx.createGain();
-        gain.gain.value = 0.06;
+        gain.gain.value = 0.05;
 
         noise.connect(filter);
         filter.connect(gain);
@@ -216,7 +211,7 @@ export const SchoolView = ({
         noiseNodeRef.current = noise;
       }
     } catch (e) {
-      console.warn("Ambient sound error:", e);
+      console.warn("Audio synth notice:", e);
     }
   };
 
@@ -271,7 +266,7 @@ export const SchoolView = ({
         }
       }
     } catch (e) {
-      console.warn("Auto-load vault files notice:", e);
+      console.warn("Auto-load vault notice:", e);
     }
   };
 
@@ -283,7 +278,6 @@ export const SchoolView = ({
 
   const activeCourse = courses.find(c => c.id === selectedCourse || c.code === selectedCourse) || courses[0];
 
-  // Current files for active course
   const activeCourseFiles = useMemo(() => {
     return scannedFiles.filter(f => {
       const c = (f.course || '').toUpperCase();
@@ -335,7 +329,6 @@ export const SchoolView = ({
     setIsQuizOpen(true);
   };
 
-  // --- SMART COURSE AI CHAT HANDLER ---
   const handleSendCourseChat = async (e, customPrompt = null) => {
     if (e) e.preventDefault();
     const q = (customPrompt || chatQuery).trim();
@@ -350,7 +343,6 @@ export const SchoolView = ({
     setIsAiSearching(true);
 
     try {
-      // Ensure all course files are read
       const enrichedFiles = await Promise.all((activeCourseFiles.length > 0 ? activeCourseFiles : scannedFiles).map(async (file) => {
         let text = file.cachedContent || '';
         if (!text) {
@@ -369,7 +361,7 @@ export const SchoolView = ({
 
       const aiMsg = {
         role: 'assistant',
-        text: res.answer || `Analyzed course outline for ${activeCourse.code}.`,
+        text: res.answer || `Analyzed materials for ${activeCourse.code}.`,
         matchedFiles: res.matchedFiles || [],
         course: activeCourse.code,
         timestamp: new Date()
@@ -379,7 +371,7 @@ export const SchoolView = ({
     } catch (err) {
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        text: `I had trouble connecting to your ${activeCourse.code} notes. Please ensure your folder is synced.`,
+        text: `Unable to access ${activeCourse.code} notes. Ensure your notes folder is linked.`,
         course: activeCourse.code,
         timestamp: new Date()
       }]);
@@ -438,7 +430,7 @@ export const SchoolView = ({
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-24">
+    <div className="space-y-5 max-w-6xl mx-auto pb-24">
       {/* Hidden Folder Upload Input */}
       <input 
         ref={folderInputRef}
@@ -451,201 +443,98 @@ export const SchoolView = ({
       />
 
       {/* TOP HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06]">
         <div>
           <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>
-            <GraduationCap className="w-4 h-4" />
+            <GraduationCap className="w-3.5 h-3.5" />
             <span>Academic Command • {schoolData.term || 'Fall 2026'}</span>
           </div>
-          <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight mt-0.5">
-            School & Academics
+          <h1 className="text-base sm:text-lg font-bold text-white tracking-tight mt-0.5">
+            School & Courses
           </h1>
         </div>
 
-        {/* Action Controls & Stats */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* School Folder Sync Status Pill */}
+        {/* Sync & Stats Pill */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleSyncSchoolFolder}
-            className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-            title="Sync School Folder"
+            className="px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
           >
-            <FolderSync className="w-3.5 h-3.5 text-purple-400" />
-            <span>{vaultMeta.connected ? `${scannedFiles.length} Notes Synced` : "Sync School Folder"}</span>
-            {vaultMeta.connected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+            <FolderSync className="w-3.5 h-3.5 text-slate-400" />
+            <span>{vaultMeta.connected ? `${scannedFiles.length} Notes` : "Link Notes"}</span>
+            {vaultMeta.connected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
           </button>
-
-          <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-white/[0.03] border border-white/10 text-center">
-            <div className="text-[9px] uppercase font-semibold text-slate-400">Mastery</div>
-            <div className="text-xs sm:text-sm font-mono font-bold text-emerald-400">
-              {savedDecks.length > 0 
-                ? `${Math.round(savedDecks.reduce((a, b) => a + (b.masteryPercent || 0), 0) / savedDecks.length)}%` 
-                : '—'}
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* WEAK-SPOT DRILL BANNER */}
+      {/* WEAK-SPOT DRILL BANNER (Minimal) */}
       {weakSpots.length > 0 && (
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <Flame className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                <span>Active Weak Spots Detected</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-200">
-                  {weakSpots.length} Questions
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-200/70 truncate">
-                Targeted practice based on past quiz errors to maximize exam mastery.
-              </p>
+        <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Flame className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="text-xs text-slate-300 truncate">
+              <span className="text-white font-semibold">{weakSpots.length} Weak Spots</span> flagged from recent quizzes.
             </div>
           </div>
 
           <button
             type="button"
             onClick={handleLaunchWeakSpotDrill}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer flex items-center gap-1.5 justify-center"
+            className="px-3 py-1 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Drill Weak Spots</span>
+            Review Missed ({weakSpots.length})
           </button>
         </div>
       )}
 
-      {/* AI ACADEMIC TOOLS (2-PILLAR FLASHCARDS & QUIZZES) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Flashcards */}
-        <div
-          onClick={() => {
-            playSound('click', soundEnabled);
-            setSelectedDeckForStudy({ courseCode: activeCourse.code });
-            setIsFlashcardsOpen(true);
-          }}
-          className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-blue-500/40 transition-all cursor-pointer shadow-sm group"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
-              <Layers className="w-4 h-4" />
-            </div>
-            <span className="text-[10px] font-mono text-blue-300 font-bold px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
-              Active Recall
-            </span>
-          </div>
-          <h3 className="text-sm font-bold text-white group-hover:text-blue-300 transition-colors">
-            Flashcards Studio
-          </h3>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Generate custom decks from your syllabus & drill with spaced repetition.
-          </p>
-        </div>
-
-        {/* Practice Quiz */}
-        <div
-          onClick={() => {
-            playSound('click', soundEnabled);
-            setSelectedCourse(activeCourse.code);
-            setIsQuizOpen(true);
-          }}
-          className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-emerald-500/40 transition-all cursor-pointer shadow-sm group"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
-              <HelpCircle className="w-4 h-4" />
-            </div>
-            <span className="text-[10px] font-mono text-emerald-300 font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-              Exam Simulator
-            </span>
-          </div>
-          <h3 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
-            Practice Exam Simulator
-          </h3>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Timed MCQ drills, instant grading & step-by-step explanations.
-          </p>
-        </div>
-      </div>
-
-      {/* SAVED DECKS LIBRARY */}
+      {/* SAVED DECKS (Minimal Carousel) */}
       {savedDecks.length > 0 && (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5 text-blue-400" />
-              <span>Saved Flashcard Decks ({savedDecks.length})</span>
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                playSound('click', soundEnabled);
-                setSelectedDeckForStudy({ courseCode: activeCourse.code });
-                setIsFlashcardsOpen(true);
-              }}
-              className="text-xs text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
-            >
-              + New Deck
-            </button>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span>Saved Study Decks ({savedDecks.length})</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
             {savedDecks.map(d => (
               <GlassCard
                 key={d.id}
                 onClick={() => handleLaunchSavedDeck(d)}
-                className="p-4 cursor-pointer hover:border-blue-500/40 transition-all group relative"
+                className="p-3 cursor-pointer hover:border-white/20 transition-all group relative"
               >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-300 border border-white/10">
                     {d.courseCode || 'Course'}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono font-semibold text-emerald-400">
-                      {d.masteryPercent || 0}% Mastered
-                    </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-slate-400">{d.cards?.length || 0} cards</span>
                     <button
                       type="button"
                       onClick={(e) => handleDeleteDeck(d.id, e)}
                       className="text-slate-500 hover:text-rose-400 p-0.5 transition-colors cursor-pointer"
-                      title="Delete Deck"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
 
-                <h3 className="text-xs font-bold text-white truncate mb-1 group-hover:text-blue-200 transition-colors">
+                <h3 className="text-xs font-bold text-white truncate group-hover:text-slate-200">
                   {d.title || d.topic}
                 </h3>
-                <p className="text-[11px] text-slate-400 font-mono">
-                  {d.cards?.length || 0} Cards • Mode: {d.depthMode || 'Standard'}
-                </p>
-
-                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-3">
-                  <div 
-                    className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${d.masteryPercent || 0}%` }}
-                  />
-                </div>
               </GlassCard>
             ))}
           </div>
         </div>
       )}
 
-      {/* MAIN TWO-COLUMN VIEWPORT */}
+      {/* MAIN TWO-COLUMN DASHBOARD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-        {/* LEFT COLUMN: 6 Course Tabs, Deliverables, and Smart AI Study Chat */}
+        {/* LEFT COLUMN: Course Selector, Actions, Deliverables & AI Chat */}
         <div className="lg:col-span-2 space-y-4">
-          {/* 6 UNIVERSITY COURSE TABS */}
+          {/* COURSE SWITCHER TABS (Clean Minimalist Design) */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             {courses.map((course) => {
               const isActive = activeCourse?.id === course.id || activeCourse?.code === course.code;
-              const hasOutline = scannedFiles.some(f => (f.course || '').toUpperCase().includes(course.code.toUpperCase()) || (f.path || '').toUpperCase().includes(course.code.toUpperCase()));
               return (
                 <button
                   key={course.id || course.code}
@@ -654,36 +543,35 @@ export const SchoolView = ({
                     playSound('click', soundEnabled);
                     setSelectedCourse(course.id || course.code);
                   }}
-                  className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-2 ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
                     isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30 border border-purple-400/50 scale-[1.02]'
-                      : 'bg-white/[0.03] text-slate-400 hover:text-slate-200 border border-white/5 hover:bg-white/[0.06]'
+                      ? 'bg-white/[0.1] text-white border border-white/20 shadow-sm'
+                      : 'bg-white/[0.02] text-slate-400 hover:text-slate-200 border border-white/5 hover:bg-white/[0.04]'
                   }`}
+                  style={isActive ? { borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' } : {}}
                 >
                   <GraduationCap className="w-3.5 h-3.5" />
                   <span>{course.code}</span>
-                  {hasOutline && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Outline indexed" />
-                  )}
                 </button>
               );
             })}
           </div>
 
-          {/* ACTIVE COURSE OVERVIEW CARD */}
-          <GlassCard hoverEffect={false} className="p-5 space-y-4">
+          {/* ACTIVE COURSE CARD */}
+          <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold text-white" style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}>
+                  <span className="font-mono text-xs font-bold text-white" style={{ color: 'var(--accent-primary)' }}>
                     {activeCourse.code}
                   </span>
                   <h2 className="text-sm font-bold text-white">{activeCourse.name}</h2>
                 </div>
-                <p className="text-xs text-slate-400 mt-1">{activeCourse.credits || '3.0'} Credits • {activeCourse.instructor || 'Department Faculty'}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{activeCourse.instructor || 'Faculty'} • {activeCourse.credits || '3.0'} Credits</p>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Instant Study Buttons */}
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -691,11 +579,12 @@ export const SchoolView = ({
                     setSelectedDeckForStudy({ courseCode: activeCourse.code });
                     setIsFlashcardsOpen(true);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>+ Flashcards</span>
+                  <span>Flashcards</span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -703,19 +592,18 @@ export const SchoolView = ({
                     setSelectedCourse(activeCourse.code);
                     setIsQuizOpen(true);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
                 >
                   <HelpCircle className="w-3.5 h-3.5" />
-                  <span>+ Quiz</span>
+                  <span>Quiz</span>
                 </button>
               </div>
             </div>
 
-            {/* Course Deliverables List */}
-            <div className="space-y-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                <span>Course Deliverables ({activeCourse.code})</span>
-                <span className="text-[10px] font-mono text-slate-500 font-normal">Check off when complete</span>
+            {/* Deliverables Checklist */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 pb-0.5">
+                Course Deliverables
               </div>
 
               {assignments.filter(a => a.course === activeCourse.code).length > 0 ? (
@@ -723,13 +611,13 @@ export const SchoolView = ({
                   <div 
                     key={a.id}
                     onClick={() => toggleAssignment(a.id)}
-                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                    className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all ${
                       a.completed 
                         ? 'bg-white/[0.01] border-white/5 text-slate-500 line-through' 
-                        : 'bg-white/[0.03] border-white/10 hover:border-white/20 text-slate-200'
+                        : 'bg-white/[0.02] border-white/5 hover:border-white/15 text-slate-200'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <button className="shrink-0">
                         {a.completed ? (
                           <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
@@ -737,61 +625,49 @@ export const SchoolView = ({
                           <Circle className="w-4 h-4 text-slate-500" />
                         )}
                       </button>
-                      <div className="truncate">
-                        <div className="text-xs font-semibold text-white">{a.title}</div>
-                        {a.weight && <div className="text-[10px] text-slate-400 font-mono">Weight: {a.weight}</div>}
-                      </div>
+                      <span className="text-xs font-medium text-white truncate">{a.title}</span>
                     </div>
 
                     {a.dueDate && (
-                      <span className="text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded bg-black/30 border border-white/5 shrink-0">
-                        Due: {a.dueDate}
+                      <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                        {a.dueDate}
                       </span>
                     )}
                   </div>
                 ))
               ) : (
-                <div className="p-3.5 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-400">
-                  No upcoming deliverables logged for {activeCourse.code}.
+                <div className="p-3 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-500">
+                  No deliverables logged for {activeCourse.code}.
                 </div>
               )}
             </div>
           </GlassCard>
 
-          {/* SMART COURSE AI STUDY CHAT */}
-          <GlassCard hoverEffect={false} className="p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+          {/* SMART COURSE AI STUDY CHAT (Clean & Streamlined) */}
+          <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
-                    <span>AI Course Study Assistant</span>
-                    <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-purple-500/20 text-purple-300 font-bold">
-                      {activeCourse.code}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Reads through your course outlines & notes to answer questions with deep intelligence.
-                  </p>
-                </div>
+                <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+                  Study Chat • {activeCourse.code}
+                </h3>
               </div>
+              <span className="text-[10px] font-mono text-slate-500">Notes & Syllabus Grounded</span>
             </div>
 
-            {/* Quick Suggested Prompt Chips */}
+            {/* Quick Prompt Chips */}
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
-                `Summarize grade weights for ${activeCourse.code}`,
-                `What are the highest-yield exam topics in ${activeCourse.code}?`,
-                `Explain key formulas and definitions`,
-                `What is the policy on missed midterms or labs?`
+                `Grade breakdown for ${activeCourse.code}`,
+                `High-yield exam topics`,
+                `Key formulas & definitions`,
+                `Missed lecture policy`
               ].map((chip, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={(e) => handleSendCourseChat(e, chip)}
-                  className="px-2.5 py-1 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 text-[11px] font-medium transition-all cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 hover:text-white border border-white/5 text-[11px] font-medium transition-all cursor-pointer"
                 >
                   {chip}
                 </button>
@@ -799,38 +675,32 @@ export const SchoolView = ({
             </div>
 
             {/* Message Stream */}
-            <div className="space-y-3 min-h-[160px] max-h-[280px] overflow-y-auto pr-1">
+            <div className="space-y-2.5 min-h-[140px] max-h-[260px] overflow-y-auto pr-1">
               {chatMessages.length === 0 ? (
-                <div className="py-6 text-center text-xs text-slate-400 space-y-1">
-                  <MessageSquare className="w-5 h-5 text-purple-400/50 mx-auto mb-1" />
-                  <div>Ask any question about {activeCourse.code} notes, formulas, policies, or topics.</div>
+                <div className="py-6 text-center text-xs text-slate-500">
+                  Ask anything about {activeCourse.code} outlines, concepts, formulas, or grading policies.
                 </div>
               ) : (
                 chatMessages.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`p-3 rounded-2xl text-xs space-y-1.5 ${
+                    className={`p-3 rounded-xl text-xs space-y-1 ${
                       msg.role === 'user'
-                        ? 'bg-purple-600/20 border border-purple-500/30 text-white ml-auto max-w-[85%]'
-                        : 'bg-white/[0.03] border border-white/10 text-slate-100 mr-auto max-w-[95%]'
+                        ? 'bg-white/[0.08] text-white ml-auto max-w-[85%] border border-white/10'
+                        : 'bg-white/[0.02] text-slate-200 mr-auto max-w-[95%] border border-white/5'
                     }`}
                   >
-                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                      <span>{msg.role === 'user' ? 'Zach Wolfe' : `AI Assistant (${msg.course || activeCourse.code})`}</span>
+                    <div className="text-[10px] font-mono text-slate-400">
+                      {msg.role === 'user' ? 'You' : `AI (${msg.course || activeCourse.code})`}
                     </div>
-                    <div className="whitespace-pre-wrap leading-relaxed font-sans">
+                    <div className="whitespace-pre-wrap leading-relaxed font-sans text-slate-200">
                       {msg.text}
                     </div>
 
                     {msg.matchedFiles && msg.matchedFiles.length > 0 && (
-                      <div className="pt-2 border-t border-white/5 space-y-0.5">
-                        <div className="text-[9px] uppercase font-mono text-purple-300 font-bold">Source Documents:</div>
-                        {msg.matchedFiles.map((f, i) => (
-                          <div key={i} className="text-[10px] text-slate-400 flex items-center gap-1 truncate">
-                            <FileText className="w-3 h-3 text-purple-400 shrink-0" />
-                            <span>{f.name}</span>
-                          </div>
-                        ))}
+                      <div className="pt-1.5 border-t border-white/5 text-[10px] text-slate-400 flex items-center gap-1 truncate">
+                        <FileText className="w-3 h-3 text-slate-500 shrink-0" />
+                        <span className="truncate">{msg.matchedFiles[0]?.name}</span>
                       </div>
                     )}
                   </div>
@@ -838,26 +708,28 @@ export const SchoolView = ({
               )}
 
               {isAiSearching && (
-                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center gap-2 text-xs text-purple-300">
-                  <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-                  <span>Analyzing {activeCourse.code} course notes with Gemini...</span>
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center gap-2 text-xs text-slate-300">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                  <span>Analyzing course materials...</span>
                 </div>
               )}
             </div>
 
-            {/* Chat Input Form */}
+            {/* Input Form */}
             <form onSubmit={handleSendCourseChat} className="flex gap-2">
               <input
                 type="text"
                 value={chatQuery}
                 onChange={(e) => setChatQuery(e.target.value)}
-                placeholder={`Ask anything about ${activeCourse.code} (e.g. explain formulas, exam breakdown)...`}
-                className="flex-1 px-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/60 font-sans"
+                placeholder={`Ask ${activeCourse.code} notes...`}
+                className="flex-1 px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none font-sans"
+                style={{ borderColor: chatQuery.trim() ? 'var(--accent-primary)' : undefined }}
               />
               <button
                 type="submit"
                 disabled={isAiSearching || !chatQuery.trim()}
-                className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0"
+                className="px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-30 shrink-0"
+                style={{ backgroundColor: 'var(--accent-primary)' }}
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>Ask</span>
@@ -866,96 +738,96 @@ export const SchoolView = ({
           </GlassCard>
         </div>
 
-        {/* RIGHT COLUMN: FULL-FEATURED INTERACTIVE POMODORO TIMER */}
+        {/* RIGHT COLUMN: INTERACTIVE POMODORO TIMER */}
         <div className="space-y-4">
-          <GlassCard hoverEffect={false} className="p-5 space-y-4">
+          <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-purple-400" />
+                <Clock className="w-4 h-4 text-slate-300" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                  Deep Focus Pomodoro
+                  Focus Timer
                 </h3>
               </div>
-              <div className="text-[11px] font-mono text-purple-300 font-bold px-2 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/20">
-                {sessionsCompleted} Session{sessionsCompleted !== 1 ? 's' : ''}
-              </div>
+              <span className="text-[10px] font-mono text-slate-400">
+                {sessionsCompleted} completed
+              </span>
             </div>
 
-            {/* Timer Preset Switcher */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/40 rounded-xl border border-white/5 text-xs">
+            {/* Focus Modes */}
+            <div className="grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-xl border border-white/5 text-xs">
               <button
                 type="button"
                 onClick={() => handleSelectFocusMode('pomodoro', 25 * 60)}
-                className={`py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                className={`py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   focusMode === 'pomodoro'
-                    ? 'bg-purple-600 text-white shadow-md'
+                    ? 'bg-white/[0.1] text-white'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                25m Focus
+                25m
               </button>
               <button
                 type="button"
                 onClick={() => handleSelectFocusMode('deep', 45 * 60)}
-                className={`py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                className={`py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   focusMode === 'deep'
-                    ? 'bg-purple-600 text-white shadow-md'
+                    ? 'bg-white/[0.1] text-white'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                45m Deep
+                45m
               </button>
               <button
                 type="button"
                 onClick={() => handleSelectFocusMode('break', 5 * 60)}
-                className={`py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                className={`py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   focusMode === 'break'
-                    ? 'bg-purple-600 text-white shadow-md'
+                    ? 'bg-white/[0.1] text-white'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                5m Break
+                5m
               </button>
             </div>
 
-            {/* Big Countdown Timer Display */}
-            <div className="text-center py-4 space-y-2">
+            {/* Big Countdown */}
+            <div className="text-center py-2 space-y-1">
               <div className="text-4xl sm:text-5xl font-mono font-bold text-white tracking-wider">
                 {formatMinutesSeconds(focusTimeLeft)}
               </div>
-              <div className="text-xs text-slate-400 font-sans">
-                {isFocusActive ? `Active session for ${activeCourse.code}` : "Ready to lock in"}
+              <div className="text-[11px] text-slate-500">
+                {isFocusActive ? activeCourse.code : "Ready"}
               </div>
 
-              {/* Progress Bar */}
-              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-3">
+              {/* Progress Line */}
+              <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden mt-2">
                 <div 
-                  className="h-full bg-purple-500 rounded-full transition-all duration-1000"
-                  style={{ width: `${Math.round(((focusDuration - focusTimeLeft) / focusDuration) * 100)}%` }}
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{ 
+                    width: `${Math.round(((focusDuration - focusTimeLeft) / focusDuration) * 100)}%`,
+                    backgroundColor: 'var(--accent-primary)'
+                  }}
                 />
               </div>
             </div>
 
-            {/* Timer Play / Pause / Reset Controls */}
+            {/* Play / Reset Controls */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleToggleFocus}
-                className={`flex-1 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer ${
-                  isFocusActive
-                    ? 'bg-amber-500 hover:bg-amber-400 text-black'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white'
-                }`}
+                className="flex-1 py-2 rounded-xl font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer text-white"
+                style={{ backgroundColor: 'var(--accent-primary)' }}
               >
                 {isFocusActive ? (
                   <>
-                    <Pause className="w-4 h-4 fill-current" />
-                    <span>Pause Session</span>
+                    <Pause className="w-3.5 h-3.5 fill-current" />
+                    <span>Pause</span>
                   </>
                 ) : (
                   <>
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>Start Timer</span>
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Start</span>
                   </>
                 )}
               </button>
@@ -963,69 +835,66 @@ export const SchoolView = ({
               <button
                 type="button"
                 onClick={handleResetFocus}
-                className="p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
-                title="Reset Timer"
+                className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
+                title="Reset"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Ambient Sound Synthesizer */}
-            <div className="pt-2 border-t border-white/10 space-y-2">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>Ambient Study Sound</span>
-                <span className="text-[10px] font-mono text-purple-300">
-                  {ambientAudio !== 'none' ? `${ambientAudio.toUpperCase()} ON` : 'OFF'}
-                </span>
+            {/* Ambient Sound */}
+            <div className="pt-2 border-t border-white/10 space-y-1.5">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Background Sound
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-2 gap-1.5 text-xs">
                 <button
                   type="button"
                   onClick={() => handleToggleAmbientAudio('binaural')}
-                  className={`p-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-lg border text-[11px] font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
                     ambientAudio === 'binaural'
-                      ? 'bg-purple-600/30 border-purple-500/50 text-white'
+                      ? 'bg-white/[0.1] border-white/20 text-white'
                       : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <Volume2 className="w-3.5 h-3.5 text-purple-400" />
-                  <span>40Hz Binaural</span>
+                  <Volume2 className="w-3 h-3" />
+                  <span>40Hz Beat</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleToggleAmbientAudio('rain')}
-                  className={`p-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-lg border text-[11px] font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
                     ambientAudio === 'rain'
-                      ? 'bg-purple-600/30 border-purple-500/50 text-white'
+                      ? 'bg-white/[0.1] border-white/20 text-white'
                       : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <Volume2 className="w-3.5 h-3.5 text-blue-400" />
+                  <Volume2 className="w-3 h-3" />
                   <span>Rain Noise</span>
                 </button>
               </div>
             </div>
 
-            {/* Fullscreen Shield Mode Launcher */}
+            {/* Fullscreen Shield Trigger */}
             <button
               type="button"
               onClick={() => {
                 playSound('click', soundEnabled);
                 setIsDeepFocusOpen(true);
               }}
-              className="w-full py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              className="w-full py-1.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 text-slate-400 hover:text-slate-200 text-[11px] font-medium flex items-center justify-center gap-1 transition-all cursor-pointer"
             >
-              <Maximize2 className="w-3.5 h-3.5 text-purple-400" />
-              <span>Fullscreen Distraction Shield</span>
+              <Maximize2 className="w-3 h-3 text-slate-400" />
+              <span>Fullscreen Distraction Blocker</span>
             </button>
           </GlassCard>
         </div>
       </div>
 
-      {/* ALL ACTIVE STUDY MODALS */}
-      {/* 1. Flashcards Deck Modal */}
+      {/* ACTIVE STUDY MODALS */}
+      {/* 1. Flashcards Modal */}
       <FlashcardDeckModal
         isOpen={isFlashcardsOpen}
         onClose={() => {
@@ -1050,7 +919,7 @@ export const SchoolView = ({
         soundEnabled={soundEnabled}
       />
 
-      {/* 3. Deep Focus Fullscreen Shield Modal */}
+      {/* 3. Deep Focus Fullscreen Modal */}
       <DeepFocusModal
         isOpen={isDeepFocusOpen}
         onClose={() => setIsDeepFocusOpen(false)}
