@@ -17,9 +17,9 @@ import {
   AlertOctagon,
   BookOpen
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { generatePracticeQuizWithAI } from '../../utils/aiService';
 import { saveQuizResult } from '../../utils/studyStorage';
+import { getCachedVaultFiles } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
 
 export const PracticeQuizModal = ({ 
@@ -84,11 +84,26 @@ export const PracticeQuizModal = ({
     playSound('click', soundEnabled);
 
     try {
+      // Auto-fetch syllabus text from cache if not explicitly passed
+      let notes = courseNotes || '';
+      if (!notes) {
+        const cached = getCachedVaultFiles();
+        if (cached && cached.files) {
+          const matched = cached.files.find(f => 
+            (f.course || '').toUpperCase().includes(courseCode.toUpperCase()) || 
+            (f.path || '').toUpperCase().includes(courseCode.toUpperCase())
+          );
+          if (matched) {
+            notes = matched.cachedContent || '';
+          }
+        }
+      }
+
       const quiz = await generatePracticeQuizWithAI({
         courseCode: courseCode.trim() || "Academics",
         topic: topic.trim() || "Exam Prep",
         chapterScope: chapterScope.trim(),
-        notesText: courseNotes,
+        notesText: notes,
         count: questionCount,
         depthMode
       });

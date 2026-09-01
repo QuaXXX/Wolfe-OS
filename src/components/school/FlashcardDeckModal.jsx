@@ -83,11 +83,26 @@ export const FlashcardDeckModal = ({
     playSound('click', soundEnabled);
 
     try {
+      // Auto-fetch syllabus text from cache if not explicitly passed
+      let notes = courseNotes || '';
+      if (!notes) {
+        const cached = getCachedVaultFiles();
+        if (cached && cached.files) {
+          const matched = cached.files.find(f => 
+            (f.course || '').toUpperCase().includes(courseCode.toUpperCase()) || 
+            (f.path || '').toUpperCase().includes(courseCode.toUpperCase())
+          );
+          if (matched) {
+            notes = matched.cachedContent || '';
+          }
+        }
+      }
+
       const deck = await generateFlashcardsWithAI({
         courseCode: courseCode.trim() || "Academics",
         topic: topic.trim() || "Core Concepts",
         chapterScope: chapterScope.trim(),
-        notesText: courseNotes,
+        notesText: notes,
         count: cardCount,
         depthMode
       });
