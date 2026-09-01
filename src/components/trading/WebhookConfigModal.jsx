@@ -6,12 +6,15 @@ import {
   X, 
   Copy, 
   Check, 
-  Play, 
   Send, 
   Sparkles, 
   Layers, 
   ExternalLink,
-  Code
+  Code,
+  ShieldCheck,
+  CheckCircle2,
+  Zap,
+  Bot
 } from 'lucide-react';
 import { executeHyperliquidSignal } from '../../utils/hyperliquidService';
 import { playSound } from '../../utils/soundFX';
@@ -22,18 +25,6 @@ export const WebhookConfigModal = ({
   onSignalExecuted, 
   soundEnabled = true 
 }) => {
-  const [schemaMode, setSchemaMode] = useState('alphainsider'); // 'alphainsider' | 'standard'
-  const [ticker, setTicker] = useState('BTC');
-  const [action, setAction] = useState('BUY');
-  const [price, setPrice] = useState(77336.50);
-  const [stopLoss, setStopLoss] = useState(75800);
-  const [takeProfit, setTakeProfit] = useState(80200);
-  const [strategy, setStrategy] = useState('4H Trend Reclaim');
-  const [riskPercent, setRiskPercent] = useState(1.5);
-  const [leverage, setLeverage] = useState(1);
-  const [pyramiding, setPyramiding] = useState(3);
-  const [strategyId, setStrategyId] = useState('A3gBJqqMfV_B5uHNE-mDt');
-
   const [copiedPayload, setCopiedPayload] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
@@ -43,30 +34,18 @@ export const WebhookConfigModal = ({
     ? `${window.location.origin}/api/webhook/tradingview`
     : 'https://wolfe-os.vercel.app/api/webhook/tradingview';
 
-  const alphaInsiderPayloadJson = {
-    strategy_id: strategyId,
-    stock_id: `${ticker}-USD:HYPERLIQUID`,
+  const alertMessageJson = {
+    strategy_id: "My_TradingView_Strategy",
+    stock_id: "BTC-USD:HYPERLIQUID",
     action: "{{strategy.market_position}}",
-    leverage: leverage,
-    pyramiding: pyramiding,
+    contracts: "{{strategy.order.contracts}}",
+    price: "{{strategy.order.price}}",
+    leverage: 1,
+    pyramiding: 3,
     api_token: "wolfe_wh_live_auth"
   };
 
-  const standardPayloadJson = {
-    ticker,
-    action,
-    price,
-    stopLoss,
-    takeProfit,
-    riskPercent,
-    leverage,
-    strategy,
-    timestamp: "{{time}}"
-  };
-
-  const payloadString = schemaMode === 'alphainsider'
-    ? JSON.stringify(alphaInsiderPayloadJson, null, 2)
-    : JSON.stringify(standardPayloadJson, null, 2);
+  const payloadString = JSON.stringify(alertMessageJson, null, 2);
 
   const handleCopyUrl = () => {
     playSound('click', soundEnabled);
@@ -90,28 +69,14 @@ export const WebhookConfigModal = ({
     playSound('click', soundEnabled);
 
     try {
-      const signalPayload = schemaMode === 'alphainsider'
-        ? {
-            stock_id: `${ticker}-USD:HYPERLIQUID`,
-            action: 'long',
-            price,
-            leverage,
-            strategy: strategyId,
-            source: 'TradingView (AlphaInsider Drop-in Test)'
-          }
-        : {
-            ticker,
-            action,
-            price,
-            stopLoss,
-            takeProfit,
-            riskPercent,
-            leverage,
-            strategy,
-            source: 'TradingView Test Modal'
-          };
-
-      const res = await executeHyperliquidSignal(signalPayload);
+      const res = await executeHyperliquidSignal({
+        stock_id: 'BTC-USD:HYPERLIQUID',
+        action: 'long',
+        price: 77336.50,
+        leverage: 1,
+        strategy: 'TradingView Alert (Test Ping)',
+        source: 'TradingView Webhook Test'
+      });
 
       setTestResult({
         success: true,
@@ -137,7 +102,7 @@ export const WebhookConfigModal = ({
 
   const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-3 sm:p-4 select-none">
+      <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-3 sm:p-4 select-none font-sans">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -154,17 +119,28 @@ export const WebhookConfigModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-2xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-4 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] flex flex-col"
+          className="relative w-full max-w-xl theme-card rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] flex flex-col font-sans"
+          style={{ 
+            border: '1px solid var(--accent-border)',
+            boxShadow: '0 25px 60px -15px rgba(0,0,0,0.8), 0 0 35px -5px var(--accent-glow)'
+          }}
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <div className="flex items-center gap-2.5">
+              <div 
+                className="w-9 h-9 rounded-2xl border flex items-center justify-center"
+                style={{ 
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                }}
+              >
                 <Radio className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white tracking-tight">TradingView 24/7 Webhook Bridge</h3>
-                <div className="text-[11px] text-slate-400">Direct Alert Automation (Replaces AlphaInsider)</div>
+                <h3 className="text-sm font-bold text-white tracking-tight">TradingView Webhook Automation</h3>
+                <div className="text-[11px] text-slate-400">Direct Alert Bridge (100% Automated by Pine Script)</div>
               </div>
             </div>
 
@@ -180,10 +156,10 @@ export const WebhookConfigModal = ({
           </div>
 
           <div className="flex-1 overflow-y-auto pr-1 space-y-4 font-sans text-xs">
-            {/* 1. Webhook URL */}
-            <div className="space-y-1">
+            {/* 1. Webhook URL Section */}
+            <div className="space-y-1.5">
               <label className="text-[11px] font-semibold text-slate-300">
-                TradingView Alert Webhook URL (Paste into TradingView Alert Settings)
+                1. Webhook URL (Paste into TradingView Alert Settings)
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -195,7 +171,7 @@ export const WebhookConfigModal = ({
                 <button
                   type="button"
                   onClick={handleCopyUrl}
-                  className="px-3 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-white border border-white/10 font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+                  className="px-3.5 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-white border border-white/10 font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
                 >
                   {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedUrl ? 'Copied' : 'Copy URL'}</span>
@@ -203,139 +179,80 @@ export const WebhookConfigModal = ({
               </div>
             </div>
 
-            {/* 2. Schema Mode Selector */}
-            <div className="flex items-center gap-2 p-1 rounded-xl bg-black/40 border border-white/10">
+            {/* 2. Alert Message Body (JSON) */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-slate-300">
+                  2. Alert Message (Paste into TradingView Message Box)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleCopyPayload}
+                  className="text-[10px] font-bold text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  {copiedPayload ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedPayload ? 'Copied JSON' : 'Copy JSON'}</span>
+                </button>
+              </div>
+
+              <pre className="p-3 rounded-2xl bg-black/60 border border-white/10 text-slate-200 font-mono text-[11px] leading-relaxed overflow-x-auto select-all">
+                {payloadString}
+              </pre>
+            </div>
+
+            {/* 3. Explanation & How Pine Script Handles Everything */}
+            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-2 text-slate-300">
+              <div className="font-bold text-white flex items-center gap-1.5 text-xs">
+                <Zap className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                <span>How It Works (Zero Manual Work)</span>
+              </div>
+              <ul className="space-y-1 text-[11px] text-slate-400 list-disc pl-4 leading-relaxed">
+                <li>TradingView Pine Script automatically handles all entry signals, exits, position sizing, and stop levels on the chart.</li>
+                <li>When an alert triggers, TradingView sends the message directly to your Wolfe OS cloud endpoint in <strong>&lt; 100ms</strong>.</li>
+                <li>Wolfe OS receives the signal, verifies authentication, and submits the order directly to Hyperliquid L1.</li>
+              </ul>
+            </div>
+
+            {/* 4. Test Webhook Connection */}
+            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+              <div className="text-[11px] text-slate-400">
+                Test the webhook execution bridge:
+              </div>
               <button
                 type="button"
-                onClick={() => setSchemaMode('alphainsider')}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  schemaMode === 'alphainsider'
-                    ? 'text-white'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                style={schemaMode === 'alphainsider' ? {
-                  backgroundColor: 'var(--accent-subtle)',
-                  border: '1px solid var(--accent-border)',
-                  color: 'var(--accent-primary)'
-                } : {}}
+                onClick={handleSendTestSignal}
+                disabled={isSendingTest}
+                className="px-3 py-1.5 rounded-xl font-semibold text-white flex items-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95 disabled:opacity-50 text-xs"
+                style={{ backgroundColor: 'var(--accent-primary)' }}
               >
-                ⚡ AlphaInsider Drop-in Schema
-              </button>
-              <button
-                type="button"
-                onClick={() => setSchemaMode('standard')}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  schemaMode === 'standard'
-                    ? 'text-white'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                style={schemaMode === 'standard' ? {
-                  backgroundColor: 'var(--accent-subtle)',
-                  border: '1px solid var(--accent-border)',
-                  color: 'var(--accent-primary)'
-                } : {}}
-              >
-                Wolfe OS Standard Schema
+                <Send className="w-3.5 h-3.5" />
+                <span>{isSendingTest ? 'Sending Test...' : 'Send Test Ping'}</span>
               </button>
             </div>
 
-            {/* 3. Interactive Alert Payload Generator */}
-            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
-              <div className="font-bold text-white flex items-center justify-between">
-                <span>{schemaMode === 'alphainsider' ? 'AlphaInsider Compatible Alert Format' : 'Customize Alert Parameters'}</span>
-                <span className="text-[10px] font-mono text-slate-400">Zero Code Change Required</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">Ticker</label>
-                  <input
-                    type="text"
-                    value={ticker}
-                    onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">Action</label>
-                  <select
-                    value={action}
-                    onChange={(e) => setAction(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs"
-                  >
-                    <option value="BUY">BUY / LONG</option>
-                    <option value="SELL">SELL / SHORT</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">Entry Price ($)</label>
-                  <input
-                    type="number"
-                    value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">Stop Loss ($)</label>
-                  <input
-                    type="number"
-                    value={stopLoss}
-                    onChange={(e) => setStopLoss(Number(e.target.value))}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white font-mono text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* JSON Payload Preview & Copy */}
-              <div className="space-y-1 pt-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-mono">TradingView Message Body (JSON):</span>
-                  <button
-                    type="button"
-                    onClick={handleCopyPayload}
-                    className="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 cursor-pointer"
-                  >
-                    {copiedPayload ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedPayload ? 'Copied Message JSON' : 'Copy Message Body'}</span>
-                  </button>
-                </div>
-                <pre className="p-3 rounded-xl bg-black/60 border border-white/10 text-[11px] font-mono text-emerald-300/90 overflow-x-auto">
-                  {payloadString}
-                </pre>
-              </div>
-            </div>
-
-            {/* Test Result Box */}
             {testResult && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
-                <div className="font-bold text-emerald-300 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Execution Successful!</span>
-                </div>
-                <div className="grid grid-cols-4 gap-2 font-mono text-[11px] text-emerald-200/90 pt-1">
-                  <div>Contracts: <strong>{testResult.contracts}</strong></div>
-                  <div>Notional: <strong>${testResult.notional}</strong></div>
-                  <div>Margin: <strong>${testResult.margin}</strong></div>
-                  <div>Risk: <strong>${testResult.risk}</strong></div>
-                </div>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-3 rounded-2xl border text-xs font-mono flex items-center justify-between ${
+                  testResult.success
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200'
+                    : 'bg-rose-500/10 border-rose-500/20 text-rose-200'
+                }`}
+              >
+                {testResult.success ? (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Webhook Received & Executed: BTC ({testResult.contracts} contracts, ${testResult.margin} margin)</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <X className="w-4 h-4 text-rose-400" />
+                    <span>Test Failed: {testResult.error}</span>
+                  </div>
+                )}
+              </motion.div>
             )}
-
-            {/* Test Signal Button */}
-            <button
-              type="button"
-              onClick={handleSendTestSignal}
-              disabled={isSendingTest}
-              className="w-full py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-              style={{ backgroundColor: 'var(--accent-primary)' }}
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isSendingTest ? 'Executing Signal...' : 'Simulate & Fire Live Test Webhook'}</span>
-            </button>
           </div>
         </motion.div>
       </div>
