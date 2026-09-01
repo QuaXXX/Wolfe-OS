@@ -38,6 +38,7 @@ export function isGoogleCalendarConnected() {
 export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = null) {
   if (!token) return;
   const clean = token.trim();
+  localStorage.setItem('wolfe_user_signed_in_google', 'true');
   if (clean.startsWith('1//')) {
     // It's a permanent refresh token!
     localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
@@ -57,6 +58,92 @@ export function disconnectGoogleCalendar() {
   localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
   localStorage.removeItem(GOOGLE_EXPIRY_KEY);
   localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
+  localStorage.removeItem('wolfe_user_signed_in_google');
+}
+
+/**
+ * One-Click Official Google Sign-In using Google Identity Services (GIS)
+ * Works seamlessly on mobile Safari/Chrome and desktop browsers.
+ */
+export function signInWithGooglePopup(clientIdOverride = null) {
+  return new Promise((resolve, reject) => {
+    const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+
+    if (!clientId) {
+      return reject(new Error("No Google Client ID configured."));
+    }
+
+    if (typeof window === 'undefined') {
+      return reject(new Error("Window is not defined."));
+    }
+
+    // 1. Google Identity Services (GIS) Token Client (Official modern flow)
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
+          callback: (tokenResponse) => {
+            if (tokenResponse.error) {
+              return reject(new Error(tokenResponse.error_description || tokenResponse.error));
+            }
+            if (tokenResponse.access_token) {
+              saveGoogleToken(tokenResponse.access_token, tokenResponse.expires_in || 3600);
+              resolve(tokenResponse.access_token);
+            } else {
+              reject(new Error("No access token received from Google."));
+            }
+          },
+          error_callback: (err) => {
+            reject(new Error(err.message || "Google Sign-In was closed or interrupted."));
+          }
+        });
+        client.requestAccessToken({ prompt: 'consent' });
+        return;
+      } catch (err) {
+        console.warn("GIS token client initialization fallback:", err);
+      }
+    }
+
+    // 2. Mobile/Popup Fallback OAuth 2.0 Flow
+    const redirectUri = window.location.origin;
+    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&prompt=consent`;
+
+    const width = 500;
+    const height = 620;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const popup = window.open(authUrl, 'google_signin_popup', `width=${width},height=${height},left=${left},top=${top}`);
+
+    if (!popup) {
+      return reject(new Error("Sign-in popup blocked. Please allow popups for this site."));
+    }
+
+    const pollTimer = setInterval(() => {
+      try {
+        if (popup.closed) {
+          clearInterval(pollTimer);
+          reject(new Error("Google sign-in window was closed."));
+          return;
+        }
+        if (popup.location.href && popup.location.href.includes('access_token')) {
+          const hash = popup.location.hash.substring(1);
+          const params = new URLSearchParams(hash);
+          const token = params.get('access_token');
+          const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
+          if (token) {
+            saveGoogleToken(token, expiresIn);
+            popup.close();
+            clearInterval(pollTimer);
+            resolve(token);
+          }
+        }
+      } catch (e) {
+        // Cross-origin before redirect - ignore
+      }
+    }, 500);
+  });
 }
 
 /**

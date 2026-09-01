@@ -129,8 +129,16 @@ export function App() {
     };
   });
 
-  // Clean out and purge all FNCE and OPMA items on load
+  // Clean out any legacy tokens and purge all FNCE and OPMA items on load
   useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined' && !localStorage.getItem('wolfe_user_signed_in_google')) {
+        localStorage.removeItem('wolfe_gcal_token');
+        localStorage.removeItem('wolfe_gcal_refresh_token');
+        localStorage.removeItem('wolfe_gcal_expiry');
+      }
+    } catch {}
+
     setCalendarData(prev => ({
       ...prev,
       items: prev.items.filter(it => !it.title?.toUpperCase().includes('FNCE') && !it.title?.toUpperCase().includes('OPMA'))
