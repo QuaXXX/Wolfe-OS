@@ -477,6 +477,99 @@ export async function saveMarkdownToVault(dirHandle, subfolder, filename, conten
 }
 
 /**
+ * Save any dropped raw File object (PDF, DOCX, TXT, MD, images, etc.) into a target subfolder in Obsidian Vault
+ */
+export async function saveFileObjectToVault(dirHandle, subfolder, fileObj) {
+  if (!dirHandle) throw new Error("No Obsidian vault connected.");
+  const hasPermission = await verifyHandlePermission(dirHandle, true);
+  if (!hasPermission) throw new Error("Permission to write to Obsidian vault was not granted.");
+
+  let targetDir = dirHandle;
+  if (subfolder && subfolder !== '.') {
+    const parts = subfolder.split('/').filter(Boolean);
+    for (const part of parts) {
+      targetDir = await targetDir.getDirectoryHandle(part, { create: true });
+    }
+  }
+
+  const fileHandle = await targetDir.getFileHandle(fileObj.name, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(fileObj);
+  await writable.close();
+
+  return { success: true, path: subfolder ? `${subfolder}/${fileObj.name}` : fileObj.name, name: fileObj.name };
+}
+
+/**
+ * Intelligent file classifier for university study notes
+ * Analyzes filename and extracted content against known course scopes
+ */
+export function classifyStudyFile(file, extractedText = '') {
+  const name = (file?.name || '').toLowerCase();
+  const text = (extractedText || '').toLowerCase();
+  const combined = `${name} ${text}`;
+
+  const scores = {
+    'FNCE 317': 0,
+    'BTMA 317': 0,
+    'OPMA 317': 0,
+    'MKTG 317': 0,
+    'PSYC 203': 0,
+  };
+
+  // FNCE 317 keywords
+  if (name.includes('fnce') || name.includes('finance')) scores['FNCE 317'] += 10;
+  if (text.includes('fnce 317') || text.includes('financial management')) scores['FNCE 317'] += 10;
+  ['wacc', 'capm', 'npv', 'irr', 'bond', 'dividend', 'perrot', 'holloway', 'cash flow', 'amortization', 'time value of money', 'cost of capital', 'beta', 'portfolio'].forEach(kw => {
+    if (combined.includes(kw)) scores['FNCE 317'] += 2;
+  });
+
+  // BTMA 317 keywords
+  if (name.includes('btma') || name.includes('it_') || name.includes('tech')) scores['BTMA 317'] += 10;
+  if (text.includes('btma 317') || text.includes('business technology')) scores['BTMA 317'] += 10;
+  ['power bi', 'sql', 'database', 'datacamp', 'michael saar', 'duy dao', 'relational', 'queries', 'cloud', 'cybersecurity', 'enterprise systems', 'erp', 'crm'].forEach(kw => {
+    if (combined.includes(kw)) scores['BTMA 317'] += 2;
+  });
+
+  // OPMA 317 keywords
+  if (name.includes('opma') || name.includes('operations') || name.includes('supply_chain')) scores['OPMA 317'] += 10;
+  if (text.includes('opma 317') || text.includes('operations management')) scores['OPMA 317'] += 10;
+  ['inventory', 'supply chain', 'eoq', 'lean', 'six sigma', 'bottleneck', 'sabouri', 'capacity', 'forecasting', 'kanban', 'jit', 'process analysis', 'little\'s law'].forEach(kw => {
+    if (combined.includes(kw)) scores['OPMA 317'] += 2;
+  });
+
+  // MKTG 317 keywords
+  if (name.includes('mktg') || name.includes('marketing')) scores['MKTG 317'] += 10;
+  if (text.includes('mktg 317') || text.includes('principles of marketing') || text.includes('foundations of marketing')) scores['MKTG 317'] += 10;
+  ['qiao liu', 'kulchitsky', 'consumer behavior', 'segmentation', 'targeting', 'positioning', '4p', 'product', 'promotion', 'pricing', 'distribution', 'brand', 'swot'].forEach(kw => {
+    if (combined.includes(kw)) scores['MKTG 317'] += 2;
+  });
+
+  // PSYC 203 keywords
+  if (name.includes('psyc') || name.includes('psychology')) scores['PSYC 203'] += 10;
+  if (text.includes('psyc 203') || text.includes('psychology for everyday')) scores['PSYC 203'] += 10;
+  ['kertesz', 'mental health', 'resilience', 'coping', 'identity development', 'interpersonal', 'counseling', 'behavior', 'cognition', 'stress', 'wellness'].forEach(kw => {
+    if (combined.includes(kw)) scores['PSYC 203'] += 2;
+  });
+
+  let bestCourse = null;
+  let highestScore = 0;
+  for (const [course, score] of Object.entries(scores)) {
+    if (score > highestScore) {
+      highestScore = score;
+      bestCourse = course;
+    }
+  }
+
+  // If score is confident (>= 4), auto-classify; otherwise return null to trigger manual selection popup
+  if (highestScore >= 4 && bestCourse) {
+    return { courseCode: bestCourse, confidence: 'high', score: highestScore };
+  }
+
+  return { courseCode: null, confidence: 'low', score: highestScore };
+}
+
+/**
  * Get current connected vault metadata
  */
 export function getVaultMetadata() {

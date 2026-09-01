@@ -3,7 +3,7 @@ import {
   GraduationCap, 
   Clock, 
   Play, 
-  Pause,
+  Pause, 
   RotateCcw, 
   Layers, 
   HelpCircle, 
@@ -14,6 +14,10 @@ import {
   Maximize2, 
   FileText, 
   Loader2, 
+  UploadCloud, 
+  CheckCircle2, 
+  AlertCircle, 
+  X,
   Sparkles
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -25,24 +29,23 @@ import {
   getVaultMetadata, 
   getVaultHandle, 
   scanVaultDirectory, 
-  getCachedVaultFiles,
-  connectObsidianVault,
-  processUploadedFolderFiles,
-  readVaultFileContent
+  getCachedVaultFiles, 
+  connectObsidianVault, 
+  processUploadedFolderFiles, 
+  readVaultFileContent,
+  saveFileObjectToVault,
+  classifyStudyFile
 } from '../../utils/obsidianService';
+import { extractTextFromFile } from '../../utils/documentParser';
 import { streamSearchVaultWithAI } from '../../utils/aiService';
 import { 
   getSavedDecks, 
   getSavedQuizzes, 
-  deleteDeckFromLibrary,
-  deleteQuizFromLibrary
+  deleteDeckFromLibrary, 
+  deleteQuizFromLibrary 
 } from '../../utils/studyStorage';
 import { playSound } from '../../utils/soundFX';
 
-/**
- * Cross-references student's calendar schedule with official course outlines
- * to accurately identify the specific professor & section teaching the student's class.
- */
 export function resolveCourseInstructor(courseCode) {
   const code = (courseCode || '').toUpperCase().trim();
 
@@ -91,7 +94,7 @@ export const SchoolView = ({
   // Study Storage data
   const [savedDecks, setSavedDecks] = useState([]);
   const [savedQuizzes, setSavedQuizzes] = useState([]);
-  const [studyTab, setStudyTab] = useState('quizzes'); // 'quizzes' | 'decks'
+  const [studyTab, setStudyTab] = useState('quizzes');
   const [selectedDeckForStudy, setSelectedDeckForStudy] = useState(null);
   const [selectedQuizForStudy, setSelectedQuizForStudy] = useState(null);
 
@@ -99,6 +102,12 @@ export const SchoolView = ({
   const [isFlashcardsOpen, setIsFlashcardsOpen] = useState(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isDeepFocusOpen, setIsDeepFocusOpen] = useState(false);
+
+  // --- DRAG AND DROP AUTO-SORT STATE ---
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [unresolvedFileQueue, setUnresolvedFileQueue] = useState([]);
+  const [activeUnresolvedFile, setActiveUnresolvedFile] = useState(null);
+  const [sortToast, setSortToast] = useState(null);
 
   // --- POMODORO TIMER STATE ---
   const [focusDuration, setFocusDuration] = useState(25 * 60);
@@ -140,6 +149,14 @@ export const SchoolView = ({
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isAiSearching]);
+
+  // Toast Timer
+  useEffect(() => {
+    if (sortToast) {
+      const timer = setTimeout(() => setSortToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [sortToast]);
 
   const handleCompleteFocusSession = () => {
     setIsFocusActive(false);
@@ -296,11 +313,7 @@ export const SchoolView = ({
   };
 
   const activeCourse = courses.find(c => c.id === selectedCourse || c.code === selectedCourse) || courses[0];
-
-  // Dynamically resolve exact teacher & section based on calendar schedule + syllabus outlines
-  const resolvedInstructorInfo = useMemo(() => {
-    return resolveCourseInstructor(activeCourse?.code, calendarData?.items || [], scannedFiles);
-  }, [activeCourse, calendarData, scannedFiles]);
+  const resolvedInstructorInfo = resolveCourseInstructor(activeCourse?.code);
 
   const activeCourseFiles = useMemo(() => {
     return scannedFiles.filter(f => {
@@ -351,6 +364,121 @@ export const SchoolView = ({
     playSound('click', soundEnabled);
     deleteQuizFromLibrary(quizId);
     refreshStudyLibrary();
+  };
+
+  // --- DRAG AND DROP AUTO-SORT PIPELINE ---
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setIsDraggingOver(false);
+  };
+
+  const handleFileDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+
+    playSound('click', soundEnabled);
+    await processDroppedFiles(files);
+  };
+
+  const processDroppedFiles = async (files) => {
+    const handle = await getVaultHandle();
+    const isSchoolRoot = (handle?.name || '').toLowerCase() === 'school';
+    const unresolvedList = [];
+
+    for (const file of files) {
+      let extractedText = '';
+      try {
+        extractedText = await extractTextFromFile(file);
+      } catch (err) {
+        console.warn("Could not extract text for classification:", err);
+      }
+
+      const classification = classifyStudyFile(file, extractedText);
+
+      if (classification.courseCode) {
+        // High confidence match -> Save directly to Obsidian vault
+        const targetCourse = classification.courseCode;
+        const subfolder = isSchoolRoot ? targetCourse : `School/${targetCourse}`;
+
+        try {
+          if (handle) {
+            await saveFileObjectToVault(handle, subfolder, file);
+          }
+
+          // Add to local scannedFiles index immediately for instant AI study chat
+          const newFileEntry = {
+            name: file.name,
+            path: `${subfolder}/${file.name}`,
+            extension: file.name.split('.').pop().toLowerCase(),
+            course: targetCourse,
+            cachedContent: extractedText,
+            fileObject: file
+          };
+
+          setScannedFiles(prev => [newFileEntry, ...prev.filter(f => f.name !== file.name)]);
+          playSound('success', soundEnabled);
+          setSortToast({ message: `Sorted "${file.name}" into ${targetCourse}`, course: targetCourse });
+        } catch (err) {
+          console.warn("Could not write file to Obsidian:", err);
+        }
+      } else {
+        // Low confidence / Ambiguous -> queue for user selection popup
+        unresolvedList.push({ file, extractedText });
+      }
+    }
+
+    if (unresolvedList.length > 0) {
+      setUnresolvedFileQueue(unresolvedList);
+      setActiveUnresolvedFile(unresolvedList[0]);
+    }
+  };
+
+  const handleResolveUnresolvedFile = async (targetCourseCode) => {
+    if (!activeUnresolvedFile) return;
+    playSound('click', soundEnabled);
+
+    const { file, extractedText } = activeUnresolvedFile;
+    const handle = await getVaultHandle();
+    const isSchoolRoot = (handle?.name || '').toLowerCase() === 'school';
+    const subfolder = isSchoolRoot ? targetCourseCode : `School/${targetCourseCode}`;
+
+    try {
+      if (handle) {
+        await saveFileObjectToVault(handle, subfolder, file);
+      }
+
+      const newFileEntry = {
+        name: file.name,
+        path: `${subfolder}/${file.name}`,
+        extension: file.name.split('.').pop().toLowerCase(),
+        course: targetCourseCode,
+        cachedContent: extractedText,
+        fileObject: file
+      };
+
+      setScannedFiles(prev => [newFileEntry, ...prev.filter(f => f.name !== file.name)]);
+      playSound('success', soundEnabled);
+      setSortToast({ message: `Sorted "${file.name}" into ${targetCourseCode}`, course: targetCourseCode });
+    } catch (err) {
+      console.warn("Could not save resolved file:", err);
+    }
+
+    // Advance queue
+    const nextQueue = unresolvedFileQueue.slice(1);
+    setUnresolvedFileQueue(nextQueue);
+    setActiveUnresolvedFile(nextQueue.length > 0 ? nextQueue[0] : null);
   };
 
   // Instant Streaming AI Chat
@@ -484,7 +612,79 @@ export const SchoolView = ({
   };
 
   return (
-    <div className="space-y-4 max-w-6xl mx-auto pb-24">
+    <div 
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleFileDrop}
+      className="relative space-y-4 max-w-6xl mx-auto pb-24"
+    >
+      {/* DRAG AND DROP FULLSCREEN GLASS OVERLAY */}
+      {isDraggingOver && (
+        <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-50 bg-black/75 backdrop-blur-md flex flex-col items-center justify-center p-6 border-2 border-dashed border-white/40 pointer-events-none transition-all">
+          <div className="p-4 rounded-3xl bg-white/[0.05] border border-white/20 flex flex-col items-center gap-3 text-center max-w-sm">
+            <div className="w-12 h-12 rounded-2xl bg-white/[0.1] border border-white/20 flex items-center justify-center text-white">
+              <UploadCloud className="w-6 h-6 animate-bounce" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Drop Study Files Here</h3>
+              <p className="text-xs text-slate-300 mt-1">
+                Wolfe OS will auto-classify and sort into <strong className="text-white">Obsidian Vault</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AUTO-SORT TOAST NOTIFICATION */}
+      {sortToast && (
+        <div className="fixed bottom-6 right-6 z-50 px-3.5 py-2.5 rounded-2xl bg-[#0e1220]/90 border border-white/20 backdrop-blur-xl shadow-2xl flex items-center gap-2.5 text-xs text-white">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{sortToast.message}</span>
+        </div>
+      )}
+
+      {/* UNRESOLVED COURSE SELECTION POPUP */}
+      {activeUnresolvedFile && (
+        <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-5 shadow-2xl space-y-4 backdrop-blur-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400" />
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Select Course Folder</h3>
+              </div>
+              <button
+                onClick={() => {
+                  const next = unresolvedFileQueue.slice(1);
+                  setUnresolvedFileQueue(next);
+                  setActiveUnresolvedFile(next.length > 0 ? next[0] : null);
+                }}
+                className="text-slate-500 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-300">
+              Where should <strong className="text-white">"{activeUnresolvedFile.file.name}"</strong> be sorted in your vault?
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {courses.map(c => (
+                <button
+                  key={c.code}
+                  type="button"
+                  onClick={() => handleResolveUnresolvedFile(c.code)}
+                  className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer text-left"
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="truncate">{c.code}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hidden Folder Upload Input */}
       <input 
         ref={folderInputRef}
@@ -556,7 +756,6 @@ export const SchoolView = ({
                 <h2 className="text-xs font-bold text-white">{activeCourse.name}</h2>
                 <span className="text-[11px] text-slate-400">
                   • {resolvedInstructorInfo.instructor}
-                  {resolvedInstructorInfo.section ? ` (${resolvedInstructorInfo.section})` : ''}
                 </span>
               </div>
 
@@ -615,7 +814,7 @@ export const SchoolView = ({
             <div className="space-y-2.5 min-h-[160px] max-h-[300px] overflow-y-auto pr-1">
               {chatMessages.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-500">
-                  Ask anything about {activeCourse.code} outlines, concepts, formulas, or grading policies.
+                  Ask anything about {activeCourse.code} outlines, concepts, formulas, or grading policies. (Or drag & drop slides here!)
                 </div>
               ) : (
                 chatMessages.map((msg, idx) => (
