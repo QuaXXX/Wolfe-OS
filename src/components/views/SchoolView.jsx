@@ -33,8 +33,7 @@ import {
 import { streamSearchVaultWithAI } from '../../utils/aiService';
 import { 
   getSavedDecks, 
-  getSavedQuizzes,
-  getWeakSpots, 
+  getSavedQuizzes, 
   deleteDeckFromLibrary,
   deleteQuizFromLibrary
 } from '../../utils/studyStorage';
@@ -54,7 +53,7 @@ export const SchoolView = ({
     { id: 'psyc203', code: 'PSYC 203', name: 'Psychology Principles', instructor: 'Rona Sari Kertesz' }
   ];
 
-  const courses = (schoolData.courses && schoolData.courses.length > 0)
+  const courses = (schoolData?.courses && schoolData.courses.length > 0)
     ? schoolData.courses.filter(c => !c.code?.includes('391') && !c.id?.includes('391'))
     : defaultUniversityCourses;
 
@@ -65,11 +64,9 @@ export const SchoolView = ({
   // Study Storage data
   const [savedDecks, setSavedDecks] = useState([]);
   const [savedQuizzes, setSavedQuizzes] = useState([]);
-  const [weakSpots, setWeakSpots] = useState([]);
   const [studyTab, setStudyTab] = useState('quizzes'); // 'quizzes' | 'decks'
   const [selectedDeckForStudy, setSelectedDeckForStudy] = useState(null);
   const [selectedQuizForStudy, setSelectedQuizForStudy] = useState(null);
-  const [selectedQuizQuestions, setSelectedQuizQuestions] = useState(null);
 
   // Modals state
   const [isFlashcardsOpen, setIsFlashcardsOpen] = useState(false);
@@ -173,7 +170,7 @@ export const SchoolView = ({
         gain.gain.value = 0.05;
 
         osc1.connect(merger, 0, 0);
-        osc2.connect(merger, 0, 1);
+        osc1.connect(merger, 0, 1);
         merger.connect(gain);
         gain.connect(ctx.destination);
 
@@ -269,7 +266,6 @@ export const SchoolView = ({
   const refreshStudyLibrary = () => {
     setSavedDecks(getSavedDecks());
     setSavedQuizzes(getSavedQuizzes());
-    setWeakSpots(getWeakSpots());
   };
 
   const activeCourse = courses.find(c => c.id === selectedCourse || c.code === selectedCourse) || courses[0];
@@ -315,7 +311,6 @@ export const SchoolView = ({
   const handleLaunchSavedQuiz = (quiz) => {
     playSound('click', soundEnabled);
     setSelectedQuizForStudy(quiz);
-    setSelectedQuizQuestions(null);
     setIsQuizOpen(true);
   };
 
@@ -536,7 +531,8 @@ export const SchoolView = ({
                   type="button"
                   onClick={() => {
                     playSound('click', soundEnabled);
-                    setSelectedDeckForStudy({ courseCode: activeCourse.code });
+                    setSelectedDeckForStudy(null);
+                    setSelectedCourse(activeCourse.code);
                     setIsFlashcardsOpen(true);
                   }}
                   className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
@@ -550,7 +546,6 @@ export const SchoolView = ({
                   onClick={() => {
                     playSound('click', soundEnabled);
                     setSelectedQuizForStudy(null);
-                    setSelectedQuizQuestions(null);
                     setSelectedCourse(activeCourse.code);
                     setIsQuizOpen(true);
                   }}
@@ -748,7 +743,7 @@ export const SchoolView = ({
           )}
         </div>
 
-        {/* RIGHT COLUMN: FOCUS TIMER (Clean Header without '0 completed') */}
+        {/* RIGHT COLUMN: FOCUS TIMER */}
         <div className="space-y-3">
           <GlassCard hoverEffect={false} className="p-4 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
@@ -921,7 +916,6 @@ export const SchoolView = ({
         initialCourse={selectedQuizForStudy?.courseCode || activeCourse?.code || "School"}
         initialTopic={selectedQuizForStudy?.topic || "Exam Practice Questions"}
         initialQuiz={selectedQuizForStudy}
-        initialQuestions={selectedQuizQuestions}
         soundEnabled={soundEnabled}
       />
 

@@ -37,19 +37,20 @@ export const FlashcardDeckModal = ({
   soundEnabled = true 
 }) => {
   // Wizard / Setup state
-  const [isConfiguring, setIsConfiguring] = useState(!initialDeck);
+  const hasExistingCards = Boolean(initialDeck && Array.isArray(initialDeck.cards) && initialDeck.cards.length > 0);
+  const [isConfiguring, setIsConfiguring] = useState(!hasExistingCards);
   const [isReadyPreview, setIsReadyPreview] = useState(false);
   const [currentDeckId, setCurrentDeckId] = useState(initialDeck?.id || null);
   const [courseCode, setCourseCode] = useState(initialDeck?.courseCode || initialCourse || "Course");
   const [topic, setTopic] = useState(initialDeck?.topic || initialTopic);
-  const [deckTitle, setDeckTitle] = useState(initialDeck?.title || `${initialCourse || 'Course'} Flashcards`);
+  const [deckTitle, setDeckTitle] = useState(initialDeck?.title || `${initialDeck?.courseCode || initialCourse || 'Course'} Flashcards`);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [chapterScope, setChapterScope] = useState(initialDeck?.chapterScope || "");
   const [cardCount, setCardCount] = useState(initialDeck?.cards?.length || 8);
   const [depthMode, setDepthMode] = useState(initialDeck?.depthMode || "high-yield");
 
   // Study state
-  const [cards, setCards] = useState(initialDeck?.cards || []);
+  const [cards, setCards] = useState(hasExistingCards ? initialDeck.cards : []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -58,18 +59,20 @@ export const FlashcardDeckModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      if (initialDeck) {
+      const hasCards = Boolean(initialDeck && Array.isArray(initialDeck.cards) && initialDeck.cards.length > 0);
+      if (hasCards) {
         setCourseCode(initialDeck.courseCode || initialCourse);
         setTopic(initialDeck.topic || initialTopic);
         setDeckTitle(initialDeck.title || `${initialDeck.courseCode || 'Course'} Flashcards`);
-        setCards(initialDeck.cards || []);
+        setCards(initialDeck.cards);
         setCurrentDeckId(initialDeck.id);
         setIsConfiguring(false);
         setIsReadyPreview(false);
       } else {
-        setCourseCode(initialCourse || "");
-        setDeckTitle(`${initialCourse || 'Course'} Flashcards`);
+        setCourseCode(initialDeck?.courseCode || initialCourse || "");
+        setDeckTitle(`${initialDeck?.courseCode || initialCourse || 'Course'} Flashcards`);
         setCurrentDeckId(null);
+        setCards([]);
         setIsConfiguring(true);
         setIsReadyPreview(false);
       }
