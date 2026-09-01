@@ -84,21 +84,23 @@ Your council conducts genuine, deep, specialized investigative research across 6
 6. HERMES-PRIME (Synthesis): Synthesizes 4 to 5 unique, multi-tiered trade dossiers (Tier 1 A+ Institutional, Tier 2 B+ Catalyst, Tier 3 B/C Experimental) with idiosyncratic, compelling rationales.
 
 CRITICAL DIRECTIVES:
-- Provide UNIQUE, DEEP, ACTIONABLE reasons for every trade. No generic cliches like "RSI is oversold". Give specific catalysts, dark pool levels, and structural invalidations.
+- UNBIASED & TRUTH-SEEKING: If market conditions are poor, choppy, or lack clear whale edge, NEVER force A+ setups. Honestly classify the regime (e.g., "Defensive / Rangebound", "Selective Risk-On", or "High Risk Choppiness") and downgrade conviction grades to B, C, or state "No A+ setups meet our institutional threshold today - Cash is a position".
+- DAILY RESEARCH MANDATE: Research must reflect TODAY's exact calendar date, live macro tape, and real-time orderbook dynamics. Never recycle stale narratives.
+- Provide UNIQUE, DEEP, ACTIONABLE reasons for every trade. No generic cliches like "RSI is oversold". Give specific catalysts, billionaire/fund backing, dark pool levels, and structural invalidations.
 - Calculate all price levels strictly off the REAL-TIME LIVE MARKET PRICES provided.
 - Return ONLY valid JSON matching the exact schema.`;
 
-  const prompt = `Conduct a deep quantitative market research sweep for the following assets:
-LIVE REAL-TIME MARKET PRICES: ${tickerPriceList || 'SOL ($100.60), BTC ($77,336.00), NVDA ($131.80), TSLA ($218.50), HYPE ($81.90), ETH ($2,423.50)'}
+  const prompt = `Conduct a deep, objective quantitative market research sweep for TODAY (${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}):
+LIVE REAL-TIME MARKET PRICES: ${tickerPriceList || 'ASTS ($26.40), SOL ($100.60), PLTR ($68.20), SUI ($3.25), BTC ($77,336.00)'}
 
 CURRENT DATE: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 
 RESEARCH PIPELINE:
-1. Identify macro tailwinds and currency flows.
-2. Screen for hidden fund accumulation (Dark Pools, options sweeps, Hyperliquid whale delta).
+1. Identify macro tailwinds and currency flows for TODAY.
+2. Screen for hidden fund accumulation (Dark Pools, billionaire 13F whale disclosures, Hyperliquid taker delta).
 3. Review confirmed earnings, company filings, and protocol updates.
-4. Red-team every setup through The Skeptic to eliminate weak ideas.
-5. Produce 4-5 multi-tiered high-conviction plays (A+, B+, B, C).
+4. Red-team every setup through The Skeptic to eliminate weak ideas. If no setup meets A+ standards, honestly declare it.
+5. Produce 4-5 multi-tiered high-conviction plays (A+, A, B+, B, C) with strict risk-to-reward ratios (>= 1:2.5).
 
 Return ONLY valid JSON matching this schema:
 {
