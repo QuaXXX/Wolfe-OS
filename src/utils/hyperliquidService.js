@@ -198,17 +198,27 @@ export async function fetchHyperliquidAccount(userAddress, testnet = false) {
   }
 }
 
-/**
- * 3. Execute Direct Trade Order onto Hyperliquid L1 (or Local Simulation)
- */
 export async function executeHyperliquidSignal(signal) {
   const config = getTradingConfig();
   const isLive = config.isLive && !!config.agentPrivateKey && !!config.agentWalletAddress;
   
-  const ticker = (signal.ticker || 'BTC').toUpperCase();
-  const action = (signal.action || 'BUY').toUpperCase();
-  const isLong = action.includes('BUY') || action.includes('LONG');
-  const price = Number(signal.price || 100);
+  let rawSymbol = String(signal.stock_id || signal.ticker || signal.symbol || 'BTC');
+  rawSymbol = rawSymbol.split(':')[0].split('-')[0].split('/')[0].trim().toUpperCase();
+  const ticker = rawSymbol.replace(/[^A-Z0-9]/g, '') || 'BTC';
+
+  const rawAction = String(signal.action || signal.side || 'BUY').toLowerCase();
+  let isLong = true;
+  let isClose = false;
+
+  if (rawAction === 'flat' || rawAction === 'close' || rawAction === 'exit') {
+    isClose = true;
+  } else if (rawAction === 'short' || rawAction === 'sell') {
+    isLong = false;
+  } else if (rawAction === 'long' || rawAction === 'buy') {
+    isLong = true;
+  }
+
+  const price = Number(signal.price || signal.entryPrice || 100);
   const stopLoss = signal.stopLoss ? Number(signal.stopLoss) : null;
   const takeProfit = signal.takeProfit ? Number(signal.takeProfit) : null;
 

@@ -22,14 +22,17 @@ export const WebhookConfigModal = ({
   onSignalExecuted, 
   soundEnabled = true 
 }) => {
+  const [schemaMode, setSchemaMode] = useState('alphainsider'); // 'alphainsider' | 'standard'
   const [ticker, setTicker] = useState('BTC');
   const [action, setAction] = useState('BUY');
-  const [price, setPrice] = useState(92450);
-  const [stopLoss, setStopLoss] = useState(91200);
-  const [takeProfit, setTakeProfit] = useState(94800);
+  const [price, setPrice] = useState(77336.50);
+  const [stopLoss, setStopLoss] = useState(75800);
+  const [takeProfit, setTakeProfit] = useState(80200);
   const [strategy, setStrategy] = useState('4H Trend Reclaim');
   const [riskPercent, setRiskPercent] = useState(1.5);
-  const [leverage, setLeverage] = useState(5);
+  const [leverage, setLeverage] = useState(1);
+  const [pyramiding, setPyramiding] = useState(3);
+  const [strategyId, setStrategyId] = useState('A3gBJqqMfV_B5uHNE-mDt');
 
   const [copiedPayload, setCopiedPayload] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -40,7 +43,16 @@ export const WebhookConfigModal = ({
     ? `${window.location.origin}/api/webhook/tradingview`
     : 'https://wolfe-os.vercel.app/api/webhook/tradingview';
 
-  const payloadJson = {
+  const alphaInsiderPayloadJson = {
+    strategy_id: strategyId,
+    stock_id: `${ticker}-USD:HYPERLIQUID`,
+    action: "{{strategy.market_position}}",
+    leverage: leverage,
+    pyramiding: pyramiding,
+    api_token: "wolfe_wh_live_auth"
+  };
+
+  const standardPayloadJson = {
     ticker,
     action,
     price,
@@ -52,7 +64,9 @@ export const WebhookConfigModal = ({
     timestamp: "{{time}}"
   };
 
-  const payloadString = JSON.stringify(payloadJson, null, 2);
+  const payloadString = schemaMode === 'alphainsider'
+    ? JSON.stringify(alphaInsiderPayloadJson, null, 2)
+    : JSON.stringify(standardPayloadJson, null, 2);
 
   const handleCopyUrl = () => {
     playSound('click', soundEnabled);
@@ -76,17 +90,28 @@ export const WebhookConfigModal = ({
     playSound('click', soundEnabled);
 
     try {
-      const res = await executeHyperliquidSignal({
-        ticker,
-        action,
-        price,
-        stopLoss,
-        takeProfit,
-        riskPercent,
-        leverage,
-        strategy,
-        source: 'TradingView Test Modal'
-      });
+      const signalPayload = schemaMode === 'alphainsider'
+        ? {
+            stock_id: `${ticker}-USD:HYPERLIQUID`,
+            action: 'long',
+            price,
+            leverage,
+            strategy: strategyId,
+            source: 'TradingView (AlphaInsider Drop-in Test)'
+          }
+        : {
+            ticker,
+            action,
+            price,
+            stopLoss,
+            takeProfit,
+            riskPercent,
+            leverage,
+            strategy,
+            source: 'TradingView Test Modal'
+          };
+
+      const res = await executeHyperliquidSignal(signalPayload);
 
       setTestResult({
         success: true,
@@ -178,11 +203,47 @@ export const WebhookConfigModal = ({
               </div>
             </div>
 
-            {/* 2. Interactive Alert Payload Generator */}
+            {/* 2. Schema Mode Selector */}
+            <div className="flex items-center gap-2 p-1 rounded-xl bg-black/40 border border-white/10">
+              <button
+                type="button"
+                onClick={() => setSchemaMode('alphainsider')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  schemaMode === 'alphainsider'
+                    ? 'text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                style={schemaMode === 'alphainsider' ? {
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                } : {}}
+              >
+                ⚡ AlphaInsider Drop-in Schema
+              </button>
+              <button
+                type="button"
+                onClick={() => setSchemaMode('standard')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  schemaMode === 'standard'
+                    ? 'text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                style={schemaMode === 'standard' ? {
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                } : {}}
+              >
+                Wolfe OS Standard Schema
+              </button>
+            </div>
+
+            {/* 3. Interactive Alert Payload Generator */}
             <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Customize Alert Parameters</span>
-                <span className="text-[10px] font-mono text-amber-300">Auto Sizing Active</span>
+                <span>{schemaMode === 'alphainsider' ? 'AlphaInsider Compatible Alert Format' : 'Customize Alert Parameters'}</span>
+                <span className="text-[10px] font-mono text-slate-400">Zero Code Change Required</span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
