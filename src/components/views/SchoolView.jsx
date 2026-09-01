@@ -726,7 +726,7 @@ export const SchoolView = ({
                       >
                         <div className="min-w-0">
                           <div className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
-                            <span>{q.topic || 'Practice Quiz'}</span>
+                            <span>{q.title || q.topic || 'Practice Quiz'}</span>
                             {q.isInProgress && (
                               <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                 In Progress
