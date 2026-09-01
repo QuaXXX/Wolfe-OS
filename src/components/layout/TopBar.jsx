@@ -389,7 +389,7 @@ export const TopBar = ({
             className="p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/5 transition-colors cursor-pointer"
           >
             {isFullscreen ? (
-              <Minimize2 className="w-4 h-4 text-emerald-400" />
+              <Minimize2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
             ) : (
               <Maximize2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
             )}
