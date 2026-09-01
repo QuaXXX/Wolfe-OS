@@ -9,7 +9,9 @@ import {
   Loader2,
   X,
   ArrowUpRight,
-  Square
+  Square,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { WolfLogo } from '../common/WolfLogo';
@@ -38,10 +40,43 @@ export const TopBar = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveSpeech, setLiveSpeech] = useState('');
   const [voiceResponse, setVoiceResponse] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(!!(typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement)));
   
   const recognitionRef = useRef(null);
   const abortControllerRef = useRef(null);
   const toastTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    playSound('click', soundEnabled);
+    const docEl = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+          docEl.requestFullscreen().catch(() => {});
+        });
+      } else if (docEl.webkitRequestFullscreen) {
+        docEl.webkitRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    }
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -344,6 +379,19 @@ export const TopBar = ({
               <Volume2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
             ) : (
               <VolumeX className="w-4 h-4 text-slate-600" />
+            )}
+          </button>
+
+          {/* 1-Tap Fullscreen Immersion (Hides Android status & nav bars) */}
+          <button
+            onClick={handleToggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen (Hides Android status & nav bars)"}
+            className="p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/5 transition-colors cursor-pointer"
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Maximize2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
             )}
           </button>
 

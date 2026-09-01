@@ -3,18 +3,38 @@
   "short_name": "Wolfe OS",
   "description": "Next-Generation Personal Operating System for Academics, Trading, Fitness & Daily Command",
   "start_url": "/",
+  "scope": "/",
   "id": "/",
   "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone", "window-controls-overlay"],
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#08090d",
   "theme_color": "#08090d",
+  "categories": ["productivity", "education", "utilities"],
   "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }
