@@ -218,6 +218,7 @@ export async function executeHyperliquidSignal(signal) {
     isLong = true;
   }
 
+  const action = isClose ? 'CLOSE' : (isLong ? 'BUY' : 'SELL');
   const price = Number(signal.price || signal.entryPrice || 100);
   const stopLoss = signal.stopLoss ? Number(signal.stopLoss) : null;
   const takeProfit = signal.takeProfit ? Number(signal.takeProfit) : null;
