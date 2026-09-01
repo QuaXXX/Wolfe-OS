@@ -14,12 +14,14 @@ import {
   Maximize2, 
   FileText, 
   Loader2, 
+  Zap,
   Sparkles
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GlassCard } from '../common/GlassCard';
 import { FlashcardDeckModal } from '../school/FlashcardDeckModal';
 import { PracticeQuizModal } from '../school/PracticeQuizModal';
+import { CheatSheetModal } from '../school/CheatSheetModal';
 import { DeepFocusModal } from '../school/DeepFocusModal';
 import { 
   getVaultMetadata, 
@@ -34,8 +36,10 @@ import { streamSearchVaultWithAI } from '../../utils/aiService';
 import { 
   getSavedDecks, 
   getSavedQuizzes, 
+  getSavedCheatSheets,
   deleteDeckFromLibrary, 
-  deleteQuizFromLibrary 
+  deleteQuizFromLibrary,
+  deleteCheatSheetFromLibrary
 } from '../../utils/studyStorage';
 import { playSound } from '../../utils/soundFX';
 
@@ -87,13 +91,16 @@ export const SchoolView = ({
   // Study Storage data
   const [savedDecks, setSavedDecks] = useState([]);
   const [savedQuizzes, setSavedQuizzes] = useState([]);
-  const [studyTab, setStudyTab] = useState('quizzes');
+  const [savedCheatSheets, setSavedCheatSheets] = useState([]);
+  const [studyTab, setStudyTab] = useState('quizzes'); // 'quizzes' | 'decks' | 'sheets'
   const [selectedDeckForStudy, setSelectedDeckForStudy] = useState(null);
   const [selectedQuizForStudy, setSelectedQuizForStudy] = useState(null);
+  const [selectedSheetForStudy, setSelectedSheetForStudy] = useState(null);
 
   // Modals state
   const [isFlashcardsOpen, setIsFlashcardsOpen] = useState(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
   const [isDeepFocusOpen, setIsDeepFocusOpen] = useState(false);
 
   // --- POMODORO TIMER STATE ---
@@ -289,6 +296,7 @@ export const SchoolView = ({
   const refreshStudyLibrary = () => {
     setSavedDecks(getSavedDecks());
     setSavedQuizzes(getSavedQuizzes());
+    setSavedCheatSheets(getSavedCheatSheets());
   };
 
   const activeCourse = courses.find(c => c.id === selectedCourse || c.code === selectedCourse) || courses[0];
@@ -319,6 +327,14 @@ export const SchoolView = ({
     });
   }, [savedDecks, activeCourse]);
 
+  const activeCourseSheets = useMemo(() => {
+    return savedCheatSheets.filter(s => {
+      const code = (s.courseCode || '').toUpperCase();
+      const target = (activeCourse?.code || '').toUpperCase();
+      return code.includes(target) || target.includes(code);
+    });
+  }, [savedCheatSheets, activeCourse]);
+
   const handleLaunchSavedDeck = (deck) => {
     playSound('click', soundEnabled);
     setSelectedDeckForStudy(deck);
@@ -342,6 +358,19 @@ export const SchoolView = ({
     e.stopPropagation();
     playSound('click', soundEnabled);
     deleteQuizFromLibrary(quizId);
+    refreshStudyLibrary();
+  };
+
+  const handleLaunchSavedSheet = (sheet) => {
+    playSound('click', soundEnabled);
+    setSelectedSheetForStudy(sheet);
+    setIsCheatSheetOpen(true);
+  };
+
+  const handleDeleteSheet = (sheetId, e) => {
+    e.stopPropagation();
+    playSound('click', soundEnabled);
+    deleteCheatSheetFromLibrary(sheetId);
     refreshStudyLibrary();
   };
 
@@ -537,7 +566,7 @@ export const SchoolView = ({
             })}
           </div>
 
-          {/* MAIN COURSE CHAT CARD (With Flashcards and Quiz at top right) */}
+          {/* MAIN COURSE CHAT CARD (With Flashcards, Quiz, and Cheat Sheet at top right) */}
           <GlassCard hoverEffect={false} className="p-4 space-y-3">
             {/* Action Header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-white/10 flex-wrap gap-2">
@@ -551,8 +580,22 @@ export const SchoolView = ({
                 </span>
               </div>
 
-              {/* Flashcards and Quiz at Top-Right of Main Chat Bubble */}
+              {/* Action Buttons: Flashcards, Quiz, Cheat Sheet */}
               <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setSelectedSheetForStudy(null);
+                    setSelectedCourse(activeCourse.code);
+                    setIsCheatSheetOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                >
+                  <Zap className="w-3 h-3 text-amber-400" />
+                  <span>Cheat Sheet</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -660,11 +703,11 @@ export const SchoolView = ({
             </form>
           </GlassCard>
 
-          {/* SAVED STUDY MATERIALS: QUIZZES & FLASHCARD DECKS (Clean Switcher) */}
-          {(savedQuizzes.length > 0 || savedDecks.length > 0) && (
+          {/* SAVED STUDY MATERIALS: QUIZZES, FLASHCARD DECKS & CHEAT SHEETS */}
+          {(savedQuizzes.length > 0 || savedDecks.length > 0 || savedCheatSheets.length > 0) && (
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => setStudyTab('quizzes')}
@@ -686,13 +729,26 @@ export const SchoolView = ({
                         : 'text-slate-500 hover:text-slate-300'
                     }`}
                   >
-                    Flashcard Decks ({activeCourseDecks.length})
+                    Flashcards ({activeCourseDecks.length})
+                  </button>
+                  <span className="text-slate-600">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setStudyTab('sheets')}
+                    className={`text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                      studyTab === 'sheets'
+                        ? 'text-amber-300 border-b-2 border-amber-400 pb-0.5'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <Zap className="w-3 h-3 text-amber-400" />
+                    <span>Cheat Sheets ({activeCourseSheets.length})</span>
                   </button>
                 </div>
               </div>
 
-              {/* Quizzes List */}
-              {studyTab === 'quizzes' ? (
+              {/* 1. Quizzes List */}
+              {studyTab === 'quizzes' && (
                 activeCourseQuizzes.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {activeCourseQuizzes.map(q => (
@@ -735,8 +791,10 @@ export const SchoolView = ({
                     No quizzes saved for {activeCourse.code} yet. Click <strong className="text-slate-300">Quiz</strong> to start!
                   </div>
                 )
-              ) : (
-                /* Decks List */
+              )}
+
+              {/* 2. Decks List */}
+              {studyTab === 'decks' && (
                 activeCourseDecks.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {activeCourseDecks.map(d => (
@@ -762,6 +820,42 @@ export const SchoolView = ({
                 ) : (
                   <div className="p-3 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-500">
                     No flashcard decks created for {activeCourse.code} yet. Click <strong className="text-slate-300">Flashcards</strong> above!
+                  </div>
+                )
+              )}
+
+              {/* 3. Cheat Sheets List */}
+              {studyTab === 'sheets' && (
+                activeCourseSheets.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {activeCourseSheets.map(s => (
+                      <div
+                        key={s.id}
+                        onClick={() => handleLaunchSavedSheet(s)}
+                        className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/15 transition-all cursor-pointer flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
+                            <Zap className="w-3 h-3 text-amber-400 shrink-0" />
+                            <span className="truncate">{s.title || 'Formula Sheet'}</span>
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                            {s.courseCode} • {s.sections?.length || 0} sections
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteSheet(s.id, e)}
+                          className="text-slate-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-white/[0.01] border border-white/5 text-center text-xs text-slate-500">
+                    No formula sheets generated for {activeCourse.code} yet. Click <strong className="text-amber-300">Cheat Sheet</strong> above!
                   </div>
                 )
               )}
@@ -942,6 +1036,17 @@ export const SchoolView = ({
         initialCourse={selectedQuizForStudy?.courseCode || activeCourse?.code || "School"}
         initialTopic={selectedQuizForStudy?.topic || "Exam Practice Questions"}
         initialQuiz={selectedQuizForStudy}
+        soundEnabled={soundEnabled}
+      />
+
+      <CheatSheetModal
+        isOpen={isCheatSheetOpen}
+        onClose={() => {
+          setIsCheatSheetOpen(false);
+          refreshStudyLibrary();
+        }}
+        initialCourse={selectedSheetForStudy?.courseCode || activeCourse?.code || "School"}
+        initialSheet={selectedSheetForStudy}
         soundEnabled={soundEnabled}
       />
 

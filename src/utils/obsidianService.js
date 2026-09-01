@@ -699,6 +699,69 @@ export async function saveDeckToObsidian(deck) {
 }
 
 /**
+ * Export Exam Formula & Cheat Sheet as a formatted Markdown note into Obsidian Vault
+ */
+export async function saveCheatSheetToObsidian(sheet) {
+  try {
+    const handle = await getVaultHandle();
+    if (!handle) return false;
+
+    const rootName = (handle.name || '').toLowerCase();
+    const isSchoolFolder = rootName === 'school';
+
+    let courseFolder = 'General';
+    if (sheet.courseCode) {
+      const match = sheet.courseCode.toUpperCase().match(/([A-Z]{2,6}\s*\d{2,4})/);
+      if (match) {
+        courseFolder = match[1].trim();
+      } else {
+        courseFolder = sheet.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() || 'General';
+      }
+    }
+
+    const subfolder = isSchoolFolder ? `${courseFolder}/Cheat Sheets` : `School/${courseFolder}/Cheat Sheets`;
+    const cleanDate = new Date(sheet.updatedAt || Date.now()).toISOString().split('T')[0];
+    const safeTitle = (sheet.title || 'Formula Sheet').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Cheat Sheet';
+    const filename = `${safeTitle} (${cleanDate})`;
+
+    let md = `# ⚡ ${sheet.courseCode || 'Course'}: ${sheet.title || 'Formula & Cheat Sheet'}\n\n`;
+    md += `- **Scope:** ${sheet.chapterScope || 'All Chapters'}\n`;
+    md += `- **Generated:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}\n\n`;
+    md += `---\n\n`;
+
+    (sheet.sections || []).forEach(sec => {
+      md += `## 📌 ${sec.category}\n\n`;
+      (sec.items || []).forEach(item => {
+        if (item.formula) {
+          md += `### 📐 ${item.name}\n\n`;
+          md += `$$\\mathbf{${item.formula}}$$\n\n`;
+          if (item.variables) md += `* **Variables:** ${item.variables}\n`;
+          if (item.notes) md += `* **Exam Note:** ${item.notes}\n`;
+        } else if (item.rule) {
+          md += `### ⚖️ ${item.name || 'Decision Rule'}\n\n`;
+          md += `> **Rule:** ${item.rule}\n\n`;
+          if (item.notes) md += `* **Application:** ${item.notes}\n`;
+        } else if (item.term) {
+          md += `### 📖 ${item.term}\n\n`;
+          md += `${item.definition}\n\n`;
+        } else if (item.trap) {
+          md += `### ⚠️ Trap: ${item.trap}\n\n`;
+          md += `> **Fix / Key Rule:** ${item.correction}\n\n`;
+        }
+        md += `\n`;
+      });
+      md += `---\n\n`;
+    });
+
+    await saveMarkdownToVault(handle, subfolder, filename, md);
+    return true;
+  } catch (err) {
+    console.warn("Could not export cheat sheet to Obsidian:", err);
+    return false;
+  }
+}
+
+/**
  * Vault sample notes (empty until user connects their personal Obsidian vault)
  */
 export const SAMPLE_OBSIDIAN_VAULT = [];

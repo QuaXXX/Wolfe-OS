@@ -1274,6 +1274,134 @@ Return ONLY valid JSON matching this schema:
 }
 
 /**
+ * Generate a Comprehensive, Highly Dense Exam Formula & Cheat Sheet with AI
+ */
+export async function generateCheatSheetWithAI({
+  courseCode = "Course",
+  title = "",
+  chapterScope = "All Chapters & Outlines",
+  modules = ['formulas', 'definitions', 'rules', 'traps'],
+  notesText = ""
+}) {
+  const prompt = `You are an elite university professor and exam prep author creating the ultimate, high-density Formula & Exam Cheat Sheet for "${courseCode}".
+
+CUSTOM SCOPE & TOPICS REQUESTED:
+- Course: ${courseCode}
+- Focus Scope / Chapters: ${chapterScope}
+- Requested Modules: ${modules.join(', ')}
+
+COURSE NOTES, OUTLINE & STUDY MATERIAL:
+"""
+${notesText ? notesText.slice(0, 18000) : `Standard ${courseCode} curriculum: Core formulas, definitions, decision frameworks, calculation steps, and exam traps.`}
+"""
+
+STRICT INSTRUCTIONS:
+1. Extract and synthesize all critical formulas, variable breakdowns, decision rules, definitions, and tricky exam traps strictly relevant to ${courseCode} and the scope "${chapterScope}".
+2. Include exact mathematical formulas (clean text or LaTeX), clearly defining every single variable (e.g. "E = Market Value of Equity, Rd = Pre-tax Cost of Debt").
+3. Include critical decision criteria (e.g. "Accept project if NPV > 0", "Choose supplier with lowest Total Cost of Ownership").
+4. Highlight common student exam mistakes and how to avoid them.
+5. Organize into clear, logical sections.
+
+Return ONLY valid JSON matching this schema:
+{
+  "title": "${title || `${courseCode} Formula & Cheat Sheet`}",
+  "courseCode": "${courseCode}",
+  "chapterScope": "${chapterScope}",
+  "sections": [
+    {
+      "category": "Key Formulas & Equations",
+      "items": [
+        {
+          "name": "Weighted Average Cost of Capital (WACC)",
+          "formula": "WACC = (E/V * Re) + (D/V * Rd * (1 - Tc))",
+          "variables": "E = Equity, D = Debt, V = E + D, Re = Cost of Equity, Rd = Cost of Debt, Tc = Tax Rate",
+          "notes": "Use market values, not book values. Tax shield applies only to debt."
+        }
+      ]
+    },
+    {
+      "category": "Decision Rules & Frameworks",
+      "items": [
+        {
+          "name": "NPV vs. IRR Decision Rule",
+          "rule": "Accept if NPV > 0. If ranking mutually exclusive projects, prioritize NPV over IRR.",
+          "notes": "IRR assumes reinvestment at IRR; NPV assumes reinvestment at the cost of capital."
+        }
+      ]
+    },
+    {
+      "category": "Core Definitions & Terms",
+      "items": [
+        {
+          "term": "Systematic Risk (Beta)",
+          "definition": "Non-diversifiable market-wide risk. Compensated under CAPM."
+        }
+      ]
+    },
+    {
+      "category": "Common Exam Traps & Pitfalls",
+      "items": [
+        {
+          "trap": "APR to EAR Conversion",
+          "correction": "Always convert nominal rates before discounting periodic cash flows: EAR = (1 + APR/m)^m - 1."
+        }
+      ]
+    }
+  ]
+}`;
+
+  const systemInstruction = "You are a university academic master generating dense, accurate, exam-grade formula and cheat sheets. Return only valid JSON.";
+
+  try {
+    const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 30000);
+    if (res && Array.isArray(res.sections) && res.sections.length > 0) {
+      return res;
+    }
+  } catch (err) {
+    console.warn("AI Cheat Sheet generation notice:", err);
+  }
+
+  // Fallback Cheat Sheet
+  return {
+    title: title || `${courseCode} Formula & Quick Reference Sheet`,
+    courseCode,
+    chapterScope: chapterScope || "Core Principles",
+    sections: [
+      {
+        category: "Key Formulas & Equations",
+        items: [
+          {
+            name: `${courseCode} Core Valuation Formula`,
+            formula: "PV = FV / (1 + r)^t",
+            variables: "PV = Present Value, FV = Future Value, r = Discount Rate, t = Time Periods",
+            notes: "Fundamental equation for discounting future cash flows."
+          }
+        ]
+      },
+      {
+        category: "Decision Rules & Frameworks",
+        items: [
+          {
+            name: "Value Maximization Principle",
+            rule: "Select investments that generate positive economic value added (EVA) and exceed hurdle rate.",
+            notes: "Always account for opportunity costs and time value of money."
+          }
+        ]
+      },
+      {
+        category: "Core Definitions & Terms",
+        items: [
+          {
+            term: "Opportunity Cost of Capital",
+            definition: "The expected return foregone by investing in a project rather than comparable financial securities with equal risk."
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
  * Draft a Syllabus-Compliant Professional Email to a Professor or TA
  */
 /**

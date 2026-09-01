@@ -244,3 +244,52 @@ export function saveEnrolledCourse(course) {
     return [];
   }
 }
+
+// ----------------------------------------------------
+// 4. FORMULA & EXAM CHEAT SHEETS
+// ----------------------------------------------------
+
+const STORAGE_KEY_CHEAT_SHEETS = 'wolfe_study_cheat_sheets';
+
+export function getSavedCheatSheets() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CHEAT_SHEETS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCheatSheetToLibrary(sheet) {
+  try {
+    const sheets = getSavedCheatSheets();
+    const existingIdx = sheets.findIndex(s => s.id === sheet.id);
+    const updated = {
+      ...sheet,
+      id: sheet.id || `cs_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (existingIdx >= 0) {
+      sheets[existingIdx] = updated;
+    } else {
+      sheets.unshift(updated);
+    }
+
+    localStorage.setItem(STORAGE_KEY_CHEAT_SHEETS, JSON.stringify(sheets));
+    return updated;
+  } catch (err) {
+    console.warn("Failed to save cheat sheet:", err);
+    return sheet;
+  }
+}
+
+export function deleteCheatSheetFromLibrary(sheetId) {
+  try {
+    const sheets = getSavedCheatSheets().filter(s => s.id !== sheetId);
+    localStorage.setItem(STORAGE_KEY_CHEAT_SHEETS, JSON.stringify(sheets));
+    return true;
+  } catch {
+    return false;
+  }
+}
