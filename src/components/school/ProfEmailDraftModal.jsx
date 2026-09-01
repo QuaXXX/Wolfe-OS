@@ -27,10 +27,10 @@ const EMAIL_REASONS = [
 export const ProfEmailDraftModal = ({ 
   isOpen, 
   onClose, 
-  courseCode = "FNCE 317",
-  instructorName = "Dr. Marcus Vance",
-  instructorEmail = "mvance@university.edu",
-  sectionCode = "L04",
+  courseCode = "",
+  instructorName = "",
+  instructorEmail = "",
+  sectionCode = "",
   syllabusContext = "",
   soundEnabled = true 
 }) => {

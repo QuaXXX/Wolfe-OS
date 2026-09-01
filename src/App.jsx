@@ -15,7 +15,6 @@ import {
   createGoogleCalendarEvent, 
   deleteGoogleCalendarEvent,
   updateGoogleTaskStatus,
-  purgeGoogleCalendarEntriesByKeywords,
   checkAndHandleOAuthRedirect
 } from './utils/googleCalendarService';
 
@@ -113,14 +112,7 @@ export function App() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CALENDAR);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        const cleanItems = (parsed.items || [])
-          .filter(it => it.isGoogle || !it.id?.startsWith('cal-'))
-          .filter(it => !it.title?.toUpperCase().includes('FNCE') && !it.title?.toUpperCase().includes('OPMA'));
-        return {
-          ...parsed,
-          items: cleanItems
-        };
+        return JSON.parse(saved);
       }
     } catch {}
     return {
@@ -142,11 +134,6 @@ export function App() {
         localStorage.removeItem('wolfe_gcal_expiry');
       }
     } catch {}
-
-    setCalendarData(prev => ({
-      ...prev,
-      items: prev.items.filter(it => !it.title?.toUpperCase().includes('FNCE') && !it.title?.toUpperCase().includes('OPMA'))
-    }));
 
     if (isGoogleCalendarConnected()) {
       fetchGoogleCalendarEvents()

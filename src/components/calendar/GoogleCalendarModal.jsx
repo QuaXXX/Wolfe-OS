@@ -17,7 +17,6 @@ import {
   saveGoogleToken, 
   disconnectGoogleCalendar, 
   fetchGoogleCalendarEvents,
-  purgeGoogleCalendarEntriesByKeywords,
   signInWithGooglePopup
 } from '../../utils/googleCalendarService';
 import { playSound } from '../../utils/soundFX';
@@ -31,7 +30,6 @@ export const GoogleCalendarModal = ({
   const [isConnected, setIsConnected] = useState(false);
   const [manualToken, setManualToken] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isPurging, setIsPurging] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
   const [error, setError] = useState(null);
   const [showManualInput, setShowManualInput] = useState(false);
@@ -94,29 +92,6 @@ export const GoogleCalendarModal = ({
       setError(err.message || "Failed to fetch events from Google Calendar.");
     } finally {
       setIsSyncing(false);
-    }
-  };
-
-  const handlePurgeFnceOpma = async () => {
-    setIsPurging(true);
-    setError(null);
-    setSyncMessage(null);
-    playSound('click', soundEnabled);
-
-    try {
-      const { deletedCount } = await purgeGoogleCalendarEntriesByKeywords(['FNCE', 'OPMA']);
-      playSound('success', soundEnabled);
-      setSyncMessage(`🧹 Successfully deleted ${deletedCount} FNCE & OPMA event(s) from Google Calendar & Tasks!`);
-      
-      // Refresh local view after purge
-      const freshEvents = await fetchGoogleCalendarEvents();
-      if (onSyncSuccess) {
-        onSyncSuccess(freshEvents);
-      }
-    } catch (err) {
-      setError(err.message || "Failed to purge items from Google Calendar.");
-    } finally {
-      setIsPurging(false);
     }
   };
 
@@ -193,12 +168,12 @@ export const GoogleCalendarModal = ({
                 Your Google Calendar & Tasks are synchronized. Full 1-year timeline streaming is active. Adding or deleting items in Wolfe OS updates Google instantly.
               </p>
 
-              <div className="flex flex-col gap-2 pt-2 border-t border-emerald-500/20">
+              <div className="pt-2 border-t border-emerald-500/20">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleSyncNow}
-                    disabled={isSyncing || isPurging}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                    disabled={isSyncing}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
                     style={{ backgroundColor: 'var(--accent-primary)' }}
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -207,23 +182,12 @@ export const GoogleCalendarModal = ({
 
                   <button
                     onClick={handleDisconnect}
-                    className="px-3 py-2 rounded-xl bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer"
+                    className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer"
                     title="Disconnect Google Account"
                   >
                     <Unlink className="w-3.5 h-3.5" />
                   </button>
                 </div>
-
-                {/* Direct One-Click Purge Button */}
-                <button
-                  type="button"
-                  onClick={handlePurgeFnceOpma}
-                  disabled={isPurging || isSyncing}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-200 text-xs font-semibold transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isPurging ? 'animate-spin text-rose-400' : ''}`} />
-                  <span>{isPurging ? "Purging FNCE & OPMA from Google..." : "🧹 Purge FNCE & OPMA from Google"}</span>
-                </button>
               </div>
             </div>
           ) : (

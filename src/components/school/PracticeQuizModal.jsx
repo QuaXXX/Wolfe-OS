@@ -20,7 +20,7 @@ import { playSound } from '../../utils/soundFX';
 export const PracticeQuizModal = ({ 
   isOpen, 
   onClose, 
-  initialCourse = "FNCE 317",
+  initialCourse = "",
   courseNotes = "",
   soundEnabled = true 
 }) => {

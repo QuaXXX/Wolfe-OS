@@ -227,62 +227,6 @@ export function getVaultMetadata() {
 }
 
 /**
- * Fallback Sample Notes for instant testing before user links folder
+ * Vault sample notes (empty until user connects their personal Obsidian vault)
  */
-export const SAMPLE_OBSIDIAN_VAULT = [
-  {
-    name: "FNCE 317 - Capital Budgeting & NPV.md",
-    path: "FNCE 317/FNCE 317 - Capital Budgeting & NPV.md",
-    course: "FNCE 317",
-    content: `# FNCE 317: Capital Budgeting & NPV Decision Rules
-**Instructor**: Dr. Marcus Vance | **Term**: Fall 2026
-
-## 1. Net Present Value (NPV)
-- **Formula**: $$NPV = \\sum_{t=1}^T \\frac{CF_t}{(1 + r)^t} - CF_0$$
-- **Rule**: Accept project if $NPV > 0$. NPV represents value added directly to firm equity.
-- **Why NPV is Superior**: Accounts for time value of money, considers all cash flows, and does not depend on arbitrary hurdle rates.
-
-## 2. Internal Rate of Return (IRR)
-- The discount rate $r$ that sets $NPV = 0$.
-- **Pitfalls of IRR**:
-  1. Multiple IRRs when cash flows alternate signs (non-conventional).
-  2. Scale problem: High IRR on $10 investment vs. Lower IRR on $1,000,000 investment.
-  3. Mutually exclusive projects: IRR can choose sub-optimal project. Use **Incremental IRR** or NPV!
-
-## 3. Weighted Average Cost of Capital (WACC)
-- $$WACC = \\frac{E}{V}r_e + \\frac{D}{V}r_d(1 - T_c)$$
-- Used as the standard discount rate for average-risk projects.`
-  },
-  {
-    name: "MKTG 317 - STP Framework & Consumer Insights.md",
-    path: "MKTG 317/MKTG 317 - STP Framework & Consumer Insights.md",
-    course: "MKTG 317",
-    content: `# MKTG 317: STP Framework & Market Strategy
-**Instructor**: Prof. A. Dupuis | **Term**: Fall 2026
-
-## Segmentation, Targeting & Positioning (STP)
-1. **Segmentation**: Dividing market into distinct groups based on:
-   - Demographic (Age, income, education)
-   - Psychographic (Lifestyle, values, personality)
-   - Behavioral (Usage rate, brand loyalty, benefits sought)
-2. **Targeting**: Evaluating segment attractiveness (Market size, growth, competition) and selecting target segments.
-3. **Positioning**: Designing company offering and image to occupy a distinctive place in customer mind.
-   - **Formula**: For [Target Market], [Brand] is the [Category] that [Key Benefit/Point of Difference] because [Reason to Believe].`
-  },
-  {
-    name: "CPSC 331 - Tree Traversals & Balanced BSTs.md",
-    path: "CPSC 331/CPSC 331 - Tree Traversals & Balanced BSTs.md",
-    course: "CPSC 331",
-    content: `# CPSC 331: Trees, AVL Trees & Red-Black Trees
-**Instructor**: Dr. Elena Rostova
-
-## Tree Traversals
-- **Pre-Order** (Root, Left, Right): Useful for cloning/serializing trees.
-- **In-Order** (Left, Root, Right): Produces sorted sequence in Binary Search Trees (BST).
-- **Post-Order** (Left, Right, Root): Useful for deleting trees or calculating directory sizes.
-
-## Balanced Trees (AVL & Red-Black)
-- Standard BST worst-case lookup: $O(n)$ if inserted in sorted order (degenerate linked list).
-- **AVL Tree**: Balance factor between -1, 0, +1. Strict height balancing gives guaranteed $O(\\log n)$ search, insert, and delete.`
-  }
-];
+export const SAMPLE_OBSIDIAN_VAULT = [];

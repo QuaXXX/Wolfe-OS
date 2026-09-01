@@ -1250,12 +1250,12 @@ ${notesSnippet}
 Answer the user's question directly with clear synthesis, citing which note file(s) the information came from. If pinpointing a specific formula, rule, or concept, quote it accurately in LaTeX ($...$).
 Return ONLY valid JSON matching this schema:
 {
-  "answer": "Net Present Value (NPV) is discussed in 'FNCE 317 - Capital Budgeting & NPV.md'. The primary decision rule is to accept when $NPV > 0$...",
+  "answer": "Direct answer synthesising from notes...",
   "matchedFiles": [
     {
-      "name": "FNCE 317 - Capital Budgeting & NPV.md",
-      "path": "FNCE 317/FNCE 317 - Capital Budgeting & NPV.md",
-      "relevance": "Contains NPV formula, decision rules, and WACC calculations."
+      "name": "Course Notes.md",
+      "path": "Course/Course Notes.md",
+      "relevance": "Contains relevant concepts and formulas."
     }
   ]
 }`;

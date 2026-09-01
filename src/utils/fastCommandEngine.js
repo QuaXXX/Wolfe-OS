@@ -3,8 +3,7 @@ import {
   updateGoogleTaskStatus, 
   clearGoogleTasks,
   deleteGoogleCalendarEvent, 
-  isGoogleCalendarConnected,
-  purgeGoogleCalendarEntriesByKeywords
+  isGoogleCalendarConnected
 } from './googleCalendarService.js';
 
 // Color theme hue mappings
@@ -153,30 +152,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     };
   }
 
-  // Purge / Remove Specific Course (e.g. "remove all FNCE", "clear OPMA", "purge FNCE and OPMA")
-  const purgeCourseMatch = text.match(/\b(?:clear|remove|delete|purge|wipe|erase)\b.*\b([a-z]{2,6}\s*\d{0,4})\b/i);
-  if (purgeCourseMatch || (text.match(/\b(?:clear|remove|delete|purge|wipe|erase)\b/) && (text.includes('fnce') || text.includes('opma')))) {
-    const courseCode = purgeCourseMatch ? purgeCourseMatch[1].toUpperCase().trim() : (text.includes('fnce') ? 'FNCE' : 'OPMA');
-    const keywords = (text.includes('fnce') && text.includes('opma')) ? ['FNCE', 'OPMA'] : [courseCode];
 
-    if (setCalendarData) {
-      setCalendarData(prev => ({
-        ...prev,
-        items: prev.items.filter(it => !keywords.some(kw => it.title?.toUpperCase().includes(kw)))
-      }));
-    }
-
-    if (isGoogleCalendarConnected()) {
-      purgeGoogleCalendarEntriesByKeywords(keywords).catch(console.warn);
-    }
-
-    return {
-      handled: true,
-      title: `🧹 ${keywords.join(' & ')} Purged`,
-      message: `Deleted all ${keywords.join(' & ')} events and deadlines from Wolfe OS & Google Calendar.`,
-      targetView: "calendar"
-    };
-  }
 
   // Clear / Remove All Deadlines
   if (text.match(/\b(?:clear|remove|delete|purge|wipe)\b.*\b(?:all\s+)?deadlines?\b/i)) {

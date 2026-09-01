@@ -43,7 +43,7 @@ const FOCUS_DURATIONS = [
 export const DeepFocusModal = ({ 
   isOpen, 
   onClose, 
-  courseCode = "FNCE 317",
+  courseCode = "Focus Session",
   soundEnabled = true,
   onSessionCompleted
 }) => {

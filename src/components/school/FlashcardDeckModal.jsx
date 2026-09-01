@@ -22,7 +22,7 @@ import { playSound } from '../../utils/soundFX';
 export const FlashcardDeckModal = ({ 
   isOpen, 
   onClose, 
-  initialCourse = "FNCE 317",
+  initialCourse = "",
   courseNotes = "",
   soundEnabled = true 
 }) => {
