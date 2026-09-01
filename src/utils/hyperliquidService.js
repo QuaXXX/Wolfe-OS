@@ -223,6 +223,60 @@ export async function executeHyperliquidSignal(signal) {
   const stopLoss = signal.stopLoss ? Number(signal.stopLoss) : null;
   const takeProfit = signal.takeProfit ? Number(signal.takeProfit) : null;
 
+  // If action is FLAT / CLOSE / EXIT: close open position and record realized PnL
+  if (isClose) {
+    const currentPositions = getOpenPositions();
+    const posToClose = currentPositions.find(p => p.ticker === ticker);
+    
+    if (posToClose) {
+      const remainingPositions = currentPositions.filter(p => p.id !== posToClose.id);
+      saveOpenPositions(remainingPositions);
+
+      const isLongPos = posToClose.side === 'LONG';
+      const realizedPnlUSD = isLongPos 
+        ? (price - posToClose.entryPrice) * posToClose.size 
+        : (posToClose.entryPrice - price) * posToClose.size;
+      const roePct = posToClose.marginUSD > 0 ? (realizedPnlUSD / posToClose.marginUSD) * 100 : 0;
+
+      const historyRecord = {
+        id: `closed_${posToClose.id}`,
+        ticker: posToClose.ticker,
+        side: posToClose.side,
+        size: posToClose.size,
+        entryPrice: posToClose.entryPrice,
+        exitPrice: price,
+        realizedPnlUSD: Number(realizedPnlUSD.toFixed(2)),
+        roePct: Number(roePct.toFixed(2)),
+        openedAt: posToClose.openedAt,
+        closedAt: new Date().toISOString(),
+        strategy: signal.strategy || posToClose.strategy,
+        status: 'CLOSED'
+      };
+
+      const history = getTradeHistory();
+      saveTradeHistory([historyRecord, ...history]);
+    }
+
+    const logEntry = logWebhookSignal({
+      source: signal.source || 'TradingView',
+      ticker,
+      action: 'CLOSE',
+      price,
+      strategy: signal.strategy || 'TradingView Webhook',
+      status: 'CLOSED_EXECUTED',
+      executionDetails: { isLive, exitPrice: price },
+      rawPayload: signal
+    });
+
+    return {
+      success: true,
+      closed: true,
+      price,
+      log: logEntry,
+      sizing: { contracts: 0, requiredMarginUSD: 0 }
+    };
+  }
+
   // 1. Calculate Dynamic Sizing
   const sizing = calculateDynamicPositionSize({
     accountEquity: config.accountEquity || 10000,
