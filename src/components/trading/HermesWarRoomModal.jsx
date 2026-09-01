@@ -20,7 +20,12 @@ import {
   Key,
   Check,
   Plus,
-  Clock
+  Clock,
+  FileText,
+  Building2,
+  Eye,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
 import { getTradingConfig, saveTradingConfig } from '../../utils/tradingStorage';
@@ -38,7 +43,8 @@ export const HermesWarRoomModal = ({
   const [config, setConfig] = useState(getTradingConfig());
   const [paperPositions, setPaperPositions] = useState(getPaperPositions());
   const [isRunningSwarm, setIsRunningSwarm] = useState(false);
-  const [activeTab, setActiveTab] = useState('brief'); // 'brief' | 'logs' | 'engine'
+  const [activeTab, setActiveTab] = useState('brief'); // 'brief' | 'logs' | 'funds' | 'engine'
+  const [expandedDossierIdx, setExpandedDossierIdx] = useState(null);
   const [openRouterKeyInput, setOpenRouterKeyInput] = useState('');
   const [keySaved, setKeySaved] = useState(false);
 
@@ -142,10 +148,10 @@ export const HermesWarRoomModal = ({
                     }}
                   >
                     <Cpu className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                    <span>{brief?.aiEngine || 'Nous Hermes 3 Protocol'}</span>
+                    <span>{brief?.aiEngine || 'Nous Hermes 3 Deep Research'}</span>
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400">Quantitative Synthesis & Multi-Tiered Market Scans</div>
+                <div className="text-[11px] text-slate-400">Deep Quantitative Investigation & Confirmed Catalyst Synthesis</div>
               </div>
             </div>
 
@@ -163,12 +169,12 @@ export const HermesWarRoomModal = ({
                 {isRunningSwarm ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--accent-primary)' }} />
-                    <span>Scanning...</span>
+                    <span>Investigating...</span>
                   </>
                 ) : (
                   <>
                     <RefreshCw className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                    <span>Run Live Sweep</span>
+                    <span>Run Deep Sweep</span>
                   </>
                 )}
               </button>
@@ -187,13 +193,13 @@ export const HermesWarRoomModal = ({
 
           {/* Sub-tabs */}
           <div 
-            className="flex items-center gap-2 border-b pb-2 shrink-0"
+            className="flex items-center gap-2 border-b pb-2 shrink-0 overflow-x-auto no-scrollbar"
             style={{ borderColor: 'rgba(255,255,255,0.06)' }}
           >
             <button
               type="button"
               onClick={() => setActiveTab('brief')}
-              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer ${
+              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
                 activeTab === 'brief'
                   ? 'text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -204,12 +210,29 @@ export const HermesWarRoomModal = ({
                 color: 'var(--accent-primary)'
               } : {}}
             >
-              Morning Brief ({brief?.highConvictionPlays?.length || 4} Setups)
+              Morning Brief ({brief?.highConvictionPlays?.length || 4} Dossiers)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('funds')}
+              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                activeTab === 'funds'
+                  ? 'text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              style={activeTab === 'funds' ? { 
+                backgroundColor: 'var(--accent-subtle)',
+                border: '1px solid var(--accent-border)',
+                color: 'var(--accent-primary)'
+              } : {}}
+            >
+              <Building2 className="w-3 h-3" />
+              <span>Big Fund Moves ({brief?.fundIntelligence?.length || 3})</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('logs')}
-              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer ${
+              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
                 activeTab === 'logs'
                   ? 'text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -220,12 +243,12 @@ export const HermesWarRoomModal = ({
                 color: 'var(--accent-primary)'
               } : {}}
             >
-              Agent Council Logs ({brief?.agentLogs?.length || 4})
+              Agent Council Logs ({brief?.agentLogs?.length || 5})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('engine')}
-              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
                 activeTab === 'engine'
                   ? 'text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -268,13 +291,14 @@ export const HermesWarRoomModal = ({
                 <div className="space-y-2.5">
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                     <Target className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                    <span>Tiered Plays of the Day</span>
+                    <span>Tiered Research Trade Dossiers</span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {(brief?.highConvictionPlays || []).map((play, idx) => {
                       const isLong = play.bias === 'LONG';
                       const isAlreadyTracking = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
+                      const isDossierOpen = expandedDossierIdx === idx;
 
                       return (
                         <div 
@@ -339,8 +363,57 @@ export const HermesWarRoomModal = ({
                             <strong className="text-slate-400">Thesis:</strong> {play.thesis}
                           </div>
 
-                          <div className="text-[11px] text-slate-400 pt-1 border-t border-white/5">
-                            <strong className="text-rose-400">Invalidation:</strong> {play.invalidation}
+                          {/* Expandable Deep Research Dossier */}
+                          <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
+                              className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                <span>{isDossierOpen ? 'Hide Research Dossier' : 'View Catalysts & Dark Pools'}</span>
+                              </span>
+                              {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+
+                            {isDossierOpen && (
+                              <div className="space-y-2 p-2.5 rounded-xl bg-black/40 border border-white/5 text-[11px] text-slate-300">
+                                {play.catalystDossier && (
+                                  <div>
+                                    <div className="font-semibold text-white flex items-center gap-1">
+                                      <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                      <span>Confirmed News / Reports Catalyst:</span>
+                                    </div>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{play.catalystDossier}</p>
+                                  </div>
+                                )}
+
+                                {play.institutionalFlow && (
+                                  <div>
+                                    <div className="font-semibold text-white flex items-center gap-1">
+                                      <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                      <span>Whale & Dark Pool Footprint:</span>
+                                    </div>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{play.institutionalFlow}</p>
+                                  </div>
+                                )}
+
+                                {play.technicalStructure && (
+                                  <div>
+                                    <div className="font-semibold text-white flex items-center gap-1">
+                                      <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                      <span>Orderbook & Volume Profile:</span>
+                                    </div>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{play.technicalStructure}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="text-[11px] text-slate-400 pt-0.5">
+                              <strong className="text-rose-400">Invalidation:</strong> {play.invalidation}
+                            </div>
                           </div>
                         </div>
                       );
@@ -369,6 +442,29 @@ export const HermesWarRoomModal = ({
                   </div>
                 )}
               </>
+            ) : activeTab === 'funds' ? (
+              /* Big Fund Intelligence View */
+              <div className="space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                  <span>Hidden Investor & Dark Pool Accumulation Prints</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(brief?.fundIntelligence || []).map((fund, fIdx) => (
+                    <div key={fIdx} className="p-3.5 rounded-2xl bg-black/30 border border-white/10 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white font-mono text-sm">{fund.asset}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded font-mono" style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}>
+                          {fund.action}
+                        </span>
+                      </div>
+                      <div className="font-semibold text-slate-300">{fund.fund}</div>
+                      <p className="text-slate-400 leading-relaxed text-[11px]">{fund.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : activeTab === 'logs' ? (
               /* Agent Council Logs View */
               <div className="space-y-2.5">

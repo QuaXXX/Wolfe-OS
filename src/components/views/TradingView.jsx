@@ -20,7 +20,10 @@ import {
   Check,
   ChevronDown,
   SlidersHorizontal,
-  ChevronUp
+  ChevronUp,
+  FileText,
+  Building2,
+  Eye
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { HermesWarRoomModal } from '../trading/HermesWarRoomModal';
@@ -60,6 +63,7 @@ export const TradingView = ({
   const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const [isMacroExpanded, setIsMacroExpanded] = useState(true);
+  const [expandedDossierIdx, setExpandedDossierIdx] = useState(null);
 
   // Data States
   const [config, setConfig] = useState(getTradingConfig());
@@ -430,12 +434,12 @@ export const TradingView = ({
             </GlassCard>
           )}
 
-          {/* Plays of the Day Grid */}
+          {/* Plays of the Day Grid with Deep Research Dossiers */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Target className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                <span>Plays of the Day ({hermesBrief?.highConvictionPlays?.length || 4})</span>
+                <span>Deep Research Trade Dossiers ({hermesBrief?.highConvictionPlays?.length || 4})</span>
               </div>
             </div>
 
@@ -443,6 +447,7 @@ export const TradingView = ({
               {(hermesBrief?.highConvictionPlays || []).map((play, idx) => {
                 const isLong = play.bias === 'LONG';
                 const isAlreadyTracking = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
+                const isDossierOpen = expandedDossierIdx === idx;
 
                 return (
                   <GlassCard key={idx} hoverEffect={false} className="p-3.5 space-y-2.5">
@@ -502,18 +507,92 @@ export const TradingView = ({
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                    {/* Idiosyncratic Chief Thesis */}
+                    <p className="text-xs text-slate-200 leading-relaxed font-sans">
                       <strong className="text-slate-400">Thesis:</strong> {play.thesis}
                     </p>
 
-                    <div className="text-[11px] text-slate-400 pt-1 border-t border-white/5 font-sans">
-                      <strong className="text-rose-400">Invalidation:</strong> {play.invalidation}
+                    {/* Expandable Deep Research Dossier */}
+                    <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
+                        className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                          <span>{isDossierOpen ? 'Hide Institutional Dossier' : 'View Deep Research & Dark Pools'}</span>
+                        </span>
+                        {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+
+                      {isDossierOpen && (
+                        <div className="space-y-2 p-2.5 rounded-xl bg-black/40 border border-white/5 text-[11px] text-slate-300">
+                          {play.catalystDossier && (
+                            <div>
+                              <div className="font-semibold text-white flex items-center gap-1">
+                                <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                <span>Confirmed News / Reports Catalyst:</span>
+                              </div>
+                              <p className="text-slate-300 pl-4 mt-0.5">{play.catalystDossier}</p>
+                            </div>
+                          )}
+
+                          {play.institutionalFlow && (
+                            <div>
+                              <div className="font-semibold text-white flex items-center gap-1">
+                                <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                <span>Whale & Dark Pool Footprint:</span>
+                              </div>
+                              <p className="text-slate-300 pl-4 mt-0.5">{play.institutionalFlow}</p>
+                            </div>
+                          )}
+
+                          {play.technicalStructure && (
+                            <div>
+                              <div className="font-semibold text-white flex items-center gap-1">
+                                <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                <span>Orderbook & Volume Profile:</span>
+                              </div>
+                              <p className="text-slate-300 pl-4 mt-0.5">{play.technicalStructure}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-slate-400 pt-0.5">
+                        <strong className="text-rose-400">Invalidation:</strong> {play.invalidation}
+                      </div>
                     </div>
                   </GlassCard>
                 );
               })}
             </div>
           </div>
+
+          {/* Big Fund & Whale Intelligence Log */}
+          {hermesBrief?.fundIntelligence && hermesBrief.fundIntelligence.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                <span>Big Fund & Dark Pool Moves</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {hermesBrief.fundIntelligence.map((fund, fIdx) => (
+                  <GlassCard key={fIdx} hoverEffect={false} className="p-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-white font-mono">{fund.asset}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded font-mono" style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)' }}>
+                        {fund.action}
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-semibold text-slate-400">{fund.fund}</div>
+                    <p className="text-[11px] text-slate-300 leading-snug">{fund.detail}</p>
+                  </GlassCard>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Clean Real-Time Watchlist */}
           <div className="space-y-2 pt-1">
