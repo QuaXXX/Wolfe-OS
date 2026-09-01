@@ -894,6 +894,7 @@ export function App() {
         return (
           <SchoolView 
             schoolData={schoolData}
+            calendarData={calendarData}
             onAddItem={handleAddItem}
             onBatchAddItems={handleBatchAddItems}
             {...commonProps}
