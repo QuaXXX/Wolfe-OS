@@ -1379,49 +1379,80 @@ Return ONLY valid JSON matching this schema:
 }
 
 /**
- * Semantic Vault Search & File Query Engine with AI
+ * Semantic Vault Search & File Query Engine with AI (Personal NotebookLM)
  */
 export async function searchVaultWithAI({ query, filesIndex = [], sampleNotes = [] }) {
-  const fileSummaries = filesIndex.map(f => `- ${f.name} (${f.course || 'General'}) [Path: ${f.path}]`).join('\n');
-  const notesSnippet = sampleNotes.map(n => `### ${n.name}\n${n.content?.slice(0, 1500)}`).join('\n\n');
+  const allFiles = (sampleNotes && sampleNotes.length > 0 ? sampleNotes : filesIndex) || [];
+  
+  // Format summaries
+  const fileSummaries = allFiles.map(f => `- ${f.name} [Course: ${f.course || 'General'}] [Path: ${f.path || f.name}]`).join('\n');
+  
+  // Build note snippets with full content extraction
+  const notesSnippet = allFiles.map(n => {
+    const rawText = n.content || n.cachedContent || n.sampleContent || '';
+    if (!rawText) return `### [Course: ${n.course || 'General'}] ${n.name}\n(File attached, text pending)`;
+    // Include generous length per course outline for complete syllabus comprehension
+    const snippet = rawText.length > 12000 ? rawText.slice(0, 12000) + "\n...[truncated]" : rawText;
+    return `### [Course: ${n.course || 'General'}] ${n.name}\n${snippet}`;
+  }).join('\n\n---\n\n');
 
-  const prompt = `You are Zach Wolfe's personal Obsidian Academic Vault search assistant.
-User Query: "${query}"
+  const prompt = `You are Zach Wolfe's personal NotebookLM Academic Study Assistant in Wolfe OS.
+Zach has provided his university course outlines, syllabi, and notes from his connected school folder.
 
-Available Notes & Files in Vault:
-${fileSummaries || "No files indexed yet."}
+User Study Question / Query:
+"${query}"
 
-Sample Note Snippets:
-${notesSnippet}
+Available Files in School Vault:
+${fileSummaries || "No files indexed."}
 
-Answer the user's question directly with clear synthesis, citing which note file(s) the information came from. If pinpointing a specific formula, rule, or concept, quote it accurately in LaTeX ($...$).
+Document Contents & Outlines:
+${notesSnippet || "No document text available."}
+
+Instructions:
+1. Thoroughly, accurately, and directly answer Zach's question using the exact facts, grade breakdowns, course policies, schedules, instructors, formulas, exam weights, textbook info, and topics from his outlines and notes.
+2. If he asks about a specific class (e.g. FNCE, BTMA, OPMA, MGST, MKTG), focus directly on that course's outline.
+3. Be clear, articulate, and structured (use bullet points or bold text where appropriate). If referencing formulas or calculations, format them cleanly with LaTeX ($...$).
+4. In matchedFiles, cite the specific course documents that contained the answer.
+
 Return ONLY valid JSON matching this schema:
 {
-  "answer": "Direct answer synthesising from notes...",
+  "answer": "Detailed, highly accurate answer based on the course materials...",
   "matchedFiles": [
     {
-      "name": "Course Notes.md",
-      "path": "Course/Course Notes.md",
-      "relevance": "Contains relevant concepts and formulas."
+      "name": "FNCE 317 Course Outline.pdf",
+      "path": "FNCE 317/FNCE 317 Course Outline.pdf",
+      "relevance": "Contains grade weighting, midterm schedule, and instructor details."
     }
   ]
 }`;
 
-  const systemInstruction = "You are a smart note retrieval assistant. Return only valid JSON.";
+  const systemInstruction = "You are an intelligent university study assistant and personal NotebookLM. Analyze the provided course outlines and provide accurate, detailed answers. Return only valid JSON.";
 
   try {
-    const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 15000);
-    if (res && res.answer) return res;
+    const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 25000);
+    if (res && (res.answer || res.message)) {
+      return {
+        answer: res.answer || res.message,
+        matchedFiles: res.matchedFiles || allFiles.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, relevance: "Referenced course document" }))
+      };
+    }
   } catch (err) {
-    console.warn("Vault search AI notice:", err);
+    console.warn("Vault search AI error:", err);
   }
 
+  // Fallback search
+  const lowerQ = query.toLowerCase();
+  const matched = allFiles.filter(f => {
+    const text = (f.content || f.cachedContent || f.name || '').toLowerCase();
+    return lowerQ.split(' ').some(w => w.length > 2 && text.includes(w));
+  });
+
   return {
-    answer: `Found relevant concepts matching "${query}" in your Obsidian course notes.`,
-    matchedFiles: filesIndex.slice(0, 3).map(f => ({
+    answer: `I reviewed your ${allFiles.length} course documents. Based on your materials in ${allFiles.map(f => f.course).filter(Boolean).join(', ')}, here is what was found for "${query}".`,
+    matchedFiles: (matched.length > 0 ? matched : allFiles).slice(0, 3).map(f => ({
       name: f.name,
-      path: f.path,
-      relevance: `Matched query terms for ${f.course || 'notes'}`
+      path: f.path || f.name,
+      relevance: `Course material for ${f.course || 'School'}`
     }))
   };
 }

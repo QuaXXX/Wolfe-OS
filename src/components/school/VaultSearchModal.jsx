@@ -11,6 +11,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { searchVaultWithAI } from '../../utils/aiService';
+import { readVaultFileContent } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
 
 export const VaultSearchModal = ({ 
@@ -42,10 +43,27 @@ export const VaultSearchModal = ({
     setResult(null);
 
     try {
+      // 1. Ensure all documents have full text extracted
+      const enrichedFiles = await Promise.all(scannedFiles.map(async (file) => {
+        let text = file.cachedContent || file.content || '';
+        if (!text) {
+          try {
+            text = await readVaultFileContent(file);
+          } catch (e) {
+            console.warn("Read file text notice:", e);
+          }
+        }
+        return {
+          ...file,
+          content: text || file.cachedContent || ''
+        };
+      }));
+
+      // 2. Query personal NotebookLM study brain
       const res = await searchVaultWithAI({
         query: targetQ,
-        filesIndex: scannedFiles,
-        sampleNotes: scannedFiles
+        filesIndex: enrichedFiles,
+        sampleNotes: enrichedFiles
       });
       setResult(res);
       playSound('success', soundEnabled);
@@ -165,6 +183,27 @@ export const VaultSearchModal = ({
                   <span>Search</span>
                 </button>
               </form>
+
+              {/* Quick Study Questions Chips */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Quick:</span>
+                {[
+                  "Grade breakdowns & exam weights",
+                  "When are midterms & finals?",
+                  "FNCE 317 key formulas & concepts",
+                  "BTMA 317 course overview & deliverables"
+                ].map((q, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={(e) => handleSearch(e, q)}
+                    disabled={isSearching}
+                    className="px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 text-[11px] font-medium transition-colors cursor-pointer"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
 
               {/* Search Results Area */}
               {isSearching ? (
