@@ -205,6 +205,15 @@ Return ONLY valid JSON matching this schema:
       "invalidation": "15m close above $222.50."
     }
   ],
+  "councilDialogue": [
+    { "speaker": "Hermes-Prime", "role": "Chief Strategist", "timestamp": "05:30 AM", "message": "Council in session. Initiating deep quantitative sweep. Atlas, break down the macro liquidity tape." },
+    { "agent": "Atlas", "role": "Macro Radar", "timestamp": "05:32 AM", "message": "Global liquidity is expansive. DXY softened to 103.8, 10Y Treasury yields stabilized at 4.28%, equity futures are green (+0.65%). No high-impact FOMC catalysts today. Risk backdrop is prime for high-beta momentum." },
+    { "agent": "Poseidon", "role": "Smart Money & Dark Pools", "timestamp": "05:35 AM", "message": "Detected $42M dark pool block accumulation on NVDA at VWAP $131.20. In crypto perps, Hyperliquid taker buyer volume delta on SOL surged +$28.5M, heavily absorbing the $100 psychological level." },
+    { "agent": "Artemis", "role": "Catalyst Forensics", "timestamp": "05:37 AM", "message": "Fundamental catalysts confirmed: SOL mainnet throughput upgrade completed with DEX swap volume surging +42% WoW. NVDA datacenter hardware suppliers confirmed accelerated packaging delivery schedules." },
+    { "agent": "Ares", "role": "Market Structure", "timestamp": "05:40 AM", "message": "Technical confluence: SOL reclaimed 4H Volume Profile Point of Control with clean 1H FVG retest at $100.20. BTC holding dynamic 4H EMA50 support on multi-day bull flag consolidation." },
+    { "agent": "The Skeptic", "role": "Risk Auditor", "timestamp": "05:42 AM", "message": "Stress-tested all candidate setups. Filtered out 3 low-conviction ideas. Approved SOL and BTC as Tier 1 A+ Institutional setups. Approved TSLA as an experimental C-grade mean-reversion short, provided stop loss is strictly at $222.00." },
+    { "agent": "Hermes-Prime", "role": "Chief Strategist", "timestamp": "05:45 AM", "message": "Deliberation concluded. 5 multi-tiered trade dossiers synthesized and approved for the Forward-Test desk. Dispatching dossiers to Wolfe OS." }
+  ],
   "fundIntelligence": [
     { "fund": "Citadel / Virtu Dark Pool", "asset": "NVDA", "action": "Net Block Accumulation", "detail": "$42M block trades recorded at VWAP $131.20." },
     { "fund": "BlackRock / Fidelity Custody", "asset": "BTC", "action": "Spot ETF Net Inflow", "detail": "+4,520 BTC absorbed into cold storage in the last 24 hours." },
@@ -356,6 +365,15 @@ Return ONLY valid JSON matching this schema:
       { fund: "Citadel / Virtu Dark Pool", asset: "NVDA", action: "Net Block Accumulation", detail: "$42M block trades recorded at VWAP $131.20." },
       { fund: "BlackRock / Fidelity Custody", asset: "BTC", action: "Spot ETF Net Inflow", detail: "+4,520 BTC absorbed into cold storage in the last 24 hours." },
       { fund: "Hyperliquid Whale Desk #4", asset: "SOL", action: "Taker Buy Delta", detail: `+$28.5M net taker market orders executed during overnight consolidation near $${solPrice.toFixed(2)}.` }
+    ],
+    councilDialogue: [
+      { speaker: "Hermes-Prime", role: "Chief Strategist", timestamp: "05:30 AM", message: "Council in session. Initiating deep quantitative sweep across tracked assets. Atlas, break down the macro liquidity tape." },
+      { speaker: "Atlas", role: "Macro Radar", timestamp: "05:32 AM", message: `Global liquidity is expansive. DXY softened to 103.8, 10Y Treasury yields stabilized at 4.28%, equity futures are green (+0.65%). Favorable backdrop for momentum on SOL ($${solPrice.toFixed(2)}) and BTC ($${btcPrice.toFixed(2)}).` },
+      { speaker: "Poseidon", role: "Smart Money & Dark Pools", timestamp: "05:35 AM", message: `Detected $42M dark pool block accumulation on NVDA near $131.20 VWAP. In crypto perps, Hyperliquid taker buyer volume delta on SOL surged +$28.5M, heavily absorbing the $100 psychological level.` },
+      { speaker: "Artemis", role: "Catalyst Forensics", timestamp: "05:37 AM", message: "Fundamental catalysts confirmed: SOL mainnet throughput upgrade completed with DEX swap volume surging +42% WoW. NVDA datacenter hardware suppliers confirmed accelerated packaging delivery schedules." },
+      { speaker: "Ares", role: "Market Structure", timestamp: "05:40 AM", message: `Technical confluence: SOL reclaimed 4H Volume Profile Point of Control with clean 1H FVG retest at $${(solPrice * 0.995).toFixed(2)}. BTC holding dynamic 4H EMA50 support on multi-day bull flag consolidation.` },
+      { speaker: "The Skeptic", role: "Risk Auditor", timestamp: "05:42 AM", message: "Stress-tested all candidate setups. Filtered out 3 low-conviction ideas. Approved SOL and BTC as Tier 1 A+ Institutional setups. Approved TSLA as an experimental C-grade mean-reversion short with stop loss strictly at $222.00." },
+      { speaker: "Hermes-Prime", role: "Chief Strategist", timestamp: "05:45 AM", message: "Deliberation concluded. 5 multi-tiered trade dossiers synthesized and approved for the Forward-Test desk. Dispatching dossiers to Wolfe OS." }
     ],
     whaleFlowSignals: [
       { asset: "SOL", type: "Hyperliquid Perp Depth", detail: `Significant bid wall layered between $${(solPrice * 0.985).toFixed(2)} - $${solPrice.toFixed(2)}.` },

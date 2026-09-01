@@ -23,7 +23,11 @@ import {
   ChevronUp,
   FileText,
   Building2,
-  Eye
+  Eye,
+  MessageSquare,
+  UserCheck,
+  ShieldAlert,
+  Send
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { HermesWarRoomModal } from '../trading/HermesWarRoomModal';
@@ -59,7 +63,7 @@ export const TradingView = ({
   soundEnabled = true 
 }) => {
   // Navigation & Dropdowns
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'papertrader' | 'positions' | 'journal' | 'webhooks'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'council' | 'papertrader' | 'positions' | 'journal' | 'webhooks'
   const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const [isMacroExpanded, setIsMacroExpanded] = useState(true);
@@ -138,8 +142,9 @@ export const TradingView = ({
     updatePrices();
     const interval = setInterval(updatePrices, 10000);
 
-    // 2. Auto-generate initial Hermes brief if none exists
-    if (!hermesBrief) {
+    // 2. Automatic Morning Execution: Check if today's brief is generated
+    const todayDate = new Date().toISOString().split('T')[0];
+    if (!hermesBrief || hermesBrief.date !== todayDate) {
       runHermesSwarmAnalysis().then(b => {
         setHermesBrief(b);
         autoExecuteHermesPlays(b);
@@ -206,6 +211,7 @@ export const TradingView = ({
 
   const tabsConfig = [
     { id: 'overview', label: 'Morning War Room', icon: Compass, count: hermesBrief?.highConvictionPlays?.length || 0 },
+    { id: 'council', label: 'Council Deliberation Chat', icon: MessageSquare, count: hermesBrief?.councilDialogue?.length || 7 },
     { id: 'papertrader', label: 'Forward-Test Desk', icon: Bot, count: paperPositions.length },
     { id: 'positions', label: 'Live Positions', icon: Layers, count: openPositions.length },
     { id: 'journal', label: 'Trade Journal', icon: BookOpen, count: tradeJournal.length },
@@ -256,7 +262,7 @@ export const TradingView = ({
           {/* Dropdown Menu */}
           {isViewDropdownOpen && (
             <div 
-              className="absolute left-0 top-full mt-1.5 w-56 rounded-2xl theme-card shadow-2xl backdrop-blur-2xl py-1.5 z-50 space-y-0.5 font-sans"
+              className="absolute left-0 top-full mt-1.5 w-64 rounded-2xl theme-card shadow-2xl backdrop-blur-2xl py-1.5 z-50 space-y-0.5 font-sans"
               style={{ border: '1px solid var(--accent-border)' }}
             >
               <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -648,7 +654,83 @@ export const TradingView = ({
         </div>
       )}
 
-      {/* 3. TAB 2: FORWARD-TEST PAPER DESK */}
+      {/* 3. TAB 2: INTER-AGENT COUNCIL DELIBERATION CHAT */}
+      {activeTab === 'council' && (
+        <div className="space-y-3 font-sans">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                <span>Inter-Agent Research Council Deliberation</span>
+              </h3>
+              <div className="text-[11px] text-slate-400">
+                Live transcript showing how specialists investigate, debate catalysts, and how Hermes-Prime decides the final setups.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsWarRoomOpen(true)}
+              className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              style={{ backgroundColor: 'var(--accent-subtle)', border: '1px solid var(--accent-border)' }}
+            >
+              <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+              <span>Run New Live Debate</span>
+            </button>
+          </div>
+
+          <div className="space-y-3 pt-1">
+            {(hermesBrief?.councilDialogue || []).map((msg, mIdx) => {
+              const isStrategist = msg.speaker === 'Hermes-Prime';
+              const isSkeptic = msg.speaker === 'The Skeptic';
+
+              return (
+                <GlassCard key={mIdx} hoverEffect={false} className="p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-7 h-7 rounded-xl border flex items-center justify-center font-bold text-xs"
+                        style={isStrategist ? {
+                          backgroundColor: 'var(--accent-primary)',
+                          color: '#ffffff',
+                          borderColor: 'var(--accent-border)'
+                        } : isSkeptic ? {
+                          backgroundColor: 'rgba(244,63,94,0.15)',
+                          color: '#fda4af',
+                          borderColor: 'rgba(244,63,94,0.3)'
+                        } : {
+                          backgroundColor: 'var(--accent-subtle)',
+                          color: 'var(--accent-primary)',
+                          borderColor: 'var(--accent-border)'
+                        }}
+                      >
+                        {msg.speaker[0]}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-white text-xs font-mono">{msg.speaker}</span>
+                          <span 
+                            className="text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgb(203 213 225)' }}
+                          >
+                            {msg.role}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500">{msg.timestamp || '05:30 AM'}</span>
+                  </div>
+
+                  <p className="text-xs text-slate-200 leading-relaxed pl-9 font-sans">
+                    {msg.message}
+                  </p>
+                </GlassCard>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. TAB 3: FORWARD-TEST PAPER DESK */}
       {activeTab === 'papertrader' && (
         <HermesPaperTraderCard
           latestBrief={hermesBrief}
@@ -658,7 +740,7 @@ export const TradingView = ({
         />
       )}
 
-      {/* 4. TAB 3: LIVE OPEN POSITIONS */}
+      {/* 5. TAB 4: LIVE OPEN POSITIONS */}
       {activeTab === 'positions' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
@@ -734,7 +816,7 @@ export const TradingView = ({
         </div>
       )}
 
-      {/* 5. TAB 4: TRADE JOURNAL */}
+      {/* 6. TAB 5: TRADE JOURNAL */}
       {activeTab === 'journal' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
@@ -829,7 +911,7 @@ export const TradingView = ({
         </div>
       )}
 
-      {/* 6. TAB 5: WEBHOOK LOGS */}
+      {/* 7. TAB 6: WEBHOOK LOGS */}
       {activeTab === 'webhooks' && (
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
