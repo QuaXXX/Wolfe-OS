@@ -49,6 +49,7 @@ export default async function handler(req, res) {
       isLong = true;
     }
 
+    const action = isClose ? 'FLAT' : (isLong ? 'BUY' : 'SELL');
     const customRiskPercent = Number(payload.riskPercent || process.env.DEFAULT_RISK_PERCENT || 1.5);
     const leverage = Number(payload.leverage || process.env.DEFAULT_LEVERAGE || 5);
     const strategy = payload.strategy || payload.strategy_id || payload.name || 'AlphaInsider Drop-in Strategy';
