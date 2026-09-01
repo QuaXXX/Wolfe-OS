@@ -27,7 +27,8 @@ export const TopBar = ({
   osData,
   onEventCreated,
   onClearCalendar,
-  onDeleteSpecificItem
+  onDeleteSpecificItem,
+  onPurgeItems
 }) => {
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -160,6 +161,7 @@ export const TopBar = ({
       onNavigate,
       onClearCalendar,
       onDeleteSpecificItem,
+      onPurgeItems: onPurgeItems || osData?.onPurgeItems,
       onEventCreated
     });
 
@@ -192,7 +194,8 @@ export const TopBar = ({
         onEventCreated,
         onClearCalendar,
         onDeleteSpecificItem,
-        [{ role: 'user', content: queryText }]
+        [{ role: 'user', content: queryText }],
+        onPurgeItems || osData?.onPurgeItems
       );
       setVoiceResponse(response);
       playSound('success', soundEnabled);

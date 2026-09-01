@@ -385,6 +385,19 @@ function directFallbackAnswer(prompt, osData, history = []) {
   const todayIso = getTodayIso();
   const targetDate = parseTargetDateFromText(lower, todayIso);
 
+  // Purge Command Fallback
+  if (lower.startsWith('purge') || lower.match(/\bpurge\s+/i)) {
+    const rawTarget = lower.replace(/^purge\s+(all\s+)?/i, '').trim() || 'all';
+    return {
+      title: "🗑️ Purge Executed",
+      message: `Purged "${rawTarget}" from your schedule and Google Calendar.`,
+      targetView: "calendar",
+      actionLabel: "View Calendar",
+      actionType: "PURGE_ITEMS",
+      purgeQuery: rawTarget
+    };
+  }
+
   // Clear Calendar / Wipe Schedule
   if (lower.includes('clear') && (lower.includes('calendar') || lower.includes('schedule') || lower.includes('timeline') || lower.includes('events') || lower.includes('tasks') || lower.includes('today') || lower.includes('tomorrow') || lower.includes('day'))) {
     return {
@@ -563,7 +576,8 @@ export async function processVoiceOrTextCommand(
   onEventCreated = null, 
   onClearCalendar = null, 
   onDeleteSpecificItem = null, 
-  history = []
+  history = [],
+  onPurgeItems = null
 ) {
   if (!prompt || !prompt.trim()) {
     return {
@@ -576,6 +590,25 @@ export async function processVoiceOrTextCommand(
 
   const todayIso = getTodayIso();
   const lower = prompt.toLowerCase().trim();
+
+  // Instant local catch for Purge commands
+  if (lower.startsWith('purge') || lower.match(/\bpurge\b/i)) {
+    const rawTarget = lower.replace(/^purge\s+(all\s+)?/i, '').trim() || 'all';
+    if (onPurgeItems) {
+      await onPurgeItems(rawTarget);
+    } else if (osData?.onPurgeItems) {
+      await osData.onPurgeItems(rawTarget);
+    } else if (onClearCalendar && (rawTarget === 'all' || rawTarget === 'calendar' || rawTarget === 'everything')) {
+      await onClearCalendar('ALL');
+    }
+    return {
+      title: "🗑️ Purge Executed",
+      message: `Purged "${rawTarget}" from your schedule and Google Calendar. Tap Undo if needed.`,
+      targetView: "calendar",
+      actionLabel: "View Calendar",
+      actionType: "PURGE_ITEMS"
+    };
+  }
 
   // Instant local catch for clear commands
   if (lower.includes('clear') && (lower.includes('calendar') || lower.includes('schedule') || lower.includes('timeline') || lower.includes('events') || lower.includes('tasks') || lower.includes('today') || lower.includes('tomorrow') || lower.includes('day'))) {
@@ -606,15 +639,27 @@ export async function processVoiceOrTextCommand(
     response = directFallbackAnswer(prompt, osData, history);
   }
 
-  // 1. Handle CLEAR_CALENDAR_ITEMS
-  if (response.actionType === 'CLEAR_CALENDAR_ITEMS') {
+  // 1. Handle PURGE_ITEMS
+  if (response.actionType === 'PURGE_ITEMS') {
+    const purgeQuery = response.purgeQuery || prompt.replace(/^purge\s+(all\s+)?/i, '').trim() || 'all';
+    if (onPurgeItems) {
+      await onPurgeItems(purgeQuery);
+    } else if (osData?.onPurgeItems) {
+      await osData.onPurgeItems(purgeQuery);
+    } else if (onClearCalendar && (purgeQuery === 'all' || purgeQuery === 'calendar' || purgeQuery === 'everything')) {
+      await onClearCalendar('ALL');
+    }
+  }
+
+  // 2. Handle CLEAR_CALENDAR_ITEMS
+  else if (response.actionType === 'CLEAR_CALENDAR_ITEMS') {
     const targetDate = response.targetDate || parseTargetDateFromText(prompt, todayIso);
     if (onClearCalendar) {
       await onClearCalendar(targetDate);
     }
   }
 
-  // 2. Handle DELETE_SPECIFIC_ITEM
+  // 3. Handle DELETE_SPECIFIC_ITEM
   else if (response.actionType === 'DELETE_SPECIFIC_ITEM') {
     const itemTitle = response.itemTitle || cleanTitleString(response.title || prompt);
     const targetDate = response.targetDate || parseTargetDateFromText(prompt, todayIso) || 'ANY';

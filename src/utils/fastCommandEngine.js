@@ -60,6 +60,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     onNavigate,
     onClearCalendar,
     onDeleteSpecificItem,
+    onPurgeItems,
     onEventCreated,
     todayIso = getTodayIso()
   } = ctx;
@@ -153,6 +154,30 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   }
 
 
+
+  // ==========================================
+  // 3. PURGE COMMAND (Instant Full Clean Removal)
+  // Matches: "purge timetable", "purge all", "purge FNCE", "purge OPMA", "purge schedule", "purge all events", "purge deadlines"
+  // ==========================================
+  const purgeMatch = text.match(/^purge(?:\s+(?:all\s+)?(.+))?$/i) || 
+                     text.match(/\bpurge\s+(?:all\s+)?([a-z0-9\s_-]+)/i);
+  if (purgeMatch) {
+    const rawTarget = (purgeMatch[1] || 'all').trim();
+    if (onPurgeItems) {
+      onPurgeItems(rawTarget);
+    } else if (osData?.onPurgeItems) {
+      osData.onPurgeItems(rawTarget);
+    } else if (onClearCalendar && (rawTarget === 'all' || rawTarget === 'calendar' || rawTarget === 'everything')) {
+      onClearCalendar('ALL');
+    }
+
+    return {
+      handled: true,
+      title: "🗑️ Purge Executed",
+      message: `Purged "${rawTarget}" events from Wolfe OS & Google Calendar. Tap Undo if needed.`,
+      targetView: "calendar"
+    };
+  }
 
   // Clear / Remove All Deadlines
   if (text.match(/\b(?:clear|remove|delete|purge|wipe)\b.*\b(?:all\s+)?deadlines?\b/i)) {

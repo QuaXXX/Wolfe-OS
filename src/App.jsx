@@ -247,6 +247,7 @@ export function App() {
   // Touch Swipe Gesture State
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
+  const activeBatchSyncRef = useRef(null);
 
   // Dynamically update CSS root variables and tab favicon when accentHue changes
   useEffect(() => {
@@ -432,6 +433,9 @@ export function App() {
       completed: false
     }));
 
+    const batchSyncId = `batch-sync-${Date.now()}`;
+    activeBatchSyncRef.current = batchSyncId;
+
     // Instant state update — zero screen freeze or visual lag!
     setCalendarData(prev => ({
       ...prev,
@@ -445,24 +449,36 @@ export function App() {
       title: "📚 Syllabus Items Added",
       description: isGcalConnected ? `Added ${localItems.length} items • Syncing to Google...` : `Added ${localItems.length} items to calendar`,
       type: "BATCH_ADD",
+      batchSyncId,
       itemsAdded: localItems,
       itemsRemoved: [],
       syncProgress: isGcalConnected ? { current: 0, total: localItems.length, inProgress: true } : null
     });
 
-    // 3. Perform Google Calendar Sync in the Background (Non-blocking)
+    // 3. Perform Google Calendar Sync in the Background (Non-blocking & Abort-Safe)
     if (isGcalConnected) {
       (async () => {
         const syncedItems = [];
         let completedCount = 0;
 
         for (const item of localItems) {
+          // CHECK IF ABORTED BY USER UNDO MID-UPLOAD
+          if (activeBatchSyncRef.current !== batchSyncId) {
+            console.log("🛑 Batch sync cancelled mid-upload. Rolling back created Google events...");
+            for (const s of syncedItems) {
+              if (s.id && s.isGoogle) {
+                deleteGoogleCalendarEvent(s.id, s.isGoogleTask || s.type === 'task').catch(console.warn);
+              }
+            }
+            return;
+          }
+
           let updatedItem = { ...item };
           try {
             const createdGcal = await createGoogleCalendarEvent({
               type: item.type,
               title: item.title,
-              startTime: item.isAllDay ? 'All Day' : item.time?.split(' - ')[0],
+              startTime: item.isAllDay ? 'All Day' : (item.time ? item.time.split(' - ')[0] : '02:00 PM'),
               endTime: item.isAllDay ? 'All Day' : (item.time?.split(' - ')[1] || '03:00 PM'),
               dateStr: item.date,
               isAllDay: item.isAllDay,
@@ -476,13 +492,26 @@ export function App() {
             console.warn("Background batch sync error:", err);
           }
 
+          // Check again after await
+          if (activeBatchSyncRef.current !== batchSyncId) {
+            if (updatedItem.isGoogle && updatedItem.id) {
+              deleteGoogleCalendarEvent(updatedItem.id, updatedItem.isGoogleTask).catch(console.warn);
+            }
+            for (const s of syncedItems) {
+              if (s.id && s.isGoogle) {
+                deleteGoogleCalendarEvent(s.id, s.isGoogleTask || s.type === 'task').catch(console.warn);
+              }
+            }
+            return;
+          }
+
           completedCount++;
           syncedItems.push(updatedItem);
 
           // Update sync progress state in live Undo Toast
-          setUndoAction(prev => (prev && prev.type === 'BATCH_ADD') ? {
+          setUndoAction(prev => (prev && prev.type === 'BATCH_ADD' && activeBatchSyncRef.current === batchSyncId) ? {
             ...prev,
-            itemsAdded: syncedItems,
+            itemsAdded: [...syncedItems, ...localItems.slice(completedCount)],
             syncProgress: {
               current: completedCount,
               total: localItems.length,
@@ -494,14 +523,16 @@ export function App() {
           } : prev);
         }
 
-        // Final state update with official Google IDs
-        setCalendarData(prev => ({
-          ...prev,
-          items: prev.items.map(it => {
-            const match = syncedItems.find(s => s.date === it.date && s.title === it.title);
-            return match || it;
-          })
-        }));
+        // Final state update with official Google IDs if not cancelled
+        if (activeBatchSyncRef.current === batchSyncId) {
+          setCalendarData(prev => ({
+            ...prev,
+            items: prev.items.map(it => {
+              const match = syncedItems.find(s => s.date === it.date && s.title === it.title);
+              return match || it;
+            })
+          }));
+        }
       })();
     }
   };
@@ -618,6 +649,76 @@ export function App() {
     });
   };
 
+  // Comprehensive Purge Command Handler (e.g. "Purge timetable", "Purge FNCE", "Purge all", "Purge 2026-09-02")
+  const handlePurgeItems = async (filterQuery = 'all') => {
+    playSound('switch', settings.soundEnabled);
+    // Cancel any active in-flight batch upload immediately
+    activeBatchSyncRef.current = null;
+
+    const q = (filterQuery || 'all').toLowerCase().trim();
+
+    let itemsToPurge = [];
+    if (q === 'all' || q === 'everything' || q === 'calendar') {
+      itemsToPurge = [...calendarData.items];
+    } else if (q === 'timetable' || q === 'schedule' || q === 'classes' || q === 'lectures' || q === 'syllabus') {
+      itemsToPurge = calendarData.items.filter(it => 
+        it.category === 'School' || 
+        /\b(?:class|lecture|lab|tutorial|seminar|session)\b/i.test(it.title) ||
+        /\b[A-Z]{2,5}\s*\d{2,4}\b/i.test(it.title)
+      );
+    } else if (q === 'deadlines' || q === 'deadline') {
+      itemsToPurge = calendarData.items.filter(it => it.type === 'deadline');
+    } else if (q === 'tasks' || q === 'task') {
+      itemsToPurge = calendarData.items.filter(it => it.type === 'task' || it.type === 'reminder');
+    } else {
+      // Search matching title, category, or date
+      itemsToPurge = calendarData.items.filter(it => {
+        const titleLower = (it.title || '').toLowerCase();
+        const categoryLower = (it.category || '').toLowerCase();
+        const dateStr = (it.date || '');
+        return titleLower.includes(q) || categoryLower.includes(q) || dateStr.includes(q);
+      });
+    }
+
+    if (itemsToPurge.length === 0) {
+      setUndoAction({
+        title: "🔍 No Matching Items",
+        description: `Found 0 events matching "${filterQuery}" to purge.`,
+        type: "PURGE_EMPTY",
+        itemsAdded: [],
+        itemsRemoved: []
+      });
+      return { count: 0, query: q };
+    }
+
+    const purgeIds = new Set(itemsToPurge.map(it => it.id));
+
+    // 1. Instantly remove from local calendarData
+    setCalendarData(prev => ({
+      ...prev,
+      items: prev.items.filter(it => !purgeIds.has(it.id))
+    }));
+
+    // 2. Delete each purged item from Google Calendar & Tasks
+    if (isGoogleCalendarConnected()) {
+      for (const it of itemsToPurge) {
+        deleteGoogleCalendarEvent(it.id, it.isGoogleTask || it.type === 'task').catch(console.warn);
+      }
+    }
+
+    // 3. Show Undo Toast
+    setUndoAction({
+      title: `🗑️ Purged ${itemsToPurge.length} Item(s)`,
+      description: `Purged "${filterQuery}" (${itemsToPurge.length} items) from Wolfe OS & Google Calendar`,
+      type: "PURGE_ITEMS",
+      itemsAdded: [],
+      itemsRemoved: itemsToPurge,
+      query: q
+    });
+
+    return { count: itemsToPurge.length, query: q };
+  };
+
   const handleToggleTask = async (id) => {
     const item = calendarData.items.find(it => it.id === id);
     if (!item) return;
@@ -642,28 +743,35 @@ export function App() {
     }
   };
 
-  // Universal Undo Action Handler
+  // Universal Undo Action Handler (Handles mid-upload cancel, purge undo, delete undo, etc.)
   const handleUndoAction = async (action) => {
     if (!action) return;
     playSound('switch', settings.soundEnabled);
 
+    // 0. Instantly abort any in-flight batch upload loop
+    activeBatchSyncRef.current = null;
+
     // 1. If items were added, remove them
     if (action.itemsAdded && action.itemsAdded.length > 0) {
       const idsToRemove = new Set(action.itemsAdded.map(it => it.id));
+      const titlesToRemove = new Set(action.itemsAdded.map(it => `${it.date}-${it.title}`));
+
       setCalendarData(prev => ({
         ...prev,
-        items: prev.items.filter(it => !idsToRemove.has(it.id))
+        items: prev.items.filter(it => !idsToRemove.has(it.id) && !titlesToRemove.has(`${it.date}-${it.title}`))
       }));
 
       // Delete from Google Calendar & Tasks in background
       if (isGoogleCalendarConnected()) {
         for (const item of action.itemsAdded) {
-          deleteGoogleCalendarEvent(item.id, item.isGoogleTask || item.type === 'task').catch(console.warn);
+          if (item.id) {
+            deleteGoogleCalendarEvent(item.id, item.isGoogleTask || item.type === 'task').catch(console.warn);
+          }
         }
       }
     }
 
-    // 2. If items were removed, restore them
+    // 2. If items were removed (e.g. from Purge or Delete), restore them
     if (action.itemsRemoved && action.itemsRemoved.length > 0) {
       // First, restore items to local state immediately (optimistic)
       setCalendarData(prev => ({
@@ -838,11 +946,15 @@ export function App() {
           setTradingData,
           setSchoolData,
           setCalendarData,
-          onClearDeadlines: handleClearDeadlines
+          onClearDeadlines: handleClearDeadlines,
+          onClearCalendar: handleClearCalendar,
+          onDeleteItem: handleDeleteItem,
+          onPurgeItems: handlePurgeItems
         }}
         onEventCreated={handleAddItem}
         onClearCalendar={handleClearCalendar}
         onDeleteSpecificItem={handleDeleteSpecificItem}
+        onPurgeItems={handlePurgeItems}
       />
 
       {/* Main Dynamic Viewport Container */}
