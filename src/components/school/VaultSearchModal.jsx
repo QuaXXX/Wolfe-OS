@@ -6,12 +6,11 @@ import {
   FileText, 
   X, 
   Loader2, 
-  ArrowRight,
   BookOpen,
-  FolderSync
+  FolderSync,
+  Sparkles
 } from 'lucide-react';
 import { searchVaultWithAI } from '../../utils/aiService';
-import { SAMPLE_OBSIDIAN_VAULT } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
 
 export const VaultSearchModal = ({ 
@@ -31,7 +30,7 @@ export const VaultSearchModal = ({
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!query.trim() || isSearching) return;
+    if (!query.trim() || isSearching || !isConnected) return;
 
     playSound('click', soundEnabled);
     setIsSearching(true);
@@ -39,21 +38,10 @@ export const VaultSearchModal = ({
     setResult(null);
 
     try {
-      if (!isConnected && scannedFiles.length === 0) {
-        setResult({
-          answer: `Obsidian is not connected yet! Link your Obsidian Vault folder using the "Connect Vault" button to search directly across your actual class notes, formulas, and course summaries.`,
-          matchedFiles: []
-        });
-        setIsSearching(false);
-        return;
-      }
-
-      // Use scanned real files
-      const notesToSearch = scannedFiles.length > 0 ? scannedFiles : SAMPLE_OBSIDIAN_VAULT;
       const res = await searchVaultWithAI({
         query: query.trim(),
-        filesIndex: notesToSearch,
-        sampleNotes: notesToSearch
+        filesIndex: scannedFiles,
+        sampleNotes: scannedFiles
       });
       setResult(res);
       playSound('success', soundEnabled);
@@ -96,13 +84,15 @@ export const VaultSearchModal = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Search Knowledge Vault</span>
+                  <span>Search Obsidian Vault</span>
                   <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
-                    Semantic Search
+                    AI Search
                   </span>
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Ask conceptual questions across all course notes in your Obsidian vault
+                  {isConnected 
+                    ? `Search conceptual notes across ${scannedFiles.length} indexed files` 
+                    : "Connect your Obsidian vault folder to search your personal notes"}
                 </p>
               </div>
             </div>
@@ -118,123 +108,109 @@ export const VaultSearchModal = ({
             </button>
           </div>
 
-          {/* Obsidian Not Connected Prompt Banner */}
-          {!isConnected && (
-            <div className="p-3.5 rounded-2xl bg-[#6d28d9]/15 border border-[#7c3aed]/30 flex items-center justify-between gap-3 text-left">
-              <div className="flex items-center gap-2.5">
-                <FolderSync className="w-4 h-4 text-[#a78bfa] shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-white">Obsidian Vault Not Connected</div>
-                  <div className="text-[11px] text-slate-300">Connect your Obsidian folder to search your personal class notes.</div>
-                </div>
+          {/* 1. NOT CONNECTED STATE */}
+          {!isConnected ? (
+            <div className="py-8 px-4 text-center space-y-4 rounded-2xl bg-white/[0.02] border border-white/10">
+              <div className="w-12 h-12 rounded-2xl bg-[#6d28d9]/20 border border-[#7c3aed]/30 flex items-center justify-center mx-auto text-[#a78bfa]">
+                <FolderSync className="w-6 h-6" />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  onClose();
-                  if (onOpenVaultManager) onOpenVaultManager();
-                }}
-                className="px-3 py-1.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white text-xs font-bold shadow-md shrink-0 cursor-pointer"
-              >
-                Connect Vault
-              </button>
-            </div>
-          )}
-
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Ask about a formula, concept, lecture topic or question..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-white text-xs placeholder:text-slate-500 outline-none focus:border-purple-500/50"
-                autoFocus
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSearching || !query.trim()}
-              className="px-4 py-2.5 rounded-2xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0"
-            >
-              {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-              <span>Search</span>
-            </button>
-          </form>
-
-          {/* Preset Suggested Questions */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-mono text-slate-500">Try:</span>
-            {[
-              "When to use NPV vs IRR?",
-              "What is the STP marketing formula?",
-              "What are AVL tree rotation rules?"
-            ].map((q, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => {
-                  setQuery(q);
-                  playSound('click', soundEnabled);
-                }}
-                className="px-2.5 py-1 rounded-lg bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 text-[11px] text-slate-300 transition-colors cursor-pointer"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Results Area */}
-          {isSearching ? (
-            <div className="min-h-[160px] rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-2 p-6 text-center">
-              <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
-              <div className="text-xs font-bold text-white">Searching Obsidian Vault...</div>
-            </div>
-          ) : result ? (
-            <div className="space-y-3 pt-2">
-              {/* Answer Box */}
-              <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-2">
-                <div className="text-[11px] font-bold font-mono text-purple-300 uppercase tracking-wide flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Synthesized Answer:</span>
-                </div>
-                <p className="text-xs text-slate-100 leading-relaxed font-sans whitespace-pre-wrap">
-                  {result.answer}
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-white">Obsidian Vault Not Connected</h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                  To search and ask questions about your course notes, link your local Obsidian vault folder.
                 </p>
               </div>
 
-              {/* Matched Files Citation */}
-              {result.matchedFiles && result.matchedFiles.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-[10px] font-mono uppercase text-slate-400">
-                    Sources in Your Vault ({result.matchedFiles.length}):
-                  </div>
-                  <div className="space-y-1.5">
-                    {result.matchedFiles.map((mf, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                          <span className="text-white font-medium truncate">{mf.name}</span>
-                        </div>
-                        {mf.relevance && (
-                          <span className="text-[10px] text-slate-400 truncate max-w-[200px]">
-                            {mf.relevance}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    onClose();
+                    if (onOpenVaultManager) onOpenVaultManager();
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-2 mx-auto cursor-pointer"
+                >
+                  <FolderSync className="w-4 h-4" />
+                  <span>Connect Obsidian Vault</span>
+                </button>
+              </div>
             </div>
-          ) : null}
+          ) : (
+            /* 2. CONNECTED SEARCH CHAT STATE */
+            <div className="space-y-4">
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Ask anything from your notes (e.g. explain WACC formula, binary trees)..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-white text-xs placeholder:text-slate-500 outline-none focus:border-purple-500/50"
+                    autoFocus
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSearching || !query.trim()}
+                  className="px-4 py-2.5 rounded-2xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0"
+                >
+                  {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                  <span>Search</span>
+                </button>
+              </form>
+
+              {/* Search Results Area */}
+              {isSearching ? (
+                <div className="min-h-[140px] rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-2 p-6 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                  <div className="text-xs font-bold text-white">Searching your Obsidian notes with AI...</div>
+                </div>
+              ) : result ? (
+                <div className="space-y-3 pt-1">
+                  {/* Answer Box */}
+                  <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-2">
+                    <div className="text-[11px] font-bold font-mono text-purple-300 uppercase tracking-wide flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Answer:</span>
+                    </div>
+                    <p className="text-xs text-slate-100 leading-relaxed font-sans whitespace-pre-wrap">
+                      {result.answer}
+                    </p>
+                  </div>
+
+                  {/* Matched Files Citation */}
+                  {result.matchedFiles && result.matchedFiles.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-mono uppercase text-slate-400">
+                        Sources in Your Vault ({result.matchedFiles.length}):
+                      </div>
+                      <div className="space-y-1.5">
+                        {result.matchedFiles.map((mf, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3 text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                              <span className="text-white font-medium truncate">{mf.name}</span>
+                            </div>
+                            {mf.relevance && (
+                              <span className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                                {mf.relevance}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          )}
         </motion.div>
       </div>
     </AnimatePresence>

@@ -95,7 +95,13 @@ export const SchoolView = ({
     if (tool === 'flashcards') setIsFlashcardsOpen(true);
     else if (tool === 'quiz') setIsQuizOpen(true);
     else if (tool === 'email') setIsEmailModalOpen(true);
-    else if (tool === 'search') setIsSearchModalOpen(true);
+    else if (tool === 'search') {
+      if (!vaultMeta.connected) {
+        setIsVaultModalOpen(true);
+      } else {
+        setIsSearchModalOpen(true);
+      }
+    }
   };
 
   const handleLaunchSavedDeck = (deck) => {
@@ -284,17 +290,23 @@ export const SchoolView = ({
         >
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-xl bg-[#6d28d9]/20 text-[#a78bfa] border border-[#7c3aed]/30 flex items-center justify-center">
-              <Search className="w-4 h-4" />
+              {vaultMeta.connected ? <Search className="w-4 h-4" /> : <FolderSync className="w-4 h-4" />}
             </div>
-            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/10">
-              Search
+            <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border ${
+              vaultMeta.connected 
+                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' 
+                : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+            }`}>
+              {vaultMeta.connected ? 'Connected' : 'Connect'}
             </span>
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-[#c4b5fd] transition-colors">
-            Ask My Obsidian Vault
+            {vaultMeta.connected ? "Ask My Obsidian Vault" : "Connect Obsidian Vault"}
           </h3>
           <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-            Semantic query across all notes & summaries.
+            {vaultMeta.connected 
+              ? `AI query across ${vaultMeta.totalNotes || 0} indexed course notes.` 
+              : "Link your notes folder to enable AI vault search."}
           </p>
         </div>
       </div>
