@@ -139,19 +139,19 @@ export const SchoolView = ({
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-24 select-none">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/[0.06]">
         <div>
           <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>
             <GraduationCap className="w-4 h-4" />
             <span>Academic Command • {schoolData.term || 'Fall 2026'}</span>
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight mt-0.5">
+          <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight mt-0.5">
             School & Academics
           </h1>
         </div>
 
         {/* Action Controls & Stats */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Obsidian Vault Status Pill */}
           {!vaultMeta.connected ? (
             <button
@@ -160,49 +160,49 @@ export const SchoolView = ({
                 playSound('click', soundEnabled);
                 setIsVaultModalOpen(true);
               }}
-              className="px-3.5 py-2 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white border border-[#7c3aed]/40 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95"
+              className="px-3 py-1.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white border border-[#7c3aed]/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
             >
               <FolderSync className="w-3.5 h-3.5" />
               <span>Connect Obsidian</span>
             </button>
           ) : (
-            <div className="px-3.5 py-2 rounded-xl bg-[#6d28d9]/15 border border-[#7c3aed]/30 text-[#c4b5fd] text-xs font-semibold flex items-center gap-2">
+            <div className="px-3 py-1.5 rounded-xl bg-[#6d28d9]/15 border border-[#7c3aed]/30 text-[#c4b5fd] text-xs font-semibold flex items-center gap-2">
               <FolderSync className="w-3.5 h-3.5 text-[#a78bfa]" />
-              <span>Obsidian: {vaultMeta.totalNotes || 0} Notes</span>
+              <span>{vaultMeta.totalNotes || 0} Notes</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             </div>
           )}
 
-          <div className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+          <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-white/[0.03] border border-white/10 text-center">
             <div className="text-[9px] uppercase font-semibold text-slate-400">Mastery</div>
-            <div className="text-sm font-mono font-bold text-emerald-400">
+            <div className="text-xs sm:text-sm font-mono font-bold text-emerald-400">
               {savedDecks.length > 0 
                 ? `${Math.round(savedDecks.reduce((a, b) => a + (b.masteryPercent || 0), 0) / savedDecks.length)}%` 
                 : '—'}
             </div>
           </div>
 
-          <div className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+          <div className="px-2.5 sm:px-3 py-1 rounded-xl bg-white/[0.03] border border-white/10 text-center">
             <div className="text-[9px] uppercase font-semibold text-slate-400">Decks / Quizzes</div>
-            <div className="text-sm font-mono font-bold text-white">{savedDecks.length + savedQuizzes.length}</div>
+            <div className="text-xs sm:text-sm font-mono font-bold text-white">{savedDecks.length + savedQuizzes.length}</div>
           </div>
         </div>
       </div>
 
       {/* WEAK-SPOT ALERT BANNER (If missed questions exist) */}
       {weakSpots.length > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-4 h-4" />
             </div>
             <div>
               <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>Weak-Spot Bank: {weakSpots.length} Concept{weakSpots.length > 1 ? 's' : ''} to Strengthen</span>
-                <span className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">High Exam Priority</span>
+                <span>Weak-Spot Bank: {weakSpots.length} Concept{weakSpots.length > 1 ? 's' : ''}</span>
+                <span className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">Exam Priority</span>
               </div>
               <div className="text-[11px] text-amber-200/80 mt-0.5">
-                Missed from recent quizzes. Practice targeted drill to achieve 100% exam readiness.
+                Missed questions from recent quizzes. Practice targeted drill to achieve 100% mastery.
               </div>
             </div>
           </div>
@@ -210,7 +210,7 @@ export const SchoolView = ({
           <button
             type="button"
             onClick={handleLaunchWeakSpotDrill}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer flex items-center gap-1.5 justify-center"
+            className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer flex items-center gap-1.5 justify-center"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Drill Weak Spots ({weakSpots.length})</span>
@@ -219,70 +219,70 @@ export const SchoolView = ({
       )}
 
       {/* AI Academic Tools (Sleek 4-Pillar Grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Flashcards */}
         <div
           onClick={() => handleOpenStudyTool('flashcards')}
-          className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
+          className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-2.5">
-            <Layers className="w-4 h-4" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-2">
+            <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-blue-300 transition-colors">
             Active Recall Flashcards
           </h3>
-          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-            Customizable count, chapters & high-yield tags.
+          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+            Custom decks & high-yield exam tags.
           </p>
         </div>
 
         {/* Practice Quiz */}
         <div
           onClick={() => handleOpenStudyTool('quiz')}
-          className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
+          className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mb-2.5">
-            <HelpCircle className="w-4 h-4" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mb-2">
+            <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">
             Practice Exam Simulator
           </h3>
-          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-            Multi-choice test questions & instant explanations.
+          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+            MCQ test drills & instant explanations.
           </p>
         </div>
 
         {/* Prof Email Drafter */}
         <div
           onClick={() => handleOpenStudyTool('email')}
-          className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
+          className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mb-2.5">
-            <Mail className="w-4 h-4" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mb-2">
+            <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-rose-300 transition-colors">
-            Prof-Ready Email Drafter
+            Prof Email Drafter
           </h3>
-          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-            Syllabus-compliant email drafts with 1-click send.
+          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+            Syllabus-compliant formal email drafts.
           </p>
         </div>
 
         {/* Ask My Vault */}
         <div
           onClick={() => handleOpenStudyTool('search')}
-          className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
+          className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="w-8 h-8 rounded-xl bg-[#6d28d9]/20 text-[#a78bfa] border border-[#7c3aed]/30 flex items-center justify-center mb-2.5">
-            {vaultMeta.connected ? <Search className="w-4 h-4" /> : <FolderSync className="w-4 h-4" />}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#6d28d9]/20 text-[#a78bfa] border border-[#7c3aed]/30 flex items-center justify-center mb-2">
+            {vaultMeta.connected ? <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <FolderSync className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-[#c4b5fd] transition-colors">
-            {vaultMeta.connected ? "Ask My Obsidian Vault" : "Connect Obsidian Vault"}
+            {vaultMeta.connected ? "Ask Obsidian Vault" : "Connect Obsidian Vault"}
           </h3>
-          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
             {vaultMeta.connected 
-              ? `AI query across ${vaultMeta.totalNotes || 0} indexed course notes.` 
-              : "Link your notes folder to enable AI vault search."}
+              ? `AI query across ${vaultMeta.totalNotes || 0} indexed notes.` 
+              : "Link notes folder for AI vault search."}
           </p>
         </div>
       </div>
@@ -458,12 +458,12 @@ export const SchoolView = ({
               </div>
             </div>
 
-            <div className="text-center py-4 space-y-3">
-              <div className="text-3xl font-mono font-bold text-white mb-1">
+            <div className="text-center py-3 sm:py-4 space-y-2.5 sm:space-y-3">
+              <div className="text-2xl sm:text-3xl font-mono font-bold text-white mb-0.5">
                 25:00
               </div>
-              <div className="text-xs text-slate-400 max-w-xs mx-auto">
-                Distraction blocker shield with YouTube study music & binaural 40Hz audio.
+              <div className="text-[11px] sm:text-xs text-slate-400 max-w-xs mx-auto">
+                Distraction blocker with YouTube study audio & binaural 40Hz beats.
               </div>
 
               <button
@@ -471,11 +471,11 @@ export const SchoolView = ({
                   playSound('click', soundEnabled);
                   setIsDeepFocusOpen(true);
                 }}
-                className="mt-2 px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                className="mt-1.5 px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
                 style={{ backgroundColor: 'var(--accent-primary)' }}
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Launch Deep Focus Shield</span>
+                <span>Launch Deep Focus</span>
               </button>
             </div>
           </GlassCard>

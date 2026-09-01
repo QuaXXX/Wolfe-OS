@@ -27,13 +27,13 @@ export const UndoActionPopup = ({
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 30, scale: 0.95 }}
+        exit={{ opacity: 0, y: 20, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="fixed bottom-6 right-6 z-50 max-w-md w-full sm:w-auto p-1 select-none"
+        className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-50 max-w-md sm:w-auto select-none"
       >
-        <div className="flex items-center gap-3.5 px-4 py-3 rounded-2xl bg-[#0c0f1d]/95 border border-white/15 shadow-[0_15px_40px_-10px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-[#0c0f1d]/95 border border-white/15 shadow-[0_15px_40px_-10px_rgba(0,0,0,0.8)] backdrop-blur-xl">
           {/* Status Indicator Icon or Circular Progress */}
           <div className="relative w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
             {sync?.inProgress ? (

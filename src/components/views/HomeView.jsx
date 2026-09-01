@@ -223,12 +223,12 @@ export const HomeView = ({
                   isCompact ? 'py-3 px-3' : 'py-5 px-4'
                 }`}
               >
-                <div className="flex items-center gap-2.5 text-slate-400">
-                  <Clock className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Timeline clear. Ask Wolfe AI or click to schedule.</span>
+                <div className="flex items-center gap-2.5 text-slate-400 min-w-0">
+                  <Clock className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-primary)' }} />
+                  <span className="truncate">Timeline clear for today.</span>
                 </div>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-white/[0.04] text-slate-300 border border-white/10 shrink-0">
-                  + Add Item
+                  + Add
                 </span>
               </div>
             )}

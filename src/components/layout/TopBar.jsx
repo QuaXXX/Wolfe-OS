@@ -295,7 +295,7 @@ export const TopBar = ({
                     />
                   ))}
                 </div>
-                <span className="truncate max-w-[140px] text-white">
+                <span className="truncate max-w-[90px] sm:max-w-[140px] text-white">
                   {liveSpeech ? `"${liveSpeech}"` : "Listening..."}
                 </span>
                 <button

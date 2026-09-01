@@ -66,7 +66,7 @@ export const WorkoutsView = ({
           7-Day Split Routine
         </h2>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+        <div className="grid grid-cols-4 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {[
             { day: "Mon", label: "Rest", done: false, current: false },
             { day: "Tue", label: "Rest", done: false, current: false },
@@ -78,7 +78,7 @@ export const WorkoutsView = ({
           ].map((item, idx) => (
             <GlassCard
               key={idx}
-              className={`p-3 text-center transition-all ${
+              className={`p-2 sm:p-3 text-center transition-all ${
                 item.current 
                   ? 'ring-1 bg-[#14182a]' 
                   : item.done 
@@ -87,9 +87,9 @@ export const WorkoutsView = ({
               }`}
               style={item.current ? { borderColor: 'var(--accent-primary)' } : {}}
             >
-              <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--accent-primary)' }}>{item.day}</div>
-              <div className="text-xs font-semibold text-white my-1">{item.label}</div>
-              <div className="text-[10px] text-slate-400 font-mono">
+              <div className="text-[9px] sm:text-[10px] font-bold uppercase" style={{ color: 'var(--accent-primary)' }}>{item.day}</div>
+              <div className="text-[11px] sm:text-xs font-semibold text-white my-0.5 sm:my-1 truncate">{item.label}</div>
+              <div className="text-[9px] sm:text-[10px] text-slate-400 font-mono">
                 {item.done ? "Done" : item.current ? "Today" : "—"}
               </div>
             </GlassCard>

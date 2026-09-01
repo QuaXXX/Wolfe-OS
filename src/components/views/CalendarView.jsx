@@ -149,44 +149,44 @@ export const CalendarView = ({
     <div className="max-w-6xl mx-auto space-y-6 pb-24 select-none">
       
       {/* 1. TOP HEADER & NAVIGATION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-white tracking-tight">
+          <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
             Schedule & Timeline
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Full academic timetable, hard deadlines, tasks & calendar
+          <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+            Academic timetable, deadlines & daily tasks
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap">
           {/* Day / Month Toggle Switch */}
-          <div className="flex p-1 rounded-xl bg-white/[0.04] border border-white/10">
+          <div className="flex p-0.5 sm:p-1 rounded-xl bg-white/[0.04] border border-white/10">
             <button
               onClick={() => {
                 playSound('switch', soundEnabled);
                 setViewMode('day');
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                 viewMode === 'day' 
                   ? 'bg-white/10 text-white shadow-sm' 
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Day View
+              Day<span className="hidden sm:inline"> View</span>
             </button>
             <button
               onClick={() => {
                 playSound('switch', soundEnabled);
                 setViewMode('month');
               }}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                 viewMode === 'month' 
                   ? 'bg-white/10 text-white shadow-sm' 
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Month View
+              Month<span className="hidden sm:inline"> View</span>
             </button>
           </div>
 
@@ -197,13 +197,13 @@ export const CalendarView = ({
                 playSound('click', soundEnabled);
                 if (onOpenGoogleCalendar) onOpenGoogleCalendar();
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
             >
               <CalendarIcon className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-              <span>Connect Google Calendar</span>
+              <span>Google Cal</span>
             </button>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => {
                   playSound('click', soundEnabled);
@@ -211,10 +211,10 @@ export const CalendarView = ({
                 }}
                 disabled={isSyncingGoogle}
                 title="Sync 2-way with Google Calendar"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncingGoogle ? 'animate-spin text-emerald-400' : ''}`} style={!isSyncingGoogle ? { color: 'var(--accent-primary)' } : {}} />
-                <span>{isSyncingGoogle ? "Syncing..." : "Sync Google"}</span>
+                <span>{isSyncingGoogle ? "Syncing..." : "Sync"}</span>
               </button>
 
               <button
@@ -222,17 +222,17 @@ export const CalendarView = ({
                   playSound('click', soundEnabled);
                   setIsSyllabusModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                <span>Import Syllabus</span>
+                <span><span className="hidden sm:inline">Import </span>Syllabus</span>
               </button>
             </div>
           )}
 
           <button
             onClick={() => handleOpenAddModal('event')}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
             style={{ backgroundColor: 'var(--accent-primary)' }}
           >
             <Plus className="w-3.5 h-3.5" />
