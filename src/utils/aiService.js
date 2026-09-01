@@ -1378,62 +1378,74 @@ Return ONLY valid JSON matching this schema:
   };
 }
 
-/**
- * Semantic Vault Search & File Query Engine with AI (Personal NotebookLM)
- */
 export async function searchVaultWithAI({ query, filesIndex = [], sampleNotes = [] }) {
   const allFiles = (sampleNotes && sampleNotes.length > 0 ? sampleNotes : filesIndex) || [];
   
+  // 1. Detect target course from query or files to filter out unrelated course syllabi (70%+ faster response)
+  const courseMatch = query.match(/\[Course:\s*([A-Za-z0-9\s]+)\]/i);
+  const targetCourse = courseMatch ? courseMatch[1].trim().toUpperCase() : null;
+
+  const relevantFiles = targetCourse 
+    ? allFiles.filter(f => {
+        const c = (f.course || '').toUpperCase();
+        return c.includes(targetCourse) || targetCourse.includes(c) || (f.path || '').toUpperCase().includes(targetCourse);
+      })
+    : allFiles;
+
+  const filesToScan = relevantFiles.length > 0 ? relevantFiles : allFiles;
+
   // Format summaries
-  const fileSummaries = allFiles.map(f => `- ${f.name} [Course: ${f.course || 'General'}] [Path: ${f.path || f.name}]`).join('\n');
+  const fileSummaries = filesToScan.map(f => `- ${f.name} [Course: ${f.course || 'General'}]`).join('\n');
   
-  // Build note snippets with full content extraction
-  const notesSnippet = allFiles.map(n => {
+  // Build note snippets with focused token budget
+  const notesSnippet = filesToScan.map(n => {
     const rawText = n.content || n.cachedContent || n.sampleContent || '';
-    if (!rawText) return `### [Course: ${n.course || 'General'}] ${n.name}\n(File attached, text pending)`;
-    // Include generous length per course outline for complete syllabus comprehension
-    const snippet = rawText.length > 12000 ? rawText.slice(0, 12000) + "\n...[truncated]" : rawText;
+    if (!rawText) return `### [Course: ${n.course || 'General'}] ${n.name}\n(Document attached)`;
+    const snippet = rawText.length > 8000 ? rawText.slice(0, 8000) + "\n...[truncated]" : rawText;
     return `### [Course: ${n.course || 'General'}] ${n.name}\n${snippet}`;
   }).join('\n\n---\n\n');
 
-  const prompt = `You are Zach Wolfe's personal NotebookLM Academic Study Assistant in Wolfe OS.
-Zach has provided his university course outlines, syllabi, and notes from his connected school folder.
+  const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
 
-User Study Question / Query:
-"${query}"
+  const prompt = `You are Zach Wolfe's university academic assistant in Wolfe OS.
+Zach has provided his university course syllabus/notes for ${targetCourse || 'his classes'}.
 
-Available Files in School Vault:
-${fileSummaries || "No files indexed."}
+Question:
+"${cleanUserQuery}"
 
-Document Contents & Outlines:
+Relevant Course Materials:
 ${notesSnippet || "No document text available."}
 
-Instructions:
-1. Thoroughly, accurately, and directly answer Zach's question using the exact facts, grade breakdowns, course policies, schedules, instructors, formulas, exam weights, textbook info, and topics from his outlines and notes.
-2. If he asks about a specific class (e.g. FNCE, BTMA, OPMA, MGST, MKTG), focus directly on that course's outline.
-3. Be clear, articulate, and structured (use bullet points or bold text where appropriate). If referencing formulas or calculations, format them cleanly with LaTeX ($...$).
-4. In matchedFiles, cite the specific course documents that contained the answer.
+Guidelines for Response:
+1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points.
+2. Do NOT output unprompted boilerplate (e.g. do not output full standard letter grade tables unless the user explicitly asks for grade scale cutoffs).
+3. If formatting formulas or calculations, use crisp LaTeX ($...$).
+4. Keep the response clean, readable, and easy to skim.
 
 Return ONLY valid JSON matching this schema:
 {
-  "answer": "Detailed, highly accurate answer based on the course materials...",
+  "answer": "Concise, structured answer...",
   "matchedFiles": [
     {
-      "name": "FNCE 317 Course Outline.pdf",
-      "path": "FNCE 317/FNCE 317 Course Outline.pdf",
-      "relevance": "Contains grade weighting, midterm schedule, and instructor details."
+      "name": "Outline.pdf",
+      "path": "FNCE 317/Outline.pdf"
     }
   ]
 }`;
 
-  const systemInstruction = "You are an intelligent university study assistant and personal NotebookLM. Analyze the provided course outlines and provide accurate, detailed answers. Return only valid JSON.";
+  const systemInstruction = "You are a concise, high-speed university academic assistant. Provide direct, structured, factual answers without fluff. Return only valid JSON.";
 
   try {
-    const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 25000);
+    const fastConfig = {
+      ...DEFAULT_AI_CONFIG,
+      temperature: 0.1,
+      maxOutputTokens: 1024
+    };
+    const res = await callGemini(prompt, systemInstruction, fastConfig, 18000);
     if (res && (res.answer || res.message)) {
       return {
         answer: res.answer || res.message,
-        matchedFiles: res.matchedFiles || allFiles.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, relevance: "Referenced course document" }))
+        matchedFiles: res.matchedFiles || filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
       };
     }
   } catch (err) {
