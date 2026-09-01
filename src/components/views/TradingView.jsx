@@ -39,7 +39,7 @@ import {
   getWebhookLogs, 
   getLatestHermesBrief 
 } from '../../utils/tradingStorage';
-import { calculateDynamicPositionSize, fetchHyperliquidAccount } from '../../utils/hyperliquidService';
+import { calculateDynamicPositionSize, fetchHyperliquidAccount, fetchLiveMarketPrices } from '../../utils/hyperliquidService';
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
 import { playSound } from '../../utils/soundFX';
 
@@ -73,16 +73,42 @@ export const TradingView = ({
   // Interactive Position Sizer State
   const [accountSize, setAccountSize] = useState(config.accountEquity || 10000);
   const [riskPercent, setRiskPercent] = useState(config.defaultRiskPercent || 1.5);
-  const [entryPrice, setEntryPrice] = useState(selectedStock?.price || 92450.00);
-  const [stopLoss, setStopLoss] = useState(Number(((selectedStock?.price || 92450.00) * 0.985).toFixed(2)));
+  const [entryPrice, setEntryPrice] = useState(selectedStock?.price || 100.61);
+  const [stopLoss, setStopLoss] = useState(Number(((selectedStock?.price || 100.61) * 0.985).toFixed(2)));
   const [leverage, setLeverage] = useState(config.maxLeverage || 5);
 
   useEffect(() => {
     refreshAllData();
-    // Auto-generate initial Hermes brief if none exists
+
+    // 1. Fetch live market prices immediately and poll every 10s
+    const updatePrices = async () => {
+      try {
+        const livePrices = await fetchLiveMarketPrices();
+        if (livePrices && Object.keys(livePrices).length > 0) {
+          setWatchlist(prev => prev.map(item => {
+            const symbol = item.symbol.toUpperCase();
+            if (livePrices[symbol]) {
+              const newPrice = livePrices[symbol];
+              return {
+                ...item,
+                price: newPrice
+              };
+            }
+            return item;
+          }));
+        }
+      } catch (err) {}
+    };
+
+    updatePrices();
+    const interval = setInterval(updatePrices, 10000);
+
+    // 2. Auto-generate initial Hermes brief if none exists
     if (!hermesBrief) {
       runHermesSwarmAnalysis().then(b => setHermesBrief(b));
     }
+
+    return () => clearInterval(interval);
   }, []);
 
   const refreshAllData = () => {

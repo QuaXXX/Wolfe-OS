@@ -23,6 +23,32 @@ const ASSET_PRECISION = {
 };
 
 /**
+ * Fetch 100% Real-Time Mid Prices directly from Hyperliquid's live L1 public feed
+ */
+export async function fetchLiveMarketPrices() {
+  try {
+    const res = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'allMids' })
+    });
+
+    if (!res.ok) throw new Error('Failed to fetch live prices');
+    const mids = await res.json();
+
+    const priceMap = {};
+    for (const [coin, rawPrice] of Object.entries(mids)) {
+      priceMap[coin.toUpperCase()] = Number(rawPrice);
+    }
+
+    return priceMap;
+  } catch (err) {
+    console.warn("Could not fetch live Hyperliquid prices:", err);
+    return {};
+  }
+}
+
+/**
  * 1. Dynamic Risk & Position Sizing Calculator
  * Calculates precise contract sizing based on stop loss distance, risk %, and asset precision.
  */

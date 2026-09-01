@@ -12,10 +12,10 @@ const STORAGE_KEY_HERMES_BRIEFS = 'wolfe_trading_hermes_briefs_v1';
 
 // Default Tickers for High-Liquidity Crypto & Stocks
 export const DEFAULT_WATCHLIST = [
-  { symbol: 'BTC', name: 'Bitcoin Perp', price: 92450.00, change: '+3.42%', isPositive: true, category: 'Crypto' },
-  { symbol: 'ETH', name: 'Ethereum Perp', price: 3420.50, change: '+2.15%', isPositive: true, category: 'Crypto' },
-  { symbol: 'SOL', name: 'Solana Perp', price: 188.75, change: '+5.80%', isPositive: true, category: 'Crypto' },
-  { symbol: 'HYPE', name: 'Hyperliquid Perp', price: 28.40, change: '+8.12%', isPositive: true, category: 'Crypto' },
+  { symbol: 'SOL', name: 'Solana Perp', price: 100.61, change: '+2.45%', isPositive: true, category: 'Crypto' },
+  { symbol: 'BTC', name: 'Bitcoin Perp', price: 77336.50, change: '+1.12%', isPositive: true, category: 'Crypto' },
+  { symbol: 'HYPE', name: 'Hyperliquid Perp', price: 81.94, change: '+6.80%', isPositive: true, category: 'Crypto' },
+  { symbol: 'ETH', name: 'Ethereum Perp', price: 2423.55, change: '+0.85%', isPositive: true, category: 'Crypto' },
   { symbol: 'NVDA', name: 'Nvidia Corp', price: 132.80, change: '+1.94%', isPositive: true, category: 'Equity' },
   { symbol: 'SPY', name: 'S&P 500 ETF', price: 588.20, change: '+0.45%', isPositive: true, category: 'Equity' }
 ];

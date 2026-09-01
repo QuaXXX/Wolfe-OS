@@ -6,10 +6,22 @@
 
 import { callGemini, DEFAULT_AI_CONFIG } from './aiService.js';
 import { saveHermesBrief, getWatchlist } from './tradingStorage.js';
+import { fetchLiveMarketPrices } from './hyperliquidService.js';
 
 export async function runHermesSwarmAnalysis(customWatchlist = null) {
   const watchlist = customWatchlist || getWatchlist();
-  const tickerSymbols = watchlist.map(item => item.symbol).join(', ');
+  
+  // 1. Fetch 100% Real-Time Market Prices from Hyperliquid L1
+  let livePrices = {};
+  try {
+    livePrices = await fetchLiveMarketPrices();
+  } catch {}
+
+  const tickerPriceList = watchlist.map(item => {
+    const symbol = item.symbol.toUpperCase();
+    const livePrice = livePrices[symbol] || item.price;
+    return `${symbol} ($${Number(livePrice).toLocaleString('en-US', { minimumFractionDigits: 2 })})`;
+  }).join(', ');
 
   const systemInstruction = `You are "Hermes-Prime", the master orchestrator of an elite quantitative multi-agent trading desk. 
 Your desk consists of 6 specialized sub-agents:
@@ -20,17 +32,17 @@ Your desk consists of 6 specialized sub-agents:
 5. "The Skeptic" (Adversarial Risk & Stress-Testing Officer)
 6. "Mercury" (Morning War Room Briefing Dispatcher)
 
-Your goal is to eliminate noise, stress-test candidate setups, and output only high-probability, asymmetric risk-reward trade setups for market open.
+CRITICAL RULE: Base ALL candidate trade setups, Entry Triggers, Stop Losses, and 2R Targets STRICTLY on the CURRENT REAL-TIME LIVE PRICES provided in the prompt.
 Return strictly valid JSON matching the specified schema.`;
 
   const prompt = `Perform an institutional-grade overnight market scan and trade synthesis for the following tracked assets:
-WATCHLIST TICKERS: ${tickerSymbols || 'BTC, ETH, SOL, HYPE, NVDA, SPY'}
+CURRENT LIVE ASSET PRICES: ${tickerPriceList || 'SOL ($100.60), BTC ($77,336.00), HYPE ($81.90), ETH ($2,423.50)'}
 
 CURRENT DATE: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 
 EXECUTION CHAIN INSTRUCTIONS:
 1. ATLAS (Macro): Determine the overnight macro regime (e.g. "Risk-On Expansion", "Risk-Off Liquidity Drain", "Rangebound Compression", or "Catalyst Volatility"). Assess DXY, Bond Yields, and economic calendar risk.
-2. ARTEMIS (Technical & Catalyst): Screen the watchlist tickers for high-yield technical structures (Liquidity sweeps, S/R flips, VWAP reclaims, breakout consolidations).
+2. ARTEMIS (Technical & Catalyst): Screen the watchlist tickers for high-yield technical structures using the EXACT live prices provided above.
 3. POSEIDON (Flow & Whales): Analyze institutional dark pool positioning, options sweeps, and smart money accumulation.
 4. HERMES-PRIME (Synthesis): Fuse macro + technicals + flow into candidate setups.
 5. THE SKEPTIC (Stress-Test): Ruthlessly attack each setup. Reject any trade with R:R < 1:2.5, ambiguous invalidation, or conflicting macro flow. Assign an A+ or B+ Conviction Grade.
@@ -39,7 +51,7 @@ EXECUTION CHAIN INSTRUCTIONS:
 Return ONLY valid JSON matching this schema:
 {
   "date": "${new Date().toISOString().split('T')[0]}",
-  "macroRegime": "Risk-On Bullish Momentum",
+  "macroRegime": "Selective Risk-On (High Beta Momentum)",
   "macroAnalysis": "Concise 2-sentence breakdown of macro conditions, bond yields, and market sentiment.",
   "agentLogs": [
     { "agent": "Atlas (Macro)", "status": "COMPLETED", "summary": "Global futures green, DXY softening, no high-impact Fed speakers today." },
