@@ -19,7 +19,8 @@ import {
   RotateCcw,
   Award,
   Trash2,
-  ListTodo
+  ListTodo,
+  Sparkles
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { NotebookLMStudyHubModal } from '../school/NotebookLMStudyHubModal';
