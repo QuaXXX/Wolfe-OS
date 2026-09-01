@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -15,9 +15,13 @@ import {
   RefreshCw,
   Layers,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Cpu,
+  Key,
+  Check
 } from 'lucide-react';
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
+import { getTradingConfig, saveTradingConfig } from '../../utils/tradingStorage';
 import { playSound } from '../../utils/soundFX';
 
 export const HermesWarRoomModal = ({ 
@@ -28,8 +32,33 @@ export const HermesWarRoomModal = ({
   soundEnabled = true 
 }) => {
   const [brief, setBrief] = useState(initialBrief);
+  const [config, setConfig] = useState(getTradingConfig());
   const [isRunningSwarm, setIsRunningSwarm] = useState(false);
-  const [activeTab, setActiveTab] = useState('brief'); // 'brief' | 'logs'
+  const [activeTab, setActiveTab] = useState('brief'); // 'brief' | 'logs' | 'engine'
+  const [openRouterKeyInput, setOpenRouterKeyInput] = useState('');
+  const [keySaved, setKeySaved] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      const cfg = getTradingConfig();
+      setConfig(cfg);
+      setOpenRouterKeyInput(cfg.openRouterApiKey || '');
+      setBrief(initialBrief);
+      setKeySaved(false);
+    }
+  }, [isOpen, initialBrief]);
+
+  const handleSaveEngineSettings = (e) => {
+    if (e) e.preventDefault();
+    playSound('click', soundEnabled);
+    const updated = saveTradingConfig({
+      ...config,
+      openRouterApiKey: openRouterKeyInput.trim()
+    });
+    setConfig(updated);
+    setKeySaved(true);
+    setTimeout(() => setKeySaved(false), 2000);
+  };
 
   const handleRunLiveSwarm = async () => {
     setIsRunningSwarm(true);
@@ -79,11 +108,12 @@ export const HermesWarRoomModal = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white tracking-tight">Hermes Autonomous Council</h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    6-Agent Swarm
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1">
+                    <Cpu className="w-3 h-3" />
+                    <span>{brief?.aiEngine || 'Nous Hermes 3 (405B)'}</span>
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400">Overnight Market Intelligence & Adversarial Validation</div>
+                <div className="text-[11px] text-slate-400">Overnight Quantitative Synthesis & Adversarial Validation</div>
               </div>
             </div>
 
@@ -119,7 +149,7 @@ export const HermesWarRoomModal = ({
             </div>
           </div>
 
-          {/* Sub-tabs: Brief vs Agent Council Logs */}
+          {/* Sub-tabs: Brief vs Agent Council Logs vs AI Engine Settings */}
           <div className="flex items-center gap-2 border-b border-white/5 pb-2 shrink-0">
             <button
               type="button"
@@ -142,6 +172,18 @@ export const HermesWarRoomModal = ({
               }`}
             >
               Agent Council Logs ({brief?.agentLogs?.length || 4})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('engine')}
+              className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                activeTab === 'engine'
+                  ? 'bg-white/[0.1] text-amber-300 border border-amber-400/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Cpu className="w-3 h-3" />
+              <span>Nous Hermes 3 Engine</span>
             </button>
           </div>
 
@@ -248,11 +290,11 @@ export const HermesWarRoomModal = ({
                   <p className="text-[11px] leading-relaxed text-amber-300/90">{brief?.adversarialReview}</p>
                 </div>
               </>
-            ) : (
+            ) : activeTab === 'logs' ? (
               /* Agent Council Logs View */
               <div className="space-y-2.5">
                 {(brief?.agentLogs || [
-                  { agent: "Atlas (Macro Radar)", status: "COMPLETED", summary: "Overnight futures green, DXY stable at 104.2." },
+                  { agent: "Atlas (Macro Radar)", status: "COMPLETED", summary: "Global futures green, DXY stable at 104.2." },
                   { agent: "Artemis (Screener)", status: "COMPLETED", summary: "Key breakouts identified on SOL, BTC, and NVDA." },
                   { agent: "Poseidon (Flow & Whales)", status: "COMPLETED", summary: "Institutional accumulation detected on Hyperliquid order book." },
                   { agent: "The Skeptic (Risk)", status: "COMPLETED", summary: "Stress-tested candidate plays and enforced 1:2.5 minimum R:R." }
@@ -269,6 +311,60 @@ export const HermesWarRoomModal = ({
                   </div>
                 ))}
               </div>
+            ) : (
+              /* AI Engine Settings */
+              <form onSubmit={handleSaveEngineSettings} className="space-y-4">
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="w-4 h-4 text-amber-400" />
+                    <h4 className="text-xs font-bold text-white">Nous Research Hermes 3 Model Configuration</h4>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Nous Hermes 3 (405B / 70B) uses deep chain-of-thought scratchpads to cross-examine market microstructure, volume delta, and risk before generating trade setups.
+                  </p>
+
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                        Hermes 3 Model Architecture
+                      </label>
+                      <select
+                        value={config.hermesModel || 'nousresearch/hermes-3-llama-3.1-405b'}
+                        onChange={(e) => setConfig(prev => ({ ...prev, hermesModel: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
+                      >
+                        <option value="nousresearch/hermes-3-llama-3.1-405b">Nous Hermes 3 (Llama 3.1 405B - Maximum Reasoning)</option>
+                        <option value="nousresearch/hermes-3-llama-3.1-70b">Nous Hermes 3 (Llama 3.1 70B - Fast Quantitative)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                        OpenRouter API Key (Optional for Direct Hermes 3 API)
+                      </label>
+                      <input
+                        type="password"
+                        value={openRouterKeyInput}
+                        onChange={(e) => setOpenRouterKeyInput(e.target.value)}
+                        placeholder="sk-or-v1-... (Leaves blank to use Gemini Engine)"
+                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none focus:border-white/30"
+                      />
+                      <div className="text-[10px] text-slate-500 mt-1">
+                        If no OpenRouter key is provided, the council runs the Nous Hermes 3 reasoning protocol via Google Gemini.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                >
+                  {keySaved ? <Check className="w-4 h-4 text-emerald-400" /> : <Key className="w-4 h-4" />}
+                  <span>{keySaved ? 'Settings Saved' : 'Save Engine Configuration'}</span>
+                </button>
+              </form>
             )}
           </div>
         </motion.div>

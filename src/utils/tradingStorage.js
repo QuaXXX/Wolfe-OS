@@ -26,6 +26,10 @@ export const DEFAULT_TRADING_CONFIG = {
   testnet: false,
   agentWalletAddress: '',
   agentPrivateKey: '', // Stored locally only for trade-only signing
+  aiProvider: 'hermes3', // 'hermes3' | 'gemini'
+  hermesModel: 'nousresearch/hermes-3-llama-3.1-405b', // 'nousresearch/hermes-3-llama-3.1-405b' | 'nousresearch/hermes-3-llama-3.1-70b'
+  openRouterApiKey: '', // Optional OpenRouter key for Nous Hermes 3
+  togetherApiKey: '', // Optional Together AI key for Nous Hermes 3
   accountEquity: 10000,
   maxDailyRiskUSD: 300,
   maxDailyLossLimitUSD: 500,
