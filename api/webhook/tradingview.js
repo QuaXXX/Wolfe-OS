@@ -3,7 +3,7 @@
  * Receives TradingView webhook signals, calculates dynamic risk-based sizing,
  * and executes direct market/trigger orders on Hyperliquid L1 while your computer is completely off.
  *
- * Endpoint: POST https://your-wolfe-os-domain.vercel.app/api/webhook/tradingview
+ * Endpoint: POST https://wolfe-os.vercel.app/api/webhook/tradingview
  */
 
 // Asset Precision Tables (Tick sizes & Decimal points)

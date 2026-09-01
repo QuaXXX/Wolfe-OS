@@ -2,7 +2,7 @@
  * 24/7 Vercel Serverless Hermes Deep Quantitative Swarm Endpoint
  * Runs the 6-agent Hermes Council overnight in the cloud to generate the Morning War Room Brief.
  *
- * Endpoint: GET / POST https://your-wolfe-os-domain.vercel.app/api/hermes/swarm
+ * Endpoint: GET / POST https://wolfe-os.vercel.app/api/hermes/swarm
  */
 
 export default async function handler(req, res) {
