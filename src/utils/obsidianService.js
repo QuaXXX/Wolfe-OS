@@ -143,7 +143,7 @@ export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
       } else if (entry.kind === 'file') {
         const lowerName = entry.name.toLowerCase();
         if (lowerName.endsWith('.md') || lowerName.endsWith('.txt') || lowerName.endsWith('.pdf')) {
-          // Detect course codes from filename or path (e.g. FNCE 317, MKTG 317, CS 301)
+          // Detect course codes from filename or path (e.g. CPSC 331, MATH 211, PSYC 203)
           const courseMatch = entryPath.match(/([A-Z]{2,6}\s*\d{3,4})/i);
           const detectedCourse = courseMatch ? courseMatch[1].toUpperCase() : null;
           if (detectedCourse) coursesSet.add(detectedCourse);
