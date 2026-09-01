@@ -177,6 +177,38 @@ export async function connectObsidianVault() {
 }
 
 /**
+ * Extract course tag from any nested subfolder path (e.g. school/FNCE 317/Week 1/Lecture.md -> FNCE 317)
+ */
+export function extractCourseFromPath(filePath) {
+  if (!filePath) return 'Course Material';
+  const parts = filePath.split('/');
+  
+  // 1. Check if any path segment matches university course code patterns (e.g. FNCE 317, PSYC 203)
+  for (const part of parts) {
+    if (part.toLowerCase() === 'school' || part.toLowerCase().endsWith('.pdf') || part.toLowerCase().endsWith('.md')) continue;
+    const match = part.match(/([A-Z]{2,6}\s*\d{2,4})/i);
+    if (match) return match[1].toUpperCase().replace(/\s+/, ' ').trim();
+  }
+
+  // 2. If under school/ (e.g. school/FNCE 317/Week 1/doc.md -> parts[1])
+  if (parts.length >= 2) {
+    const schoolIdx = parts.findIndex(p => p.toLowerCase() === 'school');
+    if (schoolIdx !== -1 && parts.length > schoolIdx + 1) {
+      const candidate = parts[schoolIdx + 1];
+      if (candidate && !candidate.includes('.')) return candidate.trim();
+    } else if (parts.length > 1 && !parts[0].includes('.')) {
+      return parts[0].trim();
+    }
+  }
+
+  // 3. Regex fallback
+  const fullMatch = filePath.match(/([A-Z]{2,6}\s*\d{2,4})/i);
+  if (fullMatch) return fullMatch[1].toUpperCase().trim();
+
+  return 'Course Material';
+}
+
+/**
  * Universal HTML5 FileList processor for folder selection (works across ALL browsers & mobile)
  */
 export async function processUploadedFolderFiles(fileList) {
@@ -200,25 +232,8 @@ export async function processUploadedFolderFiles(fileList) {
 
     if (!isDoc) continue;
 
-    // Detect course from path parts or regex
-    const pathParts = rawPath.split('/');
-    let detectedCourse = null;
-    
-    // Subfolder name (e.g. school/FNCE 317/outline.pdf -> "FNCE 317")
-    if (pathParts.length > 1) {
-      const folderCandidate = pathParts[pathParts.length - 2];
-      if (folderCandidate && folderCandidate.toLowerCase() !== 'school') {
-        detectedCourse = folderCandidate.trim();
-      }
-    }
-
-    // Regex fallback
-    if (!detectedCourse) {
-      const match = rawPath.match(/([A-Z]{2,6}\s*\d{0,4})/i);
-      if (match && match[1].length >= 2) detectedCourse = match[1].toUpperCase();
-    }
-
-    if (detectedCourse) coursesSet.add(detectedCourse);
+    const detectedCourse = extractCourseFromPath(rawPath);
+    if (detectedCourse && detectedCourse !== 'Course Material') coursesSet.add(detectedCourse);
 
     let cachedText = '';
     try {
@@ -298,24 +313,8 @@ export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
                       !entry.name.includes('.');
 
         if (isDoc) {
-          // Detect course from directory parent or course code
-          const parts = entryPath.split('/');
-          let detectedCourse = null;
-          if (parts.length > 1) {
-            const parent = parts[parts.length - 2];
-            if (parent && parent.toLowerCase() !== 'school') {
-              detectedCourse = parent.trim();
-            }
-          }
-
-          if (!detectedCourse) {
-            const courseMatch = entryPath.match(/([A-Z]{2,6}\s*\d{0,4})/i);
-            if (courseMatch && courseMatch[1].length >= 2) {
-              detectedCourse = courseMatch[1].toUpperCase();
-            }
-          }
-
-          if (detectedCourse) coursesSet.add(detectedCourse);
+          const detectedCourse = extractCourseFromPath(entryPath);
+          if (detectedCourse && detectedCourse !== 'Course Material') coursesSet.add(detectedCourse);
 
           let cachedContent = '';
           try {
