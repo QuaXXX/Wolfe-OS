@@ -3,6 +3,8 @@
  * Uses native File System Access API (showDirectoryPicker) and IndexedDB handle persistence
  */
 
+import { extractTextFromFile } from './documentParser.js';
+
 const DB_NAME = 'wolfe_os_vault_db';
 const STORE_NAME = 'handles';
 const HANDLE_KEY = 'obsidian_dir_handle';
@@ -179,10 +181,7 @@ export async function readVaultFileContent(fileHandle) {
   if (!fileHandle) return '';
   try {
     const file = await fileHandle.getFile();
-    if (file.name.toLowerCase().endsWith('.pdf')) {
-      return `[PDF File: ${file.name} (${Math.round(file.size / 1024)} KB)]`;
-    }
-    return await file.text();
+    return await extractTextFromFile(file);
   } catch (err) {
     console.warn("Read file error:", err);
     return '';

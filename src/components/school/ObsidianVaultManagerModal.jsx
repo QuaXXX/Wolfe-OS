@@ -164,24 +164,24 @@ export const ObsidianVaultManagerModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-2xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[90vh] overflow-y-auto"
+          className="relative w-full max-w-2xl bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-4 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[90vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
               <div 
-                className="w-10 h-10 rounded-2xl flex items-center justify-center bg-[#6d28d9]/15 border border-[#7c3aed]/30 text-[#a78bfa]"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center bg-[#6d28d9]/15 border border-[#7c3aed]/30 text-[#a78bfa] shrink-0"
               >
-                <FolderSync className="w-5 h-5" />
+                <FolderSync className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Obsidian Vault Knowledge Base</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#6d28d9]/25 text-[#c4b5fd] font-semibold border border-[#7c3aed]/30">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
+                  <span>Obsidian Vault</span>
+                  <span className="hidden sm:inline text-[10px] font-mono px-2 py-0.5 rounded bg-[#6d28d9]/25 text-[#c4b5fd] font-semibold border border-[#7c3aed]/30">
                     Live Markdown Sync
                   </span>
                 </h3>
-                <p className="text-xs text-slate-400">Direct disk connection to your school notes, summaries & outlines</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 truncate">Direct local connection to your school notes & outlines</p>
               </div>
             </div>
 
@@ -190,7 +190,7 @@ export const ObsidianVaultManagerModal = ({
                 playSound('click', soundEnabled);
                 onClose();
               }}
-              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
