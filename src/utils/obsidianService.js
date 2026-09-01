@@ -555,6 +555,57 @@ export async function saveQuizToObsidian(quiz) {
 }
 
 /**
+ * Export Flashcard deck as a formatted Markdown study note into Obsidian Vault
+ */
+export async function saveDeckToObsidian(deck) {
+  try {
+    const handle = await getVaultHandle();
+    if (!handle) return false;
+
+    const rootName = (handle.name || '').toLowerCase();
+    const isSchoolFolder = rootName === 'school';
+
+    let courseFolder = 'General';
+    if (deck.courseCode) {
+      const match = deck.courseCode.toUpperCase().match(/([A-Z]{2,6}\s*\d{2,4})/);
+      if (match) {
+        courseFolder = match[1].trim();
+      } else {
+        courseFolder = deck.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() || 'General';
+      }
+    }
+
+    const subfolder = isSchoolFolder ? `${courseFolder}/Flashcards` : `School/${courseFolder}/Flashcards`;
+    const cleanDate = new Date(deck.lastStudied || deck.updatedAt || Date.now()).toISOString().split('T')[0];
+    const safeTitle = (deck.title || deck.topic || 'Flashcard Deck').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Deck';
+    const filename = `${safeTitle} (${cleanDate})`;
+
+    let md = `# 🃏 ${deck.courseCode || 'Course'}: ${deck.title || deck.topic || 'Study Flashcards'}\n\n`;
+    md += `- **Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}\n`;
+    md += `- **Card Count:** ${deck.cards?.length || 0}\n`;
+    md += `- **Mastery:** ${deck.masteryPercent || 0}%\n`;
+    md += `- **Mode:** ${deck.depthMode || 'Active Recall'}\n\n`;
+    md += `---\n\n## Flashcards\n\n`;
+
+    (deck.cards || []).forEach((c, idx) => {
+      md += `### Card ${idx + 1}: ${c.concept || 'Concept'}\n\n`;
+      md += `**Q:** ${c.front}\n\n`;
+      md += `**A:** ${c.back}\n\n`;
+      if (c.yieldReason) {
+        md += `> 💡 *Exam Note:* ${c.yieldReason}\n\n`;
+      }
+      md += `---\n\n`;
+    });
+
+    await saveMarkdownToVault(handle, subfolder, filename, md);
+    return true;
+  } catch (err) {
+    console.warn("Could not export deck to Obsidian:", err);
+    return false;
+  }
+}
+
+/**
  * Vault sample notes (empty until user connects their personal Obsidian vault)
  */
 export const SAMPLE_OBSIDIAN_VAULT = [];
