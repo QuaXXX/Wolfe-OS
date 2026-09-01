@@ -218,7 +218,7 @@ export const CalendarView = ({
             style={{ backgroundColor: 'var(--accent-primary)' }}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>+ Event</span>
+            <span>Event</span>
           </button>
         </div>
       </div>
@@ -327,7 +327,7 @@ export const CalendarView = ({
                     style={{ color: 'var(--accent-primary)' }}
                   >
                     <Plus className="w-3 h-3" />
-                    <span>+ Event</span>
+                    <span>Event</span>
                   </button>
                 </div>
 
