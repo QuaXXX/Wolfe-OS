@@ -19,8 +19,8 @@ import {
   Zap,
   Check,
   ChevronDown,
-  SlidersHorizontal,
   ChevronUp,
+  SlidersHorizontal,
   FileText,
   Building2,
   Eye,
@@ -36,6 +36,7 @@ import { HyperliquidConnectModal } from '../trading/HyperliquidConnectModal';
 import { WebhookConfigModal } from '../trading/WebhookConfigModal';
 import { TradeJournalModal } from '../trading/TradeJournalModal';
 import { HermesPaperTraderCard } from '../trading/HermesPaperTraderCard';
+import { HermesOrderEntryModal } from '../trading/HermesOrderEntryModal';
 import { 
   getTradingConfig, 
   getWatchlist, 
@@ -54,7 +55,6 @@ import { fetchHyperliquidAccount, fetchLiveMarketPrices } from '../../utils/hype
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
 import { 
   tickPaperPositionsWithLivePrices, 
-  autoExecuteHermesPlays, 
   enterSingleHermesPlay,
   getPaperPositions,
   resetPaperTradingAccount
@@ -86,12 +86,14 @@ export const TradingView = ({
   const [hermesBrief, setHermesBrief] = useState(getLatestHermesBrief());
   const [livePricesMap, setLivePricesMap] = useState({});
 
-  // Modals
+  // Modals & Order Entry
   const [isWarRoomOpen, setIsWarRoomOpen] = useState(false);
   const [isHyperliquidOpen, setIsHyperliquidOpen] = useState(false);
   const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
   const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
   const [selectedTradeForEdit, setSelectedTradeForEdit] = useState(null);
+  const [selectedPlayForOrder, setSelectedPlayForOrder] = useState(null);
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
   // New Ticker input
   const [newTickerInput, setNewTickerInput] = useState('');
@@ -208,9 +210,14 @@ export const TradingView = ({
 
   const stats = useMemo(() => calculateTradingStats(), [tradeJournal]);
 
-  const handleEnterIndividualPlay = (play) => {
+  const handleOpenOrderModal = (play) => {
     playSound('click', soundEnabled);
-    enterSingleHermesPlay(play, hermesBrief?.date, livePricesMap);
+    setSelectedPlayForOrder(play);
+    setIsOrderModalOpen(true);
+  };
+
+  const handleConfirmOrderExecution = (play, executionMode) => {
+    enterSingleHermesPlay(play, hermesBrief?.date, livePricesMap, executionMode);
     setPaperPositions(getPaperPositions());
     playSound('success', soundEnabled);
   };
@@ -643,7 +650,7 @@ export const TradingView = ({
                           ) : (
                             <button
                               type="button"
-                              onClick={() => handleEnterIndividualPlay(play)}
+                              onClick={() => handleOpenOrderModal(play)}
                               className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer text-white"
                               style={{
                                 backgroundColor: 'var(--accent-subtle)',
@@ -1202,6 +1209,15 @@ export const TradingView = ({
         }}
         initialTrade={selectedTradeForEdit}
         onTradeSaved={() => refreshAllData()}
+        soundEnabled={soundEnabled}
+      />
+
+      <HermesOrderEntryModal
+        isOpen={isOrderModalOpen}
+        onClose={() => setIsOrderModalOpen(false)}
+        play={selectedPlayForOrder}
+        livePrice={selectedPlayForOrder ? livePricesMap[selectedPlayForOrder.ticker] : null}
+        onConfirmOrder={handleConfirmOrderExecution}
         soundEnabled={soundEnabled}
       />
     </div>

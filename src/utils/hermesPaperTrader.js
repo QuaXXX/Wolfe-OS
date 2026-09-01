@@ -80,6 +80,14 @@ export function savePaperTradeHistory(history) {
   }
 }
 
+export function resetPaperTradingAccount() {
+  const fresh = { ...DEFAULT_PAPER_ACCOUNT };
+  savePaperAccount(fresh);
+  savePaperPositions([]);
+  savePaperTradeHistory([]);
+  return fresh;
+}
+
 export function deletePaperPosition(posId) {
   const current = getPaperPositions();
   const filtered = current.filter(p => p.id !== posId);
@@ -95,9 +103,13 @@ export function deletePaperHistoryTrade(tradeId) {
 }
 
 /**
- * 1. Enter a Single Play with Exact Sizing & Limit Trigger
+ * 1. Enter a Single Play with Exact Sizing, Limit Trigger or Immediate Market Fill
+ * @param {Object} play - Candidate trade setup
+ * @param {string} briefDate - Date of the brief
+ * @param {Object} livePrices - Map of live asset prices
+ * @param {string} executionMode - 'LIMIT' | 'MARKET' | 'AUTO'
  */
-export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}) {
+export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, executionMode = 'AUTO') {
   if (!play) return null;
   const account = getPaperAccount();
   const existingPositions = getPaperPositions();
@@ -105,56 +117,74 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}) {
   const ticker = (play.ticker || 'BTC').toUpperCase();
   const isLong = (play.bias || 'LONG').toUpperCase() === 'LONG';
 
-  // Parse numeric entry, stop loss, and take profit
+  // Parse numeric planned entry, stop loss, and take profit
   const entryMatches = String(play.entryTrigger).match(/\$?([0-9,.]+)/);
-  const entryPrice = entryMatches ? Number(entryMatches[1].replace(/,/g, '')) : 100;
+  const plannedLimitEntryPrice = entryMatches ? Number(entryMatches[1].replace(/,/g, '')) : 100;
 
   const stopMatches = String(play.stopLoss).match(/\$?([0-9,.]+)/);
-  const stopLoss = stopMatches ? Number(stopMatches[1].replace(/,/g, '')) : (isLong ? entryPrice * 0.98 : entryPrice * 1.02);
+  let stopLoss = stopMatches ? Number(stopMatches[1].replace(/,/g, '')) : (isLong ? plannedLimitEntryPrice * 0.98 : plannedLimitEntryPrice * 1.02);
 
   const tpMatches = String(play.target2R).match(/\$?([0-9,.]+)/);
-  const takeProfit = tpMatches ? Number(tpMatches[1].replace(/,/g, '')) : (isLong ? entryPrice + Math.abs(entryPrice - stopLoss) * 2 : entryPrice - Math.abs(entryPrice - stopLoss) * 2);
+  let takeProfit = tpMatches ? Number(tpMatches[1].replace(/,/g, '')) : (isLong ? plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2 : plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2);
 
   const leverage = account.leverage || 5;
+  const currentLivePrice = livePrices[ticker] ? Number(livePrices[ticker]) : plannedLimitEntryPrice;
+
+  let actualEntryPrice = plannedLimitEntryPrice;
+  let isImmediatelyActive = false;
+
+  if (executionMode === 'MARKET') {
+    // ⚡ MARKET ORDER: Instant fill at current live market price
+    actualEntryPrice = currentLivePrice;
+    isImmediatelyActive = true;
+
+    // Recalculate Stop Loss and 2R Take Profit relative to actual live market fill
+    const riskDistance = Math.abs(plannedLimitEntryPrice - stopLoss);
+    if (isLong) {
+      stopLoss = Number((actualEntryPrice - riskDistance).toFixed(2));
+      takeProfit = Number((actualEntryPrice + riskDistance * 2).toFixed(2));
+    } else {
+      stopLoss = Number((actualEntryPrice + riskDistance).toFixed(2));
+      takeProfit = Number((actualEntryPrice - riskDistance * 2).toFixed(2));
+    }
+  } else {
+    // 🎯 LIMIT ORDER: Check if live price is already touching or through limit price
+    actualEntryPrice = plannedLimitEntryPrice;
+    if (isLong) {
+      if (currentLivePrice <= plannedLimitEntryPrice * 1.001) isImmediatelyActive = true;
+    } else {
+      if (currentLivePrice >= plannedLimitEntryPrice * 0.999) isImmediatelyActive = true;
+    }
+  }
 
   const sizing = calculateDynamicPositionSize({
     accountEquity: account.balance,
     riskPercent: account.riskPercent || 1.5,
-    entryPrice,
+    entryPrice: actualEntryPrice,
     stopLossPrice: stopLoss,
     leverage,
     asset: ticker
   });
 
-  const currentLivePrice = livePrices[ticker] || entryPrice;
-  
-  // Real market check:
-  // If price has reached the entry price (within 0.1%), order triggers and becomes ACTIVE.
-  let isImmediatelyActive = false;
-  if (isLong) {
-    if (currentLivePrice <= entryPrice * 1.001) isImmediatelyActive = true;
-  } else {
-    if (currentLivePrice >= entryPrice * 0.999) isImmediatelyActive = true;
-  }
-
-  // Exact initial metrics
   const priceDiff = isImmediatelyActive 
-    ? (isLong ? (currentLivePrice - entryPrice) : (entryPrice - currentLivePrice))
+    ? (isLong ? (currentLivePrice - actualEntryPrice) : (actualEntryPrice - currentLivePrice))
     : 0;
   
   const unrealizedPnlUSD = Number((priceDiff * sizing.contracts).toFixed(2));
-  const spotMovePct = Number(((priceDiff / entryPrice) * 100).toFixed(2));
+  const spotMovePct = Number(((priceDiff / actualEntryPrice) * 100).toFixed(2));
   const roePct = Number(((unrealizedPnlUSD / Math.max(1, sizing.requiredMarginUSD)) * 100).toFixed(2));
-  const rMultiple = Math.abs(entryPrice - stopLoss) > 0 
-    ? Number((priceDiff / Math.abs(entryPrice - stopLoss)).toFixed(2))
+  const rMultiple = Math.abs(actualEntryPrice - stopLoss) > 0 
+    ? Number((priceDiff / Math.abs(actualEntryPrice - stopLoss)).toFixed(2))
     : 0;
 
   const position = {
     id: `paper_${Date.now()}_${ticker}_${Math.random().toString(36).substring(2, 6)}`,
     ticker,
     side: isLong ? 'LONG' : 'SHORT',
-    entryPrice,
-    currentPrice: isImmediatelyActive ? currentLivePrice : entryPrice,
+    entryPrice: actualEntryPrice,
+    plannedLimitPrice: plannedLimitEntryPrice,
+    executionType: executionMode === 'MARKET' ? 'MARKET_FILL' : 'LIMIT_ORDER',
+    currentPrice: isImmediatelyActive ? currentLivePrice : actualEntryPrice,
     stopLoss,
     takeProfit,
     target3R: play.target3R,
@@ -171,10 +201,10 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}) {
     createdAt: new Date().toISOString(),
     triggeredAt: isImmediatelyActive ? new Date().toISOString() : null,
     status: isImmediatelyActive ? 'ACTIVE' : 'PENDING_ENTRY',
-    unrealizedPnlUSD,
-    spotMovePct,
-    roePct,
-    rMultiple
+    unrealizedPnlUSD: isImmediatelyActive ? unrealizedPnlUSD : 0.00,
+    spotMovePct: isImmediatelyActive ? spotMovePct : 0.00,
+    roePct: isImmediatelyActive ? roePct : 0.00,
+    rMultiple: isImmediatelyActive ? rMultiple : 0.00
   };
 
   savePaperPositions([position, ...existingPositions]);
@@ -182,31 +212,7 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}) {
 }
 
 /**
- * 2. Auto-Execute All Plays from Morning Brief
- */
-export function autoExecuteHermesPlays(brief, force = false, livePrices = {}) {
-  if (!brief || !brief.highConvictionPlays || !Array.isArray(brief.highConvictionPlays)) return [];
-  const account = getPaperAccount();
-  if (!account.isAutoTradingEnabled && !force) return [];
-
-  const existingPositions = getPaperPositions();
-  const created = [];
-
-  for (const play of brief.highConvictionPlays) {
-    const ticker = (play.ticker || 'BTC').toUpperCase();
-    const alreadyExists = existingPositions.some(p => p.ticker === ticker && p.briefDate === brief.date);
-    if (alreadyExists && !force) continue;
-
-    const pos = enterSingleHermesPlay(play, brief.date, livePrices);
-    if (pos) created.push(pos);
-  }
-
-  savePaperAccount({ ...account, lastBriefDateExecuted: brief.date });
-  return created;
-}
-
-/**
- * 3. Real-Time TP / SL Monitor Engine with Exact Exchange Math
+ * 2. Real-Time TP / SL Monitor Engine with Exact Exchange Math
  */
 export function tickPaperPositionsWithLivePrices(livePrices) {
   if (!livePrices || Object.keys(livePrices).length === 0) return { closedTrades: [], openPositions: getPaperPositions() };
@@ -229,7 +235,7 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
 
     const isLong = pos.side === 'LONG';
 
-    // 1. If Position is PENDING ENTRY: check if limit price touched
+    // 1. If Position is PENDING ENTRY: check if limit price touched in real market
     if (pos.status === 'PENDING_ENTRY') {
       let isEntryTriggered = false;
       if (isLong && currentPrice <= pos.entryPrice * 1.001) {
@@ -318,19 +324,20 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
         size: pos.size,
         pnlUSD: realizedPnlUSD,
         strategy: `Hermes Forward-Test (${pos.convictionGrade})`,
-        tags: [isTpHit ? '2R Target Hit' : 'Stop Loss Hit', 'Hermes Forward-Test', pos.timeframe || 'Intraday'],
-        notes: `Outcome: ${closedTrade.exitReason} (${realizedRMultiple}R). ROE: ${realizedRoePct}%. Timeframe: ${pos.timeframe}`
+        notes: `${pos.thesis} (Exit: ${closedTrade.exitReason})`,
+        screenshot: '',
+        aiPostMortem: isTpHit 
+          ? `Target 2R hit with +${realizedRoePct}% ROE on ${pos.side} setup.`
+          : `Stopped out at invalidation with ${realizedRoePct}% ROE.`
       });
 
-      // Update paper balance
+      // Update Account balance
       account.balance = Number((account.balance + realizedPnlUSD).toFixed(2));
       account.realizedPnlUSD = Number((account.realizedPnlUSD + realizedPnlUSD).toFixed(2));
       account.totalTrades += 1;
       if (isTpHit) account.winningTrades += 1;
       else account.losingTrades += 1;
-
     } else {
-      // Position remains active
       remainingPositions.push({
         ...pos,
         currentPrice,
@@ -342,26 +349,11 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
     }
   }
 
-  savePaperPositions(remainingPositions);
-
   if (newlyClosedTrades.length > 0) {
-    savePaperTradeHistory([...newlyClosedTrades, ...history]);
     savePaperAccount(account);
+    savePaperTradeHistory([...newlyClosedTrades, ...history]);
   }
 
-  return {
-    closedTrades: newlyClosedTrades,
-    openPositions: remainingPositions,
-    account
-  };
-}
-
-/**
- * Reset Paper Account
- */
-export function resetPaperTradingAccount() {
-  savePaperAccount(DEFAULT_PAPER_ACCOUNT);
-  savePaperPositions([]);
-  savePaperTradeHistory([]);
-  return { ...DEFAULT_PAPER_ACCOUNT };
+  savePaperPositions(remainingPositions);
+  return { closedTrades: newlyClosedTrades, openPositions: remainingPositions };
 }
