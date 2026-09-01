@@ -16,7 +16,7 @@ const STORAGE_KEY_PAPER_HISTORY = 'wolfe_hermes_paper_history_v1';
 export const DEFAULT_PAPER_ACCOUNT = {
   balance: 10000.00,
   startingBalance: 10000.00,
-  isAutoTradingEnabled: true,
+  isAutoTradingEnabled: false,
   riskPercent: 1.5,
   leverage: 5,
   totalTrades: 0,

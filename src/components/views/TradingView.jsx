@@ -164,7 +164,6 @@ export const TradingView = ({
     try {
       const newBrief = await runHermesSwarmAnalysis();
       setHermesBrief(newBrief);
-      autoExecuteHermesPlays(newBrief);
       setPaperPositions(getPaperPositions());
       
       // Trigger Completion Notification Popup
@@ -841,7 +840,7 @@ export const TradingView = ({
               <Loader2 className="w-6 h-6 animate-spin mx-auto text-amber-400" />
               <div className="text-sm font-bold text-white">Council Debate in Progress...</div>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Specialists are submitting dark pool prints, analyzing filings, and red-teaming proposals.
+                Specialists are transmitting macro indicators, dark pool prints, filings analysis, and red-teaming proposals.
               </p>
             </GlassCard>
           ) : (
@@ -851,11 +850,11 @@ export const TradingView = ({
                 const isSkeptic = msg.speaker === 'The Skeptic';
 
                 return (
-                  <GlassCard key={mIdx} hoverEffect={false} className="p-3.5 space-y-2">
-                    <div className="flex items-center justify-between">
+                  <GlassCard key={mIdx} hoverEffect={false} className="p-3.5 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <div 
-                          className="w-7 h-7 rounded-xl border flex items-center justify-center font-bold text-xs"
+                          className="w-7 h-7 rounded-xl border flex items-center justify-center font-bold text-xs shrink-0"
                           style={isStrategist ? {
                             backgroundColor: 'var(--accent-primary)',
                             color: '#ffffff',
@@ -872,22 +871,37 @@ export const TradingView = ({
                         >
                           {msg.speaker[0]}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-white text-xs font-mono">{msg.speaker}</span>
-                            <span 
-                              className="text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold"
-                              style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgb(203 213 225)' }}
-                            >
-                              {msg.role}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {msg.step && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-white/[0.06] text-white">
+                              Step {msg.step}/7
                             </span>
-                          </div>
+                          )}
+                          <span className="font-bold text-white text-xs font-mono">{msg.speaker}</span>
+                          <span 
+                            className="text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgb(203 213 225)' }}
+                          >
+                            {msg.role}
+                          </span>
+                          {msg.recipient && (
+                            <span className="text-[9px] font-mono text-slate-400">
+                              ➔ {msg.recipient}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-500">{msg.timestamp || '05:30 AM'}</span>
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                        {msg.stage && (
+                          <span className="px-2 py-0.5 rounded-full bg-black/40 border border-white/5 text-slate-300">
+                            {msg.stage}
+                          </span>
+                        )}
+                        <span>{msg.timestamp || '05:30 AM'}</span>
+                      </div>
                     </div>
 
-                    <p className="text-xs text-slate-200 leading-relaxed pl-9 font-sans">
+                    <p className="text-xs text-slate-200 leading-relaxed pl-2 sm:pl-9 font-sans border-l-2 border-white/5 ml-3 sm:ml-0">
                       {msg.message}
                     </p>
                   </GlassCard>
