@@ -119,11 +119,8 @@ export const ProfEmailDraftModal = ({
                 <Mail className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Prof-Ready Email Drafter</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/30">
-                    {courseCode || 'Academics'}
-                  </span>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  Prof-Ready Email Drafter
                 </h3>
                 <p className="text-xs text-slate-400">Describe what you need and AI will draft a formal, polite email</p>
               </div>

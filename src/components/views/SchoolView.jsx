@@ -225,13 +225,8 @@ export const SchoolView = ({
           onClick={() => handleOpenStudyTool('flashcards')}
           className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
-              <Layers className="w-4 h-4" />
-            </div>
-            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/10">
-              Anki SRS
-            </span>
+          <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-2.5">
+            <Layers className="w-4 h-4" />
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-blue-300 transition-colors">
             Active Recall Flashcards
@@ -246,13 +241,8 @@ export const SchoolView = ({
           onClick={() => handleOpenStudyTool('quiz')}
           className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
-              <HelpCircle className="w-4 h-4" />
-            </div>
-            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/10">
-              Quiz
-            </span>
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mb-2.5">
+            <HelpCircle className="w-4 h-4" />
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">
             Practice Exam Simulator
@@ -267,13 +257,8 @@ export const SchoolView = ({
           onClick={() => handleOpenStudyTool('email')}
           className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center">
-              <Mail className="w-4 h-4" />
-            </div>
-            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/10">
-              Email
-            </span>
+          <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mb-2.5">
+            <Mail className="w-4 h-4" />
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-rose-300 transition-colors">
             Prof-Ready Email Drafter
@@ -288,17 +273,8 @@ export const SchoolView = ({
           onClick={() => handleOpenStudyTool('search')}
           className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-sm group"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-8 h-8 rounded-xl bg-[#6d28d9]/20 text-[#a78bfa] border border-[#7c3aed]/30 flex items-center justify-center">
-              {vaultMeta.connected ? <Search className="w-4 h-4" /> : <FolderSync className="w-4 h-4" />}
-            </div>
-            <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border ${
-              vaultMeta.connected 
-                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' 
-                : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
-            }`}>
-              {vaultMeta.connected ? 'Connected' : 'Connect'}
-            </span>
+          <div className="w-8 h-8 rounded-xl bg-[#6d28d9]/20 text-[#a78bfa] border border-[#7c3aed]/30 flex items-center justify-center mb-2.5">
+            {vaultMeta.connected ? <Search className="w-4 h-4" /> : <FolderSync className="w-4 h-4" />}
           </div>
           <h3 className="text-xs font-bold text-white group-hover:text-[#c4b5fd] transition-colors">
             {vaultMeta.connected ? "Ask My Obsidian Vault" : "Connect Obsidian Vault"}
@@ -480,7 +456,6 @@ export const SchoolView = ({
                   Deep Focus Shield
                 </h3>
               </div>
-              <span className="text-[10px] font-mono text-[#a78bfa]">Anti-Distraction</span>
             </div>
 
             <div className="text-center py-4 space-y-3">

@@ -202,11 +202,8 @@ export const FlashcardDeckModal = ({
                 <Layers className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>{courseCode ? `${courseCode} Flashcards` : "Study Flashcards"}</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/30">
-                    Spaced Repetition
-                  </span>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  {courseCode ? `${courseCode} Flashcards` : "Study Flashcards"}
                 </h3>
                 <p className="text-xs text-slate-400">High-yield active recall with custom scope & importance rating</p>
               </div>

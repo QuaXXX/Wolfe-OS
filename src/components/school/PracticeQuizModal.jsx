@@ -184,11 +184,8 @@ export const PracticeQuizModal = ({
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>{courseCode ? `${courseCode} Practice Exam` : "Practice Quiz"}</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
-                    Exam Simulator
-                  </span>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  {courseCode ? `${courseCode} Practice Exam` : "Practice Quiz"}
                 </h3>
                 <p className="text-xs text-slate-400">Multi-choice problem sets with instant explanations & weak-spot tracking</p>
               </div>

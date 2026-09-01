@@ -83,11 +83,8 @@ export const VaultSearchModal = ({
                 <Search className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Search Obsidian Vault</span>
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
-                    AI Search
-                  </span>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  Search Obsidian Vault
                 </h3>
                 <p className="text-xs text-slate-400">
                   {isConnected 
