@@ -86,7 +86,24 @@ export function saveTradingConfig(config) {
 export function getWatchlist() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_WATCHLIST);
-    return raw ? JSON.parse(raw) : DEFAULT_WATCHLIST;
+    let list = raw ? JSON.parse(raw) : DEFAULT_WATCHLIST;
+    
+    // Clean up NASDAQ and outdated indices
+    list = list.filter(item => item.symbol !== 'NASDAQ' && item.symbol !== 'IXIC' && item.symbol !== 'QQQ');
+
+    // Ensure all monitored candidate assets are present in the list
+    DEFAULT_WATCHLIST.forEach(def => {
+      const idx = list.findIndex(item => item.symbol === def.symbol);
+      if (idx === -1) {
+        list.push(def);
+      } else {
+        // Update price/category if default is newer
+        list[idx] = { ...def, ...list[idx] };
+      }
+    });
+
+    localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+    return list;
   } catch {
     return DEFAULT_WATCHLIST;
   }

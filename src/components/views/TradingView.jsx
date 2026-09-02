@@ -611,17 +611,18 @@ export const TradingView = ({
                             ];
 
                         const macroSection = pointsToRender.find(p => p.category.includes("What's Happening") || p.category.includes("1."));
-                        const eventsSection = pointsToRender.find(p => p.category.includes("Dates") || p.category.includes("2."));
+                        const eventsSection = pointsToRender.find(p => p.category.includes("Events") || p.category.includes("Dates") || p.category.includes("2."));
                         const chosenSection = pointsToRender.find(p => p.category.includes("Chosen") || p.category.includes("3."));
 
                         return (
                           <div className="space-y-3">
                             {/* Top Grid: Section 1 & Section 2 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                              {/* Section 1 */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {/* Section 1: What's Happening & Why */}
                               {macroSection && (
-                                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2 shadow-sm">
-                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-1.5">
+                                <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
+                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-2">
+                                    <Compass className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                                     <span>{macroSection.category}</span>
                                   </div>
                                   <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
@@ -635,10 +636,11 @@ export const TradingView = ({
                                 </div>
                               )}
 
-                              {/* Section 2 */}
+                              {/* Section 2: Important Events & Recent News */}
                               {eventsSection && (
-                                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2 shadow-sm">
-                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-1.5">
+                                <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
+                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-2">
+                                    <Clock className="w-3.5 h-3.5 text-amber-400" />
                                     <span>{eventsSection.category}</span>
                                   </div>
                                   <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
@@ -653,74 +655,87 @@ export const TradingView = ({
                               )}
                             </div>
 
-                            {/* Section 3: Chosen Stocks & Crypto with Direct Execution Action Buttons */}
+                            {/* Section 3: Chosen Stocks & Crypto with Clean Point-Form Structure & Direct 1-Click Execution */}
                             {chosenSection && (
-                              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
-                                <div className="font-bold text-white text-xs flex items-center justify-between border-b border-white/5 pb-1.5">
-                                  <span>{chosenSection.category}</span>
-                                  <span className="text-[10px] font-mono text-emerald-400 font-semibold">1-Click Execution Integrated</span>
+                              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3 shadow-sm">
+                                <div className="font-bold text-white text-xs flex items-center justify-between border-b border-white/5 pb-2">
+                                  <span className="flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                                    <span>{chosenSection.category}</span>
+                                  </span>
+                                  <span className="text-[10px] font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                                    1-Click Desk Execution
+                                  </span>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                                  {chosenSection.items.map((item, iIdx) => {
-                                    // Extract ticker symbol from item (e.g. "ASTS" from "ASTS ($26.40 ...")
-                                    const match = item.match(/^([A-Z0-9]+)\s*\(/);
-                                    const ticker = match ? match[1] : `ASSET_${iIdx}`;
-                                    const matchingPlay = (availableWarRoomPlays || []).find(p => p.ticker === ticker) || {
-                                      ticker,
-                                      bias: 'LONG',
-                                      entryTrigger: 'Market Entry',
-                                      stopLoss: 'Dynamic',
-                                      target2R: 'Dynamic'
-                                    };
-
-                                    return (
-                                      <div key={iIdx} className="p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] border border-white/5 space-y-2 transition-colors">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-mono text-xs font-bold text-white">{ticker}</span>
-                                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                                              LONG 5x
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                                  {((hermesBrief.highConvictionPlays && hermesBrief.highConvictionPlays.length > 0)
+                                    ? hermesBrief.highConvictionPlays
+                                    : availableWarRoomPlays
+                                  ).map((play, iIdx) => (
+                                    <div key={iIdx} className="p-3.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 hover:border-white/20 space-y-2.5 transition-all">
+                                      {/* Header: Ticker, Category, Grade, and Action Buttons */}
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="font-mono text-xs font-bold text-white tracking-wide">{play.ticker}</span>
+                                          <span className="text-[9px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.06] text-amber-300 border border-amber-500/20">
+                                            {play.category || play.horizonType || 'Asset'}
+                                          </span>
+                                          {play.confluenceScore && (
+                                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                                              {play.confluenceScore}% Alpha
                                             </span>
-                                          </div>
-
-                                          {/* Direct 1-Click Action Buttons */}
-                                          <div className="flex items-center gap-1.5">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                playSound('click', soundEnabled);
-                                                setHyperliquidTicker(ticker);
-                                                setActiveTab('execute');
-                                              }}
-                                              className="px-2 py-0.5 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95"
-                                              title="Trade directly on Hyperliquid"
-                                            >
-                                              <Zap className="w-2.5 h-2.5 text-emerald-400" />
-                                              <span>Hyperliquid</span>
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => handleOpenOrderModal(matchingPlay)}
-                                              className="px-2 py-0.5 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95"
-                                              style={{
-                                                backgroundColor: 'var(--accent-subtle)',
-                                                border: '1px solid var(--accent-border)'
-                                              }}
-                                              title="Forward-Test paper order"
-                                            >
-                                              <Plus className="w-2.5 h-2.5" style={{ color: 'var(--accent-primary)' }} />
-                                              <span>+ Test</span>
-                                            </button>
-                                          </div>
+                                          )}
                                         </div>
 
-                                        <p className="text-[11px] text-slate-300 leading-relaxed pl-0.5">
-                                          {item}
-                                        </p>
+                                        {/* Action Buttons with Single Clean Plus */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              playSound('click', soundEnabled);
+                                              setHyperliquidTicker(play.ticker);
+                                              setActiveTab('execute');
+                                            }}
+                                            className="px-2.5 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95 shadow-sm"
+                                            title="Trade directly on Hyperliquid"
+                                          >
+                                            <Zap className="w-2.5 h-2.5 text-emerald-400" />
+                                            <span>Hyperliquid</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenOrderModal(play)}
+                                            className="px-2.5 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95 shadow-sm"
+                                            style={{
+                                              backgroundColor: 'var(--accent-subtle)',
+                                              border: '1px solid var(--accent-border)'
+                                            }}
+                                            title="Forward-Test paper order"
+                                          >
+                                            <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                            <span>Test</span>
+                                          </button>
+                                        </div>
                                       </div>
-                                    );
-                                  })}
+
+                                      {/* 3 Clear, Point-Form Bullets */}
+                                      <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
+                                        <div className="flex items-start gap-1.5 leading-relaxed">
+                                          <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                                          <span><strong className="text-white">Why Chosen:</strong> {play.whyChosen || play.thesis || play.catalystDossier}</span>
+                                        </div>
+                                        <div className="flex items-start gap-1.5 leading-relaxed">
+                                          <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
+                                          <span><strong className="text-white">Expected Move:</strong> {play.projectedMove || `Pullback to ${play.entryTrigger} targeting ${play.target2R} (2R) with high institutional volume confirmation.`}</span>
+                                        </div>
+                                        <div className="flex items-start gap-1.5 leading-relaxed">
+                                          <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
+                                          <span><strong className="text-white">Risk & Invalidation:</strong> {play.riskManagement || `Trigger ${play.entryTrigger} | Invalidation Stop ${play.stopLoss} | Target 2R ${play.target2R} (1.5% max risk).`}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             )}
@@ -822,7 +837,7 @@ export const TradingView = ({
                                 }}
                               >
                                 <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                <span>+ Test</span>
+                                <span>Test</span>
                               </button>
                             </div>
                           </div>
@@ -1002,15 +1017,33 @@ export const TradingView = ({
               </form>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
               {watchlist.map((stock) => (
-                <GlassCard key={stock.symbol} hoverEffect={false} className="p-2.5">
+                <GlassCard 
+                  key={stock.symbol} 
+                  hoverEffect={true} 
+                  className="p-3 cursor-pointer hover:border-white/20 transition-all group"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setHyperliquidTicker(stock.symbol);
+                    setActiveTab('execute');
+                  }}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-xs font-mono">{stock.symbol}</span>
-                    <span className="text-[9px] text-emerald-400 font-mono">Live</span>
+                    <span className="font-bold text-white text-xs font-mono group-hover:text-emerald-300 transition-colors">{stock.symbol}</span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/[0.05] text-slate-300 border border-white/5">
+                      {stock.category || 'Asset'}
+                    </span>
                   </div>
-                  <div className="font-mono text-sm font-bold text-white mt-0.5">
-                    ${stock.price?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <div className="flex items-baseline justify-between mt-1">
+                    <div className="font-mono text-xs font-bold text-white">
+                      ${stock.price?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </div>
+                    {stock.change && (
+                      <span className={`text-[10px] font-mono font-semibold ${stock.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {stock.change}
+                      </span>
+                    )}
                   </div>
                 </GlassCard>
               ))}
