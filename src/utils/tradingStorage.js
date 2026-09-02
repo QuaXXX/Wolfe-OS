@@ -25,8 +25,8 @@ export const DEFAULT_TRADING_CONFIG = {
   isLive: true,
   testnet: false,
   masterWalletAddress: '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7', // Master Account holding USDC funds
-  agentWalletAddress: '0x43f81fa41D2429485824B89e41f9E4F2425C8089',
-  agentPrivateKey: '0x93413dc94c421970bd437726f5431bd1194ed1bbfdc11788d9d25f37573531f7', // Stored locally only for trade-only signing
+  agentWalletAddress: '0x801aE5E21C711Fbe2e73002263b5a18a39838419',
+  agentPrivateKey: '0x4a5e347243b8eb5691780586f7d624b9a117dd240a502fce63d7e052c4288686', // Stored locally only for trade-only signing
   aiProvider: 'hermes3', // 'hermes3' | 'gemini'
   hermesModel: 'nousresearch/hermes-3-llama-3.1-405b', // 'nousresearch/hermes-3-llama-3.1-405b' | 'nousresearch/hermes-3-llama-3.1-70b'
   openRouterApiKey: '', // Optional OpenRouter key for Nous Hermes 3
@@ -48,7 +48,14 @@ export const DEFAULT_TRADING_CONFIG = {
 export function getTradingConfig() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
-    return raw ? { ...DEFAULT_TRADING_CONFIG, ...JSON.parse(raw) } : DEFAULT_TRADING_CONFIG;
+    const parsed = raw ? JSON.parse(raw) : null;
+    // Auto-update to latest authorized agent if mismatched
+    if (parsed && parsed.agentWalletAddress !== DEFAULT_TRADING_CONFIG.agentWalletAddress) {
+      const merged = { ...parsed, ...DEFAULT_TRADING_CONFIG };
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(merged));
+      return merged;
+    }
+    return parsed ? { ...DEFAULT_TRADING_CONFIG, ...parsed } : DEFAULT_TRADING_CONFIG;
   } catch {
     return DEFAULT_TRADING_CONFIG;
   }
