@@ -167,10 +167,14 @@ export default async function handler(req, res) {
       const effectiveKey = process.env.HYPERLIQUID_AGENT_KEY || DEFAULT_AGENT_KEY;
       const account = privateKeyToAccount(effectiveKey.startsWith('0x') ? effectiveKey : `0x${effectiveKey}`);
       
-      // Instant Market Fill price with 1% slippage tolerance
+      // Instant Market Fill price with 1% slippage tolerance (max 5 significant figures)
       const marketPrice = isLong ? (price * 1.01) : (price * 0.99);
-      const formattedPrice = formatPrice(marketPrice);
-      const formattedSize = contracts.toFixed(precision.sizeDecimals);
+      const formattedPrice = String(Number(marketPrice.toPrecision(5)));
+
+      // Ensure minimum $11 notional size to satisfy Hyperliquid's $10 minimum order rule
+      const minRequiredSize = Math.max(0.0002, 11.0 / (price || 77300));
+      const effectiveContracts = Math.max(minRequiredSize, contracts || 0.0002);
+      const formattedSize = isClose ? (0.0002).toFixed(precision.sizeDecimals) : effectiveContracts.toFixed(precision.sizeDecimals);
 
       const orderWire = {
         a: assetIdx,

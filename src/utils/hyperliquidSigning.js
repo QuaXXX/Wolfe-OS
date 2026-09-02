@@ -87,16 +87,22 @@ export async function submitHyperliquidSignedOrder({
 
   const assetInfo = metaData.universe[assetIdx];
   const szDecimals = assetInfo.szDecimals;
-  const formattedSize = Number(size).toFixed(szDecimals);
 
-  // If price is market / not passed, use current live mid with 2% slippage buffer for IOC
-  let effectivePrice = price;
+  // If price is market / not passed, use current live mid with 1% slippage buffer for IOC
+  let effectivePrice = Number(price);
   if (!effectivePrice || effectivePrice <= 0) {
     const assetCtx = metaData.assetCtxs[assetIdx];
     const midPx = Number(assetCtx?.midPx || assetCtx?.markPx || 100);
-    effectivePrice = isBuy ? (midPx * 1.02) : (midPx * 0.98);
+    effectivePrice = isBuy ? (midPx * 1.01) : (midPx * 0.99);
   }
-  const formattedPrice = formatHyperliquidPrice(effectivePrice, 4);
+
+  // Hyperliquid Price: Max 5 significant figures
+  const formattedPrice = String(Number(effectivePrice.toPrecision(5)));
+
+  // Ensure minimum $11 notional size to satisfy Hyperliquid's $10 minimum order rule
+  const minRequiredSize = Math.max(0.0002, 11.0 / effectivePrice);
+  const effectiveSize = Math.max(minRequiredSize, Number(size || 0.0002));
+  const formattedSize = effectiveSize.toFixed(szDecimals);
 
   const orderWire = {
     a: assetIdx,
