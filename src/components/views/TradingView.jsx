@@ -574,82 +574,156 @@ export const TradingView = ({
                   </div>
 
                   {isMacroExpanded && (
-                    <div className="pt-2 border-t border-white/5 space-y-2.5 text-xs text-slate-300 animate-in fade-in duration-200">
+                    <div className="pt-2 border-t border-white/5 space-y-3 text-xs text-slate-300 animate-in fade-in duration-200">
                       {(() => {
                         const pointsToRender = (hermesBrief.macroPoints && Array.isArray(hermesBrief.macroPoints) && hermesBrief.macroPoints.length > 0)
                           ? hermesBrief.macroPoints
                           : [
                               {
-                                category: "🌐 1. What Is Happening Across Global Markets Today (The Tape)",
+                                category: "🌐 1. What's Happening Across Markets & Why",
                                 items: [
-                                  "Equities & Tech: Major US index futures are green (+0.65%), led by semiconductor hardware, space telecom, and enterprise AI software.",
-                                  "US Dollar (DXY): Softening down to 103.8, breaking below short-term ascending resistance and relieving pressure on global liquidity.",
-                                  "Treasury Yields: The US 10-Year yield has plateaued near 4.28%, reducing the discount-rate penalty on high-growth equities.",
-                                  "Crypto Perps & L1s: Bitcoin is consolidating above $77,000 while high-throughput layer 1 protocols (SOL, SUI, HYPE) exhibit aggressive taker buyer orderbook delta."
+                                  "US Dollar Softening & Global Liquidity: The Dollar Index (DXY) softened down to 103.8 while 10Y Treasury yields stabilized at 4.28%. Why it matters: Synchronized central bank liquidity injections are easing borrowing friction and driving institutional capital rotation into high-beta growth tech and crypto.",
+                                  "Sovereign AI & Space Telecom Leadership: Equity futures are green (+0.65%), led by orbital satellite cellular broadband (ASTS), enterprise AI operating systems (PLTR), and decentralized neural compute (TAO). Why it matters: Institutional funds are rebalancing balance sheets into asymmetric secular compounders with verified contract revenue.",
+                                  "Crypto On-Chain Clearing & Perp Demand: Bitcoin is holding firmly near $77,000 while native L1 clearing protocols (HYPE, SOL, SUI) show persistent taker market buy delta. Why it matters: Cumulative volume delta (CVD) shows short sellers are heavily trapped below key resistance levels, priming the tape for explosive upside breakouts."
                                 ]
                               },
                               {
-                                category: "🔍 2. Why It Is Happening (Macro Cause & Effect Analysis)",
+                                category: "📅 2. Key Dates, Important Events & Recent News",
                                 items: [
-                                  "Dollar Softening Driver: Global central banks are executing synchronized balance sheet liquidity injections, causing the DXY to cool and expanding global M2 money supply.",
-                                  "Institutional Capital Rotation: Hedge funds and institutional asset managers are rebalancing out of defensive dividend payers and into asymmetric momentum assets with proven structural revenue catalysts.",
-                                  "Perp Liquidation Imbalance: Cumulative volume delta (CVD) on Hyperliquid indicates that short sellers are heavily trapped below key technical resistance levels, priming the tape for explosive short squeezes."
+                                  "Economic Data Calendar: Today provides a benign US macro window with no disruptive FOMC rate decisions; upcoming high-volatility catalysts include the US Consumer Price Index (CPI) next Tuesday and the Federal Reserve FOMC Rate Decision in 2 weeks.",
+                                  "Regulatory & Corporate News: AST SpaceMobile (ASTS) secured official FCC direct-to-cell commercial spectrum clearance with zero warrant dilution overhang; Palantir (PLTR) operationalized its DoD AIP enterprise contract (+18% ARR).",
+                                  "Crypto Upgrades & Staking Milestones: Hyperliquid 24h volume crossed $2.4B with 100% of trading fees distributed to HYPE validator staking vaults; Solana DEX volume accelerated +42% WoW post-mainnet latency patch; BlackRock BUIDL expanded tokenized US Treasury AUM on Ondo to $650M."
                                 ]
                               },
                               {
-                                category: "📅 3. Key Dates, Scheduled Events & Catalysts",
+                                category: "🎯 3. Why Specific Stocks & Crypto Were Chosen Today",
                                 items: [
-                                  "Today's Macro Window: Benign US economic data calendar with no disruptive FOMC rate decisions scheduled for this session.",
-                                  "Upcoming Macro Dates: US Consumer Price Index (CPI) report scheduled next Tuesday; Federal Reserve FOMC Rate Decision in 2 weeks.",
-                                  "Regulatory & Corporate Events: AST SpaceMobile FCC direct-to-cell commercial spectrum docket approved; Palantir Department of Defense AIP enterprise multi-year contract operationalized.",
-                                  "Crypto Ecosystem Upgrades: Solana mainnet engine latency optimization live; Sui DeFi TVL milestone reached ($1.2B); Hyperliquid L1 fee revenue epoch distribution active."
-                                ]
-                              },
-                              {
-                                category: "⏳ 4. Long-Term Secular Shifts vs. Short-Term Tactical Triggers",
-                                items: [
-                                  "Long-Term Structural Theme: Multi-year adoption waves in Sovereign AI infrastructure (PLTR/NVDA), orbital space direct-to-device broadband (ASTS), and decentralized on-chain financial clearing (Hyperliquid/Solana/Bitcoin).",
-                                  "Short-Term Tactical Trigger: Intraday Opening Range Breakouts above session Value Area High (VAH) paired with 1H Fair Value Gap (FVG) pullbacks at dynamic EMA20 support.",
-                                  "Execution Mandate: Ride high-beta momentum intraday, scale out 50% at 2R target, and protect the core position with a breakeven trailing stop."
-                                ]
-                              },
-                              {
-                                category: "🎯 5. Why Specific Stocks & Crypto Were Chosen Today",
-                                items: [
-                                  "ASTS (BUY LONG | Confluence 96/100): Legendary billionaire funds Stanley Druckenmiller (Duquesne) and Peter Thiel (Founders Fund) disclosed massive 13F whale accumulation, reinforced by $38M in dark pool block sweeps at $26.10 VWAP following confirmed FCC satellite spectrum clearance.",
-                                  "SOL (BUY LONG | Confluence 94/100): 24h DEX swap volume jumped +42% WoW and Hyperliquid Whale Desk #4 executed $28.5M in aggressive market buy delta, defending the psychological $100 level with deep resting bid walls.",
-                                  "PLTR (BUY LONG | Confluence 91/100): Confirmed +18% ARR DoD AIP enterprise contract expansion, backed by abnormal institutional call sweep volume breaking above Value Area High ($68.20).",
-                                  "BTC (BUY LONG | Confluence 95/100): Institutional spot ETFs absorbed +$340M net in 24 hours (BlackRock IBIT +4,520 BTC) with negligible liquidation cascade risk on derivative orderbooks.",
-                                  "SUI (BUY LONG | Confluence 90/100): Record $1.2B DeFi TVL expansion and +45M tokens deposited into validator staking custody by Jump Trading and a16z crypto."
-                                ]
-                              },
-                              {
-                                category: "🛡️ 6. Profit Maximization & Risk Management Rules",
-                                items: [
-                                  "Strict 1.5% max account capital risk per position. Position sizing mathematically calculated based on distance to stop loss.",
-                                  "Unfilled intraday pending limit orders auto-expire at session close to eliminate overnight ghost-fill drift risk.",
-                                  "Scale 50% off at the 2R target, move stop loss to breakeven, and let the remaining runner target 3R."
+                                  "ASTS (BUY LONG | Confluence 96/100): Legendary funds Stanley Druckenmiller and Peter Thiel disclosed massive 13F whale accumulation with $38M in dark pool blocks at $26.10 VWAP following FCC spectrum clearance. Risk Management: Limit Trigger $26.20 - $26.50, Invalidation Stop Loss $24.90, Take Profit 2R $29.40 / 3R $32.50 (1.5% max capital risk).",
+                                  "HYPE (BUY LONG | Confluence 97/100): 24h trading volume surpassed $2.4B with 100% of trading fee revenue directly distributed to HYPE validator staking vaults. Risk Management: Limit Trigger $81.50 - $81.94, Invalidation Stop Loss $79.60, Take Profit 2R $86.70 / 3R $94.20 (1.5% max capital risk).",
+                                  "TAO (BUY LONG | Confluence 95/100): Dynamic subnet expansion accelerating with Pantera and Polychain locking over 420,000 TAO into decentralized machine intelligence emissions. Risk Management: Limit Trigger $508 - $512, Invalidation Stop Loss $494, Take Profit 2R $556 / 3R $605 (1.5% max capital risk).",
+                                  "SOL (BUY LONG | Confluence 94/100): 24h DEX swap volume jumped +42% WoW and Hyperliquid Whale Desk #4 executed $28.5M in aggressive market buy delta, defending the psychological $100 level. Risk Management: Limit Trigger $99.40 - $100.20, Invalidation Stop Loss $97.50, Take Profit 2R $105.40 / 3R $108.00 (1.5% max capital risk).",
+                                  "PLTR (BUY LONG | Confluence 92/100): Confirmed +18% ARR DoD AIP enterprise contract expansion, backed by abnormal institutional call sweep volume breaking above Value Area High ($68.20). Risk Management: Limit Trigger $67.80 - $68.20, Invalidation Stop Loss $65.90, Take Profit 2R $72.60 / 3R $76.00 (1.5% max capital risk).",
+                                  "BTC (BUY LONG | Confluence 95/100): Institutional spot ETFs absorbed +$340M net in 24 hours (BlackRock IBIT +4,520 BTC) with negligible liquidation cascade risk on derivative orderbooks. Risk Management: Limit Trigger $77,100 - $77,400, Invalidation Stop Loss $75,800, Take Profit 2R $80,200 / 3R $83,500 (1.5% max capital risk).",
+                                  "ONDO (BUY LONG | Confluence 93/100): BlackRock BUIDL integration expanding tokenized US Treasury AUM to over $650M on-chain with $22M institutional USDC mints. Risk Management: Limit Trigger $1.13 - $1.15, Invalidation Stop Loss $1.11, Take Profit 2R $1.24 / 3R $1.32 (1.5% max capital risk).",
+                                  "SUI (BUY LONG | Confluence 90/100): Record $1.2B DeFi TVL expansion and +45M tokens deposited into validator staking custody by Jump Trading and a16z crypto. Risk Management: Limit Trigger $3.20 - $3.25, Invalidation Stop Loss $3.12, Take Profit 2R $3.52 / 3R $3.75 (1.5% max capital risk)."
                                 ]
                               }
                             ];
 
+                        const macroSection = pointsToRender.find(p => p.category.includes("What's Happening") || p.category.includes("1."));
+                        const eventsSection = pointsToRender.find(p => p.category.includes("Dates") || p.category.includes("2."));
+                        const chosenSection = pointsToRender.find(p => p.category.includes("Chosen") || p.category.includes("3."));
+
                         return (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                            {pointsToRender.map((sec, sIdx) => (
-                              <div key={sIdx} className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1.5 shadow-sm">
-                                <div className="font-bold text-white text-[11px] flex items-center gap-1.5 border-b border-white/5 pb-1">
-                                  <span>{sec.category}</span>
+                          <div className="space-y-3">
+                            {/* Top Grid: Section 1 & Section 2 */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                              {/* Section 1 */}
+                              {macroSection && (
+                                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2 shadow-sm">
+                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-1.5">
+                                    <span>{macroSection.category}</span>
+                                  </div>
+                                  <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
+                                    {macroSection.items.map((item, iIdx) => (
+                                      <li key={iIdx} className="flex items-start gap-2 leading-relaxed">
+                                        <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                                        <span>{item}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
                                 </div>
-                                <ul className="space-y-1.5 text-[11px] text-slate-300 pl-1 pt-0.5">
-                                  {sec.items.map((item, iIdx) => (
-                                    <li key={iIdx} className="flex items-start gap-1.5 leading-relaxed">
-                                      <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
-                                      <span>{item}</span>
-                                    </li>
-                                  ))}
-                                </ul>
+                              )}
+
+                              {/* Section 2 */}
+                              {eventsSection && (
+                                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2 shadow-sm">
+                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-1.5">
+                                    <span>{eventsSection.category}</span>
+                                  </div>
+                                  <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
+                                    {eventsSection.items.map((item, iIdx) => (
+                                      <li key={iIdx} className="flex items-start gap-2 leading-relaxed">
+                                        <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
+                                        <span>{item}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Section 3: Chosen Stocks & Crypto with Direct Execution Action Buttons */}
+                            {chosenSection && (
+                              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
+                                <div className="font-bold text-white text-xs flex items-center justify-between border-b border-white/5 pb-1.5">
+                                  <span>{chosenSection.category}</span>
+                                  <span className="text-[10px] font-mono text-emerald-400 font-semibold">1-Click Execution Integrated</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                                  {chosenSection.items.map((item, iIdx) => {
+                                    // Extract ticker symbol from item (e.g. "ASTS" from "ASTS ($26.40 ...")
+                                    const match = item.match(/^([A-Z0-9]+)\s*\(/);
+                                    const ticker = match ? match[1] : `ASSET_${iIdx}`;
+                                    const matchingPlay = (availableWarRoomPlays || []).find(p => p.ticker === ticker) || {
+                                      ticker,
+                                      bias: 'LONG',
+                                      entryTrigger: 'Market Entry',
+                                      stopLoss: 'Dynamic',
+                                      target2R: 'Dynamic'
+                                    };
+
+                                    return (
+                                      <div key={iIdx} className="p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] border border-white/5 space-y-2 transition-colors">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs font-bold text-white">{ticker}</span>
+                                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                                              LONG 5x
+                                            </span>
+                                          </div>
+
+                                          {/* Direct 1-Click Action Buttons */}
+                                          <div className="flex items-center gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                playSound('click', soundEnabled);
+                                                setHyperliquidTicker(ticker);
+                                                setActiveTab('execute');
+                                              }}
+                                              className="px-2 py-0.5 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95"
+                                              title="Trade directly on Hyperliquid"
+                                            >
+                                              <Zap className="w-2.5 h-2.5 text-emerald-400" />
+                                              <span>Hyperliquid</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenOrderModal(matchingPlay)}
+                                              className="px-2 py-0.5 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95"
+                                              style={{
+                                                backgroundColor: 'var(--accent-subtle)',
+                                                border: '1px solid var(--accent-border)'
+                                              }}
+                                              title="Forward-Test paper order"
+                                            >
+                                              <Plus className="w-2.5 h-2.5" style={{ color: 'var(--accent-primary)' }} />
+                                              <span>+ Test</span>
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        <p className="text-[11px] text-slate-300 leading-relaxed pl-0.5">
+                                          {item}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
-                            ))}
+                            )}
                           </div>
                         );
                       })()}

@@ -418,60 +418,32 @@ Produce a structured point-form macro summary and a deep, multi-turn collaborati
 
   const structuredMacroPoints = [
     {
-      category: "🌐 1. What Is Happening Across Global Markets Today (The Tape)",
+      category: "🌐 1. What's Happening Across Markets & Why",
       items: [
-        "Equities & Tech: Major US index futures are green (+0.65%), led by semiconductor hardware, space telecom, and enterprise AI software.",
-        "US Dollar (DXY): Softening down to 103.8, breaking below short-term ascending resistance and relieving pressure on global liquidity.",
-        "Treasury Yields: The US 10-Year yield has plateaued near 4.28%, reducing the discount-rate penalty on high-growth equities.",
-        `Crypto Perps & L1s: Bitcoin is consolidating near $${btcPrice.toLocaleString()} while high-throughput layer 1 protocols (SOL at $${solPrice.toFixed(2)}, SUI at $${suiPrice.toFixed(3)}, HYPE at $${hypePrice.toFixed(2)}) exhibit aggressive buyer orderbook delta.`
+        "US Dollar Softening & Global Liquidity: The Dollar Index (DXY) softened down to 103.8 while 10Y Treasury yields stabilized at 4.28%. Why it matters: Synchronized central bank liquidity injections are easing borrowing friction and driving institutional capital rotation into high-beta growth tech and crypto.",
+        "Sovereign AI & Space Telecom Leadership: Equity futures are green (+0.65%), led by orbital satellite cellular broadband (ASTS), enterprise AI operating systems (PLTR), and decentralized neural compute (TAO). Why it matters: Institutional funds are rebalancing balance sheets into asymmetric secular compounders with verified contract revenue.",
+        `Crypto On-Chain Clearing & Perp Demand: Bitcoin is holding firmly near $${btcPrice.toLocaleString()} while native L1 clearing protocols (HYPE at $${hypePrice.toFixed(2)}, SOL at $${solPrice.toFixed(2)}, SUI at $${suiPrice.toFixed(3)}) show persistent taker market buy delta. Why it matters: Cumulative volume delta (CVD) shows short sellers are heavily trapped below key resistance levels, priming the tape for explosive upside breakouts.`
       ]
     },
     {
-      category: "🔍 2. Why It Is Happening (Macro Cause & Effect Analysis)",
+      category: "📅 2. Key Dates, Important Events & Recent News",
       items: [
-        "Dollar Softening Driver: Global central banks are executing synchronized balance sheet liquidity injections, causing the DXY to cool and expanding global M2 money supply.",
-        "Institutional Capital Rotation: Hedge funds and institutional asset managers are rebalancing out of defensive dividend payers and into asymmetric momentum assets with proven structural revenue catalysts.",
-        "Perp Liquidation Imbalance: Cumulative volume delta (CVD) on Hyperliquid indicates that short sellers are heavily trapped below key technical resistance levels, priming the tape for explosive short squeezes upon breakout."
+        "Economic Data Calendar: Today provides a benign US macro window with no disruptive FOMC rate decisions; upcoming high-volatility catalysts include the US Consumer Price Index (CPI) next Tuesday and the Federal Reserve FOMC Rate Decision in 2 weeks.",
+        "Regulatory & Corporate News: AST SpaceMobile (ASTS) secured official FCC direct-to-cell commercial spectrum clearance with zero warrant dilution overhang; Palantir (PLTR) operationalized its DoD AIP enterprise contract (+18% ARR).",
+        "Crypto Upgrades & Staking Milestones: Hyperliquid 24h volume crossed $2.4B with 100% of trading fees distributed to HYPE validator staking vaults; Solana DEX volume accelerated +42% WoW post-mainnet latency patch; BlackRock BUIDL expanded tokenized US Treasury AUM on Ondo to $650M."
       ]
     },
     {
-      category: "📅 3. Key Dates, Scheduled Events & Catalysts",
+      category: "🎯 3. Why Specific Stocks & Crypto Were Chosen Today",
       items: [
-        "Today's Macro Window: Benign US economic data calendar with no disruptive FOMC rate decisions scheduled for this session.",
-        "Upcoming Macro Dates: US Consumer Price Index (CPI) report scheduled next Tuesday; Federal Reserve FOMC Rate Decision in 2 weeks.",
-        "Regulatory & Corporate Events: AST SpaceMobile FCC direct-to-cell commercial spectrum docket approved; Palantir Department of Defense AIP enterprise multi-year contract operationalized.",
-        "Crypto Ecosystem Upgrades: Solana mainnet engine latency optimization live; Sui DeFi TVL milestone reached ($1.2B); Hyperliquid L1 fee revenue epoch distribution active; Bittensor Dynamic TAO subnet rebalancing."
-      ]
-    },
-    {
-      category: "⏳ 4. Long-Term Secular Mega-Trends (The Future of the Market 2026-2030)",
-      items: [
-        "🚀 Theme 1: Decentralized On-Chain Clearing Powerhouses (HYPE, SOL, BTC) — The migration of trillions from legacy slow clearinghouses (DTCC, CME) to sub-second on-chain CLOBs with 100% fee distribution to validators.",
-        "🤖 Theme 2: Sovereign AI & Decentralized Compute Infrastructure (PLTR, TAO, RENDER, NVDA) — AI compute is the new oil. Enterprises adopt Palantir AIP for real-time orchestration while Bittensor & Render provide decentralized GPU power.",
-        "🛰️ Theme 3: Orbital Space Cellular Broadband (ASTS) — Ubiquitous direct-to-device satellite telecom connecting 5B+ mobile subscribers worldwide without cell towers.",
-        "🏛️ Theme 4: Institutional Real World Assets (RWA) & Fixed Income (ONDO, ENA) — Wall Street tokenizing US Treasuries (BlackRock BUIDL) and capturing billions in on-chain basis yields.",
-        "🛡️ Theme 5: Sovereign Corporate & Nation-State Bitcoin Reserves (BTC, MSTR) — Hard monetary asset accumulation against endless global fiat debt expansion."
-      ]
-    },
-    {
-      category: "🎯 5. Why Specific Stocks & Crypto Were Chosen Today",
-      items: [
-        `ASTS ($${astsPrice.toFixed(2)} - BUY LONG | Confluence 96/100): Legendary billionaire funds Stanley Druckenmiller (Duquesne) and Peter Thiel (Founders Fund) disclosed massive 13F whale accumulation, reinforced by $38M in dark pool block sweeps at $26.10 VWAP following confirmed FCC satellite spectrum clearance.`,
-        `HYPE ($${hypePrice.toFixed(2)} - BUY LONG | Confluence 97/100): 24h trading volume surpassed $2.4B with 100% of trading fee revenue directly distributed to HYPE validator staking vaults, yielding industry-leading real cash yield.`,
-        `TAO ($${taoPrice.toFixed(1)} - BUY LONG | Confluence 95/100): Dynamic subnet expansion accelerating with Pantera and Polychain locking over 420,000 TAO into decentralized machine intelligence emissions.`,
-        `SOL ($${solPrice.toFixed(2)} - BUY LONG | Confluence 94/100): 24h DEX swap volume jumped +42% WoW and Hyperliquid Whale Desk #4 executed $28.5M in aggressive market buy delta, defending the psychological $100 level with deep resting bid walls.`,
-        `PLTR ($${pltrPrice.toFixed(2)} - BUY LONG | Confluence 92/100): Confirmed +18% ARR DoD AIP enterprise contract expansion, backed by abnormal institutional call sweep volume breaking above prior session Value Area High ($68.20).`,
-        `BTC ($${btcPrice.toLocaleString()} - BUY LONG | Confluence 95/100): Institutional spot ETFs absorbed +$340M net in 24 hours (BlackRock IBIT +4,520 BTC) with negligible liquidation cascade risk on derivative orderbooks.`,
-        `ONDO ($${ondoPrice.toFixed(3)} - BUY LONG | Confluence 93/100): BlackRock BUIDL integration expanding tokenized US Treasury AUM to over $650M on-chain with $22M institutional USDC mints.`,
-        `SUI ($${suiPrice.toFixed(3)} - BUY LONG | Confluence 90/100): Record $1.2B DeFi TVL expansion and +45M tokens deposited into validator staking custody by Jump Trading and a16z crypto.`
-      ]
-    },
-    {
-      category: "🛡️ 6. Profit Maximization & Risk Management Rules",
-      items: [
-        "Strict 1.5% max account capital risk per position. Position sizing mathematically calculated based on distance to stop loss.",
-        "Unfilled intraday pending limit orders auto-expire at session close to eliminate overnight ghost-fill drift risk.",
-        "Scale 50% off at the 2R target, move stop loss to breakeven, and let the remaining runner target 3R or secular targets."
+        `ASTS ($${astsPrice.toFixed(2)} - BUY LONG | Confluence 96/100): Legendary funds Stanley Druckenmiller and Peter Thiel disclosed massive 13F whale accumulation with $38M in dark pool blocks at $26.10 VWAP following FCC spectrum clearance. Risk Management: Limit Trigger $26.20 - $26.50, Invalidation Stop Loss $24.90, Take Profit 2R $29.40 / 3R $32.50 (1.5% max capital risk).`,
+        `HYPE ($${hypePrice.toFixed(2)} - BUY LONG | Confluence 97/100): 24h trading volume surpassed $2.4B with 100% of trading fee revenue directly distributed to HYPE validator staking vaults. Risk Management: Limit Trigger $81.50 - $81.94, Invalidation Stop Loss $79.60, Take Profit 2R $86.70 / 3R $94.20 (1.5% max capital risk).`,
+        `TAO ($${taoPrice.toFixed(1)} - BUY LONG | Confluence 95/100): Dynamic subnet expansion accelerating with Pantera and Polychain locking over 420,000 TAO into decentralized machine intelligence emissions. Risk Management: Limit Trigger $508 - $512, Invalidation Stop Loss $494, Take Profit 2R $556 / 3R $605 (1.5% max capital risk).`,
+        `SOL ($${solPrice.toFixed(2)} - BUY LONG | Confluence 94/100): 24h DEX swap volume jumped +42% WoW and Hyperliquid Whale Desk #4 executed $28.5M in aggressive market buy delta, defending the psychological $100 level. Risk Management: Limit Trigger $99.40 - $100.20, Invalidation Stop Loss $97.50, Take Profit 2R $105.40 / 3R $108.00 (1.5% max capital risk).`,
+        `PLTR ($${pltrPrice.toFixed(2)} - BUY LONG | Confluence 92/100): Confirmed +18% ARR DoD AIP enterprise contract expansion, backed by abnormal institutional call sweep volume breaking above Value Area High ($68.20). Risk Management: Limit Trigger $67.80 - $68.20, Invalidation Stop Loss $65.90, Take Profit 2R $72.60 / 3R $76.00 (1.5% max capital risk).`,
+        `BTC ($${btcPrice.toLocaleString()} - BUY LONG | Confluence 95/100): Institutional spot ETFs absorbed +$340M net in 24 hours (BlackRock IBIT +4,520 BTC) with negligible liquidation cascade risk on derivative orderbooks. Risk Management: Limit Trigger $77,100 - $77,400, Invalidation Stop Loss $75,800, Take Profit 2R $80,200 / 3R $83,500 (1.5% max capital risk).`,
+        `ONDO ($${ondoPrice.toFixed(3)} - BUY LONG | Confluence 93/100): BlackRock BUIDL integration expanding tokenized US Treasury AUM to over $650M on-chain with $22M institutional USDC mints. Risk Management: Limit Trigger $1.13 - $1.15, Invalidation Stop Loss $1.11, Take Profit 2R $1.24 / 3R $1.32 (1.5% max capital risk).`,
+        `SUI ($${suiPrice.toFixed(3)} - BUY LONG | Confluence 90/100): Record $1.2B DeFi TVL expansion and +45M tokens deposited into validator staking custody by Jump Trading and a16z crypto. Risk Management: Limit Trigger $3.20 - $3.25, Invalidation Stop Loss $3.12, Take Profit 2R $3.52 / 3R $3.75 (1.5% max capital risk).`
       ]
     }
   ];
