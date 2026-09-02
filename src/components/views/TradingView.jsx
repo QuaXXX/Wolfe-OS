@@ -37,6 +37,7 @@ import { WebhookConfigModal } from '../trading/WebhookConfigModal';
 import { TradeJournalModal } from '../trading/TradeJournalModal';
 import { HermesPaperTraderCard } from '../trading/HermesPaperTraderCard';
 import { HermesOrderEntryModal } from '../trading/HermesOrderEntryModal';
+import { HyperliquidDirectExecutionPanel } from '../trading/HyperliquidDirectExecutionPanel';
 import { 
   getTradingConfig, 
   getWatchlist, 
@@ -273,6 +274,7 @@ export const TradingView = ({
       isLoading: isScanning 
     },
     { id: 'papertrader', label: 'Forward-Test Desk', icon: Bot, count: paperPositions.length, isLoading: false },
+    { id: 'execute', label: 'Hyperliquid 1-Click L1 Execution', icon: Zap, count: 0, isLoading: false },
     { id: 'positions', label: 'Live Positions', icon: Layers, count: openPositions.length, isLoading: false },
     { id: 'journal', label: 'Trade Journal', icon: BookOpen, count: tradeJournal.length, isLoading: false },
     { id: 'webhooks', label: 'Webhook Signals', icon: Radio, count: webhookLogs.length, isLoading: false }
@@ -483,6 +485,18 @@ export const TradingView = ({
                 >
                   <Radio className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Webhooks Setup</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setActiveTab('execute');
+                    setIsActionsDropdownOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                  <span>1-Click L1 Execution</span>
                 </button>
                 <button
                   type="button"
@@ -940,10 +954,26 @@ export const TradingView = ({
         />
       )}
 
+      {/* 5.5 TAB: HYPERLIQUID 1-CLICK EXECUTION DESK */}
+      {activeTab === 'execute' && (
+        <div className="space-y-4">
+          <HyperliquidDirectExecutionPanel 
+            soundEnabled={soundEnabled} 
+            onOrderExecuted={refreshAllData} 
+          />
+        </div>
+      )}
+
       {/* 6. TAB 4: LIVE OPEN POSITIONS */}
       {activeTab === 'positions' && (
-        <div className="space-y-3 font-sans">
-          <div className="flex items-center justify-between">
+        <div className="space-y-4 font-sans">
+          {/* Direct 1-Click L1 Execution Panel embedded at top of Positions */}
+          <HyperliquidDirectExecutionPanel 
+            soundEnabled={soundEnabled} 
+            onOrderExecuted={refreshAllData} 
+          />
+
+          <div className="flex items-center justify-between pt-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
               Active Hyperliquid Positions ({openPositions.length})
             </h3>
