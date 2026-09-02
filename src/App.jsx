@@ -146,58 +146,47 @@ export function App() {
     }
   }, []);
 
-  // Nutrition State
-  const [nutritionData, setNutritionData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('wolfe_os_nutrition_v5');
-      return saved ? JSON.parse(saved) : INITIAL_NUTRITION_DATA;
-    } catch { return INITIAL_NUTRITION_DATA; }
-  });
-
-  // Workout State
-  const [workoutData, setWorkoutData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('wolfe_os_workout_v5');
-      return saved ? JSON.parse(saved) : INITIAL_WORKOUT_DATA;
-    } catch { return INITIAL_WORKOUT_DATA; }
-  });
-
-  // Trading State
-  const [tradingData, setTradingData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('wolfe_os_trading_v5');
-      return saved ? JSON.parse(saved) : INITIAL_TRADING_DATA;
-    } catch { return INITIAL_TRADING_DATA; }
-  });
-
-  // School State (Fresh minimal reset)
   const [schoolData, setSchoolData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('wolfe_os_school_v5');
-      return saved ? JSON.parse(saved) : INITIAL_SCHOOL_DATA;
-    } catch { return INITIAL_SCHOOL_DATA; }
+    const saved = localStorage.getItem('wolfe_school_data');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return INITIAL_SCHOOL_DATA;
   });
 
-  // Sync settings to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
-    } catch (e) {
-      console.warn("Storage notice:", e);
+  const [workoutData, setWorkoutData] = useState(() => {
+    const saved = localStorage.getItem('wolfe_workout_data');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
     }
-  }, [settings]);
+    return INITIAL_WORKOUT_DATA;
+  });
 
-  // Sync all hubs to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CALENDAR, JSON.stringify(calendarData));
-      localStorage.setItem('wolfe_os_nutrition_v5', JSON.stringify(nutritionData));
-      localStorage.setItem('wolfe_os_workout_v5', JSON.stringify(workoutData));
-      localStorage.setItem('wolfe_os_trading_v5', JSON.stringify(tradingData));
-    } catch (e) {
-      console.warn("Storage notice:", e);
+  const [nutritionData, setNutritionData] = useState(() => {
+    const saved = localStorage.getItem('wolfe_nutrition_data');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
     }
-  }, [calendarData, nutritionData, workoutData, tradingData, schoolData]);
+    return INITIAL_NUTRITION_DATA;
+  });
+
+  const [tradingData, setTradingData] = useState(() => {
+    const saved = localStorage.getItem('wolfe_trading_data');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return INITIAL_TRADING_DATA;
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('wolfe_calendar_data', JSON.stringify(calendarData));
+    localStorage.setItem('wolfe_school_data', JSON.stringify(schoolData));
+    localStorage.setItem('wolfe_workout_data', JSON.stringify(workoutData));
+    localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
+    localStorage.setItem('wolfe_trading_data', JSON.stringify(tradingData));
+    localStorage.setItem('wolfe_settings', JSON.stringify(settings));
+  }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
 
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
 
@@ -219,10 +208,7 @@ export function App() {
         }
       }
     } catch (err) {
-      console.warn("Auto sync check error:", err);
-      if (err.message?.includes('expired') || err.message?.includes('401') || err.message?.includes('not connected')) {
-        disconnectGoogleCalendar();
-      }
+      console.warn("Auto sync notice:", err);
     } finally {
       setIsSyncingGoogle(false);
     }
@@ -230,7 +216,17 @@ export function App() {
 
   // Sync from Google on initial app load
   useEffect(() => {
+    checkAndHandleOAuthRedirect();
     syncWithGoogle(false);
+  }, [syncWithGoogle]);
+
+  // Periodic Auto-Sync every 60 seconds (keeps sync constantly fresh in background)
+  useEffect(() => {
+    if (!isGoogleCalendarConnected()) return;
+    const interval = setInterval(() => {
+      syncWithGoogle(false);
+    }, 60000);
+    return () => clearInterval(interval);
   }, [syncWithGoogle]);
 
   // Real-Time Auto Sync when tab gains focus (e.g. returning from phone/Google Calendar edits)
@@ -242,6 +238,21 @@ export function App() {
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
+  }, [syncWithGoogle]);
+
+  // 1-Click Sync Trigger for User
+  const handleSyncGoogleCalendar = useCallback(async () => {
+    if (!isGoogleCalendarConnected()) {
+      try {
+        await signInWithGooglePopup();
+        await syncWithGoogle(true);
+      } catch (err) {
+        console.warn("Google Sign-In notice:", err);
+        setIsGCalModalOpen(true);
+      }
+    } else {
+      await syncWithGoogle(true);
+    }
   }, [syncWithGoogle]);
 
   // Touch Swipe Gesture State
@@ -863,7 +874,10 @@ export function App() {
       onOpenSettings: () => setIsSettingsOpen(true),
       onOpenComingSoon: handleOpenComingSoon,
       onNavigate: handleNavigate,
-      soundEnabled: settings.soundEnabled
+      soundEnabled: settings.soundEnabled,
+      isSyncingGoogle: isSyncingGoogle,
+      isGoogleConnected: isGoogleCalendarConnected(),
+      onSyncGoogleCalendar: handleSyncGoogleCalendar
     };
 
     switch (activeView) {
@@ -887,6 +901,9 @@ export function App() {
             onDeleteSpecificItem={handleDeleteSpecificItem}
             onPurgeItems={handlePurgeItems}
             onToggleTask={handleToggleTask}
+            isSyncingGoogle={isSyncingGoogle}
+            isGoogleConnected={isGoogleCalendarConnected()}
+            onSyncGoogleCalendar={handleSyncGoogleCalendar}
             {...commonProps}
           />
         );

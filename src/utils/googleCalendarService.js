@@ -406,7 +406,6 @@ async function getUserCalendarIds(token) {
 export async function fetchGoogleCalendarEvents() {
   let token = await getValidAccessToken();
   if (!token) {
-    disconnectGoogleCalendar();
     throw new Error("Google Calendar is not connected or session expired.");
   }
 
@@ -438,13 +437,12 @@ export async function fetchGoogleCalendarEvents() {
       });
 
       if (response.status === 401) {
-        token = await refreshAccessToken();
+        token = await refreshAccessToken() || await silentRefreshGISToken();
         if (token) {
           response = await fetch(url.toString(), {
             headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
           });
         } else {
-          disconnectGoogleCalendar();
           throw new Error("Google Calendar authentication expired. Please reconnect.");
         }
       }
@@ -575,7 +573,6 @@ export async function getDeadlinesCalendarId(token) {
 export async function createGoogleCalendarEvent(itemData) {
   let token = await getValidAccessToken();
   if (!token) {
-    disconnectGoogleCalendar();
     throw new Error("Google Calendar is not connected or session expired.");
   }
 
@@ -666,7 +663,7 @@ export async function createGoogleCalendarEvent(itemData) {
   });
 
   if (response.status === 401) {
-    token = await refreshAccessToken();
+    token = await refreshAccessToken() || await silentRefreshGISToken();
     if (token) {
       response = await fetch(targetUrl, {
         method: 'POST',
@@ -677,7 +674,6 @@ export async function createGoogleCalendarEvent(itemData) {
         body: JSON.stringify(body)
       });
     } else {
-      disconnectGoogleCalendar();
       throw new Error("Google Calendar authentication expired. Please reconnect.");
     }
   }

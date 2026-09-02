@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   Circle,
   ListTodo,
-  Bell
+  Bell,
+  RotateCw
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { CompactVoiceWidget } from '../voice/CompactVoiceWidget';
@@ -40,6 +41,9 @@ export const HomeView = ({
   onToggleTask,
   onOpenSettings,
   onNavigate,
+  isSyncingGoogle = false,
+  isGoogleConnected = false,
+  onSyncGoogleCalendar,
   soundEnabled = true 
 }) => {
   const nextAssignment = schoolData?.assignments?.find(a => !a.completed);
@@ -116,7 +120,44 @@ export const HomeView = ({
                   Schedule & Tasks
                 </h3>
               </div>
+
+              {/* Sync Status & Action Button */}
               <div className="flex items-center gap-2">
+                {isSyncingGoogle ? (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 flex items-center gap-1.5 shadow-sm">
+                    <RotateCw className="w-3 h-3 animate-spin text-cyan-400" />
+                    <span>Syncing...</span>
+                  </span>
+                ) : isGoogleConnected ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playSound('click', soundEnabled);
+                      if (onSyncGoogleCalendar) onSyncGoogleCalendar();
+                    }}
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Google Calendar is connected & synced. Click to refresh now."
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Synced</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playSound('click', soundEnabled);
+                      if (onSyncGoogleCalendar) onSyncGoogleCalendar();
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm animate-pulse"
+                    title="Google Calendar is not synced. Click to connect & sync."
+                  >
+                    <RotateCw className="w-3 h-3 text-amber-400" />
+                    <span>Sync Google</span>
+                  </button>
+                )}
+
                 <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
               </div>
             </div>
