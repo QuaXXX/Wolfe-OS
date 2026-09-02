@@ -42,30 +42,60 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
     setExecutionLogs(prev => [{ timestamp, msg, type }, ...prev.slice(0, 15)]);
   };
 
+  const [perpsEquity, setPerpsEquity] = useState(0);
+  const [spotEquity, setSpotEquity] = useState(0);
+
   const fetchLiveState = async () => {
     setIsLoadingBalance(true);
-    addLog(`Fetching live clearinghouse state for Master: ${masterWallet.slice(0, 8)}...`, 'info');
+    addLog(`Fetching live state for Master: ${masterWallet.slice(0, 8)}...`, 'info');
     
     try {
-      // 1. Fetch Clearinghouse Balance
-      const res = await fetch('https://api.hyperliquid.xyz/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'clearinghouseState', user: masterWallet })
-      });
+      let perpsVal = 0;
+      let spotVal = 0;
 
-      if (res.ok) {
-        const data = await res.json();
-        const accountVal = Number(data.crossMarginSummary?.accountValue || 0);
-        const withdr = Number(data.withdrawable || 0);
-        setLiveEquity(accountVal);
-        setWithdrawable(withdr);
-        addLog(`Master Balance Retrieved: $${accountVal.toFixed(2)} Total ($${withdr.toFixed(2)} Withdrawable)`, 'success');
-      } else {
-        addLog(`Failed to fetch clearinghouse state: HTTP ${res.status}`, 'error');
+      // 1. Fetch Clearinghouse Balance (Perps)
+      try {
+        const res = await fetch('https://api.hyperliquid.xyz/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'clearinghouseState', user: masterWallet })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          perpsVal = Number(data.crossMarginSummary?.accountValue || data.marginSummary?.accountValue || 0);
+          setWithdrawable(Number(data.withdrawable || 0));
+        }
+      } catch (err) {
+        console.warn("Perps fetch warning:", err);
       }
 
-      // 2. Fetch Live Price & Meta
+      // 2. Fetch Spot Balances
+      try {
+        const spotRes = await fetch('https://api.hyperliquid.xyz/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'spotClearinghouseState', user: masterWallet })
+        });
+        if (spotRes.ok) {
+          const spotData = await spotRes.json();
+          if (spotData.balances && Array.isArray(spotData.balances)) {
+            const usdc = spotData.balances.find(b => b.coin === 'USDC');
+            if (usdc) {
+              spotVal = Number(usdc.total || usdc.hold || 0);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Spot fetch warning:", err);
+      }
+
+      setPerpsEquity(perpsVal);
+      setSpotEquity(spotVal);
+      const totalVal = perpsVal > 0 ? perpsVal : spotVal;
+      setLiveEquity(totalVal);
+      addLog(`Balances: Perps = $${perpsVal.toFixed(2)} USDC | Spot = $${spotVal.toFixed(2)} USDC`, 'success');
+
+      // 3. Fetch Live Price & Meta
       const metaData = await getHyperliquidMeta();
       if (metaData) {
         const assetIdx = metaData.universe.findIndex(u => u.name === ticker);
@@ -210,25 +240,46 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
           </div>
         </div>
 
-        {/* Live Balance Pill & Refresh */}
+        {/* Live Balance Pills & Refresh */}
         <div className="flex items-center gap-2 font-mono">
           <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-right">
-            <div className="text-[9px] text-slate-400 uppercase">Live USDC Balance</div>
-            <div className="text-xs font-bold text-white">
-              {liveEquity !== null ? `$${liveEquity.toFixed(2)}` : 'Loading...'}
+            <div className="text-[9px] text-slate-400 uppercase">Perps Balance</div>
+            <div className={`text-xs font-bold ${perpsEquity > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+              ${perpsEquity.toFixed(2)}
             </div>
           </div>
+
+          <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-right">
+            <div className="text-[9px] text-slate-400 uppercase">Spot Balance</div>
+            <div className={`text-xs font-bold ${spotEquity > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+              ${spotEquity.toFixed(2)}
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={fetchLiveState}
             disabled={isLoadingBalance}
             className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer disabled:opacity-50"
-            title="Refresh Live Balance"
+            title="Refresh Live Balances"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBalance ? 'animate-spin text-white' : ''}`} />
           </button>
         </div>
       </div>
+
+      {/* Spot to Perps Transfer Reminder Banner (if funds are in Spot but Perps is 0) */}
+      {perpsEquity === 0 && spotEquity > 0 && (
+        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs font-sans flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="font-bold text-amber-300">Your ${spotEquity.toFixed(2)} USDC is in your Spot Account</div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Hyperliquid BTC perps orders execute from your <strong>Perps Account</strong>. On <a href="https://app.hyperliquid.xyz/trade" target="_blank" rel="noreferrer" className="underline text-amber-300 font-semibold hover:text-white">app.hyperliquid.xyz</a>, click <strong>"Transfer"</strong> to move your USDC from Spot ➔ Perps with 1 click (free & instant).
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Asset, Leverage & Price Controls */}
       <div className="grid grid-cols-3 gap-2 text-xs">
