@@ -274,31 +274,42 @@ export const TradingView = ({
     refreshAllData();
   };
 
-  const availableWarRoomPlays = useMemo(() => {
+  const { availableWarRoomPlays, activeWarRoomPlays } = useMemo(() => {
     const extractNum = (val) => {
       if (!val) return null;
       const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
       return match ? parseFloat(match[1]) : null;
     };
 
-    return (hermesBrief?.highConvictionPlays || []).filter(play => {
-      const isForwardTesting = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
-      const isCompleted = tradeJournal.some(j => j.ticker === play.ticker);
-      if (isForwardTesting || isCompleted) return false;
+    const available = [];
+    const active = [];
 
-      // Auto-remove untriggered setups if live price has pierced stop loss (Invalidated)
-      const currentLive = livePricesMap?.[play.ticker];
-      if (currentLive) {
-        const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
-        const stopNum = play.stopNumeric || extractNum(play.stopLoss) || extractNum(String(play.riskManagement).split('Stop Loss')?.[1]);
-        if (stopNum) {
-          if (isLong && currentLive <= stopNum) return false;
-          if (!isLong && currentLive >= stopNum) return false;
+    (hermesBrief?.highConvictionPlays || []).forEach(play => {
+      const forwardPosition = paperPositions.find(p => p.ticker === play.ticker && p.status !== 'CLOSED');
+      const journalEntry = tradeJournal.find(j => j.ticker === play.ticker);
+
+      if (forwardPosition || journalEntry) {
+        active.push({
+          ...play,
+          forwardPosition,
+          journalEntry
+        });
+      } else {
+        // Auto-remove untriggered setups if live price has pierced stop loss (Invalidated)
+        const currentLive = livePricesMap?.[play.ticker];
+        if (currentLive) {
+          const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
+          const stopNum = play.stopNumeric || extractNum(play.stopLoss) || extractNum(String(play.riskManagement).split('Stop Loss')?.[1]);
+          if (stopNum) {
+            if (isLong && currentLive <= stopNum) return;
+            if (!isLong && currentLive >= stopNum) return;
+          }
         }
+        available.push(play);
       }
-
-      return true;
     });
+
+    return { availableWarRoomPlays: available, activeWarRoomPlays: active };
   }, [hermesBrief, paperPositions, tradeJournal, livePricesMap]);
 
   const tabsConfig = [
@@ -306,7 +317,7 @@ export const TradingView = ({
       id: 'overview', 
       label: 'Strategy Scanner', 
       icon: Compass, 
-      count: availableWarRoomPlays.length,
+      count: availableWarRoomPlays.length + activeWarRoomPlays.length,
       isLoading: isScanning 
     },
     { id: 'execute', label: 'Hyperliquid', icon: Zap, count: 0, isLoading: false },
@@ -666,317 +677,547 @@ export const TradingView = ({
                 </GlassCard>
               )}
 
-              {/* Main Section: High-Conviction Setups of the Day (What to Buy/Sell & Why) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-                      <span>High-Conviction Setups ({availableWarRoomPlays.length})</span>
-                    </h3>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
-                      1-Click Execution Integrated
-                    </span>
+              {/* Main Section: High-Conviction Setups of the Day */}
+              <div className="space-y-6">
+                {/* 1. New / Available Setups */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                        <span>High-Conviction Setups ({availableWarRoomPlays.length})</span>
+                      </h3>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                        1-Click Execution Integrated
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                {availableWarRoomPlays.length === 0 ? (
-                  <GlassCard hoverEffect={false} className="p-8 text-center space-y-3 border border-white/5">
-                    <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-400" />
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-white">All Setups Active or Completed</h4>
-                      <p className="text-xs text-slate-400 max-w-md mx-auto">
-                        All daily trade dossiers are currently active in Forward Test or recorded in your Journal.
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playSound('click', soundEnabled);
-                          setActiveTab('execute');
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-semibold text-emerald-300 border border-emerald-500/30 cursor-pointer flex items-center gap-1.5 active:scale-95"
-                      >
-                        <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Hyperliquid Desk</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playSound('click', soundEnabled);
-                          setActiveTab('papertrader');
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-xs font-semibold text-white cursor-pointer flex items-center gap-1.5 active:scale-95"
-                      >
-                        <Bot className="w-3.5 h-3.5 text-slate-300" />
-                        <span>View Forward Test</span>
-                      </button>
-                    </div>
-                  </GlassCard>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {availableWarRoomPlays.map((play, idx) => {
-                      // Fix arrow and bias normalization (Long = up arrow, Short = down arrow)
-                      const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
-                      const isDossierOpen = expandedDossierIdx === idx;
+                  {availableWarRoomPlays.length === 0 && activeWarRoomPlays.length === 0 ? (
+                    <GlassCard hoverEffect={false} className="p-8 text-center space-y-3 border border-white/5">
+                      <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-400" />
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-white">All Setups Active or Completed</h4>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          All daily trade dossiers are currently active in Forward Test or recorded in your Journal.
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playSound('click', soundEnabled);
+                            setActiveTab('execute');
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-semibold text-emerald-300 border border-emerald-500/30 cursor-pointer flex items-center gap-1.5 active:scale-95"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Hyperliquid Desk</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playSound('click', soundEnabled);
+                            setActiveTab('papertrader');
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-xs font-semibold text-white cursor-pointer flex items-center gap-1.5 active:scale-95"
+                        >
+                          <Bot className="w-3.5 h-3.5 text-slate-300" />
+                          <span>View Forward Test</span>
+                        </button>
+                      </div>
+                    </GlassCard>
+                  ) : (
+                    availableWarRoomPlays.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {availableWarRoomPlays.map((play, idx) => {
+                          const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
+                          const isDossierOpen = expandedDossierIdx === idx;
 
-                      const riskMgmtText = typeof play.riskManagement === 'object' && play.riskManagement !== null
-                        ? `Stop Loss: ${play.riskManagement.stopLoss || play.stopLoss || 'Dynamic'} | Take Profit: ${play.riskManagement.takeProfit || play.target2R || 'Dynamic'} | R:R ${play.riskManagement.riskRewardRatio || play.riskRewardRatio || '1:2.6'}`
-                        : (play.riskManagement ? String(play.riskManagement) : `Trigger ${play.entryTrigger || 'Market'} | Invalidation Stop ${play.stopLoss || 'Dynamic'} | Target 2R ${play.target2R || 'Dynamic'} (1.5% max risk).`);
+                          const riskMgmtText = typeof play.riskManagement === 'object' && play.riskManagement !== null
+                            ? `Stop Loss: ${play.riskManagement.stopLoss || play.stopLoss || 'Dynamic'} | Take Profit: ${play.riskManagement.takeProfit || play.target2R || 'Dynamic'} | R:R ${play.riskManagement.riskRewardRatio || play.riskRewardRatio || '1:2.6'}`
+                            : (play.riskManagement ? String(play.riskManagement) : `Trigger ${play.entryTrigger || 'Market'} | Invalidation Stop ${play.stopLoss || 'Dynamic'} | Target 2R ${play.target2R || 'Dynamic'} (1.5% max risk).`);
 
-                      const whyChosenText = typeof play.whyChosen === 'object' && play.whyChosen !== null
-                        ? (play.whyChosen.detail || play.whyChosen.text || Object.values(play.whyChosen).join(' '))
-                        : (play.whyChosen ? String(play.whyChosen) : (play.thesis || play.catalystDossier || 'High confluence breakout.'));
+                          const whyChosenText = typeof play.whyChosen === 'object' && play.whyChosen !== null
+                            ? (play.whyChosen.detail || play.whyChosen.text || Object.values(play.whyChosen).join(' '))
+                            : (play.whyChosen ? String(play.whyChosen) : (play.thesis || play.catalystDossier || 'High confluence breakout.'));
 
-                      const projectedMoveText = typeof play.projectedMove === 'object' && play.projectedMove !== null
-                        ? (play.projectedMove.detail || play.projectedMove.text || Object.values(play.projectedMove).join(' '))
-                        : (play.projectedMove ? String(play.projectedMove) : `Pullback to ${play.entryTrigger || 'trigger'} targeting ${play.target2R || '2R'} with expanding volume.`);
+                          const projectedMoveText = typeof play.projectedMove === 'object' && play.projectedMove !== null
+                            ? (play.projectedMove.detail || play.projectedMove.text || Object.values(play.projectedMove).join(' '))
+                            : (play.projectedMove ? String(play.projectedMove) : `Pullback to ${play.entryTrigger || 'trigger'} targeting ${play.target2R || '2R'} with expanding volume.`);
 
-                      const stopLossDisplay = typeof play.stopLoss === 'object' && play.stopLoss !== null
-                        ? (play.stopLoss.price || String(play.stopLoss))
-                        : String(play.stopLoss || 'Dynamic');
+                          const stopLossDisplay = typeof play.stopLoss === 'object' && play.stopLoss !== null
+                            ? (play.stopLoss.price || String(play.stopLoss))
+                            : String(play.stopLoss || 'Dynamic');
 
-                      const target2RDisplay = typeof play.target2R === 'object' && play.target2R !== null
-                        ? (play.target2R.price || String(play.target2R))
-                        : String(play.target2R || 'Dynamic');
+                          const target2RDisplay = typeof play.target2R === 'object' && play.target2R !== null
+                            ? (play.target2R.price || String(play.target2R))
+                            : String(play.target2R || 'Dynamic');
 
-                      const riskRewardDisplay = typeof play.riskRewardRatio === 'object' && play.riskRewardRatio !== null
-                        ? (play.riskRewardRatio.ratio || String(play.riskRewardRatio))
-                        : String(play.riskRewardRatio || '1:2.6');
+                          const riskRewardDisplay = typeof play.riskRewardRatio === 'object' && play.riskRewardRatio !== null
+                            ? (play.riskRewardRatio.ratio || String(play.riskRewardRatio))
+                            : String(play.riskRewardRatio || '1:2.6');
 
-                      // Extract numerical prices for precise gauge visualization
-                      const extractFirstNum = (val) => {
-                        if (!val) return null;
-                        const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
-                        return match ? parseFloat(match[1]) : null;
-                      };
+                          const extractFirstNum = (val) => {
+                            if (!val) return null;
+                            const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+                            return match ? parseFloat(match[1]) : null;
+                          };
 
-                      const currentLive = livePricesMap?.[play.ticker] || 100;
-                      const entryNum = play.entryNumeric || extractFirstNum(play.entryTrigger) || extractFirstNum(riskMgmtText) || currentLive;
-                      const stopNum = extractFirstNum(stopLossDisplay) || extractFirstNum(riskMgmtText?.split('Stop Loss')?.[1]) || (isLong ? Number((entryNum * 0.95).toFixed(2)) : Number((entryNum * 1.05).toFixed(2)));
-                      const tpNum = extractFirstNum(target2RDisplay) || extractFirstNum(riskMgmtText?.split('Take Profit')?.[1]) || (isLong ? Number((entryNum * 1.10).toFixed(2)) : Number((entryNum * 0.90).toFixed(2)));
+                          const currentLive = livePricesMap?.[play.ticker] || 100;
+                          const entryNum = play.entryNumeric || extractFirstNum(play.entryTrigger) || extractFirstNum(riskMgmtText) || currentLive;
+                          const stopNum = extractFirstNum(stopLossDisplay) || extractFirstNum(riskMgmtText?.split('Stop Loss')?.[1]) || (isLong ? Number((entryNum * 0.95).toFixed(2)) : Number((entryNum * 1.05).toFixed(2)));
+                          const tpNum = extractFirstNum(target2RDisplay) || extractFirstNum(riskMgmtText?.split('Take Profit')?.[1]) || (isLong ? Number((entryNum * 1.10).toFixed(2)) : Number((entryNum * 0.90).toFixed(2)));
 
-                      const profitPct = entryNum && tpNum ? Math.abs(((tpNum - entryNum) / entryNum) * 100).toFixed(1) : '10.0';
-                      const lossPct = entryNum && stopNum ? Math.abs(((entryNum - stopNum) / entryNum) * 100).toFixed(1) : '4.5';
+                          const profitPct = entryNum && tpNum ? Math.abs(((tpNum - entryNum) / entryNum) * 100).toFixed(1) : '10.0';
+                          const lossPct = entryNum && stopNum ? Math.abs(((entryNum - stopNum) / entryNum) * 100).toFixed(1) : '4.5';
 
-                      const entryFormatted = entryNum >= 1000 ? `$${entryNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${entryNum.toFixed(2)}`;
-                      const tpFormatted = tpNum >= 1000 ? `$${tpNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${tpNum.toFixed(2)}`;
-                      const stopFormatted = stopNum >= 1000 ? `$${stopNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${stopNum.toFixed(2)}`;
-                      const liveFormatted = currentLive >= 1000 ? `$${currentLive.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${currentLive.toFixed(2)}`;
+                          const entryFormatted = entryNum >= 1000 ? `$${entryNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${entryNum.toFixed(2)}`;
+                          const tpFormatted = tpNum >= 1000 ? `$${tpNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${tpNum.toFixed(2)}`;
+                          const stopFormatted = stopNum >= 1000 ? `$${stopNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${stopNum.toFixed(2)}`;
+                          const liveFormatted = currentLive >= 1000 ? `$${currentLive.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${currentLive.toFixed(2)}`;
 
-                      // Distance from planned trigger
-                      const distFromEntryPct = entryNum > 0 ? (((currentLive - entryNum) / entryNum) * 100).toFixed(1) : '0.0';
-                      const isNearEntry = Math.abs(Number(distFromEntryPct)) <= 0.8;
+                          const distFromEntryPct = entryNum > 0 ? (((currentLive - entryNum) / entryNum) * 100).toFixed(1) : '0.0';
+                          const isNearEntry = Math.abs(Number(distFromEntryPct)) <= 0.8;
 
-                      // Percentage along the Stop Loss -> Take Profit spectrum
-                      const totalRange = Math.abs(tpNum - stopNum);
-                      let liveProgressPct = 50;
-                      if (totalRange > 0) {
-                        if (isLong) {
-                          liveProgressPct = Math.min(100, Math.max(0, ((currentLive - stopNum) / totalRange) * 100));
-                        } else {
-                          liveProgressPct = Math.min(100, Math.max(0, ((stopNum - currentLive) / totalRange) * 100));
-                        }
-                      }
+                          // Gauge Progress: Red on Left (0-50%) to Entry | Green on Right (50-100%) to TP
+                          let liveProgressPct = 50;
+                          if (isLong) {
+                            if (currentLive <= entryNum) {
+                              const dist = entryNum - stopNum;
+                              liveProgressPct = dist > 0 ? Math.max(0, Math.min(50, ((currentLive - stopNum) / dist) * 50)) : 25;
+                            } else {
+                              const dist = tpNum - entryNum;
+                              liveProgressPct = dist > 0 ? Math.min(100, Math.max(50, 50 + ((currentLive - entryNum) / dist) * 50)) : 75;
+                            }
+                          } else {
+                            if (currentLive >= entryNum) {
+                              const dist = stopNum - entryNum;
+                              liveProgressPct = dist > 0 ? Math.max(0, Math.min(50, ((stopNum - currentLive) / dist) * 50)) : 25;
+                            } else {
+                              const dist = entryNum - tpNum;
+                              liveProgressPct = dist > 0 ? Math.min(100, Math.max(50, 50 + ((entryNum - currentLive) / dist) * 50)) : 75;
+                            }
+                          }
 
-                      // Only show the dossier option if there is genuine content
-                      const hasDossierContent = Boolean(
-                        (play.catalystDossier && String(play.catalystDossier).trim().length > 0) ||
-                        (play.institutionalFlow && String(play.institutionalFlow).trim().length > 0) ||
-                        (play.technicalStructure && String(play.technicalStructure).trim().length > 0)
-                      );
+                          const hasDossierContent = Boolean(
+                            (play.catalystDossier && String(play.catalystDossier).trim().length > 0) ||
+                            (play.institutionalFlow && String(play.institutionalFlow).trim().length > 0) ||
+                            (play.technicalStructure && String(play.technicalStructure).trim().length > 0)
+                          );
 
-                      return (
-                        <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3 border border-white/10 hover:border-white/20 transition-all shadow-md">
-                          {/* Card Header: Ticker, Direction Badge, Grade Badge, and 1-Click Action Buttons */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-base font-bold text-white font-mono tracking-wide">{play.ticker}</span>
-                              
-                              {/* Direction & Leverage Badge with Correct Arrow */}
-                              <span className={`text-[11px] font-mono px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 ${
-                                isLong 
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
-                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                              }`}>
-                                {isLong ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
-                                <span>{isLong ? 'Long 5x' : 'Short 5x'}</span>
-                              </span>
+                          return (
+                            <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3 border border-white/10 hover:border-white/20 transition-all shadow-md">
+                              {/* Card Header: Ticker, Direction Badge, Grade Badge, and 1-Click Action Buttons */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-base font-bold text-white font-mono tracking-wide">{play.ticker}</span>
+                                  
+                                  <span className={`text-[11px] font-mono px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 ${
+                                    isLong 
+                                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                                      : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                  }`}>
+                                    {isLong ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
+                                    <span>{isLong ? 'Long 5x' : 'Short 5x'}</span>
+                                  </span>
 
-                              {/* Grade Badge Only (No category clutter) */}
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-white/[0.06] text-slate-200 border border-white/10">
-                                Grade <strong className="text-amber-300 font-extrabold">{play.convictionGrade || 'A+'}</strong>
-                              </span>
-                            </div>
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-white/[0.06] text-slate-200 border border-white/10">
+                                    Grade <strong className="text-amber-300 font-extrabold">{play.convictionGrade || 'A+'}</strong>
+                                  </span>
+                                </div>
 
-                            {/* Direct 1-Click Action Buttons */}
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  playSound('click', soundEnabled);
-                                  setHyperliquidTicker(play.ticker);
-                                  setActiveTab('execute');
-                                }}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95 shadow-sm"
-                                title="Execute directly on Hyperliquid L1"
-                              >
-                                <Zap className="w-3 h-3 text-emerald-400" />
-                                <span>Hyperliquid</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenOrderModal({
-                                  ...play,
-                                  entryNumeric: entryNum,
-                                  stopNumeric: stopNum,
-                                  target2RNumeric: tpNum
-                                })}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95 shadow-sm"
-                                style={{
-                                  backgroundColor: 'var(--accent-subtle)',
-                                  border: '1px solid var(--accent-border)'
-                                }}
-                                title="Forward-Test paper trade"
-                              >
-                                <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                <span>Test</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Simplified Visual Setup Map: Live Market vs Levels */}
-                          <div className="p-3 rounded-2xl bg-black/45 border border-white/5 space-y-2.5 font-mono">
-                            {/* Top Level Bar: Live Price & Proximity to Entry */}
-                            <div className="flex items-center justify-between text-xs pb-1.5 border-b border-white/5">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-slate-400 uppercase tracking-wider">Live Market:</span>
-                                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                  {liveFormatted}
-                                </span>
-                                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                                  isNearEntry 
-                                    ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/25' 
-                                    : (Number(distFromEntryPct) > 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300')
-                                }`}>
-                                  {isNearEntry ? '🎯 Near Entry Level' : `${distFromEntryPct > 0 ? '+' : ''}${distFromEntryPct}% from Entry`}
-                                </span>
-                              </div>
-                              <span className="text-[10px] font-bold text-slate-200 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/10">
-                                R:R {riskRewardDisplay}
-                              </span>
-                            </div>
-
-                            {/* 3 Metric Pills: Stop Loss | Entry Trigger | Take Profit */}
-                            <div className="grid grid-cols-3 gap-1.5 text-center">
-                              <div className="p-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
-                                <div className="text-[9px] text-rose-400 uppercase font-semibold">Stop Loss</div>
-                                <div className="font-bold text-rose-300 text-xs mt-0.5">{stopFormatted}</div>
-                                <div className="text-[8px] text-rose-400/80">-{lossPct}%</div>
+                                {/* Direct 1-Click Action Buttons */}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playSound('click', soundEnabled);
+                                      setHyperliquidTicker(play.ticker);
+                                      setActiveTab('execute');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95 shadow-sm"
+                                    title="Execute directly on Hyperliquid L1"
+                                  >
+                                    <Zap className="w-3 h-3 text-emerald-400" />
+                                    <span>Hyperliquid</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenOrderModal({
+                                      ...play,
+                                      entryNumeric: entryNum,
+                                      stopNumeric: stopNum,
+                                      target2RNumeric: tpNum
+                                    })}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95 shadow-sm"
+                                    style={{
+                                      backgroundColor: 'var(--accent-subtle)',
+                                      border: '1px solid var(--accent-border)'
+                                    }}
+                                    title="Forward-Test paper trade"
+                                  >
+                                    <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                    <span>Test</span>
+                                  </button>
+                                </div>
                               </div>
 
-                              <div className="p-1.5 rounded-xl bg-cyan-500/[0.08] border border-cyan-500/20">
-                                <div className="text-[9px] text-cyan-400 uppercase font-semibold">Trigger Entry</div>
-                                <div className="font-bold text-cyan-200 text-xs mt-0.5">{entryFormatted}</div>
-                                <div className="text-[8px] text-cyan-300/80">{isLong ? 'Buy Level' : 'Short Level'}</div>
-                              </div>
+                              {/* Simplified Visual Setup Map: Live Market vs Levels */}
+                              <div className="p-3 rounded-2xl bg-black/45 border border-white/5 space-y-2.5 font-mono">
+                                {/* Top Level Bar: Live Price & Proximity to Entry */}
+                                <div className="flex items-center justify-between text-xs pb-1.5 border-b border-white/5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-slate-400 uppercase tracking-wider">Live Market:</span>
+                                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                      {liveFormatted}
+                                    </span>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                                      isNearEntry 
+                                        ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/25' 
+                                        : (Number(distFromEntryPct) > 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300')
+                                    }`}>
+                                      {isNearEntry ? '🎯 Near Entry Level' : `${distFromEntryPct > 0 ? '+' : ''}${distFromEntryPct}% from Entry`}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-200 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/10">
+                                    R:R {riskRewardDisplay}
+                                  </span>
+                                </div>
 
-                              <div className="p-1.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/20">
-                                <div className="text-[9px] text-emerald-400 uppercase font-semibold">Take Profit (2R)</div>
-                                <div className="font-bold text-emerald-300 text-xs mt-0.5">{tpFormatted}</div>
-                                <div className="text-[8px] text-emerald-400/80">+{profitPct}%</div>
-                              </div>
-                            </div>
+                                {/* 3 Metric Pills: Stop Loss | Entry Trigger | Take Profit */}
+                                <div className="grid grid-cols-3 gap-1.5 text-center">
+                                  <div className="p-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
+                                    <div className="text-[9px] text-rose-400 uppercase font-semibold">Stop Loss</div>
+                                    <div className="font-bold text-rose-300 text-xs mt-0.5">{stopFormatted}</div>
+                                    <div className="text-[8px] text-rose-400/80">-{lossPct}%</div>
+                                  </div>
 
-                            {/* Horizontal Visual Position Track */}
-                            <div className="relative pt-1.5 pb-0.5">
-                              <div className="h-1.5 w-full bg-slate-800/80 rounded-full overflow-hidden flex">
-                                <div className="h-full bg-rose-500/40" style={{ width: '30%' }} />
-                                <div className="h-full bg-cyan-500/50" style={{ width: '30%' }} />
-                                <div className="h-full bg-emerald-500/40" style={{ width: '40%' }} />
-                              </div>
-                              {/* Live Price Marker Pin */}
-                              <div 
-                                className="absolute top-0 transform -translate-x-1/2 -mt-0.5 transition-all duration-300"
-                                style={{ left: `${liveProgressPct}%` }}
-                                title={`Current Market: ${liveFormatted}`}
-                              >
-                                <div className="w-2.5 h-2.5 rounded-full bg-white ring-2 ring-cyan-400 shadow-lg" />
-                              </div>
-                            </div>
-                          </div>
+                                  <div className="p-1.5 rounded-xl bg-cyan-500/[0.08] border border-cyan-500/20">
+                                    <div className="text-[9px] text-cyan-400 uppercase font-semibold">Trigger Entry</div>
+                                    <div className="font-bold text-cyan-200 text-xs mt-0.5">{entryFormatted}</div>
+                                    <div className="text-[8px] text-cyan-300/80">{isLong ? 'Buy Level' : 'Short Level'}</div>
+                                  </div>
 
-                          {/* 3 Point-Form Bullets: Why Chosen, Expected Move, Risk & Invalidation */}
-                          <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
-                            <div className="flex items-start gap-1.5 leading-relaxed">
-                              <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
-                              <span><strong className="text-white">Why Chosen:</strong> {whyChosenText}</span>
-                            </div>
-                            <div className="flex items-start gap-1.5 leading-relaxed">
-                              <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
-                              <span><strong className="text-white">Expected Move:</strong> {projectedMoveText}</span>
-                            </div>
-                            <div className="flex items-start gap-1.5 leading-relaxed">
-                              <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
-                              <span><strong className="text-white">Risk & Invalidation:</strong> {riskMgmtText}</span>
-                            </div>
-                          </div>
+                                  <div className="p-1.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/20">
+                                    <div className="text-[9px] text-emerald-400 uppercase font-semibold">Take Profit (2R)</div>
+                                    <div className="font-bold text-emerald-300 text-xs mt-0.5">{tpFormatted}</div>
+                                    <div className="text-[8px] text-emerald-400/80">+{profitPct}%</div>
+                                  </div>
+                                </div>
 
-                          {/* Expandable Deep Research Dossier - ONLY rendered if there is content */}
-                          {hasDossierContent && (
-                            <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
-                                className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
-                              >
-                                <span className="flex items-center gap-1.5">
-                                  <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                  <span>{isDossierOpen ? 'Hide Research Dossier' : 'View Catalysts & Dark Pools'}</span>
-                                </span>
-                                {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              </button>
+                                {/* Precise Horizontal Risk-Reward Level Track (Red 0-50% to Entry | Green 50-100% to TP) */}
+                                <div className="relative pt-2 pb-1">
+                                  <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex relative border border-white/5 shadow-inner">
+                                    {/* Red Risk Segment (from Stop Loss to Trigger Entry) */}
+                                    <div className="h-full bg-gradient-to-r from-rose-600/50 to-rose-500/30 border-r border-white/30" style={{ width: '50%' }} />
+                                    {/* Green Profit Segment (from Trigger Entry to Take Profit) */}
+                                    <div className="h-full bg-gradient-to-r from-emerald-500/30 to-emerald-500/50" style={{ width: '50%' }} />
+                                  </div>
 
-                              {isDossierOpen && (
-                                <div className="space-y-2 p-2.5 rounded-xl bg-black/50 border border-white/5 text-[11px] text-slate-300 animate-in fade-in duration-200">
-                                  {play.catalystDossier && (
-                                    <div>
-                                      <div className="font-semibold text-white flex items-center gap-1">
-                                        <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                        <span>Confirmed SEC / Protocol Reports:</span>
-                                      </div>
-                                      <p className="text-slate-300 pl-4 mt-0.5">{typeof play.catalystDossier === 'object' ? Object.values(play.catalystDossier).join(' ') : String(play.catalystDossier)}</p>
+                                  {/* Center Entry Marker Tick */}
+                                  <div className="absolute top-1 bottom-0 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-white/40 pointer-events-none" />
+
+                                  {/* Floating Blue Dot showing Current Market Price */}
+                                  <div 
+                                    className="absolute top-1 transform -translate-x-1/2 -mt-0.5 transition-all duration-300 pointer-events-none z-10"
+                                    style={{ left: `${liveProgressPct}%` }}
+                                    title={`Current Market Position: ${liveFormatted}`}
+                                  >
+                                    <div className="w-3.5 h-3.5 rounded-full bg-cyan-400 ring-2 ring-white shadow-lg flex items-center justify-center">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-cyan-950" />
                                     </div>
-                                  )}
+                                  </div>
+                                </div>
+                              </div>
 
-                                  {play.institutionalFlow && (
-                                    <div>
-                                      <div className="font-semibold text-white flex items-center gap-1">
-                                        <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                        <span>Whale & Dark Pool Footprint:</span>
-                                      </div>
-                                      <p className="text-slate-300 pl-4 mt-0.5">{typeof play.institutionalFlow === 'object' ? Object.values(play.institutionalFlow).join(' ') : String(play.institutionalFlow)}</p>
-                                    </div>
-                                  )}
+                              {/* 3 Point-Form Bullets: Why Chosen, Expected Move, Risk & Invalidation */}
+                              <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
+                                <div className="flex items-start gap-1.5 leading-relaxed">
+                                  <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                                  <span><strong className="text-white">Why Chosen:</strong> {whyChosenText}</span>
+                                </div>
+                                <div className="flex items-start gap-1.5 leading-relaxed">
+                                  <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
+                                  <span><strong className="text-white">Expected Move:</strong> {projectedMoveText}</span>
+                                </div>
+                                <div className="flex items-start gap-1.5 leading-relaxed">
+                                  <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
+                                  <span><strong className="text-white">Risk & Invalidation:</strong> {riskMgmtText}</span>
+                                </div>
+                              </div>
 
-                                  {play.technicalStructure && (
-                                    <div>
-                                      <div className="font-semibold text-white flex items-center gap-1">
-                                        <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                        <span>Orderbook & Volume Profile:</span>
-                                      </div>
-                                      <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
+                              {/* Expandable Deep Research Dossier */}
+                              {hasDossierContent && (
+                                <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
+                                    className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                      <span>{isDossierOpen ? 'Hide Research Dossier' : 'View Catalysts & Dark Pools'}</span>
+                                    </span>
+                                    {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                  </button>
+
+                                  {isDossierOpen && (
+                                    <div className="space-y-2 p-2.5 rounded-xl bg-black/50 border border-white/5 text-[11px] text-slate-300 animate-in fade-in duration-200">
+                                      {play.catalystDossier && (
+                                        <div>
+                                          <div className="font-semibold text-white flex items-center gap-1">
+                                            <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                            <span>Confirmed SEC / Protocol Reports:</span>
+                                          </div>
+                                          <p className="text-slate-300 pl-4 mt-0.5">{typeof play.catalystDossier === 'object' ? Object.values(play.catalystDossier).join(' ') : String(play.catalystDossier)}</p>
+                                        </div>
+                                      )}
+
+                                      {play.institutionalFlow && (
+                                        <div>
+                                          <div className="font-semibold text-white flex items-center gap-1">
+                                            <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                            <span>Whale & Dark Pool Footprint:</span>
+                                          </div>
+                                          <p className="text-slate-300 pl-4 mt-0.5">{typeof play.institutionalFlow === 'object' ? Object.values(play.institutionalFlow).join(' ') : String(play.institutionalFlow)}</p>
+                                        </div>
+                                      )}
+
+                                      {play.technicalStructure && (
+                                        <div>
+                                          <div className="font-semibold text-white flex items-center gap-1">
+                                            <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                            <span>Orderbook & Volume Profile:</span>
+                                          </div>
+                                          <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
                               )}
+                            </GlassCard>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {/* 2. Active / Filled & Forward-Testing Setups Section */}
+                {activeWarRoomPlays.length > 0 && (
+                  <div className="space-y-3 pt-3 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span>Active / Filled & Forward-Testing Setups ({activeWarRoomPlays.length})</span>
+                        </h3>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                          Forward-Test / Filled Active
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {activeWarRoomPlays.map((play, idx) => {
+                        const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
+                        const isDossierOpen = expandedDossierIdx === `active_${idx}`;
+
+                        const riskMgmtText = typeof play.riskManagement === 'object' && play.riskManagement !== null
+                          ? `Stop Loss: ${play.riskManagement.stopLoss || play.stopLoss || 'Dynamic'} | Take Profit: ${play.riskManagement.takeProfit || play.target2R || 'Dynamic'} | R:R ${play.riskManagement.riskRewardRatio || play.riskRewardRatio || '1:2.6'}`
+                          : (play.riskManagement ? String(play.riskManagement) : `Trigger ${play.entryTrigger || 'Market'} | Invalidation Stop ${play.stopLoss || 'Dynamic'} | Target 2R ${play.target2R || 'Dynamic'} (1.5% max risk).`);
+
+                        const whyChosenText = typeof play.whyChosen === 'object' && play.whyChosen !== null
+                          ? (play.whyChosen.detail || play.whyChosen.text || Object.values(play.whyChosen).join(' '))
+                          : (play.whyChosen ? String(play.whyChosen) : (play.thesis || play.catalystDossier || 'High confluence breakout.'));
+
+                        const projectedMoveText = typeof play.projectedMove === 'object' && play.projectedMove !== null
+                          ? (play.projectedMove.detail || play.projectedMove.text || Object.values(play.projectedMove).join(' '))
+                          : (play.projectedMove ? String(play.projectedMove) : `Pullback to ${play.entryTrigger || 'trigger'} targeting ${play.target2R || '2R'} with expanding volume.`);
+
+                        const stopLossDisplay = typeof play.stopLoss === 'object' && play.stopLoss !== null
+                          ? (play.stopLoss.price || String(play.stopLoss))
+                          : String(play.stopLoss || 'Dynamic');
+
+                        const target2RDisplay = typeof play.target2R === 'object' && play.target2R !== null
+                          ? (play.target2R.price || String(play.target2R))
+                          : String(play.target2R || 'Dynamic');
+
+                        const riskRewardDisplay = typeof play.riskRewardRatio === 'object' && play.riskRewardRatio !== null
+                          ? (play.riskRewardRatio.ratio || String(play.riskRewardRatio))
+                          : String(play.riskRewardRatio || '1:2.6');
+
+                        const extractFirstNum = (val) => {
+                          if (!val) return null;
+                          const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+                          return match ? parseFloat(match[1]) : null;
+                        };
+
+                        const currentLive = livePricesMap?.[play.ticker] || 100;
+                        const entryNum = play.entryNumeric || extractFirstNum(play.entryTrigger) || extractFirstNum(riskMgmtText) || currentLive;
+                        const stopNum = extractFirstNum(stopLossDisplay) || extractFirstNum(riskMgmtText?.split('Stop Loss')?.[1]) || (isLong ? Number((entryNum * 0.95).toFixed(2)) : Number((entryNum * 1.05).toFixed(2)));
+                        const tpNum = extractFirstNum(target2RDisplay) || extractFirstNum(riskMgmtText?.split('Take Profit')?.[1]) || (isLong ? Number((entryNum * 1.10).toFixed(2)) : Number((entryNum * 0.90).toFixed(2)));
+
+                        const profitPct = entryNum && tpNum ? Math.abs(((tpNum - entryNum) / entryNum) * 100).toFixed(1) : '10.0';
+                        const lossPct = entryNum && stopNum ? Math.abs(((entryNum - stopNum) / entryNum) * 100).toFixed(1) : '4.5';
+
+                        const entryFormatted = entryNum >= 1000 ? `$${entryNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${entryNum.toFixed(2)}`;
+                        const tpFormatted = tpNum >= 1000 ? `$${tpNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${tpNum.toFixed(2)}`;
+                        const stopFormatted = stopNum >= 1000 ? `$${stopNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${stopNum.toFixed(2)}`;
+                        const liveFormatted = currentLive >= 1000 ? `$${currentLive.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${currentLive.toFixed(2)}`;
+
+                        const distFromEntryPct = entryNum > 0 ? (((currentLive - entryNum) / entryNum) * 100).toFixed(1) : '0.0';
+                        const isNearEntry = Math.abs(Number(distFromEntryPct)) <= 0.8;
+
+                        // Gauge Progress: Red on Left (0-50%) to Entry | Green on Right (50-100%) to TP
+                        let liveProgressPct = 50;
+                        if (isLong) {
+                          if (currentLive <= entryNum) {
+                            const dist = entryNum - stopNum;
+                            liveProgressPct = dist > 0 ? Math.max(0, Math.min(50, ((currentLive - stopNum) / dist) * 50)) : 25;
+                          } else {
+                            const dist = tpNum - entryNum;
+                            liveProgressPct = dist > 0 ? Math.min(100, Math.max(50, 50 + ((currentLive - entryNum) / dist) * 50)) : 75;
+                          }
+                        } else {
+                          if (currentLive >= entryNum) {
+                            const dist = stopNum - entryNum;
+                            liveProgressPct = dist > 0 ? Math.max(0, Math.min(50, ((stopNum - currentLive) / dist) * 50)) : 25;
+                          } else {
+                            const dist = entryNum - tpNum;
+                            liveProgressPct = dist > 0 ? Math.min(100, Math.max(50, 50 + ((entryNum - currentLive) / dist) * 50)) : 75;
+                          }
+                        }
+
+                        const hasDossierContent = Boolean(
+                          (play.catalystDossier && String(play.catalystDossier).trim().length > 0) ||
+                          (play.institutionalFlow && String(play.institutionalFlow).trim().length > 0) ||
+                          (play.technicalStructure && String(play.technicalStructure).trim().length > 0)
+                        );
+
+                        const posStatus = play.forwardPosition?.status || 'FILLED';
+                        const pnlUSD = play.forwardPosition?.unrealizedPnlUSD || 0;
+                        const roePct = play.forwardPosition?.roePct || 0;
+
+                        return (
+                          <GlassCard key={`active_${idx}`} hoverEffect={false} className="p-4 space-y-3 border border-emerald-500/20 bg-emerald-500/[0.02] shadow-md">
+                            {/* Card Header: Ticker, Direction Badge, Active Status, and View Desk Button */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-base font-bold text-white font-mono tracking-wide">{play.ticker}</span>
+                                
+                                <span className={`text-[11px] font-mono px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 ${
+                                  isLong 
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                                    : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                }`}>
+                                  {isLong ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
+                                  <span>{isLong ? 'Long 5x' : 'Short 5x'}</span>
+                                </span>
+
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  <span>{posStatus === 'ACTIVE' ? `Active (${pnlUSD >= 0 ? '+' : ''}$${pnlUSD.toFixed(2)})` : posStatus === 'PENDING_ENTRY' ? 'Limit Resting' : 'Journal Logged'}</span>
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playSound('click', soundEnabled);
+                                    setActiveTab('papertrader');
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 active:scale-95 shadow-sm"
+                                  title="View in Forward-Test Desk"
+                                >
+                                  <Bot className="w-3 h-3 text-emerald-400" />
+                                  <span>View in Desk</span>
+                                </button>
+                              </div>
                             </div>
-                          )}
-                        </GlassCard>
-                      );
-                    })}
+
+                            {/* Simplified Visual Setup Map */}
+                            <div className="p-3 rounded-2xl bg-black/45 border border-white/5 space-y-2.5 font-mono">
+                              <div className="flex items-center justify-between text-xs pb-1.5 border-b border-white/5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-slate-400 uppercase tracking-wider">Live Market:</span>
+                                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                    {liveFormatted}
+                                  </span>
+                                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                                    pnlUSD >= 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
+                                  }`}>
+                                    {posStatus === 'ACTIVE' ? `${roePct >= 0 ? '+' : ''}${roePct.toFixed(1)}% ROE` : 'Pending Fill'}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-200 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/10">
+                                  R:R {riskRewardDisplay}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-1.5 text-center">
+                                <div className="p-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
+                                  <div className="text-[9px] text-rose-400 uppercase font-semibold">Stop Loss</div>
+                                  <div className="font-bold text-rose-300 text-xs mt-0.5">{stopFormatted}</div>
+                                  <div className="text-[8px] text-rose-400/80">-{lossPct}%</div>
+                                </div>
+
+                                <div className="p-1.5 rounded-xl bg-cyan-500/[0.08] border border-cyan-500/20">
+                                  <div className="text-[9px] text-cyan-400 uppercase font-semibold">Trigger Entry</div>
+                                  <div className="font-bold text-cyan-200 text-xs mt-0.5">{entryFormatted}</div>
+                                  <div className="text-[8px] text-cyan-300/80">{isLong ? 'Buy Level' : 'Short Level'}</div>
+                                </div>
+
+                                <div className="p-1.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/20">
+                                  <div className="text-[9px] text-emerald-400 uppercase font-semibold">Take Profit (2R)</div>
+                                  <div className="font-bold text-emerald-300 text-xs mt-0.5">{tpFormatted}</div>
+                                  <div className="text-[8px] text-emerald-400/80">+{profitPct}%</div>
+                                </div>
+                              </div>
+
+                              {/* Precise Horizontal Risk-Reward Level Track */}
+                              <div className="relative pt-2 pb-1">
+                                <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex relative border border-white/5 shadow-inner">
+                                  <div className="h-full bg-gradient-to-r from-rose-600/50 to-rose-500/30 border-r border-white/30" style={{ width: '50%' }} />
+                                  <div className="h-full bg-gradient-to-r from-emerald-500/30 to-emerald-500/50" style={{ width: '50%' }} />
+                                </div>
+                                <div className="absolute top-1 bottom-0 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-white/40 pointer-events-none" />
+                                <div 
+                                  className="absolute top-1 transform -translate-x-1/2 -mt-0.5 transition-all duration-300 pointer-events-none z-10"
+                                  style={{ left: `${liveProgressPct}%` }}
+                                  title={`Current Market Position: ${liveFormatted}`}
+                                >
+                                  <div className="w-3.5 h-3.5 rounded-full bg-cyan-400 ring-2 ring-white shadow-lg flex items-center justify-center">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-950" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 3 Point-Form Bullets */}
+                            <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
+                              <div className="flex items-start gap-1.5 leading-relaxed">
+                                <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                                <span><strong className="text-white">Why Chosen:</strong> {whyChosenText}</span>
+                              </div>
+                              <div className="flex items-start gap-1.5 leading-relaxed">
+                                <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
+                                <span><strong className="text-white">Expected Move:</strong> {projectedMoveText}</span>
+                              </div>
+                              <div className="flex items-start gap-1.5 leading-relaxed">
+                                <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
+                                <span><strong className="text-white">Risk & Invalidation:</strong> {riskMgmtText}</span>
+                              </div>
+                            </div>
+                          </GlassCard>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
