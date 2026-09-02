@@ -288,6 +288,88 @@ export default async function handler(req, res) {
       });
 
       onChainResult = await exchangeRes.json();
+
+      // 6. If Entry filled, attach Position Stop Loss Trigger Order on Hyperliquid L1
+      if (!isClose && onChainResult?.status === 'ok') {
+        const fillStatus = onChainResult?.response?.data?.statuses?.[0];
+        if (fillStatus?.filled || fillStatus === 'waitingForFill' || fillStatus === 'resting') {
+          const filledSize = fillStatus?.filled?.totalSz || orderSizeStr;
+          
+          // Determine Stop Loss price from payload or default 2%
+          const slPrice = payload.stopLoss || payload.sl || payload.stop_loss || payload.sl_price || 
+            (payload.sl_percent ? (isBuyOrder ? price * (1 - Number(payload.sl_percent)/100) : price * (1 + Number(payload.sl_percent)/100)) : (isBuyOrder ? price * 0.98 : price * 1.02));
+          
+          if (slPrice) {
+            try {
+              const slTriggerPx = String(Number(Number(slPrice).toPrecision(5)));
+              const slLimitPx = String(Number((Number(slPrice) * (isBuyOrder ? 0.95 : 1.05)).toPrecision(5)));
+
+              const slOrderWire = {
+                a: assetIdx,
+                b: !isBuyOrder, // opposite direction to close
+                p: slLimitPx,
+                s: String(Number(filledSize)),
+                r: true,
+                t: {
+                  trigger: {
+                    isMarket: true,
+                    triggerPx: slTriggerPx,
+                    tpsl: 'sl'
+                  }
+                }
+              };
+
+              const slAction = {
+                type: 'order',
+                orders: [slOrderWire],
+                grouping: 'positionTpsl'
+              };
+
+              const slNonce = Date.now() + 1;
+              const slActionBytes = new Uint8Array(encode(slAction));
+              const slNonceBuf = new ArrayBuffer(8);
+              const slNonceView = new DataView(slNonceBuf);
+              slNonceView.setBigUint64(0, BigInt(slNonce), false);
+              const slNonceBytes = new Uint8Array(slNonceBuf);
+
+              const slPayloadBytes = new Uint8Array(slActionBytes.length + 8 + 1);
+              slPayloadBytes.set(slActionBytes, 0);
+              slPayloadBytes.set(slNonceBytes, slActionBytes.length);
+              slPayloadBytes.set(new Uint8Array([0]), slActionBytes.length + 8);
+
+              const slConnectionId = keccak256(slPayloadBytes);
+
+              const slRawSig = await account.signTypedData({
+                domain,
+                types,
+                primaryType: 'Agent',
+                message: { source: 'a', connectionId: slConnectionId }
+              });
+              const slParsedSig = parseSignature(slRawSig);
+
+              const slExchangeRes = await fetch('https://api.hyperliquid.xyz/exchange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: slAction,
+                  nonce: slNonce,
+                  signature: {
+                    r: slParsedSig.r,
+                    s: slParsedSig.s,
+                    v: Number(slParsedSig.v)
+                  },
+                  vaultAddress: null
+                })
+              });
+              const slResult = await slExchangeRes.json();
+              console.log("Attached Position Stop Loss Result:", slResult);
+              onChainResult.stopLossResult = slResult;
+            } catch (slErr) {
+              console.warn("Could not attach Position Stop Loss:", slErr);
+            }
+          }
+        }
+      }
     } catch (hlErr) {
       console.warn("Hyperliquid L1 submission error:", hlErr.message);
       onChainError = hlErr.message;

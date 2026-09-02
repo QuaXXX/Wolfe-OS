@@ -35,15 +35,15 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
 
   const config = getTradingConfig();
   const masterWallet = config.masterWalletAddress || '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7';
-  const agentWallet = config.agentWalletAddress || '0x9D90e9a0270f253A8A60cAa091d81b789dA573a0';
+  const [perpsEquity, setPerpsEquity] = useState(0);
+  const [spotEquity, setSpotEquity] = useState(0);
+  const [enableSl, setEnableSl] = useState(true);
+  const [slPercent, setSlPercent] = useState(2);
 
   const addLog = (msg, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setExecutionLogs(prev => [{ timestamp, msg, type }, ...prev.slice(0, 15)]);
   };
-
-  const [perpsEquity, setPerpsEquity] = useState(0);
-  const [spotEquity, setSpotEquity] = useState(0);
 
   const fetchLiveState = async () => {
     setIsLoadingBalance(true);
@@ -142,6 +142,7 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
           action,
           percent_of_equity: 100,
           leverage,
+          sl_percent: (!isClose && enableSl) ? slPercent : null,
           api_token: 'wolfe_wh_live_auth'
         })
       });
@@ -163,6 +164,11 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
       const avgPx = fillInfo.avgPx || data.execution?.entryPrice;
 
       addLog(`✓ FILLED ON HYPERLIQUID L1! ${actionType} ${filledSz} ${ticker} @ $${avgPx}`, 'success');
+
+      if (data.onChainResult?.stopLossResult?.status === 'ok') {
+        addLog(`✓ Stop Loss Active on Hyperliquid L1 (${slPercent}% buffer)`, 'success');
+      }
+
       setLastSuccess({
         action: actionType,
         ticker,
@@ -314,6 +320,43 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
             {livePrice ? `$${livePrice.toLocaleString()}` : 'Fetching...'}
           </div>
         </div>
+      </div>
+
+      {/* Stop Loss Auto-Protection Selector */}
+      <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enableSl}
+              onChange={(e) => setEnableSl(e.target.checked)}
+              className="rounded accent-emerald-500 w-3.5 h-3.5 cursor-pointer"
+            />
+            <span>Auto Stop Loss Protection on Hyperliquid</span>
+          </label>
+          <span className="text-[10px] font-mono text-slate-400">
+            {enableSl && livePrice ? `SL Trigger: ~$${(livePrice * (1 - slPercent / 100)).toFixed(1)} (-${slPercent}%)` : 'Off'}
+          </span>
+        </div>
+
+        {enableSl && (
+          <div className="grid grid-cols-4 gap-1.5 font-mono text-xs pt-0.5">
+            {[1, 2, 3, 5].map((pct) => (
+              <button
+                key={pct}
+                type="button"
+                onClick={() => setSlPercent(pct)}
+                className={`py-1 rounded-xl font-bold border transition-all cursor-pointer ${
+                  slPercent === pct
+                    ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                    : 'bg-black/30 text-slate-400 border-white/5 hover:text-white'
+                }`}
+              >
+                -{pct}% SL
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 3 Direct 100% Wallet Buttons */}
