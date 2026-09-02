@@ -289,19 +289,6 @@ export const HyperliquidDirectExecutionPanel = ({
         </div>
       </div>
 
-      {/* Spot to Perps Transfer Reminder Banner (if funds are in Spot but Perps is 0) */}
-      {perpsEquity === 0 && spotEquity > 0 && (
-        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs font-sans flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <div className="font-bold text-amber-300">USDC is currently in Spot (${spotEquity.toFixed(2)})</div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Transfer USDC from Spot ➔ Perps on <a href="https://app.hyperliquid.xyz/trade" target="_blank" rel="noreferrer" className="underline text-amber-300 font-semibold hover:text-white">Hyperliquid</a> to trade perps.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Row 1: Asset Selection & Live Price */}
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div>

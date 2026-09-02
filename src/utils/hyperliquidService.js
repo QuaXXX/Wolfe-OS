@@ -340,3 +340,56 @@ export async function executeHyperliquidSignal(signal) {
     isLive
   };
 }
+
+/**
+ * Direct Live Positions Query from Hyperliquid Clearinghouse L1
+ */
+export async function fetchHyperliquidLivePositions(walletAddress) {
+  const config = getTradingConfig();
+  const address = walletAddress || config.masterWalletAddress || '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7';
+  
+  try {
+    const res = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'clearinghouseState', user: address })
+    });
+
+    if (!res.ok) throw new Error('Failed to query clearinghouseState');
+    const data = await res.json();
+    const positions = (data.assetPositions || [])
+      .filter(p => p.position && Math.abs(Number(p.position.szi || 0)) > 1e-6)
+      .map(p => {
+        const pos = p.position;
+        const size = Math.abs(Number(pos.szi));
+        const isLong = Number(pos.szi) > 0;
+        const entryPrice = Number(pos.entryPx || 0);
+        const positionValue = Number(pos.positionValue || 0);
+        const unrealizedPnl = Number(pos.unrealizedPnl || 0);
+        const leverage = pos.leverage?.value || 3;
+        const liquidationPrice = Number(pos.liquidationPx || 0);
+
+        return {
+          id: `hl_${pos.coin}_${address.slice(0, 6)}`,
+          ticker: pos.coin,
+          side: isLong ? 'LONG' : 'SHORT',
+          size: size,
+          entryPrice: entryPrice,
+          positionValue: positionValue,
+          unrealizedPnl: unrealizedPnl,
+          leverage: leverage,
+          liquidationPrice: liquidationPrice,
+          marginUsed: Number(pos.marginUsed || (positionValue / Math.max(1, leverage))),
+          strategy: 'Hyperliquid L1 Live',
+          openedAt: new Date().toISOString(),
+          isLiveOnChain: true
+        };
+      });
+
+    return positions;
+  } catch (err) {
+    console.warn("Could not query live Hyperliquid positions:", err);
+    return [];
+  }
+}
+
