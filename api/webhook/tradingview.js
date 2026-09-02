@@ -192,16 +192,21 @@ export default async function handler(req, res) {
       };
 
       const nonce = Date.now();
-      const actionBytes = encode(orderAction);
-      const actionHash = keccak256(actionBytes);
+      const actionBytes = new Uint8Array(encode(orderAction));
 
-      const nonceHex = '0x' + BigInt(nonce).toString(16).padStart(16, '0');
-      const connectionId = keccak256(
-        encodePacked(
-          ['bytes32', 'bytes8', 'bytes1'],
-          [actionHash, nonceHex, '0x00']
-        )
-      );
+      const nonceBuf = new ArrayBuffer(8);
+      const nonceView = new DataView(nonceBuf);
+      nonceView.setBigUint64(0, BigInt(nonce), false);
+      const nonceBytes = new Uint8Array(nonceBuf);
+
+      const vaultBytes = new Uint8Array([0]);
+
+      const payloadBytes = new Uint8Array(actionBytes.length + 8 + 1);
+      payloadBytes.set(actionBytes, 0);
+      payloadBytes.set(nonceBytes, actionBytes.length);
+      payloadBytes.set(vaultBytes, actionBytes.length + 8);
+
+      const connectionId = keccak256(payloadBytes);
 
       const domain = {
         name: 'Exchange',
