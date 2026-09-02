@@ -767,23 +767,32 @@ export const TradingView = ({
                   const distFromEntryPct = entryNum > 0 ? (((currentLive - entryNum) / entryNum) * 100).toFixed(1) : '0.0';
                   const isNearEntry = Math.abs(Number(distFromEntryPct)) <= 0.8;
 
-                  // Gauge Progress: Red on Left (0-50%) to Entry | Green on Right (50-100%) to TP
-                  let liveProgressPct = 50;
+                  // 1. Calculate risk and reward spans accurately
+                  const riskSpan = Math.max(0.001, Math.abs(entryNum - stopNum));
+                  const rewardSpan = Math.max(0.001, Math.abs(tpNum - entryNum));
+                  const totalSpan = riskSpan + rewardSpan;
+
+                  // 2. Proportion of the bar for Red vs Green (Red = Risk, Green = Reward)
+                  // Red is proportionally much smaller than green for 1:2 to 1:4 R:R trades!
+                  const entryDividerPct = (riskSpan / totalSpan) * 100;
+
+                  // 3. Exact position of the Blue Dot (Current Live Market Price) along the total span
+                  let liveDotPct = entryDividerPct;
                   if (isLong) {
-                    if (currentLive <= entryNum) {
-                      const dist = entryNum - stopNum;
-                      liveProgressPct = dist > 0 ? Math.max(0, Math.min(50, ((currentLive - stopNum) / dist) * 50)) : 25;
+                    if (currentLive <= stopNum) {
+                      liveDotPct = 0;
+                    } else if (currentLive >= tpNum) {
+                      liveDotPct = 100;
                     } else {
-                      const dist = tpNum - entryNum;
-                      liveProgressPct = dist > 0 ? Math.min(100, Math.max(50, 50 + ((currentLive - entryNum) / dist) * 50)) : 75;
+                      liveDotPct = Math.max(0, Math.min(100, ((currentLive - stopNum) / (tpNum - stopNum)) * 100));
                     }
                   } else {
-                    if (currentLive >= entryNum) {
-                      const dist = stopNum - entryNum;
-                      liveProgressPct = dist > 0 ? Math.max(0, Math.min(50, ((stopNum - currentLive) / dist) * 50)) : 25;
+                    if (currentLive >= stopNum) {
+                      liveDotPct = 0;
+                    } else if (currentLive <= tpNum) {
+                      liveDotPct = 100;
                     } else {
-                      const dist = entryNum - tpNum;
-                      liveProgressPct = dist > 0 ? Math.min(100, Math.max(50, 50 + ((entryNum - currentLive) / dist) * 50)) : 75;
+                      liveDotPct = Math.max(0, Math.min(100, ((stopNum - currentLive) / (stopNum - tpNum)) * 100));
                     }
                   }
 
@@ -894,72 +903,65 @@ export const TradingView = ({
                         </div>
                       </div>
 
-                      {/* Simplified Visual Setup Map: Live Market vs Levels */}
-                      <div className="p-3 rounded-2xl bg-black/45 border border-white/5 space-y-2.5 font-mono">
-                        {/* Top Level Bar: Live Price & Proximity to Entry */}
-                        <div className="flex items-center justify-between text-xs pb-1.5 border-b border-white/5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Live Market:</span>
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                              {liveFormatted}
-                            </span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                              isNearEntry 
-                                ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/25' 
-                                : (Number(distFromEntryPct) > 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300')
-                            }`}>
-                              {isNearEntry ? '🎯 Near Entry Level' : `${distFromEntryPct > 0 ? '+' : ''}${distFromEntryPct}% from Entry`}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-200 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/10">
-                            R:R {riskRewardDisplay}
+                      {/* Proportional Risk/Reward Setup Map matching line design */}
+                      <div className="p-3 rounded-2xl bg-black/45 border border-white/5 space-y-2 font-mono">
+                        {/* Header Row: SL: $X | Price: $X | TP: $X */}
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-[11px] text-rose-400 font-semibold">
+                            SL: <strong className="text-rose-300">{stopFormatted}</strong>
+                          </span>
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                            <span>Price: <strong className="text-cyan-200">{liveFormatted}</strong></span>
+                          </span>
+                          <span className="text-[11px] text-emerald-400 font-semibold">
+                            TP: <strong className="text-emerald-300">{tpFormatted}</strong>
                           </span>
                         </div>
 
-                        {/* 3 Metric Pills: Stop Loss | Entry Trigger | Take Profit */}
-                        <div className="grid grid-cols-3 gap-1.5 text-center">
-                          <div className="p-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
-                            <div className="text-[9px] text-rose-400 uppercase font-semibold">Stop Loss</div>
-                            <div className="font-bold text-rose-300 text-xs mt-0.5">{stopFormatted}</div>
-                            <div className="text-[8px] text-rose-400/80">-{lossPct}%</div>
+                        {/* Proportional Level Track (Red = Risk proportion, Green = Reward proportion) */}
+                        <div className="relative pt-2 pb-1.5">
+                          <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden flex relative border border-white/10 shadow-inner">
+                            {/* Red Section (Risk distance, size adjusted) */}
+                            <div 
+                              className="h-full bg-gradient-to-r from-rose-600/70 to-rose-500/40 border-r border-white/40" 
+                              style={{ width: `${entryDividerPct}%` }} 
+                            />
+                            {/* Green Section (Reward distance, size adjusted) */}
+                            <div 
+                              className="h-full bg-gradient-to-r from-emerald-500/40 to-emerald-500/70" 
+                              style={{ width: `${100 - entryDividerPct}%` }} 
+                            />
                           </div>
 
-                          <div className="p-1.5 rounded-xl bg-cyan-500/[0.08] border border-cyan-500/20">
-                            <div className="text-[9px] text-cyan-400 uppercase font-semibold">Trigger Entry</div>
-                            <div className="font-bold text-cyan-200 text-xs mt-0.5">{entryFormatted}</div>
-                            <div className="text-[8px] text-cyan-300/80">{isLong ? 'Buy Level' : 'Short Level'}</div>
-                          </div>
-
-                          <div className="p-1.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/20">
-                            <div className="text-[9px] text-emerald-400 uppercase font-semibold">Take Profit (2R)</div>
-                            <div className="font-bold text-emerald-300 text-xs mt-0.5">{tpFormatted}</div>
-                            <div className="text-[8px] text-emerald-400/80">+{profitPct}%</div>
-                          </div>
-                        </div>
-
-                        {/* Precise Horizontal Risk-Reward Level Track (Red 0-50% to Entry | Green 50-100% to TP) */}
-                        <div className="relative pt-2 pb-1">
-                          <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex relative border border-white/5 shadow-inner">
-                            {/* Red Risk Segment (from Stop Loss to Trigger Entry) */}
-                            <div className="h-full bg-gradient-to-r from-rose-600/50 to-rose-500/30 border-r border-white/30" style={{ width: '50%' }} />
-                            {/* Green Profit Segment (from Trigger Entry to Take Profit) */}
-                            <div className="h-full bg-gradient-to-r from-emerald-500/30 to-emerald-500/50" style={{ width: '50%' }} />
-                          </div>
-
-                          {/* Center Entry Marker Tick */}
-                          <div className="absolute top-1 bottom-0 left-1/2 -translate-x-1/2 w-0.5 h-3 bg-white/40 pointer-events-none" />
-
-                          {/* Floating Blue Dot showing Current Market Price */}
+                          {/* Limit Entry Marker Tick */}
                           <div 
-                            className="absolute top-1 transform -translate-x-1/2 -mt-0.5 transition-all duration-300 pointer-events-none z-10"
-                            style={{ left: `${liveProgressPct}%` }}
-                            title={`Current Market Position: ${liveFormatted}`}
+                            className="absolute top-0 bottom-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none z-10"
+                            style={{ left: `${entryDividerPct}%` }}
+                          >
+                            <div className="w-1 h-3.5 bg-white rounded-full shadow-md" />
+                          </div>
+
+                          {/* Current Live Price Blue Dot */}
+                          <div 
+                            className="absolute top-1 transform -translate-x-1/2 -mt-0.5 transition-all duration-300 pointer-events-none z-20"
+                            style={{ left: `${liveDotPct}%` }}
+                            title={`Current Market Price: ${liveFormatted}`}
                           >
                             <div className="w-3.5 h-3.5 rounded-full bg-cyan-400 ring-2 ring-white shadow-lg flex items-center justify-center">
                               <div className="w-1.5 h-1.5 rounded-full bg-cyan-950" />
                             </div>
                           </div>
+                        </div>
+
+                        {/* Sub-track Info: Strategy Limit Entry & Risk/Reward */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-white/5">
+                          <span className="text-cyan-300 font-medium">
+                            Strategy Entry: <strong className="text-white">{entryFormatted}</strong>
+                          </span>
+                          <span className="text-slate-300 bg-white/[0.06] px-1.5 py-0.2 rounded border border-white/10">
+                            R:R {riskRewardDisplay} ({profitPct}% TP / -{lossPct}% SL)
+                          </span>
                         </div>
                       </div>
 

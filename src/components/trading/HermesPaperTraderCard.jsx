@@ -281,20 +281,75 @@ export const HermesPaperTraderCard = ({
                       </div>
                     </div>
 
-                    {/* Progress Bar (Visible Always) */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                        <span>SL: ${pos.stopLoss}</span>
-                        <span className="text-white font-bold">Price: ${currentPrice}</span>
-                        <span>TP: ${pos.takeProfit}</span>
-                      </div>
-                      <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden relative">
-                        <div 
-                          className="h-full bg-white/30 transition-all duration-500 rounded-full"
-                          style={{ width: `${isPending ? 0 : progressPct}%` }}
-                        />
-                      </div>
-                    </div>
+                    {/* Progress Bar (Visible Always) with Proportional Red/Green Track */}
+                    {(() => {
+                      const isLong = pos.direction === 'LONG' || !pos.direction || String(pos.direction).toUpperCase().includes('BUY');
+                      const stopLoss = Number(pos.stopLoss) || 0;
+                      const entryPrice = Number(pos.entryPrice) || Number(pos.plannedLimitPrice) || 0;
+                      const takeProfit = Number(pos.takeProfit) || 0;
+                      const curPrice = Number(currentPrice) || entryPrice;
+
+                      const riskSpan = Math.max(0.001, Math.abs(entryPrice - stopLoss));
+                      const rewardSpan = Math.max(0.001, Math.abs(takeProfit - entryPrice));
+                      const totalSpan = riskSpan + rewardSpan;
+                      const entryDividerPct = (riskSpan / totalSpan) * 100;
+
+                      let liveDotPct = entryDividerPct;
+                      if (isLong) {
+                        if (curPrice <= stopLoss) liveDotPct = 0;
+                        else if (curPrice >= takeProfit) liveDotPct = 100;
+                        else liveDotPct = Math.max(0, Math.min(100, ((curPrice - stopLoss) / (takeProfit - stopLoss)) * 100));
+                      } else {
+                        if (curPrice >= stopLoss) liveDotPct = 0;
+                        else if (curPrice <= takeProfit) liveDotPct = 100;
+                        else liveDotPct = Math.max(0, Math.min(100, ((stopLoss - curPrice) / (stopLoss - takeProfit)) * 100));
+                      }
+
+                      return (
+                        <div className="space-y-1.5 font-mono">
+                          <div className="flex justify-between text-[10px] text-slate-400">
+                            <span className="text-rose-400 font-semibold">SL: ${pos.stopLoss}</span>
+                            <span className="text-white font-bold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                              Price: ${curPrice}
+                            </span>
+                            <span className="text-emerald-400 font-semibold">TP: ${pos.takeProfit}</span>
+                          </div>
+
+                          <div className="relative pt-1 pb-1">
+                            <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden flex relative border border-white/10 shadow-inner">
+                              <div 
+                                className="h-full bg-gradient-to-r from-rose-600/70 to-rose-500/40 border-r border-white/40" 
+                                style={{ width: `${entryDividerPct}%` }} 
+                              />
+                              <div 
+                                className="h-full bg-gradient-to-r from-emerald-500/40 to-emerald-500/70" 
+                                style={{ width: `${100 - entryDividerPct}%` }} 
+                              />
+                            </div>
+
+                            {/* Limit Entry Marker Line */}
+                            <div 
+                              className="absolute top-0 bottom-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none z-10"
+                              style={{ left: `${entryDividerPct}%` }}
+                            >
+                              <div className="w-1 h-3.5 bg-white rounded-full shadow-md" />
+                            </div>
+
+                            {/* Live Market Price Dot */}
+                            <div 
+                              className="absolute top-0.5 transform -translate-x-1/2 -mt-0.5 transition-all duration-300 pointer-events-none z-20"
+                              style={{ left: `${liveDotPct}%` }}
+                              title={`Live Price: $${curPrice}`}
+                            >
+                              <div className="w-3 h-3 rounded-full bg-cyan-400 ring-2 ring-white shadow-lg flex items-center justify-center">
+                                <div className="w-1 h-1 rounded-full bg-cyan-950" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Expandable Dropdown Menu Details */}
                     {isExpanded && (

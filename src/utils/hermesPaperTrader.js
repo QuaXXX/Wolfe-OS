@@ -167,22 +167,43 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
     return match ? parseFloat(match[1]) : null;
   };
 
-  // Parse numeric planned entry, stop loss, and take profit accurately
+  const extractKeyedNum = (text, key) => {
+    if (!text) return null;
+    const part = String(text).split(new RegExp(key, 'i'))[1];
+    return part ? extractNum(part) : null;
+  };
+
   const currentLivePrice = livePrices[ticker] ? Number(livePrices[ticker]) : (play.entryNumeric || 100);
-  const plannedLimitEntryPrice = play.entryNumeric 
-    || extractNum(play.entryTrigger) 
-    || extractNum(play.riskManagement) 
+
+  // Parse numeric planned entry from Strategy accurately
+  let plannedLimitEntryPrice = play.entryNumeric 
+    || play.entryPrice 
+    || extractNum(play.entryTrigger)
+    || extractKeyedNum(play.riskManagement, 'Trigger')
+    || extractKeyedNum(play.riskManagement, 'Entry')
     || currentLivePrice;
 
   let stopLoss = play.stopNumeric 
+    || play.stopPrice 
     || extractNum(play.stopLoss) 
-    || extractNum(String(play.riskManagement).split('Stop Loss')?.[1]) 
+    || extractKeyedNum(play.riskManagement, 'Stop Loss')
+    || extractKeyedNum(play.riskManagement, 'Stop')
     || (isLong ? Number((plannedLimitEntryPrice * 0.95).toFixed(2)) : Number((plannedLimitEntryPrice * 1.05).toFixed(2)));
 
+  if (stopLoss === plannedLimitEntryPrice) {
+    stopLoss = isLong ? Number((plannedLimitEntryPrice * 0.95).toFixed(2)) : Number((plannedLimitEntryPrice * 1.05).toFixed(2));
+  }
+
   let takeProfit = play.target2RNumeric 
+    || play.target2R 
     || extractNum(play.target2R) 
-    || extractNum(String(play.riskManagement).split('Take Profit')?.[1]) 
+    || extractKeyedNum(play.riskManagement, 'Take Profit')
+    || extractKeyedNum(play.riskManagement, 'Target 2R')
     || (isLong ? Number((plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)) : Number((plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)));
+
+  if (takeProfit === plannedLimitEntryPrice) {
+    takeProfit = isLong ? Number((plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)) : Number((plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2));
+  }
 
   const leverage = account.leverage || 5;
 

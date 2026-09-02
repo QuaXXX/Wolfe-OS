@@ -33,11 +33,19 @@ export const HermesOrderEntryModal = ({
     return match ? parseFloat(match[1]) : null;
   };
 
-  // Parse planned limit entry price accurately
+  const extractKeyedNum = (text, key) => {
+    if (!text) return null;
+    const part = String(text).split(new RegExp(key, 'i'))[1];
+    return part ? extractNum(part) : null;
+  };
+
+  // Parse planned limit entry price accurately from strategy
   const currentPrice = livePrice ? Number(livePrice) : (play.entryNumeric || 100);
   const plannedLimitPrice = play.entryNumeric 
+    || play.entryPrice
     || extractNum(play.entryTrigger) 
-    || extractNum(play.riskManagement) 
+    || extractKeyedNum(play.riskManagement, 'Trigger') 
+    || extractKeyedNum(play.riskManagement, 'Entry')
     || currentPrice;
 
   // Calculate distance
