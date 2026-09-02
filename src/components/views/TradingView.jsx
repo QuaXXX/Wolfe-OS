@@ -796,6 +796,12 @@ export const TradingView = ({
                     }
                   }
 
+                  // Willingness-to-Pay / Better Entry Calculation
+                  const isBetterThanLimit = isLong ? (currentLive <= entryNum) : (currentLive >= entryNum);
+                  const effectiveRisk = isLong ? Math.max(0.01, currentLive - stopNum) : Math.max(0.01, stopNum - currentLive);
+                  const effectiveReward = isLong ? Math.max(0.01, tpNum - currentLive) : Math.max(0.01, currentLive - tpNum);
+                  const effectiveRR = (effectiveReward / effectiveRisk).toFixed(1);
+
                   const hasDossierContent = Boolean(
                     (play.catalystDossier && String(play.catalystDossier).trim().length > 0) ||
                     (play.institutionalFlow && String(play.institutionalFlow).trim().length > 0) ||
@@ -894,10 +900,10 @@ export const TradingView = ({
                                 backgroundColor: 'var(--accent-subtle)',
                                 border: '1px solid var(--accent-border)'
                               }}
-                              title="Forward-Test paper trade"
+                              title={isBetterThanLimit ? "Immediate fill at better price" : `Resting limit order at ${entryFormatted}`}
                             >
                               <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                              <span>Test</span>
+                              <span>{isBetterThanLimit ? 'Test (Fill Now)' : 'Test (Limit)'}</span>
                             </button>
                           )}
                         </div>
@@ -957,10 +963,16 @@ export const TradingView = ({
                         {/* Sub-track Info: Strategy Limit Entry & Risk/Reward */}
                         <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-white/5">
                           <span className="text-cyan-300 font-medium">
-                            Strategy Entry: <strong className="text-white">{entryFormatted}</strong>
+                            Trigger Entry: <strong className="text-white">{entryFormatted}</strong>
                           </span>
-                          <span className="text-slate-300 bg-white/[0.06] px-1.5 py-0.2 rounded border border-white/10">
-                            R:R {riskRewardDisplay} ({profitPct}% TP / -{lossPct}% SL)
+                          <span className={`px-1.5 py-0.2 rounded border font-semibold ${
+                            isBetterThanLimit && currentLive !== entryNum
+                              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              : 'bg-white/[0.06] text-slate-300 border-white/10'
+                          }`}>
+                            {isBetterThanLimit && currentLive !== entryNum 
+                              ? `⚡ Better Entry: 1:${effectiveRR} R:R (Instant Fill)`
+                              : `R:R ${riskRewardDisplay} (${profitPct}% TP / -${lossPct}% SL)`}
                           </span>
                         </div>
                       </div>

@@ -210,27 +210,25 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
   let actualEntryPrice = plannedLimitEntryPrice;
   let isImmediatelyActive = false;
 
+  // Check if live price is currently in the "Better Price / Discount Zone" vs "Extended Zone"
+  const isBetterThanLimit = isLong 
+    ? currentLivePrice <= plannedLimitEntryPrice 
+    : currentLivePrice >= plannedLimitEntryPrice;
+
   if (executionMode === 'MARKET') {
     // ⚡ MARKET ORDER: Instant fill at current live market price
     actualEntryPrice = currentLivePrice;
     isImmediatelyActive = true;
-
-    // Recalculate Stop Loss and 2R Take Profit relative to actual live market fill
-    const riskDistance = Math.abs(plannedLimitEntryPrice - stopLoss);
-    if (isLong) {
-      stopLoss = Number((actualEntryPrice - riskDistance).toFixed(2));
-      takeProfit = Number((actualEntryPrice + riskDistance * 2).toFixed(2));
-    } else {
-      stopLoss = Number((actualEntryPrice + riskDistance).toFixed(2));
-      takeProfit = Number((actualEntryPrice - riskDistance * 2).toFixed(2));
-    }
   } else {
-    // 🎯 LIMIT ORDER: Check if live price is already touching or through limit price
-    actualEntryPrice = plannedLimitEntryPrice;
-    if (isLong) {
-      if (currentLivePrice <= plannedLimitEntryPrice * 1.001) isImmediatelyActive = true;
+    // 🎯 STRATEGY LIMIT ORDER (Willingness-To-Pay Model):
+    if (isBetterThanLimit) {
+      // 🟢 Price is closer to SL than planned Trigger Entry: Better price! Takes it immediately at current market price
+      actualEntryPrice = currentLivePrice;
+      isImmediatelyActive = true;
     } else {
-      if (currentLivePrice >= plannedLimitEntryPrice * 0.999) isImmediatelyActive = true;
+      // ⏳ Price is extended towards TP: Rests at planned Trigger Entry limit price waiting for pullback
+      actualEntryPrice = plannedLimitEntryPrice;
+      isImmediatelyActive = false;
     }
   }
 
