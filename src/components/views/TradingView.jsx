@@ -1034,7 +1034,7 @@ export const TradingView = ({
                         </div>
                       </div>
 
-                      {/* Point-Form Bullets: Why Chosen, Candlestick Structure, Expected Move, Risk & Invalidation */}
+                      {/* Point-Form Bullets: Why Chosen & Candlestick Structure */}
                       <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
                         <div className="flex items-start gap-1.5 leading-relaxed">
                           <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
@@ -1046,14 +1046,6 @@ export const TradingView = ({
                             <span><strong className="text-white">Candlestick Structure:</strong> {play.candlestickRationale}</span>
                           </div>
                         )}
-                        <div className="flex items-start gap-1.5 leading-relaxed">
-                          <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
-                          <span><strong className="text-white">Expected Move:</strong> {projectedMoveText}</span>
-                        </div>
-                        <div className="flex items-start gap-1.5 leading-relaxed">
-                          <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
-                          <span><strong className="text-white">Risk & Invalidation:</strong> {play.invalidationCondition ? `${riskMgmtText} | Invalidation: ${play.invalidationCondition}` : riskMgmtText}</span>
-                        </div>
                       </div>
 
                       {/* Expandable Deep Research Dossier */}
