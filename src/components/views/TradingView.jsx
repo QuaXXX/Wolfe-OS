@@ -757,7 +757,7 @@ export const TradingView = ({
                           <div className="grid grid-cols-4 gap-1.5 p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-center text-xs">
                             <div className="space-y-0.5">
                               <div className="text-[9px] text-slate-400 uppercase tracking-wider">Trigger Entry</div>
-                              <div className="font-bold text-white truncate text-[11px]">{play.entryNumeric ? `$${play.entryNumeric}` : play.entryTrigger.split(' ')[0]}</div>
+                              <div className="font-bold text-white truncate text-[11px]">{play.entryNumeric ? `$${play.entryNumeric}` : (play.entryTrigger ? String(play.entryTrigger).split(' ')[0] : 'Market')}</div>
                             </div>
                             <div className="space-y-0.5">
                               <div className="text-[9px] text-rose-400 uppercase tracking-wider">Stop Loss</div>

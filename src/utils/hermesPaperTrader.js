@@ -282,7 +282,7 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
     // 1. If Position is PENDING ENTRY: check if limit price touched in real market OR if expired
     if (pos.status === 'PENDING_ENTRY') {
       const todayIso = new Date().toISOString().split('T')[0];
-      const posDate = pos.date || (pos.enteredAt ? pos.enteredAt.split('T')[0] : null);
+      const posDate = pos.date ? String(pos.date).split('T')[0] : (pos.enteredAt ? String(pos.enteredAt).split('T')[0] : null);
       const isOlderThanToday = posDate && posDate < todayIso;
       const isStaleIntraday = pos.enteredAt && (Date.now() - new Date(pos.enteredAt).getTime() > 14 * 60 * 60 * 1000);
 

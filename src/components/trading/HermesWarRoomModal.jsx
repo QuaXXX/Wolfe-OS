@@ -367,7 +367,7 @@ export const HermesWarRoomModal = ({
                           <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-black/50 border border-white/5 font-mono text-xs">
                             <div>
                               <div className="text-[9px] text-slate-400 uppercase">Trigger</div>
-                              <div className="font-bold text-white truncate">{play.entryTrigger.split(' ')[0]}</div>
+                              <div className="font-bold text-white truncate">{play.entryNumeric ? `$${play.entryNumeric}` : (play.entryTrigger ? String(play.entryTrigger).split(' ')[0] : 'Market')}</div>
                             </div>
                             <div>
                               <div className="text-[9px] text-slate-400 uppercase">Stop Loss</div>
