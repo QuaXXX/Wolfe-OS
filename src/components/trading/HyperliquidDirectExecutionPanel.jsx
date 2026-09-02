@@ -131,55 +131,44 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
     addLog(`Initiating 100% Wallet ${actionType} on ${ticker}...`, 'info');
 
     try {
-      // 1. Query latest account balance for 100% sizing
-      let currentEquity = liveEquity;
-      try {
-        const res = await fetch('https://api.hyperliquid.xyz/info', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'clearinghouseState', user: masterWallet })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          currentEquity = Number(data.crossMarginSummary?.accountValue || 0);
-          if (currentEquity > 0) setLiveEquity(currentEquity);
-        }
-      } catch (e) {
-        console.warn(e);
-      }
+      addLog(`Sending verified 100% ${actionType} order to Wolfe OS L1 Execution Engine...`, 'info');
 
-      const usableBalance = Math.max(10, currentEquity || 100);
-      const allocatedMargin = usableBalance * 0.95; // 95% of equity to avoid liquidation buffer error
-      const notionalUSD = allocatedMargin * leverage;
-      
-      // Calculate contracts
-      const refPrice = livePrice || 77300;
-      const rawContracts = notionalUSD / refPrice;
-      const sizeDecimals = ticker === 'BTC' ? 4 : 2;
-      const contracts = Math.max(0.0001, Number(rawContracts.toFixed(sizeDecimals)));
-
-      addLog(`Sizing 100% Wallet: $${usableBalance.toFixed(2)} Equity × ${leverage}x = $${notionalUSD.toFixed(2)} Notional (${contracts} ${ticker})`, 'info');
-      addLog(`Signing EIP-712 Order Wire with Agent Key (${agentWallet.slice(0, 8)}...)...`, 'info');
-
-      // 2. Submit Signed Order to Hyperliquid L1
-      const result = await submitHyperliquidSignedOrder({
-        ticker,
-        isBuy,
-        price: refPrice,
-        size: isClose ? 0.0001 : contracts,
-        reduceOnly: isClose,
-        tif: 'Ioc', // Immediate or cancel for instant market fill
-        privateKey: '0x8208dec6f092c3a5c614239b19628db4b0b32bd24fddc047836a024e7b5767f2',
-        testnet: false
+      const action = isClose ? 'flat' : (isBuy ? 'buy' : 'sell');
+      const response = await fetch('/api/webhook/tradingview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker,
+          action,
+          percent_of_equity: 100,
+          leverage,
+          api_token: 'wolfe_wh_live_auth'
+        })
       });
 
-      addLog(`✓ Order Accepted by Hyperliquid L1! Status: OK`, 'success');
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Serverless Execution Failed');
+      }
+
+      // Check if Hyperliquid returned an on-chain status error inside statuses
+      const onChainData = data.onChainResult?.response?.data?.statuses?.[0];
+      if (onChainData?.error) {
+        throw new Error(`Hyperliquid L1 Rejected: ${onChainData.error}`);
+      }
+
+      const fillInfo = onChainData?.filled || {};
+      const filledSz = fillInfo.totalSz || data.execution?.executedContracts;
+      const avgPx = fillInfo.avgPx || data.execution?.entryPrice;
+
+      addLog(`✓ FILLED ON HYPERLIQUID L1! ${actionType} ${filledSz} ${ticker} @ $${avgPx}`, 'success');
       setLastSuccess({
         action: actionType,
         ticker,
-        contracts,
-        price: refPrice,
-        raw: result
+        contracts: filledSz,
+        price: avgPx,
+        raw: data
       });
       playSound('success', soundEnabled);
 
