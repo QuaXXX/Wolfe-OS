@@ -21,7 +21,12 @@ import {
   Unlink,
   ExternalLink,
   ShieldCheck,
-  FolderSync
+  FolderSync,
+  Radio,
+  Copy,
+  Check,
+  Key,
+  Zap
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { 
@@ -34,6 +39,7 @@ import {
   clearVaultHandle,
   connectObsidianVault 
 } from '../../utils/obsidianService';
+import { getTradingConfig } from '../../utils/tradingStorage';
 
 const COLOR_PRESETS = [
   { name: 'Emerald Green', hue: 150 },
@@ -57,10 +63,14 @@ export const SettingsModal = ({
   const [gcalMsg, setGcalMsg] = useState(null);
   const [vaultMeta, setVaultMeta] = useState(getVaultMetadata());
   const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
+  const [tradingConfig, setTradingConfig] = useState(getTradingConfig());
+  const [copiedWhUrl, setCopiedWhUrl] = useState(false);
+  const [copiedWhToken, setCopiedWhToken] = useState(false);
 
   useEffect(() => {
     setIsGCalConnected(isGoogleCalendarConnected());
     setVaultMeta(getVaultMetadata());
+    setTradingConfig(getTradingConfig());
     setIsFullscreen(!!document.fullscreenElement);
 
     const handleFsChange = () => {
@@ -598,6 +608,91 @@ export const SettingsModal = ({
                   </button>
                 </div>
               )}
+            </div>
+
+            {/* SECTION 6: TRADING & WEBHOOK CONNECTIONS */}
+            <div className="mb-5 p-4 rounded-2xl bg-[#101322] border border-white/10 space-y-3.5 shadow-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Trading & Webhook Connections
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  L1 Configured
+                </span>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                {/* Webhook URL Field */}
+                <div>
+                  <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                    TradingView Webhook Endpoint URL
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value="https://wolfe-os.vercel.app/api/webhook/tradingview"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playSound('click', soundEnabled);
+                        navigator.clipboard.writeText("https://wolfe-os.vercel.app/api/webhook/tradingview");
+                        setCopiedWhUrl(true);
+                        setTimeout(() => setCopiedWhUrl(false), 2000);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    >
+                      {copiedWhUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedWhUrl ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Webhook Auth Token */}
+                <div>
+                  <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                    Webhook Authorization Token (`api_token`)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={tradingConfig.webhookSecret || 'wolfe_wh_live_auth'}
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playSound('click', soundEnabled);
+                        navigator.clipboard.writeText(tradingConfig.webhookSecret || 'wolfe_wh_live_auth');
+                        setCopiedWhToken(true);
+                        setTimeout(() => setCopiedWhToken(false), 2000);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    >
+                      {copiedWhToken ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedWhToken ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Hyperliquid Master Wallet Info */}
+                <div className="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-1 font-mono text-xs">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Hyperliquid Master:</span>
+                    <span className="text-white font-bold">{tradingConfig.masterWalletAddress?.slice(0, 10)}...{tradingConfig.masterWalletAddress?.slice(-6)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Trading Engine:</span>
+                    <span className="text-emerald-400 font-bold">L1 Mainnet Zero-Middleware</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -456,126 +456,21 @@ export const TradingView = ({
           )}
         </div>
 
-        {/* Right: Actions Dropdown & Realized PnL Pill */}
+        {/* Right: Realized PnL Pill */}
         <div className="flex items-center gap-2">
-          {/* Actions & Settings Dropdown */}
-          <div className="relative" ref={actionsDropdownRef}>
-            <button
-              type="button"
-              onClick={() => {
-                playSound('click', soundEnabled);
-                setIsActionsDropdownOpen(prev => !prev);
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer text-slate-200 hover:text-white"
-              style={{ 
-                backgroundColor: 'var(--accent-subtle)',
-                border: '1px solid var(--accent-border)'
-              }}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-              <span>Actions</span>
-              <ChevronDown className="w-3 h-3 opacity-60" style={{ color: 'var(--accent-primary)' }} />
-            </button>
-
-            {isActionsDropdownOpen && (
-              <div 
-                className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl theme-card shadow-2xl backdrop-blur-2xl py-1.5 z-50 space-y-0.5 font-sans"
-                style={{ border: '1px solid var(--accent-border)' }}
-              >
-                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Desk Actions
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setIsWarRoomOpen(true);
-                    setIsActionsDropdownOpen(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>War Room Brief</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setActiveTab('execute');
-                    setIsActionsDropdownOpen(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Zap className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Hyperliquid</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setIsWebhookModalOpen(true);
-                    setIsActionsDropdownOpen(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Radio className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Webhooks</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setIsHyperliquidOpen(true);
-                    setIsActionsDropdownOpen(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Key className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>API Keys</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setSelectedTradeForEdit(null);
-                    setIsJournalModalOpen(true);
-                    setIsActionsDropdownOpen(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <BookOpen className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Log Trade</span>
-                </button>
-
-                <div className="my-1 border-t border-white/5" />
-
-                {/* Reset to Fresh Day */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsActionsDropdownOpen(false);
-                    handleFreshDayReset();
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-rose-300 hover:bg-rose-500/10 flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Clear & Start Fresh Day</span>
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Realized PnL */}
           <div 
             className="px-3 py-1 rounded-xl text-right min-w-[100px]"
             style={{ 
-              backgroundColor: 'rgba(0,0,0,0.4)',
-              border: '1px solid rgba(255,255,255,0.08)'
+              backgroundColor: 'var(--accent-subtle)',
+              border: '1px solid var(--accent-border)'
             }}
           >
-            <div className="text-[9px] uppercase font-semibold text-slate-400">Realized P&L</div>
-            <div className={`text-xs font-mono font-bold ${stats.totalPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {stats.totalPnlUSD >= 0 ? `+$${stats.totalPnlUSD.toFixed(2)}` : `-$${Math.abs(stats.totalPnlUSD).toFixed(2)}`}
+            <div className="text-[9px] uppercase font-mono tracking-wider text-slate-400">Net Realized</div>
+            <div className={`text-xs font-mono font-bold ${
+              stats.netPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'
+            }`}>
+              {stats.netPnlUSD >= 0 ? `+$${stats.netPnlUSD.toFixed(2)}` : `-$${Math.abs(stats.netPnlUSD).toFixed(2)}`}
             </div>
           </div>
         </div>

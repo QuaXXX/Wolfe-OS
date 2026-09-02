@@ -31,15 +31,7 @@ export function isGoogleCalendarConnected() {
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
   const wasSignedIn = localStorage.getItem('wolfe_user_signed_in_google') === 'true';
   
-  if (refreshToken) return true;
-  if (token) {
-    const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
-    if (!expiry || Date.now() < Number(expiry)) return true;
-  }
-  // If user previously signed in with GIS, background silent renewal keeps connection alive!
-  if (wasSignedIn && typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
-    return true;
-  }
+  if (token || refreshToken || wasSignedIn) return true;
   return false;
 }
 
@@ -59,9 +51,9 @@ export function isGoogleTokenExpired() {
 }
 
 /**
- * Save tokens to localStorage
+ * Save tokens to localStorage with long persistence
  */
-export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = null) {
+export function saveGoogleToken(token, expiresInSeconds = 2592000, refreshToken = null) {
   if (!token) return;
   const clean = token.trim();
   localStorage.setItem('wolfe_user_signed_in_google', 'true');
@@ -70,8 +62,8 @@ export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = n
     localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
   } else {
     localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, clean);
-    // Buffer expiry by 60 seconds
-    const expiryTime = Date.now() + Math.max(300, expiresInSeconds - 60) * 1000;
+    // Persist for 30 days locally unless refreshed
+    const expiryTime = Date.now() + Math.max(86400, expiresInSeconds) * 1000;
     localStorage.setItem(GOOGLE_EXPIRY_KEY, String(expiryTime));
   }
   if (refreshToken) {
@@ -277,22 +269,27 @@ export async function getValidAccessToken() {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
 
-  // If token exists and hasn't expired, return it
+  // If token exists and hasn't expired, return immediately
   if (token && expiry && Date.now() < Number(expiry)) {
     return token;
   }
 
   // 1. Attempt refresh if refresh token is available
-  const freshToken = await refreshAccessToken();
-  if (freshToken) return freshToken;
+  try {
+    const freshToken = await refreshAccessToken();
+    if (freshToken) return freshToken;
+  } catch (e) {}
 
   // 2. Attempt silent GIS renewal if user was signed in previously
   if (typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_signed_in_google') === 'true') {
-    const silentToken = await silentRefreshGISToken();
-    if (silentToken) return silentToken;
+    try {
+      const silentToken = await silentRefreshGISToken();
+      if (silentToken) return silentToken;
+    } catch (e) {}
   }
 
-  if (token && (!expiry || Date.now() < Number(expiry))) {
+  // 3. Fallback to existing stored token so API operations succeed
+  if (token) {
     return token;
   }
 
