@@ -368,6 +368,80 @@ export default async function handler(req, res) {
               console.warn("Could not attach Position Stop Loss:", slErr);
             }
           }
+
+          // Determine Take Profit price from payload
+          const tpPrice = payload.takeProfit || payload.tp || payload.take_profit || payload.tp_price || 
+            (payload.tp_percent ? (isBuyOrder ? price * (1 + Number(payload.tp_percent)/100) : price * (1 - Number(payload.tp_percent)/100)) : null);
+
+          if (tpPrice) {
+            try {
+              const tpTriggerPx = String(Number(Number(tpPrice).toPrecision(5)));
+              const tpLimitPx = String(Number((Number(tpPrice) * (isBuyOrder ? 1.05 : 0.95)).toPrecision(5)));
+
+              const tpOrderWire = {
+                a: assetIdx,
+                b: !isBuyOrder, // opposite direction to close
+                p: tpLimitPx,
+                s: String(Number(filledSize)),
+                r: true,
+                t: {
+                  trigger: {
+                    isMarket: true,
+                    triggerPx: tpTriggerPx,
+                    tpsl: 'tp'
+                  }
+                }
+              };
+
+              const tpAction = {
+                type: 'order',
+                orders: [tpOrderWire],
+                grouping: 'positionTpsl'
+              };
+
+              const tpNonce = Date.now() + 2;
+              const tpActionBytes = new Uint8Array(encode(tpAction));
+              const tpNonceBuf = new ArrayBuffer(8);
+              const tpNonceView = new DataView(tpNonceBuf);
+              tpNonceView.setBigUint64(0, BigInt(tpNonce), false);
+              const tpNonceBytes = new Uint8Array(tpNonceBuf);
+
+              const tpPayloadBytes = new Uint8Array(tpActionBytes.length + 8 + 1);
+              tpPayloadBytes.set(tpActionBytes, 0);
+              tpPayloadBytes.set(tpNonceBytes, tpActionBytes.length);
+              tpPayloadBytes.set(new Uint8Array([0]), tpActionBytes.length + 8);
+
+              const tpConnectionId = keccak256(tpPayloadBytes);
+
+              const tpRawSig = await account.signTypedData({
+                domain,
+                types,
+                primaryType: 'Agent',
+                message: { source: 'a', connectionId: tpConnectionId }
+              });
+              const tpParsedSig = parseSignature(tpRawSig);
+
+              const tpExchangeRes = await fetch('https://api.hyperliquid.xyz/exchange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: tpAction,
+                  nonce: tpNonce,
+                  signature: {
+                    r: tpParsedSig.r,
+                    s: tpParsedSig.s,
+                    v: Number(tpParsedSig.v)
+                  },
+                  vaultAddress: null
+                })
+              });
+              const tpResult = await tpExchangeRes.json();
+              console.log("Attached Position Take Profit Result:", tpResult);
+              onChainResult.takeProfitResult = tpResult;
+            } catch (tpErr) {
+              console.warn("Could not attach Position Take Profit:", tpErr);
+            }
+          }
         }
       }
     } catch (hlErr) {
