@@ -252,13 +252,14 @@ export const GoogleCalendarModal = ({
                           <button
                             type="button"
                             onClick={handleCopyOrigin}
-                            className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 font-mono cursor-pointer"
+                            className="text-[10px] flex items-center gap-1 font-mono cursor-pointer transition-opacity hover:opacity-80"
+                            style={{ color: 'var(--accent-primary)' }}
                           >
                             {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                             <span>{copiedOrigin ? "Copied" : "Copy URL"}</span>
                           </button>
                         </div>
-                        <div className="text-xs font-mono text-purple-300 truncate bg-black/40 p-2 rounded-lg border border-white/5">
+                        <div className="text-xs font-mono truncate bg-black/40 p-2 rounded-lg border border-white/5" style={{ color: 'var(--accent-primary)' }}>
                           {currentOrigin}
                         </div>
                         <p className="text-[10px] text-slate-400 leading-normal">

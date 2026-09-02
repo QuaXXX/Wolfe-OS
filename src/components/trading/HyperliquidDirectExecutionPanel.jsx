@@ -375,10 +375,10 @@ export const HyperliquidDirectExecutionPanel = ({
         <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-bold text-slate-300 flex items-center gap-1.5">
-              <Percent className="w-3.5 h-3.5 text-blue-400" />
+              <Percent className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
               <span>Position Sizing</span>
             </span>
-            <span className="font-mono font-bold text-blue-400">{sizePercent}% Equity</span>
+            <span className="font-mono font-bold" style={{ color: 'var(--accent-primary)' }}>{sizePercent}% Equity</span>
           </div>
 
           <div className="grid grid-cols-4 gap-1 font-mono text-xs">
@@ -389,9 +389,14 @@ export const HyperliquidDirectExecutionPanel = ({
                 onClick={() => setSizePercent(pct)}
                 className={`py-1 rounded-xl font-bold border transition-all cursor-pointer ${
                   sizePercent === pct
-                    ? 'bg-blue-500/25 text-blue-300 border-blue-500/40 shadow-sm'
+                    ? 'shadow-sm'
                     : 'bg-black/30 text-slate-400 border-white/5 hover:text-white'
                 }`}
+                style={sizePercent === pct ? {
+                  backgroundColor: 'var(--accent-subtle)',
+                  color: 'var(--accent-primary)',
+                  borderColor: 'var(--accent-border)'
+                } : {}}
               >
                 {pct}%
               </button>

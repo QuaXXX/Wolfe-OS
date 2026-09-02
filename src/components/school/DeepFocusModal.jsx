@@ -311,7 +311,15 @@ pause
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
             <div className="flex items-center gap-2 text-left min-w-0 pr-2">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
+              <div 
+                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                style={{
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)',
+                  color: 'var(--accent-primary)',
+                  border: '1px solid var(--accent-border)'
+                }}
+              >
                 <Shield className="w-4 h-4" />
               </div>
               <div className="min-w-0">
@@ -355,9 +363,14 @@ pause
                   onClick={() => handleSelectDuration(d.seconds)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                     duration === d.seconds
-                      ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-sm'
+                      ? 'shadow-sm font-bold'
                       : 'bg-white/[0.02] border-white/10 hover:bg-white/[0.06] text-slate-400'
                   }`}
+                  style={duration === d.seconds ? {
+                    backgroundColor: 'var(--accent-subtle)',
+                    borderColor: 'var(--accent-border)',
+                    color: 'var(--accent-primary)'
+                  } : {}}
                 >
                   {d.label}
                 </button>
@@ -447,9 +460,14 @@ pause
                     }}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
                       activeSound === s.id
-                        ? 'bg-purple-500/20 border-purple-400 text-purple-200'
+                        ? 'font-bold'
                         : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
                     }`}
+                    style={activeSound === s.id ? {
+                      backgroundColor: 'var(--accent-subtle)',
+                      borderColor: 'var(--accent-border)',
+                      color: 'var(--accent-primary)'
+                    } : {}}
                   >
                     {s.label}
                   </button>
@@ -472,11 +490,11 @@ pause
                       value={customYoutubeInput}
                       onChange={(e) => setCustomYoutubeInput(e.target.value)}
                       placeholder="e.g. https://www.youtube.com/watch?v=..."
-                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-purple-500/40"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none"
                     />
                     <button
                       type="submit"
-                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
+                      className="px-3.5 py-1.5 rounded-xl theme-active-btn text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
                     >
                       Set Audio
                     </button>
@@ -496,7 +514,7 @@ pause
               <button
                 type="button"
                 onClick={() => setShowPhoneGuide(prev => !prev)}
-                className="text-slate-400 hover:text-purple-300 flex items-center gap-1.5 font-medium cursor-pointer"
+                className="text-slate-400 hover:text-white flex items-center gap-1.5 font-medium cursor-pointer"
               >
                 <Smartphone className="w-3.5 h-3.5" />
                 <span>{showPhoneGuide ? "Hide Phone Lock Guide" : "Lock Phone Distractions (iOS / Android)"}</span>
@@ -518,10 +536,10 @@ pause
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 text-left text-xs text-slate-300 space-y-2 font-sans"
+                className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-left text-xs text-slate-300 space-y-2 font-sans"
               >
                 <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-purple-400" />
+                  <Lock className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>How to Lock Phone Distractions:</span>
                 </div>
                 <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">

@@ -96,18 +96,32 @@ export const VaultSearchModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-[#0e0c18]/95 border border-purple-500/20 rounded-3xl p-4 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[90vh] overflow-y-auto"
+          className="relative w-full max-w-xl bg-[#0b0e18]/95 border border-white/10 rounded-3xl p-4 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[90vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center bg-purple-500/10 border border-purple-500/30 text-purple-400 shrink-0">
+              <div 
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0"
+                style={{
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                }}
+              >
                 <Search className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="min-w-0">
                 <h3 className="text-sm sm:text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
                   <span>Ask Course Notes</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
+                  <span 
+                    className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold"
+                    style={{
+                      backgroundColor: 'var(--accent-subtle)',
+                      color: 'var(--accent-primary)',
+                      border: '1px solid var(--accent-border)'
+                    }}
+                  >
                     Personal NotebookLM
                   </span>
                 </h3>
@@ -208,14 +222,23 @@ export const VaultSearchModal = ({
               {/* Search Results Area */}
               {isSearching ? (
                 <div className="min-h-[140px] rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-2 p-6 text-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--accent-primary)' }} />
                   <div className="text-xs font-bold text-white">Searching your Obsidian notes with AI...</div>
                 </div>
               ) : result ? (
                 <div className="space-y-3 pt-1">
                   {/* Answer Box */}
-                  <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-2">
-                    <div className="text-[11px] font-bold font-mono text-purple-300 uppercase tracking-wide flex items-center gap-1.5">
+                  <div 
+                    className="p-4 rounded-2xl space-y-2"
+                    style={{
+                      backgroundColor: 'var(--accent-subtle)',
+                      border: '1px solid var(--accent-border)'
+                    }}
+                  >
+                    <div 
+                      className="text-[11px] font-bold font-mono uppercase tracking-wide flex items-center gap-1.5"
+                      style={{ color: 'var(--accent-primary)' }}
+                    >
                       <BookOpen className="w-3.5 h-3.5" />
                       <span>Answer:</span>
                     </div>
@@ -237,7 +260,7 @@ export const VaultSearchModal = ({
                             className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3 text-xs"
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                              <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent-primary)' }} />
                               <span className="text-white font-medium truncate">{mf.name}</span>
                             </div>
                             {mf.relevance && (

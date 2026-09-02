@@ -594,7 +594,7 @@ export const FlashcardDeckModal = ({
                       <button
                         type="button"
                         onClick={() => handleRateCard('good')}
-                        className="p-2 rounded-xl bg-white/[0.02] hover:bg-blue-500/20 border border-white/5 hover:border-blue-500/40 text-slate-300 hover:text-blue-300 text-xs font-semibold transition-all cursor-pointer text-center"
+                        className="p-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/5 hover:border-white/20 text-slate-300 hover:text-white text-xs font-semibold transition-all cursor-pointer text-center"
                       >
                         <div>Good</div>
                         <div className="text-[9px] text-slate-500">1d</div>

@@ -651,7 +651,7 @@ export const TradingView = ({
                                 <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
                                   {macroSection.items.map((item, iIdx) => (
                                     <li key={iIdx} className="flex items-start gap-2 leading-relaxed">
-                                      <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                                      <span className="font-bold shrink-0 mt-0.5" style={{ color: 'var(--accent-primary)' }}>•</span>
                                       <span>{item}</span>
                                     </li>
                                   ))}
@@ -861,7 +861,7 @@ export const TradingView = ({
 
                           {/* Timeframe Badge */}
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-cyan-400" />
+                            <Clock className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                             <span>{timeframeDisplay}</span>
                           </span>
 
@@ -873,13 +873,20 @@ export const TradingView = ({
                                 <span>Ready Now ({absDistPct.toFixed(1)}%)</span>
                               </span>
                             ) : isBreakout ? (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
-                                <ArrowUpRight className="w-3 h-3 text-cyan-400" />
+                              <span 
+                                className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shadow-sm"
+                                style={{
+                                  backgroundColor: 'var(--accent-subtle)',
+                                  color: 'var(--accent-primary)',
+                                  border: '1px solid var(--accent-border)'
+                                }}
+                              >
+                                <ArrowUpRight className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                 <span>Breakout ({Math.abs(distPct).toFixed(1)}% away)</span>
                               </span>
                             ) : (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-purple-400" />
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-slate-400" />
                                 <span>Pullback ({Math.abs(distPct).toFixed(1)}% away)</span>
                               </span>
                             )
@@ -974,8 +981,8 @@ export const TradingView = ({
                             SL: <strong className="text-rose-300">{stopFormatted}</strong>
                           </span>
                           <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                            <span>Price: <strong className="text-cyan-200">{liveFormatted}</strong></span>
+                            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-primary)' }} />
+                            <span>Price: <strong style={{ color: 'var(--accent-primary)' }}>{liveFormatted}</strong></span>
                           </span>
                           <span className="text-[11px] text-emerald-400 font-semibold">
                             TP: <strong className="text-emerald-300">{tpFormatted}</strong>
@@ -1005,21 +1012,27 @@ export const TradingView = ({
                             <div className="w-1 h-3.5 bg-white rounded-full shadow-md" />
                           </div>
 
-                          {/* Current Live Price Blue Dot */}
+                          {/* Current Live Price Dot (Dynamically matches user's theme color) */}
                           <div 
                             className="absolute top-1 transform -translate-x-1/2 -mt-0.5 transition-all duration-300 pointer-events-none z-20"
                             style={{ left: `${liveDotPct}%` }}
                             title={`Current Market Price: ${liveFormatted}`}
                           >
-                            <div className="w-3.5 h-3.5 rounded-full bg-cyan-400 ring-2 ring-white shadow-lg flex items-center justify-center">
-                              <div className="w-1.5 h-1.5 rounded-full bg-cyan-950" />
+                            <div 
+                              className="w-3.5 h-3.5 rounded-full ring-2 ring-white shadow-lg flex items-center justify-center"
+                              style={{ 
+                                backgroundColor: 'var(--accent-primary)',
+                                boxShadow: '0 0 10px var(--accent-glow)'
+                              }}
+                            >
+                              <div className="w-1.5 h-1.5 rounded-full bg-black/60" />
                             </div>
                           </div>
                         </div>
 
                         {/* Sub-track Info: Strategy Limit Entry & Risk/Reward */}
                         <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-white/5">
-                          <span className="text-cyan-300 font-medium">
+                          <span className="text-slate-300 font-medium">
                             Trigger Entry: <strong className="text-white">{entryFormatted}</strong>
                           </span>
                           <span className={`px-1.5 py-0.2 rounded border font-semibold ${
@@ -1037,12 +1050,12 @@ export const TradingView = ({
                       {/* Point-Form Bullets: Why Chosen & Candlestick Structure */}
                       <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
                         <div className="flex items-start gap-1.5 leading-relaxed">
-                          <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                          <span className="font-bold shrink-0 mt-0.5" style={{ color: 'var(--accent-primary)' }}>•</span>
                           <span><strong className="text-white">Why Chosen:</strong> {whyChosenText}</span>
                         </div>
                         {play.candlestickRationale && (
                           <div className="flex items-start gap-1.5 leading-relaxed">
-                            <span className="text-indigo-400 font-bold shrink-0 mt-0.5">•</span>
+                            <span className="font-bold shrink-0 mt-0.5" style={{ color: 'var(--accent-primary)' }}>•</span>
                             <span><strong className="text-white">Candlestick Structure:</strong> {play.candlestickRationale}</span>
                           </div>
                         )}

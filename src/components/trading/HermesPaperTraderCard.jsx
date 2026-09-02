@@ -310,8 +310,8 @@ export const HermesPaperTraderCard = ({
                           <div className="flex justify-between text-[10px] text-slate-400">
                             <span className="text-rose-400 font-semibold">SL: ${pos.stopLoss}</span>
                             <span className="text-white font-bold flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                              Price: ${curPrice}
+                              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-primary)' }} />
+                              <span>Price: <strong style={{ color: 'var(--accent-primary)' }}>${curPrice}</strong></span>
                             </span>
                             <span className="text-emerald-400 font-semibold">TP: ${pos.takeProfit}</span>
                           </div>
@@ -342,8 +342,14 @@ export const HermesPaperTraderCard = ({
                               style={{ left: `${liveDotPct}%` }}
                               title={`Live Price: $${curPrice}`}
                             >
-                              <div className="w-3 h-3 rounded-full bg-cyan-400 ring-2 ring-white shadow-lg flex items-center justify-center">
-                                <div className="w-1 h-1 rounded-full bg-cyan-950" />
+                              <div 
+                                className="w-3 h-3 rounded-full ring-2 ring-white shadow-lg flex items-center justify-center"
+                                style={{
+                                  backgroundColor: 'var(--accent-primary)',
+                                  boxShadow: '0 0 8px var(--accent-glow)'
+                                }}
+                              >
+                                <div className="w-1 h-1 rounded-full bg-black/60" />
                               </div>
                             </div>
                           </div>

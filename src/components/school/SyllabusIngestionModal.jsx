@@ -325,9 +325,13 @@ export const SyllabusIngestionModal = ({
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2.5 ${
                   dragActive 
-                    ? 'border-blue-400 bg-blue-500/10' 
+                    ? '' 
                     : 'border-white/10 hover:border-white/20 bg-white/[0.01] hover:bg-white/[0.03]'
                 }`}
+                style={dragActive ? {
+                  borderColor: 'var(--accent-primary)',
+                  backgroundColor: 'var(--accent-subtle)'
+                } : {}}
               >
                 <input 
                   ref={fileInputRef}
@@ -398,11 +402,18 @@ export const SyllabusIngestionModal = ({
               </div>
 
               {isProcessing && (
-                <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 flex items-center gap-3">
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-400 shrink-0" />
+                <div 
+                  className="p-4 rounded-2xl text-xs flex items-center gap-3"
+                  style={{
+                    backgroundColor: 'var(--accent-subtle)',
+                    border: '1px solid var(--accent-border)',
+                    color: 'var(--accent-primary)'
+                  }}
+                >
+                  <Loader2 className="w-5 h-5 animate-spin shrink-0" style={{ color: 'var(--accent-primary)' }} />
                   <div>
                     <div className="font-bold text-white">Extracting Academic Milestones...</div>
-                    <div className="text-[11px] text-blue-300/80">Scanning grading scheme, assessment tables, lecture dates, and exam periods.</div>
+                    <div className="text-[11px] text-slate-300">Scanning grading scheme, assessment tables, lecture dates, and exam periods.</div>
                   </div>
                 </div>
               )}

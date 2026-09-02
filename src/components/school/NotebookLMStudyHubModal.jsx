@@ -343,19 +343,33 @@ export const NotebookLMStudyHubModal = ({
       {/* Main Modal Window */}
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-4xl bg-[#0a0c16] border border-purple-500/30 rounded-3xl shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)] backdrop-blur-3xl z-10 flex flex-col max-h-[92vh] overflow-hidden"
+        className="relative w-full max-w-4xl bg-[#0a0c16] border border-white/10 rounded-3xl shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)] backdrop-blur-3xl z-10 flex flex-col max-h-[92vh] overflow-hidden"
       >
         {/* TOP BAR: Brand Header & Course Tabs */}
         <div className="p-4 sm:p-5 border-b border-white/10 space-y-3 shrink-0 bg-white/[0.01]">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-purple-600/30 to-indigo-600/20 border border-purple-500/40 text-purple-300 shadow-md">
+              <div 
+                className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-md"
+                style={{
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                }}
+              >
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Study Brain</span>
-                  <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
+                  <span 
+                    className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full font-bold"
+                    style={{
+                      backgroundColor: 'var(--accent-subtle)',
+                      color: 'var(--accent-primary)',
+                      border: '1px solid var(--accent-border)'
+                    }}
+                  >
                     NotebookLM
                   </span>
                 </h3>
@@ -372,7 +386,7 @@ export const NotebookLMStudyHubModal = ({
                 disabled={isLoading}
                 className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <FolderSync className="w-3.5 h-3.5 text-purple-400" />
+                <FolderSync className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                 <span className="hidden sm:inline">Sync School Folder</span>
               </button>
 
@@ -382,7 +396,7 @@ export const NotebookLMStudyHubModal = ({
                   playSound('click', soundEnabled);
                   onClose();
                 }}
-                className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+                className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -400,30 +414,31 @@ export const NotebookLMStudyHubModal = ({
             className="hidden"
           />
 
-          {/* COURSE SWITCHER TABS */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1">
-            {availableCourses.map((course, idx) => {
-              const isActive = selectedCourse === course;
+          {/* Course Selector Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {availableCourses.map((course) => {
+              const isSelected = selectedCourse === course;
               const count = scannedFiles.filter(f => (f.course || '').toUpperCase().includes(course.toUpperCase()) || (f.path || '').toUpperCase().includes(course.toUpperCase())).length;
               return (
                 <button
-                  key={idx}
+                  key={course}
                   type="button"
                   onClick={() => {
                     playSound('click', soundEnabled);
                     setSelectedCourse(course);
-                    setSelectedDoc(null);
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30 border border-purple-400/50 scale-[1.02]'
-                      : 'bg-white/[0.03] text-slate-400 hover:text-slate-200 border border-white/5 hover:bg-white/[0.06]'
+                  className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    isSelected
+                      ? 'bg-white text-black border-white shadow-md'
+                      : 'bg-white/[0.03] border-white/5 text-slate-300 hover:text-white hover:bg-white/[0.06]'
                   }`}
                 >
                   <GraduationCap className="w-3.5 h-3.5" />
                   <span>{course}</span>
                   {count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono ${isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-slate-400'}`}>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                      isSelected ? 'bg-black/15 text-black' : 'bg-white/10 text-slate-400'
+                    }`}>
                       {count}
                     </span>
                   )}
@@ -433,9 +448,9 @@ export const NotebookLMStudyHubModal = ({
           </div>
         </div>
 
-        {/* SECONDARY NAVIGATION: Module Tabs */}
-        <div className="flex items-center justify-between px-5 py-2.5 bg-black/40 border-b border-white/5 text-xs flex-wrap gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
+        {/* SUB-NAV: Feature Tabs & 1-Click Launchers */}
+        <div className="px-4 sm:px-5 py-2.5 bg-black/40 border-b border-white/5 flex items-center justify-between gap-3 text-xs overflow-x-auto shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => {
@@ -444,9 +459,14 @@ export const NotebookLMStudyHubModal = ({
               }}
               className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'briefing'
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  ? 'shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              style={activeTab === 'briefing' ? {
+                backgroundColor: 'var(--accent-subtle)',
+                color: 'var(--accent-primary)',
+                border: '1px solid var(--accent-border)'
+              } : {}}
             >
               <Percent className="w-3.5 h-3.5" />
               <span>Grade Breakdown & Dates</span>
@@ -460,9 +480,14 @@ export const NotebookLMStudyHubModal = ({
               }}
               className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'cheatsheet'
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  ? 'shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              style={activeTab === 'cheatsheet' ? {
+                backgroundColor: 'var(--accent-subtle)',
+                color: 'var(--accent-primary)',
+                border: '1px solid var(--accent-border)'
+              } : {}}
             >
               <Zap className="w-3.5 h-3.5" />
               <span>Exam Cheatsheet & Formulas</span>
@@ -476,9 +501,14 @@ export const NotebookLMStudyHubModal = ({
               }}
               className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'chat'
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  ? 'shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              style={activeTab === 'chat' ? {
+                backgroundColor: 'var(--accent-subtle)',
+                color: 'var(--accent-primary)',
+                border: '1px solid var(--accent-border)'
+              } : {}}
             >
               <Search className="w-3.5 h-3.5" />
               <span>Study Chat</span>
@@ -492,9 +522,14 @@ export const NotebookLMStudyHubModal = ({
               }}
               className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'documents'
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  ? 'shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              style={activeTab === 'documents' ? {
+                backgroundColor: 'var(--accent-subtle)',
+                color: 'var(--accent-primary)',
+                border: '1px solid var(--accent-border)'
+              } : {}}
             >
               <FileText className="w-3.5 h-3.5" />
               <span>Raw Documents ({currentCourseFiles.length})</span>
@@ -510,7 +545,12 @@ export const NotebookLMStudyHubModal = ({
                 onClose();
                 if (onLaunchFlashcards) onLaunchFlashcards(selectedCourse);
               }}
-              className="px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              style={{
+                backgroundColor: 'var(--accent-subtle)',
+                color: 'var(--accent-primary)',
+                border: '1px solid var(--accent-border)'
+              }}
             >
               <Layers className="w-3 h-3" />
               <span>+ Deck</span>
@@ -537,9 +577,15 @@ export const NotebookLMStudyHubModal = ({
           {activeTab === 'briefing' && (
             <div className="space-y-4">
               {/* Course Overview Card */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/20 to-indigo-950/20 border border-purple-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div 
+                className="p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4"
+                style={{
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)'
+                }}
+              >
                 <div className="space-y-1">
-                  <div className="text-xs font-bold font-mono text-purple-300 uppercase tracking-wide flex items-center gap-1.5">
+                  <div className="text-xs font-bold font-mono uppercase tracking-wide flex items-center gap-1.5" style={{ color: 'var(--accent-primary)' }}>
                     <GraduationCap className="w-4 h-4" />
                     <span>{selectedCourse} Executive Overview</span>
                   </div>
@@ -554,7 +600,7 @@ export const NotebookLMStudyHubModal = ({
                     <div className="text-[10px] font-mono uppercase text-slate-400">Instructor</div>
                     <div className="text-white font-bold">{currentBriefing.instructor.name || "Professor"}</div>
                     {currentBriefing.instructor.email && (
-                      <div className="text-[11px] text-purple-300 font-mono">{currentBriefing.instructor.email}</div>
+                      <div className="text-[11px] font-mono" style={{ color: 'var(--accent-primary)' }}>{currentBriefing.instructor.email}</div>
                     )}
                   </div>
                 )}
@@ -563,13 +609,13 @@ export const NotebookLMStudyHubModal = ({
               {/* Grade Weights Visual Grid */}
               <div className="space-y-2">
                 <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Percent className="w-3.5 h-3.5 text-purple-400" />
+                  <Percent className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Grading Architecture & Weights</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
                   {(currentBriefing.gradeBreakdown || []).map((grade, idx) => (
-                    <div key={idx} className="p-3 rounded-2xl bg-white/[0.02] border border-white/10 space-y-1 hover:border-purple-500/30 transition-all">
+                    <div key={idx} className="p-3 rounded-2xl bg-white/[0.02] border border-white/10 space-y-1 hover:border-white/20 transition-all">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold text-white truncate">{grade.item}</span>
                         <span className="text-xs font-mono font-bold text-emerald-400 px-1.5 py-0.2 rounded bg-emerald-500/10">
@@ -586,7 +632,7 @@ export const NotebookLMStudyHubModal = ({
               {currentBriefing.keyDates && currentBriefing.keyDates.length > 0 && (
                 <div className="space-y-2 pt-2">
                   <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                    <Calendar className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                     <span>Key Exam Dates & Milestone Timeline</span>
                   </div>
 
@@ -595,9 +641,15 @@ export const NotebookLMStudyHubModal = ({
                       <div key={idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-xs font-bold text-white truncate">{date.title}</div>
-                          <div className="text-[10px] text-purple-300 font-mono">{date.date}</div>
+                          <div className="text-[10px] font-mono" style={{ color: 'var(--accent-primary)' }}>{date.date}</div>
                         </div>
-                        <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-200 uppercase font-bold shrink-0">
+                        <span 
+                          className="text-[9px] font-mono px-2 py-0.5 rounded uppercase font-bold shrink-0"
+                          style={{
+                            backgroundColor: 'var(--accent-subtle)',
+                            color: 'var(--accent-primary)'
+                          }}
+                        >
                           {date.type || 'Exam'}
                         </span>
                       </div>
@@ -659,7 +711,13 @@ export const NotebookLMStudyHubModal = ({
               <div className="space-y-3 min-h-[220px] max-h-[360px] overflow-y-auto pr-1">
                 {chatHistory.length === 0 ? (
                   <div className="py-8 px-4 text-center space-y-3 rounded-2xl bg-white/[0.02] border border-white/5">
-                    <div className="w-10 h-10 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center mx-auto">
+                    <div 
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center mx-auto"
+                      style={{
+                        backgroundColor: 'var(--accent-subtle)',
+                        color: 'var(--accent-primary)'
+                      }}
+                    >
                       <Search className="w-5 h-5" />
                     </div>
                     <div className="text-xs font-bold text-white">Ask your {selectedCourse} Notes with AI</div>
@@ -692,9 +750,13 @@ export const NotebookLMStudyHubModal = ({
                       key={idx}
                       className={`p-3.5 rounded-2xl text-xs space-y-1.5 ${
                         msg.role === 'user'
-                          ? 'bg-purple-600/20 border border-purple-500/30 text-white ml-auto max-w-[85%]'
+                          ? 'border text-white ml-auto max-w-[85%]'
                           : 'bg-white/[0.03] border border-white/10 text-slate-100 mr-auto max-w-[95%]'
                       }`}
+                      style={msg.role === 'user' ? {
+                        backgroundColor: 'var(--accent-subtle)',
+                        borderColor: 'var(--accent-border)'
+                      } : {}}
                     >
                       <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
                         <span>{msg.role === 'user' ? 'Zach Wolfe' : `NotebookLM (${selectedCourse})`}</span>
@@ -705,10 +767,10 @@ export const NotebookLMStudyHubModal = ({
 
                       {msg.matchedFiles && msg.matchedFiles.length > 0 && (
                         <div className="pt-2 border-t border-white/5 space-y-1">
-                          <div className="text-[9px] uppercase font-mono text-purple-300 font-bold">Cited Sources:</div>
+                          <div className="text-[9px] uppercase font-mono font-bold" style={{ color: 'var(--accent-primary)' }}>Cited Sources:</div>
                           {msg.matchedFiles.map((f, i) => (
                             <div key={i} className="text-[10px] text-slate-400 flex items-center gap-1 truncate">
-                              <FileText className="w-3 h-3 text-purple-400 shrink-0" />
+                              <FileText className="w-3 h-3 shrink-0" style={{ color: 'var(--accent-primary)' }} />
                               <span>{f.name}</span>
                             </div>
                           ))}
@@ -719,8 +781,11 @@ export const NotebookLMStudyHubModal = ({
                 )}
 
                 {isChatSearching && (
-                  <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center gap-2 text-xs text-purple-300">
-                    <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                  <div 
+                    className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center gap-2 text-xs"
+                    style={{ color: 'var(--accent-primary)' }}
+                  >
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: 'var(--accent-primary)' }} />
                     <span>NotebookLM analyzing {selectedCourse} course notes...</span>
                   </div>
                 )}
@@ -733,12 +798,12 @@ export const NotebookLMStudyHubModal = ({
                   value={chatQuery}
                   onChange={(e) => setChatQuery(e.target.value)}
                   placeholder={`Ask anything about ${selectedCourse} (e.g. explain WACC, grade weights)...`}
-                  className="flex-1 px-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/60 font-sans"
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none font-sans"
                 />
                 <button
                   type="submit"
                   disabled={isChatSearching || !chatQuery.trim()}
-                  className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0"
+                  className="px-4 py-2.5 rounded-2xl theme-active-btn text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Ask</span>
@@ -764,15 +829,19 @@ export const NotebookLMStudyHubModal = ({
                       onClick={() => handleSelectDoc(file)}
                       className={`w-full text-left p-2.5 rounded-xl text-xs border transition-all flex items-center justify-between gap-2 cursor-pointer ${
                         isSelected
-                          ? 'bg-purple-600/20 border-purple-500/40 text-white shadow-sm'
+                          ? 'text-white shadow-sm font-semibold'
                           : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] text-slate-300'
                       }`}
+                      style={isSelected ? {
+                        backgroundColor: 'var(--accent-subtle)',
+                        borderColor: 'var(--accent-border)'
+                      } : {}}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <FileText className="w-4 h-4 text-purple-400 shrink-0" />
+                        <FileText className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-primary)' }} />
                         <span className="truncate">{file.name}</span>
                       </div>
-                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-purple-300 shrink-0">
+                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 shrink-0" style={{ color: 'var(--accent-primary)' }}>
                         {file.extension?.toUpperCase() || 'DOC'}
                       </span>
                     </button>
@@ -786,7 +855,7 @@ export const NotebookLMStudyHubModal = ({
                   <div className="space-y-2">
                     <div className="text-xs font-bold font-sans text-white border-b border-white/10 pb-1 flex items-center justify-between">
                       <span className="truncate">{selectedDoc.name}</span>
-                      <span className="text-[10px] text-purple-300 font-mono">{selectedDoc.course || 'Document'}</span>
+                      <span className="text-[10px] font-mono" style={{ color: 'var(--accent-primary)' }}>{selectedDoc.course || 'Document'}</span>
                     </div>
                     <pre className="whitespace-pre-wrap font-sans text-xs text-slate-300 leading-relaxed">
                       {selectedDocText || "Loading text content..."}
@@ -794,7 +863,7 @@ export const NotebookLMStudyHubModal = ({
                   </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-500">
-                    <BookOpen className="w-6 h-6 mb-2 opacity-50 text-purple-400" />
+                    <BookOpen className="w-6 h-6 mb-2 opacity-50" style={{ color: 'var(--accent-primary)' }} />
                     <p className="text-xs">Click any course outline above to preview its raw text.</p>
                   </div>
                 )}
@@ -818,7 +887,7 @@ export const NotebookLMStudyHubModal = ({
                 onClose();
                 if (onLaunchFlashcards) onLaunchFlashcards(selectedCourse);
               }}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl theme-active-btn text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Generate Flashcards</span>

@@ -124,8 +124,15 @@ export const HomeView = ({
               {/* Sync Status & Action Button */}
               <div className="flex items-center gap-2">
                 {isSyncingGoogle ? (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 flex items-center gap-1.5 shadow-sm">
-                    <RotateCw className="w-3 h-3 animate-spin text-cyan-400" />
+                  <span 
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm"
+                    style={{
+                      backgroundColor: 'var(--accent-subtle)',
+                      color: 'var(--accent-primary)',
+                      border: '1px solid var(--accent-border)'
+                    }}
+                  >
+                    <RotateCw className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
                     <span>Syncing...</span>
                   </span>
                 ) : isGoogleConnected ? (

@@ -98,7 +98,14 @@ export const HyperliquidConnectModal = ({
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <div 
+                className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                }}
+              >
                 <Key className="w-4 h-4" />
               </div>
               <div>

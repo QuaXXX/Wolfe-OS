@@ -666,11 +666,19 @@ export const CalendarView = ({
 
                       {/* Tasks */}
                       {dayTasks.slice(0, 1).map(t => (
-                        <div key={t.id} className={`px-1.5 py-0.5 rounded border text-[9px] font-medium truncate ${
-                          t.completed 
-                            ? 'bg-white/[0.02] border-white/5 text-slate-500 line-through' 
-                            : 'bg-blue-500/10 border-blue-500/20 text-blue-200'
-                        }`}>
+                        <div 
+                          key={t.id} 
+                          className={`px-1.5 py-0.5 rounded border text-[9px] font-medium truncate ${
+                            t.completed 
+                              ? 'bg-white/[0.02] border-white/5 text-slate-500 line-through' 
+                              : ''
+                          }`}
+                          style={!t.completed ? {
+                            backgroundColor: 'var(--accent-subtle)',
+                            borderColor: 'var(--accent-border)',
+                            color: 'var(--accent-primary)'
+                          } : {}}
+                        >
                           {t.title}
                         </div>
                       ))}
@@ -728,7 +736,7 @@ export const CalendarView = ({
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5">Item Type</label>
                 <div className="grid grid-cols-4 gap-1.5">
                   {[
-                    { id: 'event', label: 'Event', color: 'border-blue-500/40 text-blue-300' },
+                    { id: 'event', label: 'Event', isTheme: true },
                     { id: 'deadline', label: 'Deadline', color: 'border-rose-500/40 text-rose-300' },
                     { id: 'task', label: 'Task', color: 'border-slate-500/40 text-slate-300' },
                     { id: 'reminder', label: 'Reminder', color: 'border-amber-500/40 text-amber-300' }
@@ -739,9 +747,14 @@ export const CalendarView = ({
                       onClick={() => setItemType(t.id)}
                       className={`py-2 px-1 rounded-xl text-xs font-semibold border transition-all text-center ${
                         itemType === t.id 
-                          ? `${t.color} bg-white/[0.08] shadow-sm` 
+                          ? (t.isTheme ? '' : `${t.color} bg-white/[0.08] shadow-sm`)
                           : 'border-white/5 bg-white/[0.02] text-slate-400 hover:text-slate-200'
                       }`}
+                      style={itemType === t.id && t.isTheme ? {
+                        borderColor: 'var(--accent-border)',
+                        color: 'var(--accent-primary)',
+                        backgroundColor: 'var(--accent-subtle)'
+                      } : {}}
                     >
                       {t.label}
                     </button>
