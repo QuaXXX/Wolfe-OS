@@ -11,8 +11,9 @@ import { keccak256, encodePacked, parseSignature } from 'viem';
 import { encode } from '@msgpack/msgpack';
 
 // Default Fallback Credentials
-const DEFAULT_AGENT_KEY = '0x38191b421ff1c0fecc0b7b8eb6b837d4989e055f5c5c554c149e488654ec474e';
+const DEFAULT_MASTER_WALLET = '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7';
 const DEFAULT_AGENT_WALLET = '0x02a7afa9dee99d4efe16459cf592cd30af2f5869';
+const DEFAULT_AGENT_KEY = '0x38191b421ff1c0fecc0b7b8eb6b837d4989e055f5c5c554c149e488654ec474e';
 
 // Asset Precision Tables
 const ASSET_PRECISION = {
@@ -104,8 +105,8 @@ export default async function handler(req, res) {
     const stopLoss = payload.stopLoss ? Number(payload.stopLoss) : null;
     const takeProfit = payload.takeProfit ? Number(payload.takeProfit) : null;
 
-    // 3. Query Live Hyperliquid Account Equity
-    const userWalletAddress = process.env.HYPERLIQUID_AGENT_WALLET || payload.userAddress || DEFAULT_AGENT_WALLET;
+    // 3. Query Live Hyperliquid Account Equity (from Master Account)
+    const userWalletAddress = process.env.HYPERLIQUID_MASTER_WALLET || payload.userAddress || DEFAULT_MASTER_WALLET;
     let accountEquity = Number(process.env.ACCOUNT_EQUITY || 10000);
 
     if (userWalletAddress) {
@@ -158,7 +159,7 @@ export default async function handler(req, res) {
     const stopDistanceUSD = Math.max(0.0001, Math.abs(price - effectiveStopLoss));
     const effectiveTakeProfit = takeProfit || (isLong ? price + (stopDistanceUSD * 2) : price - (stopDistanceUSD * 2));
 
-    // 5. Cryptographically Sign and Submit L1 Order to Hyperliquid
+    // 5. Cryptographically Sign and Submit L1 Order to Hyperliquid (Market IOC Execution)
     let onChainResult = null;
     let onChainError = null;
 
@@ -166,7 +167,9 @@ export default async function handler(req, res) {
       const effectiveKey = process.env.HYPERLIQUID_AGENT_KEY || DEFAULT_AGENT_KEY;
       const account = privateKeyToAccount(effectiveKey.startsWith('0x') ? effectiveKey : `0x${effectiveKey}`);
       
-      const formattedPrice = formatPrice(price);
+      // Instant Market Fill price with 1% slippage tolerance
+      const marketPrice = isLong ? (price * 1.01) : (price * 0.99);
+      const formattedPrice = formatPrice(marketPrice);
       const formattedSize = contracts.toFixed(precision.sizeDecimals);
 
       const orderWire = {
@@ -177,7 +180,7 @@ export default async function handler(req, res) {
         r: isClose,
         t: {
           limit: {
-            tif: isClose ? 'Ioc' : 'Gtc'
+            tif: 'Ioc'
           }
         }
       };

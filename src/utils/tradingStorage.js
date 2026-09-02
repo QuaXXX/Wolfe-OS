@@ -24,6 +24,7 @@ export const DEFAULT_TRADING_CONFIG = {
   broker: 'hyperliquid',
   isLive: true,
   testnet: false,
+  masterWalletAddress: '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7', // Master Account holding USDC funds
   agentWalletAddress: '0x02a7afa9dee99d4efe16459cf592cd30af2f5869',
   agentPrivateKey: '0x38191b421ff1c0fecc0b7b8eb6b837d4989e055f5c5c554c149e488654ec474e', // Stored locally only for trade-only signing
   aiProvider: 'hermes3', // 'hermes3' | 'gemini'
