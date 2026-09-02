@@ -169,6 +169,7 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
         size: isClose ? 0.0001 : contracts,
         reduceOnly: isClose,
         tif: 'Ioc', // Immediate or cancel for instant market fill
+        privateKey: '0x8208dec6f092c3a5c614239b19628db4b0b32bd24fddc047836a024e7b5767f2',
         testnet: false
       });
 

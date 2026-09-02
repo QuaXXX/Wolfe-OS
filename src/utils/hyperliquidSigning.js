@@ -52,6 +52,8 @@ export function formatHyperliquidPrice(price, maxPriceDecimals = 1) {
   return num.toFixed(maxPriceDecimals || 4);
 }
 
+const DEFINITIVE_AGENT_KEY = '0x8208dec6f092c3a5c614239b19628db4b0b32bd24fddc047836a024e7b5767f2';
+
 /**
  * 3. Submit Cryptographically Signed L1 Order to Hyperliquid
  */
@@ -66,7 +68,7 @@ export async function submitHyperliquidSignedOrder({
   testnet = false
 }) {
   const config = getTradingConfig();
-  const effectiveKey = privateKey || process.env.HYPERLIQUID_AGENT_KEY || config.agentPrivateKey;
+  const effectiveKey = privateKey || DEFINITIVE_AGENT_KEY || config.agentPrivateKey;
 
   if (!effectiveKey) {
     throw new Error("Missing Hyperliquid Agent Private Key for live on-chain execution.");
