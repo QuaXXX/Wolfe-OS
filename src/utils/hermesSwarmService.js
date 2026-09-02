@@ -367,6 +367,64 @@ export function generateDynamicSetups(livePrices = {}) {
       technicalStructure: "Liquidity sweep of local range lows with strong 1H reclaim and volume confirmation.",
       thesis: "Synthetic Dollar Basis Protocol: Capturing institutional funding rate spreads across global crypto perpetual markets.",
       invalidation: `1H close below $${(enaPrice * 0.96).toFixed(3)}.`
+    },
+    {
+      ticker: "QQQ",
+      name: "Invesco QQQ Tech ETF",
+      category: "Tech Index ETF",
+      bias: "LONG",
+      convictionGrade: "A",
+      horizonType: "Macro Index Momentum",
+      confluenceScore: 92,
+      factorScores: { smartMoney: 93, structure: 91, catalyst: 94, macro: 95 },
+      timeframe: "4H Swing",
+      expectedDuration: "1 - 3 Days",
+      optimalWindow: "NY Session Open",
+      entryTrigger: "$480.50 - $482.30 (Pullback to Value Area High)",
+      entryNumeric: 481.50,
+      stopLoss: "$474.00",
+      stopNumeric: 474.00,
+      target2R: "$496.00",
+      target2RNumeric: 496.00,
+      target3R: "$505.00",
+      riskRewardRatio: "1:2.5",
+      whyChosen: "Selected directly from Section 1 macro liquidity tailwinds: US Dollar (DXY) softening to 103.8 combined with 10Y yield stabilization at 4.28% removes borrowing friction across high-growth tech components.",
+      projectedMove: "We see QQQ holding above prior session Value Area High ($482.30). With broad market participation across semiconductors and software, upside momentum targets $496.00 (2R) and $505.00 (3R).",
+      riskManagement: "Limit Trigger $480.50 - $482.30 | Invalidation Stop Loss $474.00 | Target 2R $496.00 / 3R $505.00 (1.5% max capital risk).",
+      catalystDossier: "Institutional capital rotation accelerating into tech index baskets following positive semiconductor shipment data and yield curve flattening.",
+      institutionalFlow: "Net ETF creation units expanded with +$850M in institutional block inflows across major custodian desks.",
+      technicalStructure: "Ascending trendline reclaim holding firmly above 4H EMA20 dynamic support.",
+      thesis: "Macro Liquidity Play: Lower real yields driving broad index expansion across megacap technology leaders.",
+      invalidation: "4H candle close below $473.50 invalidates upward structure."
+    },
+    {
+      ticker: "NVDA",
+      name: "Nvidia Corp",
+      category: "Hyperscaler Compute",
+      bias: "LONG",
+      convictionGrade: "A+",
+      horizonType: "AI Infrastructure Core",
+      confluenceScore: 94,
+      factorScores: { smartMoney: 95, structure: 93, catalyst: 97, macro: 93 },
+      timeframe: "4H Swing / Secular Core",
+      expectedDuration: "Multi-Week / Secular",
+      optimalWindow: "NY Tech Open",
+      entryTrigger: `$${(nvdaPrice * 0.992).toFixed(2)} - $${nvdaPrice.toFixed(2)} (4H POC Reclaim)`,
+      entryNumeric: Number((nvdaPrice * 0.995).toFixed(2)),
+      stopLoss: `$${(nvdaPrice * 0.965).toFixed(2)}`,
+      stopNumeric: Number((nvdaPrice * 0.965).toFixed(2)),
+      target2R: `$${(nvdaPrice * 1.075).toFixed(2)}`,
+      target2RNumeric: Number((nvdaPrice * 1.075).toFixed(2)),
+      target3R: `$${(nvdaPrice * 1.14).toFixed(2)}`,
+      riskRewardRatio: "1:2.6",
+      whyChosen: "Chosen following multi-billion datacenter compute orderbook expansions from hyperscalers (Microsoft, Meta, Google) and heavy institutional call sweep flow breaking above $132.",
+      projectedMove: "We see NVDA consolidating right at its 4H Point of Control ($131.50-$132.80). Continued AI Capex demand creates strong institutional support targeting $142.50 (2R) and $148.00 (3R).",
+      riskManagement: `Limit Trigger $${(nvdaPrice * 0.992).toFixed(2)} - $${nvdaPrice.toFixed(2)} | Invalidation Stop Loss $${(nvdaPrice * 0.965).toFixed(2)} | Target 2R $${(nvdaPrice * 1.075).toFixed(2)} / 3R $${(nvdaPrice * 1.14).toFixed(2)} (1.5% max capital risk).`,
+      catalystDossier: "Blackwell chip production ramp accelerating with hyperscaler delivery commitments locked in through 2027.",
+      institutionalFlow: "Institutional options order flow flagged $62M in aggressive out-of-the-money call sweeps at $135 and $140 strike prices.",
+      technicalStructure: "Bullish consolidation above 4H Volume Profile Point of Control with expanding volume on up-candles.",
+      thesis: "Hyperscaler Compute Monopoly: Irreplaceable compute backbone powering enterprise and sovereign AI deployments worldwide.",
+      invalidation: `4H candle close below $${(nvdaPrice * 0.958).toFixed(2)}.`
     }
   ];
 
@@ -415,16 +473,16 @@ Your council investigates real-time crypto perps, DePIN, RWA, and high-convictio
 6. HERMES-PRIME: Synthesizes high-conviction asymmetric trade dossiers across Intraday, Swing, and Secular Core horizons.
 
 CRITICAL DIRECTIVES:
-- Format the macro brief strictly in rich, highly informative POINT FORM with clear causal explanations (What is happening, Why it is happening, Dates/Events, Long-term vs Short-term, and Why specific stocks/crypto were chosen).
-- Include long-term secular market megatrends (Decentralized Clearing, Space Telecom, Sovereign AI, Tokenized RWAs, Bitcoin Reserves).
-- The Council Chat must be a DEEP, AUTHENTIC COLLABORATIVE WAR ROOM (like a quantitative hedge fund Slack/Discord channel).
+- The macro brief must ONLY contain Section 1 (What's Happening & Why) and Section 2 (Critical Upcoming Dates/Events & Recent News). DO NOT include trade buy/sell orders in the macro/news brief.
+- High conviction trade setups are placed in "highConvictionPlays" with rich fields: ticker, name, category, bias, convictionGrade, confluenceScore, factorScores, whyChosen, projectedMove, riskManagement.
+- The Council Chat must be a DEEP, AUTHENTIC COLLABORATIVE WAR ROOM.
 - Calculate all price levels strictly off the LIVE REAL-TIME PRICES provided.
 - Return ONLY valid JSON matching the schema.`;
 
   const prompt = `Conduct an exhaustive quantitative market research sweep for right now (${now.toLocaleString()}):
 LIVE REAL-TIME MARKET PRICES: ${priceSummary || 'BTC: $77,336, SOL: $100.60, SUI: $3.25, HYPE: $81.90, TAO: $512, RENDER: $6.85, ONDO: $1.15'}
 
-Produce a structured point-form macro summary and a deep, multi-turn collaborative debate between council agents.`;
+Produce a structured 2-part macro/news summary and a deep collaborative debate between council agents.`;
 
   // 1. Try Nous Hermes 3 via OpenRouter if key is configured
   if (config.openRouterApiKey) {
@@ -463,30 +521,26 @@ Produce a structured point-form macro summary and a deep, multi-turn collaborati
     console.warn("Hermes Swarm AI run notice:", err);
   }
 
-  // 3. High-Conviction Real-Time Algorithmic Synthesis with Point-Form Brief & Collaborative Discord Debate
-  const selectedPlays = dynamicPlays.slice(0, 8);
+  // 3. High-Conviction Real-Time Algorithmic Synthesis
+  const selectedPlays = dynamicPlays.slice(0, 10);
 
   const structuredMacroPoints = [
     {
       category: "🌐 1. What's Happening Across Markets & Why It Matters",
       items: [
         "US Dollar Softening & Global Liquidity Expansion: The US Dollar Index (DXY) has dropped to 103.8 while the 10-Year Treasury Yield has stabilized at 4.28%. Why it matters: Synchronized central bank liquidity injections are easing borrowing friction, removing the valuation discount on growth tech and driving institutional capital rotation into high-beta equities and crypto.",
-        "Sovereign AI & Space Telecom Leadership: US stock index futures are green (+0.65%), led by space telecommunications (ASTS), enterprise AI operating systems (PLTR), and decentralized compute (TAO). Why it matters: Institutional funds are rebalancing out of defensive cash/dividends into secular compounders with verified government contract backlogs.",
+        "Sovereign AI & Space Telecom Leadership: US stock index futures (QQQ, SPY, NASDAQ) are green (+0.65%), led by space telecommunications (ASTS), enterprise AI operating systems (PLTR), and decentralized compute (TAO). Why it matters: Institutional funds are rebalancing out of defensive cash/dividends into secular compounders with verified government contract backlogs.",
         `Crypto On-Chain Clearing & Perp Short Traps: Bitcoin is holding firmly near $${btcPrice.toLocaleString()} while native L1 clearing protocols (HYPE at $${hypePrice.toFixed(2)}, SOL at $${solPrice.toFixed(2)}, SUI at $${suiPrice.toFixed(3)}) show heavy net taker buy delta. Why it matters: Cumulative volume delta (CVD) shows short sellers are heavily trapped below resistance, creating a spring-loaded setup for explosive upside breakouts.`
       ]
     },
     {
       category: "📅 2. Critical Upcoming Events & Recent High-Impact News",
       items: [
-        "Upcoming: Tuesday, Sep 9 at 8:30 AM EST — US CPI Inflation Report: Consensus estimates core CPI at +2.8% YoY. Market impact: A benign reading locks in Federal Reserve interest rate cuts, providing the green light for risk-on momentum expansion.",
+        "Upcoming: Tuesday, Sep 9 at 8:30 AM EST — US CPI Inflation Report: Consensus estimates core CPI at +2.8% YoY. Market impact: A benign reading locks in Federal Reserve interest rate cuts, providing the green light for risk-on momentum expansion across equities and crypto.",
         "Upcoming: Wednesday, Sep 17 at 2:00 PM EST — FOMC Rate Decision & Press Conference: Fed Chair Powell delivers the benchmark interest rate decision and forward dot plot. Market impact: Dictates global dollar liquidity trajectory for Q4 2026.",
         "Recent: Today at 9:45 AM EST — FCC Direct-to-Cell Commercial Spectrum Clearance for AST SpaceMobile: The FCC approved orbital cellular spectrum docket #24-119. Market impact: Clears the primary regulatory hurdle for commercial launch with AT&T/Verizon, triggering institutional dark pool block accumulation ($38M at $26.10 VWAP).",
         "Recent: Today at 10:15 AM EST — Palantir Department of Defense AIP Contract Expansion: Finalized +18% annual recurring revenue expansion. Market impact: Confirms accelerating institutional enterprise adoption, sparking heavy call sweep flow above $68."
       ]
-    },
-    {
-      category: "🎯 3. High-Conviction Chosen Assets & Tactical Outlook",
-      items: selectedPlays.map(p => `${p.ticker} ($${(livePrices[p.ticker] || p.entryNumeric || 100).toFixed(2)} - BUY ${p.bias} | Confluence ${p.confluenceScore}/100): ${p.whyChosen} Expected Move: ${p.projectedMove} Risk Management: ${p.riskManagement}`)
     }
   ];
 

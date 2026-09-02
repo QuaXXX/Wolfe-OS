@@ -307,7 +307,7 @@ export const TradingView = ({
   const CurrentIcon = currentTabObj.icon;
 
   return (
-    <div className="space-y-4 max-w-6xl mx-auto pb-24 select-none font-sans relative">
+    <div className="space-y-4 max-w-6xl mx-auto pb-36 select-none font-sans relative">
       {/* 1. COMPLETION NOTIFICATION POPUP */}
       {sweepNotification && (
         <div className="p-3.5 rounded-2xl theme-card border shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300 z-30" style={{ borderColor: 'var(--accent-border)' }}>
@@ -580,163 +580,62 @@ export const TradingView = ({
                           ? hermesBrief.macroPoints
                           : [
                               {
-                                category: "🌐 1. What's Happening Across Markets & Why",
+                                category: "🌐 1. What's Happening Across Markets & Why It Matters",
                                 items: [
-                                  "US Dollar Softening & Global Liquidity: The Dollar Index (DXY) softened down to 103.8 while 10Y Treasury yields stabilized at 4.28%. Why it matters: Synchronized central bank liquidity injections are easing borrowing friction and driving institutional capital rotation into high-beta growth tech and crypto.",
-                                  "Sovereign AI & Space Telecom Leadership: Equity futures are green (+0.65%), led by orbital satellite cellular broadband (ASTS), enterprise AI operating systems (PLTR), and decentralized neural compute (TAO). Why it matters: Institutional funds are rebalancing balance sheets into asymmetric secular compounders with verified contract revenue.",
-                                  "Crypto On-Chain Clearing & Perp Demand: Bitcoin is holding firmly near $77,000 while native L1 clearing protocols (HYPE, SOL, SUI) show persistent taker market buy delta. Why it matters: Cumulative volume delta (CVD) shows short sellers are heavily trapped below key resistance levels, priming the tape for explosive upside breakouts."
+                                  "US Dollar Softening & Global Liquidity: The Dollar Index (DXY) softened down to 103.8 while 10Y Treasury yields stabilized at 4.28%. Why it matters: Synchronized central bank liquidity injections are easing borrowing friction, removing the valuation discount on growth tech and driving institutional capital rotation into high-beta equities and crypto.",
+                                  "Sovereign AI & Space Telecom Leadership: US stock index futures (QQQ, SPY, NASDAQ) are green (+0.65%), led by space telecommunications (ASTS), enterprise AI operating systems (PLTR), and decentralized compute (TAO). Why it matters: Institutional funds are rebalancing balance sheets into asymmetric secular compounders with verified government contract backlogs.",
+                                  "Crypto On-Chain Clearing & Perp Short Traps: Bitcoin is holding firmly near $77,000 while native L1 clearing protocols (HYPE, SOL, SUI) show heavy net taker buy delta. Why it matters: Cumulative volume delta (CVD) shows short sellers are heavily trapped below key resistance levels, priming the tape for explosive upside breakouts."
                                 ]
                               },
                               {
-                                category: "📅 2. Key Dates, Important Events & Recent News",
+                                category: "📅 2. Critical Upcoming Events & Recent High-Impact News",
                                 items: [
-                                  "Economic Data Calendar: Today provides a benign US macro window with no disruptive FOMC rate decisions; upcoming high-volatility catalysts include the US Consumer Price Index (CPI) next Tuesday and the Federal Reserve FOMC Rate Decision in 2 weeks.",
-                                  "Regulatory & Corporate News: AST SpaceMobile (ASTS) secured official FCC direct-to-cell commercial spectrum clearance with zero warrant dilution overhang; Palantir (PLTR) operationalized its DoD AIP enterprise contract (+18% ARR).",
-                                  "Crypto Upgrades & Staking Milestones: Hyperliquid 24h volume crossed $2.4B with 100% of trading fees distributed to HYPE validator staking vaults; Solana DEX volume accelerated +42% WoW post-mainnet latency patch; BlackRock BUIDL expanded tokenized US Treasury AUM on Ondo to $650M."
-                                ]
-                              },
-                              {
-                                category: "🎯 3. Why Specific Stocks & Crypto Were Chosen Today",
-                                items: [
-                                  "ASTS (BUY LONG | Confluence 96/100): Legendary funds Stanley Druckenmiller and Peter Thiel disclosed massive 13F whale accumulation with $38M in dark pool blocks at $26.10 VWAP following FCC spectrum clearance. Risk Management: Limit Trigger $26.20 - $26.50, Invalidation Stop Loss $24.90, Take Profit 2R $29.40 / 3R $32.50 (1.5% max capital risk).",
-                                  "HYPE (BUY LONG | Confluence 97/100): 24h trading volume surpassed $2.4B with 100% of trading fee revenue directly distributed to HYPE validator staking vaults. Risk Management: Limit Trigger $81.50 - $81.94, Invalidation Stop Loss $79.60, Take Profit 2R $86.70 / 3R $94.20 (1.5% max capital risk).",
-                                  "TAO (BUY LONG | Confluence 95/100): Dynamic subnet expansion accelerating with Pantera and Polychain locking over 420,000 TAO into decentralized machine intelligence emissions. Risk Management: Limit Trigger $508 - $512, Invalidation Stop Loss $494, Take Profit 2R $556 / 3R $605 (1.5% max capital risk).",
-                                  "SOL (BUY LONG | Confluence 94/100): 24h DEX swap volume jumped +42% WoW and Hyperliquid Whale Desk #4 executed $28.5M in aggressive market buy delta, defending the psychological $100 level. Risk Management: Limit Trigger $99.40 - $100.20, Invalidation Stop Loss $97.50, Take Profit 2R $105.40 / 3R $108.00 (1.5% max capital risk).",
-                                  "PLTR (BUY LONG | Confluence 92/100): Confirmed +18% ARR DoD AIP enterprise contract expansion, backed by abnormal institutional call sweep volume breaking above Value Area High ($68.20). Risk Management: Limit Trigger $67.80 - $68.20, Invalidation Stop Loss $65.90, Take Profit 2R $72.60 / 3R $76.00 (1.5% max capital risk).",
-                                  "BTC (BUY LONG | Confluence 95/100): Institutional spot ETFs absorbed +$340M net in 24 hours (BlackRock IBIT +4,520 BTC) with negligible liquidation cascade risk on derivative orderbooks. Risk Management: Limit Trigger $77,100 - $77,400, Invalidation Stop Loss $75,800, Take Profit 2R $80,200 / 3R $83,500 (1.5% max capital risk).",
-                                  "ONDO (BUY LONG | Confluence 93/100): BlackRock BUIDL integration expanding tokenized US Treasury AUM to over $650M on-chain with $22M institutional USDC mints. Risk Management: Limit Trigger $1.13 - $1.15, Invalidation Stop Loss $1.11, Take Profit 2R $1.24 / 3R $1.32 (1.5% max capital risk).",
-                                  "SUI (BUY LONG | Confluence 90/100): Record $1.2B DeFi TVL expansion and +45M tokens deposited into validator staking custody by Jump Trading and a16z crypto. Risk Management: Limit Trigger $3.20 - $3.25, Invalidation Stop Loss $3.12, Take Profit 2R $3.52 / 3R $3.75 (1.5% max capital risk)."
+                                  "Upcoming: Tuesday, Sep 9 at 8:30 AM EST — US CPI Inflation Report: Consensus estimates core CPI at +2.8% YoY. Market impact: A benign reading locks in Federal Reserve interest rate cuts, providing the green light for risk-on momentum expansion across equities and crypto.",
+                                  "Upcoming: Wednesday, Sep 17 at 2:00 PM EST — FOMC Rate Decision & Press Conference: Fed Chair Powell delivers the benchmark interest rate decision and forward dot plot. Market impact: Dictates global dollar liquidity trajectory for Q4 2026.",
+                                  "Recent: Today at 9:45 AM EST — FCC Direct-to-Cell Commercial Spectrum Clearance for AST SpaceMobile: The FCC approved orbital cellular spectrum docket #24-119. Market impact: Clears the primary regulatory hurdle for commercial launch with AT&T/Verizon, triggering institutional dark pool block accumulation ($38M at $26.10 VWAP).",
+                                  "Recent: Today at 10:15 AM EST — Palantir Department of Defense AIP Contract Expansion: Finalized +18% annual recurring revenue expansion. Market impact: Confirms accelerating institutional enterprise adoption, sparking heavy call sweep flow above $68."
                                 ]
                               }
                             ];
 
                         const macroSection = pointsToRender.find(p => p.category.includes("What's Happening") || p.category.includes("1."));
                         const eventsSection = pointsToRender.find(p => p.category.includes("Events") || p.category.includes("Dates") || p.category.includes("2."));
-                        const chosenSection = pointsToRender.find(p => p.category.includes("Chosen") || p.category.includes("3."));
 
                         return (
-                          <div className="space-y-3">
-                            {/* Top Grid: Section 1 & Section 2 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {/* Section 1: What's Happening & Why */}
-                              {macroSection && (
-                                <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
-                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-2">
-                                    <Compass className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                                    <span>{macroSection.category}</span>
-                                  </div>
-                                  <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
-                                    {macroSection.items.map((item, iIdx) => (
-                                      <li key={iIdx} className="flex items-start gap-2 leading-relaxed">
-                                        <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
-                                        <span>{item}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {/* Section 1: What's Happening & Why */}
+                            {macroSection && (
+                              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
+                                <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-2">
+                                  <Compass className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                                  <span>{macroSection.category}</span>
                                 </div>
-                              )}
-
-                              {/* Section 2: Important Events & Recent News */}
-                              {eventsSection && (
-                                <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
-                                  <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-2">
-                                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                    <span>{eventsSection.category}</span>
-                                  </div>
-                                  <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
-                                    {eventsSection.items.map((item, iIdx) => (
-                                      <li key={iIdx} className="flex items-start gap-2 leading-relaxed">
-                                        <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
-                                        <span>{item}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Section 3: Chosen Stocks & Crypto with Clean Point-Form Structure & Direct 1-Click Execution */}
-                            {chosenSection && (
-                              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3 shadow-sm">
-                                <div className="font-bold text-white text-xs flex items-center justify-between border-b border-white/5 pb-2">
-                                  <span className="flex items-center gap-1.5">
-                                    <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                                    <span>{chosenSection.category}</span>
-                                  </span>
-                                  <span className="text-[10px] font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                                    1-Click Desk Execution
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                                  {((hermesBrief.highConvictionPlays && hermesBrief.highConvictionPlays.length > 0)
-                                    ? hermesBrief.highConvictionPlays
-                                    : availableWarRoomPlays
-                                  ).map((play, iIdx) => (
-                                    <div key={iIdx} className="p-3.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 hover:border-white/20 space-y-2.5 transition-all">
-                                      {/* Header: Ticker, Category, Grade, and Action Buttons */}
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className="font-mono text-xs font-bold text-white tracking-wide">{play.ticker}</span>
-                                          <span className="text-[9px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.06] text-amber-300 border border-amber-500/20">
-                                            {play.category || play.horizonType || 'Asset'}
-                                          </span>
-                                          {play.confluenceScore && (
-                                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                                              {play.confluenceScore}% Alpha
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        {/* Action Buttons with Single Clean Plus */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              playSound('click', soundEnabled);
-                                              setHyperliquidTicker(play.ticker);
-                                              setActiveTab('execute');
-                                            }}
-                                            className="px-2.5 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95 shadow-sm"
-                                            title="Trade directly on Hyperliquid"
-                                          >
-                                            <Zap className="w-2.5 h-2.5 text-emerald-400" />
-                                            <span>Hyperliquid</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleOpenOrderModal(play)}
-                                            className="px-2.5 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95 shadow-sm"
-                                            style={{
-                                              backgroundColor: 'var(--accent-subtle)',
-                                              border: '1px solid var(--accent-border)'
-                                            }}
-                                            title="Forward-Test paper order"
-                                          >
-                                            <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                            <span>Test</span>
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      {/* 3 Clear, Point-Form Bullets */}
-                                      <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
-                                        <div className="flex items-start gap-1.5 leading-relaxed">
-                                          <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
-                                          <span><strong className="text-white">Why Chosen:</strong> {play.whyChosen || play.thesis || play.catalystDossier}</span>
-                                        </div>
-                                        <div className="flex items-start gap-1.5 leading-relaxed">
-                                          <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
-                                          <span><strong className="text-white">Expected Move:</strong> {play.projectedMove || `Pullback to ${play.entryTrigger} targeting ${play.target2R} (2R) with high institutional volume confirmation.`}</span>
-                                        </div>
-                                        <div className="flex items-start gap-1.5 leading-relaxed">
-                                          <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
-                                          <span><strong className="text-white">Risk & Invalidation:</strong> {play.riskManagement || `Trigger ${play.entryTrigger} | Invalidation Stop ${play.stopLoss} | Target 2R ${play.target2R} (1.5% max risk).`}</span>
-                                        </div>
-                                      </div>
-                                    </div>
+                                <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
+                                  {macroSection.items.map((item, iIdx) => (
+                                    <li key={iIdx} className="flex items-start gap-2 leading-relaxed">
+                                      <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                                      <span>{item}</span>
+                                    </li>
                                   ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Section 2: Important Events & Recent News */}
+                            {eventsSection && (
+                              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 shadow-sm">
+                                <div className="font-bold text-white text-xs flex items-center gap-1.5 border-b border-white/5 pb-2">
+                                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>{eventsSection.category}</span>
                                 </div>
+                                <ul className="space-y-2 text-[11px] text-slate-300 pl-1">
+                                  {eventsSection.items.map((item, iIdx) => (
+                                    <li key={iIdx} className="flex items-start gap-2 leading-relaxed">
+                                      <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
+                                      <span>{item}</span>
+                                    </li>
+                                  ))}
+                                </ul>
                               </div>
                             )}
                           </div>
@@ -747,8 +646,19 @@ export const TradingView = ({
                 </GlassCard>
               )}
 
-              {/* Plays of the Day Grid with Deep Research Dossiers */}
-              <div className="space-y-2.5">
+              {/* Main Section: High-Conviction Setups of the Day (What to Buy/Sell & Why) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                      <span>High-Conviction Setups ({availableWarRoomPlays.length})</span>
+                    </h3>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                      1-Click Execution Integrated
+                    </span>
+                  </div>
+                </div>
 
                 {availableWarRoomPlays.length === 0 ? (
                   <GlassCard hoverEffect={false} className="p-8 text-center space-y-3 border border-white/5">
@@ -785,35 +695,35 @@ export const TradingView = ({
                     </div>
                   </GlassCard>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {availableWarRoomPlays.map((play, idx) => {
                       const isLong = play.bias === 'LONG';
                       const isDossierOpen = expandedDossierIdx === idx;
 
                       return (
-                        <GlassCard key={idx} hoverEffect={false} className="p-3.5 space-y-2.5">
+                        <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3 border border-white/10 hover:border-white/20 transition-all shadow-md">
+                          {/* Card Header: Ticker, Category, Leverage, Alpha Score, and 1-Click Action Buttons */}
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-white font-mono">{play.ticker}</span>
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10 flex items-center gap-0.5">
-                                {isLong ? <ArrowUpRight className="w-3 h-3 text-slate-300" /> : <ArrowDownRight className="w-3 h-3 text-slate-300" />}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-bold text-white font-mono tracking-wide">{play.ticker}</span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.06] text-slate-200 border border-white/10 flex items-center gap-0.5">
+                                {isLong ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : <ArrowDownRight className="w-3 h-3 text-rose-400" />}
                                 {play.bias} 5x
                               </span>
-                              <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
-                              {play.horizonType && (
-                                <span className="text-[9px] font-mono px-2 py-0.2 rounded font-semibold bg-white/[0.06] text-amber-300 border border-amber-500/20">
-                                  {play.horizonType}
+                              {play.category && (
+                                <span className="text-[9px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.04] text-amber-300 border border-amber-500/20">
+                                  {play.category}
                                 </span>
                               )}
                               {play.confluenceScore && (
-                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                                  {play.confluenceScore}% Alpha
+                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                                  {play.confluenceScore}% Alpha • Grade {play.convictionGrade || 'A'}
                                 </span>
                               )}
                             </div>
 
-                            {/* Actions: Direct Hyperliquid Execution or Forward-Test */}
-                            <div className="flex items-center gap-1.5">
+                            {/* Direct 1-Click Action Buttons (Single Clean Plus) */}
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -821,7 +731,7 @@ export const TradingView = ({
                                   setHyperliquidTicker(play.ticker);
                                   setActiveTab('execute');
                                 }}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95"
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95 shadow-sm"
                                 title="Execute directly on Hyperliquid L1"
                               >
                                 <Zap className="w-3 h-3 text-emerald-400" />
@@ -830,11 +740,12 @@ export const TradingView = ({
                               <button
                                 type="button"
                                 onClick={() => handleOpenOrderModal(play)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95"
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95 shadow-sm"
                                 style={{
                                   backgroundColor: 'var(--accent-subtle)',
                                   border: '1px solid var(--accent-border)'
                                 }}
+                                title="Forward-Test paper trade"
                               >
                                 <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                 <span>Test</span>
@@ -842,117 +753,123 @@ export const TradingView = ({
                             </div>
                           </div>
 
-                        {/* Multi-Factor Alpha Confluence Matrix */}
-                        {play.factorScores && (
-                          <div className="grid grid-cols-4 gap-1 p-1.5 rounded-xl bg-black/40 border border-white/5 font-mono text-center">
-                            <div>
-                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Whale Flow</div>
-                              <div className="font-bold text-emerald-400 text-[10px]">{play.factorScores.smartMoney}/100</div>
+                          {/* Visual Metric Pills Row: Entry, Stop Loss, Take Profit 2R/3R, Risk/Reward */}
+                          <div className="grid grid-cols-4 gap-1.5 p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-center text-xs">
+                            <div className="space-y-0.5">
+                              <div className="text-[9px] text-slate-400 uppercase tracking-wider">Trigger Entry</div>
+                              <div className="font-bold text-white truncate text-[11px]">{play.entryNumeric ? `$${play.entryNumeric}` : play.entryTrigger.split(' ')[0]}</div>
                             </div>
-                            <div>
-                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Structure</div>
-                              <div className="font-bold text-cyan-400 text-[10px]">{play.factorScores.structure}/100</div>
+                            <div className="space-y-0.5">
+                              <div className="text-[9px] text-rose-400 uppercase tracking-wider">Stop Loss</div>
+                              <div className="font-bold text-rose-300 text-[11px]">{play.stopLoss}</div>
                             </div>
-                            <div>
-                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Catalyst</div>
-                              <div className="font-bold text-amber-400 text-[10px]">{play.factorScores.catalyst}/100</div>
+                            <div className="space-y-0.5">
+                              <div className="text-[9px] text-emerald-400 uppercase tracking-wider">Take Profit (2R)</div>
+                              <div className="font-bold text-emerald-300 text-[11px]">{play.target2R}</div>
                             </div>
-                            <div>
-                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Macro</div>
-                              <div className="font-bold text-purple-400 text-[10px]">{play.factorScores.macro}/100</div>
+                            <div className="space-y-0.5">
+                              <div className="text-[9px] text-cyan-400 uppercase tracking-wider">Risk / Reward</div>
+                              <div className="font-bold text-cyan-300 text-[11px]">{play.riskRewardRatio || '1:2.6'}</div>
                             </div>
                           </div>
-                        )}
 
-                        {/* Timeframe & Trade Duration */}
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                          <Clock className="w-3 h-3 shrink-0" style={{ color: 'var(--accent-primary)' }} />
-                          <span className="text-slate-200 font-medium">{play.timeframe || '1H - 4H Intraday'}</span>
-                          <span>•</span>
-                          <span>{play.expectedDuration || '3 - 8h'}</span>
-                          <span>•</span>
-                          <span className="text-slate-300 font-mono font-semibold">R:R {play.riskRewardRatio}</span>
-                        </div>
-
-                        {/* Entry, Stop Loss, 2R Take Profit Matrix */}
-                        <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-xs">
-                          <div>
-                            <div className="text-[9px] text-slate-400 uppercase">Trigger</div>
-                            <div className="font-bold text-white truncate">{play.entryTrigger.split(' ')[0]}</div>
-                          </div>
-                          <div>
-                            <div className="text-[9px] text-slate-400 uppercase">Stop Loss</div>
-                            <div className="font-bold text-rose-300">{play.stopLoss}</div>
-                          </div>
-                          <div>
-                            <div className="text-[9px] text-slate-400 uppercase">2R Target</div>
-                            <div className="font-bold text-emerald-300">{play.target2R}</div>
-                          </div>
-                        </div>
-
-                        {/* Idiosyncratic Chief Thesis */}
-                        <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                          <strong className="text-slate-400">Thesis:</strong> {play.thesis}
-                        </p>
-
-                        {/* Expandable Deep Research Dossier */}
-                        <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
-                            className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                              <span>{isDossierOpen ? 'Hide Institutional Dossier' : 'View Deep Research & Dark Pools'}</span>
-                            </span>
-                            {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                          </button>
-
-                          {isDossierOpen && (
-                            <div className="space-y-2 p-2.5 rounded-xl bg-black/40 border border-white/5 text-[11px] text-slate-300">
-                              {play.catalystDossier && (
-                                <div>
-                                  <div className="font-semibold text-white flex items-center gap-1">
-                                    <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                    <span>Confirmed News / Reports Catalyst:</span>
-                                  </div>
-                                  <p className="text-slate-300 pl-4 mt-0.5">{play.catalystDossier}</p>
-                                </div>
-                              )}
-
-                              {play.institutionalFlow && (
-                                <div>
-                                  <div className="font-semibold text-white flex items-center gap-1">
-                                    <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                    <span>Whale & Dark Pool Footprint:</span>
-                                  </div>
-                                  <p className="text-slate-300 pl-4 mt-0.5">{play.institutionalFlow}</p>
-                                </div>
-                              )}
-
-                              {play.technicalStructure && (
-                                <div>
-                                  <div className="font-semibold text-white flex items-center gap-1">
-                                    <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                    <span>Orderbook & Volume Profile:</span>
-                                  </div>
-                                  <p className="text-slate-300 pl-4 mt-0.5">{play.technicalStructure}</p>
-                                </div>
-                              )}
+                          {/* Multi-Factor Alpha Confluence Grid */}
+                          {play.factorScores && (
+                            <div className="grid grid-cols-4 gap-1 p-1.5 rounded-xl bg-black/30 border border-white/5 font-mono text-center">
+                              <div>
+                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Whale Flow</div>
+                                <div className="font-bold text-emerald-400 text-[10px]">{play.factorScores.smartMoney}/100</div>
+                              </div>
+                              <div>
+                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Structure</div>
+                                <div className="font-bold text-cyan-400 text-[10px]">{play.factorScores.structure}/100</div>
+                              </div>
+                              <div>
+                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Catalyst</div>
+                                <div className="font-bold text-amber-400 text-[10px]">{play.factorScores.catalyst}/100</div>
+                              </div>
+                              <div>
+                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Macro</div>
+                                <div className="font-bold text-purple-400 text-[10px]">{play.factorScores.macro}/100</div>
+                              </div>
                             </div>
                           )}
 
-                          <div className="text-[11px] text-slate-400 pt-0.5">
-                            <strong className="text-rose-400">Invalidation:</strong> {play.invalidation}
+                          {/* 3 Point-Form Bullets: Why Chosen, Expected Move, Risk & Invalidation */}
+                          <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
+                            <div className="flex items-start gap-1.5 leading-relaxed">
+                              <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                              <span><strong className="text-white">Why Chosen:</strong> {play.whyChosen || play.thesis || play.catalystDossier}</span>
+                            </div>
+                            <div className="flex items-start gap-1.5 leading-relaxed">
+                              <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
+                              <span><strong className="text-white">Expected Move:</strong> {play.projectedMove || `Pullback to ${play.entryTrigger} targeting ${play.target2R} (2R) with expanding volume.`}</span>
+                            </div>
+                            <div className="flex items-start gap-1.5 leading-relaxed">
+                              <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
+                              <span><strong className="text-white">Risk & Invalidation:</strong> {play.riskManagement || `Trigger ${play.entryTrigger} | Invalidation Stop ${play.stopLoss} | Target 2R ${play.target2R} (1.5% max risk).`}</span>
+                            </div>
                           </div>
-                        </div>
-                      </GlassCard>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+
+                          {/* Expandable Deep Research Dossier */}
+                          <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
+                              className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                <span>{isDossierOpen ? 'Hide Institutional Dossier' : 'View Institutional Dossier (Dark Pools & Filings)'}</span>
+                              </span>
+                              {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+
+                            {isDossierOpen && (
+                              <div className="space-y-2 p-2.5 rounded-xl bg-black/50 border border-white/5 text-[11px] text-slate-300 animate-in fade-in duration-200">
+                                {play.catalystDossier && (
+                                  <div>
+                                    <div className="font-semibold text-white flex items-center gap-1">
+                                      <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                      <span>Confirmed SEC / Protocol Reports:</span>
+                                    </div>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{play.catalystDossier}</p>
+                                  </div>
+                                )}
+
+                                {play.institutionalFlow && (
+                                  <div>
+                                    <div className="font-semibold text-white flex items-center gap-1">
+                                      <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                      <span>Whale & Dark Pool Footprint:</span>
+                                    </div>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{play.institutionalFlow}</p>
+                                  </div>
+                                )}
+
+                                {play.technicalStructure && (
+                                  <div>
+                                    <div className="font-semibold text-white flex items-center gap-1">
+                                      <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                      <span>Orderbook & Volume Profile:</span>
+                                    </div>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{play.technicalStructure}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="text-[11px] text-slate-400 pt-0.5 flex items-center gap-1">
+                              <span className="text-rose-400 font-bold">Invalidation Rule:</span>
+                              <span>{play.invalidation || `Hourly candle close below ${play.stopLoss}.`}</span>
+                            </div>
+                          </div>
+                        </GlassCard>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* Big Fund & Whale Intelligence Log */}
               {hermesBrief?.fundIntelligence && hermesBrief.fundIntelligence.length > 0 && (

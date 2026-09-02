@@ -10,8 +10,11 @@ const STORAGE_KEY_JOURNAL = 'wolfe_trading_journal_v1';
 const STORAGE_KEY_WEBHOOK_LOGS = 'wolfe_trading_webhook_logs_v1';
 const STORAGE_KEY_HERMES_BRIEFS = 'wolfe_trading_hermes_briefs_v1';
 
-// Default Tickers for High-Liquidity Crypto & Small/Mid-Cap Growth Equities
+// Default Tickers for High-Liquidity Crypto & Small/Mid-Cap Growth Equities & Major Market Indices
 export const DEFAULT_WATCHLIST = [
+  { symbol: 'NASDAQ', name: 'Nasdaq Composite', price: 19842.50, change: '+0.78%', isPositive: true, category: 'US Index' },
+  { symbol: 'QQQ', name: 'Invesco QQQ Tech ETF', price: 482.30, change: '+0.85%', isPositive: true, category: 'Tech ETF' },
+  { symbol: 'SPY', name: 'S&P 500 ETF Trust', price: 588.60, change: '+0.52%', isPositive: true, category: 'US Index' },
   { symbol: 'ASTS', name: 'AST SpaceMobile', price: 26.40, change: '+4.20%', isPositive: true, category: 'Space Telecom' },
   { symbol: 'PLTR', name: 'Palantir Technologies', price: 68.20, change: '+2.10%', isPositive: true, category: 'Enterprise AI' },
   { symbol: 'HYPE', name: 'Hyperliquid Native L1', price: 81.94, change: '+6.80%', isPositive: true, category: 'L1 DEX Clearing' },
@@ -87,9 +90,6 @@ export function getWatchlist() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_WATCHLIST);
     let list = raw ? JSON.parse(raw) : DEFAULT_WATCHLIST;
-    
-    // Clean up NASDAQ and outdated indices
-    list = list.filter(item => item.symbol !== 'NASDAQ' && item.symbol !== 'IXIC' && item.symbol !== 'QQQ');
 
     // Ensure all monitored candidate assets are present in the list
     DEFAULT_WATCHLIST.forEach(def => {
@@ -97,7 +97,7 @@ export function getWatchlist() {
       if (idx === -1) {
         list.push(def);
       } else {
-        // Update price/category if default is newer
+        // Update price/category if default has updated metadata
         list[idx] = { ...def, ...list[idx] };
       }
     });
