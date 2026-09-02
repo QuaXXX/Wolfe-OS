@@ -656,6 +656,11 @@ export const TradingView = ({
                                 {play.bias} 5x
                               </span>
                               <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
+                              {play.confluenceScore && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                                  {play.confluenceScore}% Alpha
+                                </span>
+                              )}
                             </div>
 
                             {/* Actions: Direct Hyperliquid Execution or Forward-Test */}
@@ -688,12 +693,36 @@ export const TradingView = ({
                             </div>
                           </div>
 
+                        {/* Multi-Factor Alpha Confluence Matrix */}
+                        {play.factorScores && (
+                          <div className="grid grid-cols-4 gap-1 p-1.5 rounded-xl bg-black/40 border border-white/5 font-mono text-center">
+                            <div>
+                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Whale Flow</div>
+                              <div className="font-bold text-emerald-400 text-[10px]">{play.factorScores.smartMoney}/100</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Structure</div>
+                              <div className="font-bold text-cyan-400 text-[10px]">{play.factorScores.structure}/100</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Catalyst</div>
+                              <div className="font-bold text-amber-400 text-[10px]">{play.factorScores.catalyst}/100</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400 text-[8px] uppercase tracking-wider">Macro</div>
+                              <div className="font-bold text-purple-400 text-[10px]">{play.factorScores.macro}/100</div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Timeframe & Trade Duration */}
                         <div className="flex items-center gap-2 text-[11px] text-slate-400">
                           <Clock className="w-3 h-3 shrink-0" style={{ color: 'var(--accent-primary)' }} />
                           <span className="text-slate-200 font-medium">{play.timeframe || '1H - 4H Intraday'}</span>
                           <span>•</span>
                           <span>{play.expectedDuration || '3 - 8h'}</span>
+                          <span>•</span>
+                          <span className="text-slate-300 font-mono font-semibold">R:R {play.riskRewardRatio}</span>
                         </div>
 
                         {/* Entry, Stop Loss, 2R Take Profit Matrix */}
@@ -704,11 +733,11 @@ export const TradingView = ({
                           </div>
                           <div>
                             <div className="text-[9px] text-slate-400 uppercase">Stop Loss</div>
-                            <div className="font-bold text-slate-200">{play.stopLoss}</div>
+                            <div className="font-bold text-rose-300">{play.stopLoss}</div>
                           </div>
                           <div>
                             <div className="text-[9px] text-slate-400 uppercase">2R Target</div>
-                            <div className="font-bold text-slate-200">{play.target2R}</div>
+                            <div className="font-bold text-emerald-300">{play.target2R}</div>
                           </div>
                         </div>
 
