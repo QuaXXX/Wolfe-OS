@@ -733,7 +733,7 @@ export const TradingView = ({
                         return match ? parseFloat(match[1]) : null;
                       };
 
-                      const currentLive = livePrices[play.ticker] || 100;
+                      const currentLive = livePricesMap?.[play.ticker] || 100;
                       const entryNum = play.entryNumeric || extractFirstNum(play.entryTrigger) || extractFirstNum(riskMgmtText) || currentLive;
                       const stopNum = extractFirstNum(stopLossDisplay) || extractFirstNum(riskMgmtText?.split('Stop Loss')?.[1]) || (isLong ? Number((entryNum * 0.95).toFixed(2)) : Number((entryNum * 1.05).toFixed(2)));
                       const tpNum = extractFirstNum(target2RDisplay) || extractFirstNum(riskMgmtText?.split('Take Profit')?.[1]) || (isLong ? Number((entryNum * 1.10).toFixed(2)) : Number((entryNum * 0.90).toFixed(2)));
