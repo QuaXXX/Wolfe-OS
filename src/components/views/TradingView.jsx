@@ -700,6 +700,30 @@ export const TradingView = ({
                       const isLong = play.bias === 'LONG';
                       const isDossierOpen = expandedDossierIdx === idx;
 
+                      const riskMgmtText = typeof play.riskManagement === 'object' && play.riskManagement !== null
+                        ? `Stop Loss: ${play.riskManagement.stopLoss || play.stopLoss || 'Dynamic'} | Take Profit: ${play.riskManagement.takeProfit || play.target2R || 'Dynamic'} | R:R ${play.riskManagement.riskRewardRatio || play.riskRewardRatio || '1:2.6'}`
+                        : (play.riskManagement ? String(play.riskManagement) : `Trigger ${play.entryTrigger || 'Market'} | Invalidation Stop ${play.stopLoss || 'Dynamic'} | Target 2R ${play.target2R || 'Dynamic'} (1.5% max risk).`);
+
+                      const whyChosenText = typeof play.whyChosen === 'object' && play.whyChosen !== null
+                        ? (play.whyChosen.detail || play.whyChosen.text || Object.values(play.whyChosen).join(' '))
+                        : (play.whyChosen ? String(play.whyChosen) : (play.thesis || play.catalystDossier || 'High confluence breakout.'));
+
+                      const projectedMoveText = typeof play.projectedMove === 'object' && play.projectedMove !== null
+                        ? (play.projectedMove.detail || play.projectedMove.text || Object.values(play.projectedMove).join(' '))
+                        : (play.projectedMove ? String(play.projectedMove) : `Pullback to ${play.entryTrigger || 'trigger'} targeting ${play.target2R || '2R'} with expanding volume.`);
+
+                      const stopLossDisplay = typeof play.stopLoss === 'object' && play.stopLoss !== null
+                        ? (play.stopLoss.price || String(play.stopLoss))
+                        : String(play.stopLoss || 'Dynamic');
+
+                      const target2RDisplay = typeof play.target2R === 'object' && play.target2R !== null
+                        ? (play.target2R.price || String(play.target2R))
+                        : String(play.target2R || 'Dynamic');
+
+                      const riskRewardDisplay = typeof play.riskRewardRatio === 'object' && play.riskRewardRatio !== null
+                        ? (play.riskRewardRatio.ratio || String(play.riskRewardRatio))
+                        : String(play.riskRewardRatio || '1:2.6');
+
                       return (
                         <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3 border border-white/10 hover:border-white/20 transition-all shadow-md">
                           {/* Card Header: Ticker, Category, Leverage, Alpha Score, and 1-Click Action Buttons */}
@@ -712,7 +736,7 @@ export const TradingView = ({
                               </span>
                               {play.category && (
                                 <span className="text-[9px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.04] text-amber-300 border border-amber-500/20">
-                                  {play.category}
+                                  {typeof play.category === 'object' ? Object.values(play.category).join(' ') : String(play.category)}
                                 </span>
                               )}
                               {play.confluenceScore && (
@@ -761,15 +785,15 @@ export const TradingView = ({
                             </div>
                             <div className="space-y-0.5">
                               <div className="text-[9px] text-rose-400 uppercase tracking-wider">Stop Loss</div>
-                              <div className="font-bold text-rose-300 text-[11px]">{play.stopLoss}</div>
+                              <div className="font-bold text-rose-300 text-[11px]">{stopLossDisplay}</div>
                             </div>
                             <div className="space-y-0.5">
                               <div className="text-[9px] text-emerald-400 uppercase tracking-wider">Take Profit (2R)</div>
-                              <div className="font-bold text-emerald-300 text-[11px]">{play.target2R}</div>
+                              <div className="font-bold text-emerald-300 text-[11px]">{target2RDisplay}</div>
                             </div>
                             <div className="space-y-0.5">
                               <div className="text-[9px] text-cyan-400 uppercase tracking-wider">Risk / Reward</div>
-                              <div className="font-bold text-cyan-300 text-[11px]">{play.riskRewardRatio || '1:2.6'}</div>
+                              <div className="font-bold text-cyan-300 text-[11px]">{riskRewardDisplay}</div>
                             </div>
                           </div>
 
@@ -778,19 +802,19 @@ export const TradingView = ({
                             <div className="grid grid-cols-4 gap-1 p-1.5 rounded-xl bg-black/30 border border-white/5 font-mono text-center">
                               <div>
                                 <div className="text-slate-400 text-[8px] uppercase tracking-wider">Whale Flow</div>
-                                <div className="font-bold text-emerald-400 text-[10px]">{play.factorScores.smartMoney}/100</div>
+                                <div className="font-bold text-emerald-400 text-[10px]">{play.factorScores.smartMoney || 90}/100</div>
                               </div>
                               <div>
                                 <div className="text-slate-400 text-[8px] uppercase tracking-wider">Structure</div>
-                                <div className="font-bold text-cyan-400 text-[10px]">{play.factorScores.structure}/100</div>
+                                <div className="font-bold text-cyan-400 text-[10px]">{play.factorScores.structure || 90}/100</div>
                               </div>
                               <div>
                                 <div className="text-slate-400 text-[8px] uppercase tracking-wider">Catalyst</div>
-                                <div className="font-bold text-amber-400 text-[10px]">{play.factorScores.catalyst}/100</div>
+                                <div className="font-bold text-amber-400 text-[10px]">{play.factorScores.catalyst || 90}/100</div>
                               </div>
                               <div>
                                 <div className="text-slate-400 text-[8px] uppercase tracking-wider">Macro</div>
-                                <div className="font-bold text-purple-400 text-[10px]">{play.factorScores.macro}/100</div>
+                                <div className="font-bold text-purple-400 text-[10px]">{play.factorScores.macro || 90}/100</div>
                               </div>
                             </div>
                           )}
@@ -799,15 +823,15 @@ export const TradingView = ({
                           <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
                             <div className="flex items-start gap-1.5 leading-relaxed">
                               <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
-                              <span><strong className="text-white">Why Chosen:</strong> {play.whyChosen || play.thesis || play.catalystDossier}</span>
+                              <span><strong className="text-white">Why Chosen:</strong> {whyChosenText}</span>
                             </div>
                             <div className="flex items-start gap-1.5 leading-relaxed">
                               <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
-                              <span><strong className="text-white">Expected Move:</strong> {play.projectedMove || `Pullback to ${play.entryTrigger} targeting ${play.target2R} (2R) with expanding volume.`}</span>
+                              <span><strong className="text-white">Expected Move:</strong> {projectedMoveText}</span>
                             </div>
                             <div className="flex items-start gap-1.5 leading-relaxed">
                               <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
-                              <span><strong className="text-white">Risk & Invalidation:</strong> {play.riskManagement || `Trigger ${play.entryTrigger} | Invalidation Stop ${play.stopLoss} | Target 2R ${play.target2R} (1.5% max risk).`}</span>
+                              <span><strong className="text-white">Risk & Invalidation:</strong> {riskMgmtText}</span>
                             </div>
                           </div>
 
@@ -833,7 +857,7 @@ export const TradingView = ({
                                       <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                       <span>Confirmed SEC / Protocol Reports:</span>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{play.catalystDossier}</p>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.catalystDossier === 'object' ? Object.values(play.catalystDossier).join(' ') : String(play.catalystDossier)}</p>
                                   </div>
                                 )}
 
@@ -843,7 +867,7 @@ export const TradingView = ({
                                       <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                       <span>Whale & Dark Pool Footprint:</span>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{play.institutionalFlow}</p>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.institutionalFlow === 'object' ? Object.values(play.institutionalFlow).join(' ') : String(play.institutionalFlow)}</p>
                                   </div>
                                 )}
 
@@ -853,7 +877,7 @@ export const TradingView = ({
                                       <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                       <span>Orderbook & Volume Profile:</span>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{play.technicalStructure}</p>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
                                   </div>
                                 )}
                               </div>
@@ -861,7 +885,7 @@ export const TradingView = ({
 
                             <div className="text-[11px] text-slate-400 pt-0.5 flex items-center gap-1">
                               <span className="text-rose-400 font-bold">Invalidation Rule:</span>
-                              <span>{play.invalidation || `Hourly candle close below ${play.stopLoss}.`}</span>
+                              <span>{typeof play.invalidation === 'object' ? Object.values(play.invalidation).join(' ') : String(play.invalidation || `Hourly candle close below ${stopLossDisplay}.`)}</span>
                             </div>
                           </div>
                         </GlassCard>

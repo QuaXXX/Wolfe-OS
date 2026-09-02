@@ -371,16 +371,16 @@ export const HermesWarRoomModal = ({
                             </div>
                             <div>
                               <div className="text-[9px] text-slate-400 uppercase">Stop Loss</div>
-                              <div className="font-bold text-slate-200">{play.stopLoss}</div>
+                              <div className="font-bold text-slate-200">{typeof play.stopLoss === 'object' && play.stopLoss !== null ? (play.stopLoss.price || String(play.stopLoss)) : String(play.stopLoss || 'Dynamic')}</div>
                             </div>
                             <div>
                               <div className="text-[9px] text-slate-400 uppercase">2R Target</div>
-                              <div className="font-bold text-slate-200">{play.target2R}</div>
+                              <div className="font-bold text-slate-200">{typeof play.target2R === 'object' && play.target2R !== null ? (play.target2R.price || String(play.target2R)) : String(play.target2R || 'Dynamic')}</div>
                             </div>
                           </div>
 
                           <div className="text-xs text-slate-300 leading-relaxed">
-                            <strong className="text-slate-400">Thesis:</strong> {play.thesis}
+                            <strong className="text-slate-400">Thesis:</strong> {typeof play.thesis === 'object' && play.thesis !== null ? Object.values(play.thesis).join(' ') : String(play.thesis || 'High confluence alpha setup.')}
                           </div>
 
                           {/* Expandable Deep Research Dossier */}
@@ -405,7 +405,7 @@ export const HermesWarRoomModal = ({
                                       <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                       <span>Confirmed News / Reports Catalyst:</span>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{play.catalystDossier}</p>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.catalystDossier === 'object' ? Object.values(play.catalystDossier).join(' ') : String(play.catalystDossier)}</p>
                                   </div>
                                 )}
 
@@ -415,7 +415,7 @@ export const HermesWarRoomModal = ({
                                       <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                       <span>Whale & Dark Pool Footprint:</span>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{play.institutionalFlow}</p>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.institutionalFlow === 'object' ? Object.values(play.institutionalFlow).join(' ') : String(play.institutionalFlow)}</p>
                                   </div>
                                 )}
 
@@ -425,14 +425,14 @@ export const HermesWarRoomModal = ({
                                       <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                                       <span>Orderbook & Volume Profile:</span>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{play.technicalStructure}</p>
+                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
                                   </div>
                                 )}
                               </div>
                             )}
 
                             <div className="text-[11px] text-slate-400 pt-0.5">
-                              <strong className="text-rose-400">Invalidation:</strong> {play.invalidation}
+                              <strong className="text-rose-400">Invalidation:</strong> {typeof play.invalidation === 'object' ? Object.values(play.invalidation).join(' ') : String(play.invalidation || 'Hourly candle close below stop loss.')}
                             </div>
                           </div>
                         </div>

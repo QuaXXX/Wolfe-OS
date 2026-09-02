@@ -347,10 +347,50 @@ export function logWebhookSignal(signal) {
 // ------------------------------------------------------------------
 // 6. HERMES MORNING WAR ROOM BRIEFS
 // ------------------------------------------------------------------
+function sanitizePlays(plays) {
+  if (!Array.isArray(plays)) return [];
+  return plays.map(p => {
+    let riskMgmt = p.riskManagement;
+    if (typeof riskMgmt === 'object' && riskMgmt !== null) {
+      riskMgmt = `Stop Loss: ${riskMgmt.stopLoss || p.stopLoss || 'Dynamic'} | Take Profit: ${riskMgmt.takeProfit || p.target2R || 'Dynamic'} | R:R ${riskMgmt.riskRewardRatio || p.riskRewardRatio || '1:2'}`;
+    } else if (riskMgmt) {
+      riskMgmt = String(riskMgmt);
+    }
+
+    let whyCh = p.whyChosen;
+    if (typeof whyCh === 'object' && whyCh !== null) {
+      whyCh = whyCh.detail || whyCh.text || whyCh.summary || Object.values(whyCh).join(' ');
+    } else if (whyCh) {
+      whyCh = String(whyCh);
+    }
+
+    let projMove = p.projectedMove;
+    if (typeof projMove === 'object' && projMove !== null) {
+      projMove = projMove.detail || projMove.text || projMove.summary || Object.values(projMove).join(' ');
+    } else if (projMove) {
+      projMove = String(projMove);
+    }
+
+    return {
+      ...p,
+      riskManagement: riskMgmt,
+      whyChosen: whyCh,
+      projectedMove: projMove,
+      stopLoss: typeof p.stopLoss === 'object' && p.stopLoss !== null ? (p.stopLoss?.price || p.stopLoss?.value || String(p.stopLoss)) : p.stopLoss,
+      target2R: typeof p.target2R === 'object' && p.target2R !== null ? (p.target2R?.price || p.target2R?.value || String(p.target2R)) : p.target2R
+    };
+  });
+}
+
 export function getSavedHermesBriefs() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_HERMES_BRIEFS);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const briefs = JSON.parse(raw);
+    return (briefs || []).map(b => ({
+      ...b,
+      highConvictionPlays: sanitizePlays(b.highConvictionPlays)
+    }));
   } catch {
     return [];
   }
@@ -372,7 +412,7 @@ export function saveHermesBrief(brief) {
       councilDialogue: brief.councilDialogue || [],
       fundIntelligence: brief.fundIntelligence || [],
       whaleFlowSignals: brief.whaleFlowSignals || [],
-      highConvictionPlays: brief.highConvictionPlays || [],
+      highConvictionPlays: sanitizePlays(brief.highConvictionPlays || []),
       adversarialReview: brief.adversarialReview || '',
       riskNotice: brief.riskNotice || ''
     };
