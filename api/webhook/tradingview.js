@@ -107,8 +107,8 @@ export default async function handler(req, res) {
 
     // 3. Query Live Hyperliquid Account Equity (from Master Account)
     const userWalletAddress = process.env.HYPERLIQUID_MASTER_WALLET || payload.userAddress || DEFAULT_MASTER_WALLET;
-    let accountEquity = Number(process.env.ACCOUNT_EQUITY || 10000);
-
+    let accountEquity = 10000;
+    let existingPosition = null;
     if (userWalletAddress) {
       try {
         const infoRes = await fetch('https://api.hyperliquid.xyz/info', {
@@ -120,9 +120,12 @@ export default async function handler(req, res) {
           const infoData = await infoRes.json();
           const fetchedEquity = Number(infoData.crossMarginSummary?.accountValue || 0);
           if (fetchedEquity > 0) accountEquity = fetchedEquity;
+
+          const openPositions = infoData.assetPositions || [];
+          existingPosition = openPositions.find(p => p.position?.coin === ticker);
         }
       } catch (err) {
-        console.warn("Could not query live Hyperliquid equity, using default:", err);
+        console.warn("Could not query live Hyperliquid equity/positions, using default:", err);
       }
     }
 
@@ -159,6 +162,39 @@ export default async function handler(req, res) {
     const stopDistanceUSD = Math.max(0.0001, Math.abs(price - effectiveStopLoss));
     const effectiveTakeProfit = takeProfit || (isLong ? price + (stopDistanceUSD * 2) : price - (stopDistanceUSD * 2));
 
+    // Handle FLAT / CLOSE smartly
+    let isBuyOrder = isLong;
+    let orderSizeStr = '';
+    let isReduceOnly = isClose;
+
+    if (isClose) {
+      const szi = Number(existingPosition?.position?.szi || 0);
+      if (Math.abs(szi) < 1e-6) {
+        return res.status(200).json({
+          success: true,
+          message: `Position for ${ticker} is already flat / closed on Hyperliquid.`,
+          execution: {
+            timestamp: new Date().toISOString(),
+            ticker,
+            action: 'FLAT',
+            status: 'ALREADY_FLAT',
+            accountEquity
+          }
+        });
+      }
+
+      // If Long (>0), sell to close. If Short (<0), buy to cover.
+      isBuyOrder = szi < 0;
+      orderSizeStr = String(Math.abs(szi));
+      isReduceOnly = true;
+    } else {
+      // Ensure minimum $11 notional size to satisfy Hyperliquid's $10 minimum order rule
+      const minRequiredSize = Math.max(0.0002, 11.0 / (price || 77300));
+      const effectiveContracts = Math.max(minRequiredSize, contracts || 0.0002);
+      orderSizeStr = String(Number(effectiveContracts.toFixed(precision.sizeDecimals)));
+      isReduceOnly = false;
+    }
+
     // 5. Cryptographically Sign and Submit L1 Order to Hyperliquid (Market IOC Execution)
     let onChainResult = null;
     let onChainError = null;
@@ -168,20 +204,15 @@ export default async function handler(req, res) {
       const account = privateKeyToAccount(effectiveKey.startsWith('0x') ? effectiveKey : `0x${effectiveKey}`);
       
       // Instant Market Fill price with 1% slippage tolerance (max 5 significant figures)
-      const marketPrice = isLong ? (price * 1.01) : (price * 0.99);
+      const marketPrice = isBuyOrder ? (price * 1.01) : (price * 0.99);
       const formattedPrice = String(Number(marketPrice.toPrecision(5)));
-
-      // Ensure minimum $11 notional size to satisfy Hyperliquid's $10 minimum order rule
-      const minRequiredSize = Math.max(0.0002, 11.0 / (price || 77300));
-      const effectiveContracts = Math.max(minRequiredSize, contracts || 0.0002);
-      const formattedSize = isClose ? (0.0002).toFixed(precision.sizeDecimals) : effectiveContracts.toFixed(precision.sizeDecimals);
 
       const orderWire = {
         a: assetIdx,
-        b: isLong,
+        b: isBuyOrder,
         p: formattedPrice,
-        s: formattedSize,
-        r: isClose,
+        s: orderSizeStr,
+        r: isReduceOnly,
         t: {
           limit: {
             tif: 'Ioc'
