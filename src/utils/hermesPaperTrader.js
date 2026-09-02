@@ -279,8 +279,37 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
 
     const isLong = pos.side === 'LONG';
 
-    // 1. If Position is PENDING ENTRY: check if limit price touched in real market
+    // 1. If Position is PENDING ENTRY: check if limit price touched in real market OR if expired
     if (pos.status === 'PENDING_ENTRY') {
+      const todayIso = new Date().toISOString().split('T')[0];
+      const posDate = pos.date || (pos.enteredAt ? pos.enteredAt.split('T')[0] : null);
+      const isOlderThanToday = posDate && posDate < todayIso;
+      const isStaleIntraday = pos.enteredAt && (Date.now() - new Date(pos.enteredAt).getTime() > 14 * 60 * 60 * 1000);
+
+      // Auto-expire intraday pending orders if day has ended and order never filled
+      if (isOlderThanToday || isStaleIntraday) {
+        // Record as expired in history so user has transparency
+        history.unshift({
+          id: pos.id,
+          ticker: pos.ticker,
+          side: pos.side,
+          entryPrice: pos.entryPrice,
+          exitPrice: currentPrice,
+          size: pos.size,
+          pnlUSD: 0.00,
+          roePct: 0.00,
+          spotMovePct: 0.00,
+          rMultiple: 0.00,
+          isWin: false,
+          exitReason: 'EXPIRED (Unfilled Intraday)',
+          strategy: pos.strategy || 'Intraday Limit Order',
+          enteredAt: pos.enteredAt || pos.date,
+          closedAt: new Date().toISOString()
+        });
+        savePaperTradeHistory(history);
+        continue; // Drop from active positions
+      }
+
       let isEntryTriggered = false;
       if (isLong && currentPrice <= pos.entryPrice * 1.001) {
         isEntryTriggered = true;
