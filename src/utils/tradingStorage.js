@@ -12,12 +12,19 @@ const STORAGE_KEY_HERMES_BRIEFS = 'wolfe_trading_hermes_briefs_v1';
 
 // Default Tickers for High-Liquidity Crypto & Small/Mid-Cap Growth Equities
 export const DEFAULT_WATCHLIST = [
-  { symbol: 'ASTS', name: 'AST SpaceMobile', price: 26.40, change: '+4.20%', isPositive: true, category: 'Equity' },
-  { symbol: 'PLTR', name: 'Palantir Technologies', price: 68.20, change: '+2.10%', isPositive: true, category: 'Equity' },
-  { symbol: 'SUI', name: 'Sui Protocol Perp', price: 3.25, change: '+5.40%', isPositive: true, category: 'Crypto' },
-  { symbol: 'SOL', name: 'Solana Perp', price: 100.61, change: '+2.45%', isPositive: true, category: 'Crypto' },
-  { symbol: 'BTC', name: 'Bitcoin Perp', price: 77336.50, change: '+1.12%', isPositive: true, category: 'Crypto' },
-  { symbol: 'NVDA', name: 'Nvidia Corp', price: 132.80, change: '+1.94%', isPositive: true, category: 'Equity' }
+  { symbol: 'ASTS', name: 'AST SpaceMobile', price: 26.40, change: '+4.20%', isPositive: true, category: 'Space Telecom' },
+  { symbol: 'PLTR', name: 'Palantir Technologies', price: 68.20, change: '+2.10%', isPositive: true, category: 'Enterprise AI' },
+  { symbol: 'HYPE', name: 'Hyperliquid Native L1', price: 81.94, change: '+6.80%', isPositive: true, category: 'L1 DEX Clearing' },
+  { symbol: 'SOL', name: 'Solana Perp', price: 100.61, change: '+2.45%', isPositive: true, category: 'High-Throughput L1' },
+  { symbol: 'BTC', name: 'Bitcoin Perp', price: 77336.50, change: '+1.12%', isPositive: true, category: 'Macro Hard Asset' },
+  { symbol: 'SUI', name: 'Sui Protocol Perp', price: 3.25, change: '+5.40%', isPositive: true, category: 'Layer 1 DeFi' },
+  { symbol: 'TAO', name: 'Bittensor AI', price: 512.40, change: '+7.30%', isPositive: true, category: 'Decentralized AI' },
+  { symbol: 'RENDER', name: 'Render Network', price: 6.85, change: '+3.90%', isPositive: true, category: 'DePIN GPU Compute' },
+  { symbol: 'ONDO', name: 'Ondo Finance RWA', price: 1.15, change: '+4.50%', isPositive: true, category: 'Tokenized RWAs' },
+  { symbol: 'ENA', name: 'Ethena USDe', price: 0.62, change: '+8.20%', isPositive: true, category: 'Basis Yield Engine' },
+  { symbol: 'NVDA', name: 'Nvidia Corp', price: 132.80, change: '+1.94%', isPositive: true, category: 'Hyperscaler Compute' },
+  { symbol: 'MSTR', name: 'MicroStrategy', price: 345.20, change: '+5.10%', isPositive: true, category: 'BTC Reserve Treasury' },
+  { symbol: 'TSLA', name: 'Tesla Inc', price: 218.40, change: '+1.80%', isPositive: true, category: 'Autonomous AI & Robotics' }
 ];
 
 export const DEFAULT_TRADING_CONFIG = {

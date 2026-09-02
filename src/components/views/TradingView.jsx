@@ -711,6 +711,11 @@ export const TradingView = ({
                                 {play.bias} 5x
                               </span>
                               <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
+                              {play.horizonType && (
+                                <span className="text-[9px] font-mono px-2 py-0.2 rounded font-semibold bg-white/[0.06] text-amber-300 border border-amber-500/20">
+                                  {play.horizonType}
+                                </span>
+                              )}
                               {play.confluenceScore && (
                                 <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
                                   {play.confluenceScore}% Alpha
