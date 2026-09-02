@@ -159,20 +159,32 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
   const existingPositions = getPaperPositions();
 
   const ticker = (play.ticker || 'BTC').toUpperCase();
-  const isLong = (play.bias || 'LONG').toUpperCase() === 'LONG';
+  const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
 
-  // Parse numeric planned entry, stop loss, and take profit
-  const entryMatches = String(play.entryTrigger).match(/\$?([0-9,.]+)/);
-  const plannedLimitEntryPrice = entryMatches ? Number(entryMatches[1].replace(/,/g, '')) : 100;
+  const extractNum = (val) => {
+    if (!val) return null;
+    const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+    return match ? parseFloat(match[1]) : null;
+  };
 
-  const stopMatches = String(play.stopLoss).match(/\$?([0-9,.]+)/);
-  let stopLoss = stopMatches ? Number(stopMatches[1].replace(/,/g, '')) : (isLong ? plannedLimitEntryPrice * 0.98 : plannedLimitEntryPrice * 1.02);
+  // Parse numeric planned entry, stop loss, and take profit accurately
+  const currentLivePrice = livePrices[ticker] ? Number(livePrices[ticker]) : (play.entryNumeric || 100);
+  const plannedLimitEntryPrice = play.entryNumeric 
+    || extractNum(play.entryTrigger) 
+    || extractNum(play.riskManagement) 
+    || currentLivePrice;
 
-  const tpMatches = String(play.target2R).match(/\$?([0-9,.]+)/);
-  let takeProfit = tpMatches ? Number(tpMatches[1].replace(/,/g, '')) : (isLong ? plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2 : plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2);
+  let stopLoss = play.stopNumeric 
+    || extractNum(play.stopLoss) 
+    || extractNum(String(play.riskManagement).split('Stop Loss')?.[1]) 
+    || (isLong ? Number((plannedLimitEntryPrice * 0.95).toFixed(2)) : Number((plannedLimitEntryPrice * 1.05).toFixed(2)));
+
+  let takeProfit = play.target2RNumeric 
+    || extractNum(play.target2R) 
+    || extractNum(String(play.riskManagement).split('Take Profit')?.[1]) 
+    || (isLong ? Number((plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)) : Number((plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)));
 
   const leverage = account.leverage || 5;
-  const currentLivePrice = livePrices[ticker] ? Number(livePrices[ticker]) : plannedLimitEntryPrice;
 
   let actualEntryPrice = plannedLimitEntryPrice;
   let isImmediatelyActive = false;
@@ -279,16 +291,20 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
 
     const isLong = pos.side === 'LONG';
 
-    // 1. If Position is PENDING ENTRY: check if limit price touched in real market OR if expired
+    // 1. If Position is PENDING ENTRY: check if limit price touched in real market OR if expired / invalidated
     if (pos.status === 'PENDING_ENTRY') {
       const todayIso = new Date().toISOString().split('T')[0];
       const posDate = pos.date ? String(pos.date).split('T')[0] : (pos.enteredAt ? String(pos.enteredAt).split('T')[0] : null);
       const isOlderThanToday = posDate && posDate < todayIso;
       const isStaleIntraday = pos.enteredAt && (Date.now() - new Date(pos.enteredAt).getTime() > 14 * 60 * 60 * 1000);
 
-      // Auto-expire intraday pending orders if day has ended and order never filled
-      if (isOlderThanToday || isStaleIntraday) {
-        // Record as expired in history so user has transparency
+      // Check if price pierced stop loss before ever filling limit entry (Invalidated)
+      const isInvalidatedBeforeFill = isLong 
+        ? (pos.stopLoss && currentPrice <= pos.stopLoss)
+        : (pos.stopLoss && currentPrice >= pos.stopLoss);
+
+      // Auto-expire/cancel intraday pending orders if day has ended or if setup was invalidated
+      if (isOlderThanToday || isStaleIntraday || isInvalidatedBeforeFill) {
         history.unshift({
           id: pos.id,
           ticker: pos.ticker,
@@ -301,7 +317,7 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
           spotMovePct: 0.00,
           rMultiple: 0.00,
           isWin: false,
-          exitReason: 'EXPIRED (Unfilled Intraday)',
+          exitReason: isInvalidatedBeforeFill ? 'INVALIDATED (Price pierced SL before entry)' : 'EXPIRED (Unfilled Intraday)',
           strategy: pos.strategy || 'Intraday Limit Order',
           enteredAt: pos.enteredAt || pos.date,
           closedAt: new Date().toISOString()

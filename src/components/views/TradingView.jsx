@@ -275,12 +275,31 @@ export const TradingView = ({
   };
 
   const availableWarRoomPlays = useMemo(() => {
+    const extractNum = (val) => {
+      if (!val) return null;
+      const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+      return match ? parseFloat(match[1]) : null;
+    };
+
     return (hermesBrief?.highConvictionPlays || []).filter(play => {
       const isForwardTesting = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
       const isCompleted = tradeJournal.some(j => j.ticker === play.ticker);
-      return !isForwardTesting && !isCompleted;
+      if (isForwardTesting || isCompleted) return false;
+
+      // Auto-remove untriggered setups if live price has pierced stop loss (Invalidated)
+      const currentLive = livePricesMap?.[play.ticker];
+      if (currentLive) {
+        const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
+        const stopNum = play.stopNumeric || extractNum(play.stopLoss) || extractNum(String(play.riskManagement).split('Stop Loss')?.[1]);
+        if (stopNum) {
+          if (isLong && currentLive <= stopNum) return false;
+          if (!isLong && currentLive >= stopNum) return false;
+        }
+      }
+
+      return true;
     });
-  }, [hermesBrief, paperPositions, tradeJournal]);
+  }, [hermesBrief, paperPositions, tradeJournal, livePricesMap]);
 
   const tabsConfig = [
     { 
@@ -726,7 +745,7 @@ export const TradingView = ({
                         ? (play.riskRewardRatio.ratio || String(play.riskRewardRatio))
                         : String(play.riskRewardRatio || '1:2.6');
 
-                      // Extract numerical prices for precise chart visualization
+                      // Extract numerical prices for precise gauge visualization
                       const extractFirstNum = (val) => {
                         if (!val) return null;
                         const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
@@ -744,10 +763,33 @@ export const TradingView = ({
                       const entryFormatted = entryNum >= 1000 ? `$${entryNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${entryNum.toFixed(2)}`;
                       const tpFormatted = tpNum >= 1000 ? `$${tpNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${tpNum.toFixed(2)}`;
                       const stopFormatted = stopNum >= 1000 ? `$${stopNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${stopNum.toFixed(2)}`;
+                      const liveFormatted = currentLive >= 1000 ? `$${currentLive.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${currentLive.toFixed(2)}`;
+
+                      // Distance from planned trigger
+                      const distFromEntryPct = entryNum > 0 ? (((currentLive - entryNum) / entryNum) * 100).toFixed(1) : '0.0';
+                      const isNearEntry = Math.abs(Number(distFromEntryPct)) <= 0.8;
+
+                      // Percentage along the Stop Loss -> Take Profit spectrum
+                      const totalRange = Math.abs(tpNum - stopNum);
+                      let liveProgressPct = 50;
+                      if (totalRange > 0) {
+                        if (isLong) {
+                          liveProgressPct = Math.min(100, Math.max(0, ((currentLive - stopNum) / totalRange) * 100));
+                        } else {
+                          liveProgressPct = Math.min(100, Math.max(0, ((stopNum - currentLive) / totalRange) * 100));
+                        }
+                      }
+
+                      // Only show the dossier option if there is genuine content
+                      const hasDossierContent = Boolean(
+                        (play.catalystDossier && String(play.catalystDossier).trim().length > 0) ||
+                        (play.institutionalFlow && String(play.institutionalFlow).trim().length > 0) ||
+                        (play.technicalStructure && String(play.technicalStructure).trim().length > 0)
+                      );
 
                       return (
                         <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3 border border-white/10 hover:border-white/20 transition-all shadow-md">
-                          {/* Card Header: Ticker, Direction Badge, Category, Grade, and 1-Click Action Buttons */}
+                          {/* Card Header: Ticker, Direction Badge, Grade Badge, and 1-Click Action Buttons */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-base font-bold text-white font-mono tracking-wide">{play.ticker}</span>
@@ -762,14 +804,7 @@ export const TradingView = ({
                                 <span>{isLong ? 'Long 5x' : 'Short 5x'}</span>
                               </span>
 
-                              {/* Category Badge */}
-                              {play.category && (
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-medium bg-white/[0.04] text-amber-300 border border-amber-500/20">
-                                  {typeof play.category === 'object' ? Object.values(play.category).join(' ') : String(play.category)}
-                                </span>
-                              )}
-
-                              {/* Grade Badge Only */}
+                              {/* Grade Badge Only (No category clutter) */}
                               <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-white/[0.06] text-slate-200 border border-white/10">
                                 Grade <strong className="text-amber-300 font-extrabold">{play.convictionGrade || 'A+'}</strong>
                               </span>
@@ -792,7 +827,12 @@ export const TradingView = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenOrderModal(play)}
+                                onClick={() => handleOpenOrderModal({
+                                  ...play,
+                                  entryNumeric: entryNum,
+                                  stopNumeric: stopNum,
+                                  target2RNumeric: tpNum
+                                })}
                                 className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95 shadow-sm"
                                 style={{
                                   backgroundColor: 'var(--accent-subtle)',
@@ -806,111 +846,64 @@ export const TradingView = ({
                             </div>
                           </div>
 
-                          {/* Visual Trade Execution & Risk-Reward Ladder Chart */}
-                          <div className="p-3 rounded-2xl bg-black/50 border border-white/5 space-y-2 relative overflow-hidden font-mono">
-                            <div className="flex items-center justify-between text-[10px] pb-1 border-b border-white/5 relative z-10">
-                              <span className="text-slate-400 flex items-center gap-1">
-                                <SlidersHorizontal className="w-3 h-3 text-cyan-400" />
-                                <span>Visual Setup Map</span>
-                              </span>
-                              <span className="text-slate-200 font-bold px-1.5 py-0.2 rounded bg-white/[0.06] border border-white/10">
+                          {/* Simplified Visual Setup Map: Live Market vs Levels */}
+                          <div className="p-3 rounded-2xl bg-black/45 border border-white/5 space-y-2.5 font-mono">
+                            {/* Top Level Bar: Live Price & Proximity to Entry */}
+                            <div className="flex items-center justify-between text-xs pb-1.5 border-b border-white/5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-400 uppercase tracking-wider">Live Market:</span>
+                                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                  {liveFormatted}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                                  isNearEntry 
+                                    ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/25' 
+                                    : (Number(distFromEntryPct) > 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300')
+                                }`}>
+                                  {isNearEntry ? '🎯 Near Entry Level' : `${distFromEntryPct > 0 ? '+' : ''}${distFromEntryPct}% from Entry`}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-200 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/10">
                                 R:R {riskRewardDisplay}
                               </span>
                             </div>
 
-                            <div className="relative py-1">
-                              <svg className="w-full h-24 overflow-visible" viewBox="0 0 360 86">
-                                <defs>
-                                  {/* Profit Gradient */}
-                                  <linearGradient id={`profitGrad-${idx}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
-                                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
-                                  </linearGradient>
-                                  {/* Risk Gradient */}
-                                  <linearGradient id={`riskGrad-${idx}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.02" />
-                                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.20" />
-                                  </linearGradient>
-                                  {/* Trajectory Stroke Gradient */}
-                                  <linearGradient id={`trajGrad-${idx}`} x1="0%" y1="100%" x2="100%" y2="0%">
-                                    <stop offset="0%" stopColor="#38bdf8" />
-                                    <stop offset="50%" stopColor="#06b6d4" />
-                                    <stop offset="100%" stopColor="#10b981" />
-                                  </linearGradient>
-                                </defs>
+                            {/* 3 Metric Pills: Stop Loss | Entry Trigger | Take Profit */}
+                            <div className="grid grid-cols-3 gap-1.5 text-center">
+                              <div className="p-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
+                                <div className="text-[9px] text-rose-400 uppercase font-semibold">Stop Loss</div>
+                                <div className="font-bold text-rose-300 text-xs mt-0.5">{stopFormatted}</div>
+                                <div className="text-[8px] text-rose-400/80">-{lossPct}%</div>
+                              </div>
 
-                                {/* Shaded Profit Zone */}
-                                <rect x="0" y="10" width="360" height="33" fill={`url(#profitGrad-${idx})`} rx="4" />
-                                
-                                {/* Shaded Risk Zone */}
-                                <rect x="0" y="43" width="360" height="33" fill={`url(#riskGrad-${idx})`} rx="4" />
+                              <div className="p-1.5 rounded-xl bg-cyan-500/[0.08] border border-cyan-500/20">
+                                <div className="text-[9px] text-cyan-400 uppercase font-semibold">Trigger Entry</div>
+                                <div className="font-bold text-cyan-200 text-xs mt-0.5">{entryFormatted}</div>
+                                <div className="text-[8px] text-cyan-300/80">{isLong ? 'Buy Level' : 'Short Level'}</div>
+                              </div>
 
-                                {/* Level 1: Take Profit (Top) */}
-                                <line x1="0" y1="10" x2="360" y2="10" stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.9" />
-                                <circle cx="348" cy="10" r="3.5" fill="#10b981" />
+                              <div className="p-1.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/20">
+                                <div className="text-[9px] text-emerald-400 uppercase font-semibold">Take Profit (2R)</div>
+                                <div className="font-bold text-emerald-300 text-xs mt-0.5">{tpFormatted}</div>
+                                <div className="text-[8px] text-emerald-400/80">+{profitPct}%</div>
+                              </div>
+                            </div>
 
-                                {/* Level 2: Entry Trigger (Middle) */}
-                                <line x1="0" y1="43" x2="360" y2="43" stroke="#38bdf8" strokeWidth="1.5" opacity="0.85" />
-                                <circle cx="100" cy="43" r="4" fill="#38bdf8" stroke="#000" strokeWidth="1.5" />
-
-                                {/* Level 3: Stop Loss (Bottom) */}
-                                <line x1="0" y1="76" x2="360" y2="76" stroke="#f43f5e" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.9" />
-                                <circle cx="348" cy="76" r="3.5" fill="#f43f5e" />
-
-                                {/* Projected Price Trajectory Curve */}
-                                {isLong ? (
-                                  <path
-                                    d="M 15 50 Q 55 54, 100 43 T 220 25 T 348 10"
-                                    fill="none"
-                                    stroke={`url(#trajGrad-${idx})`}
-                                    strokeWidth="2.5"
-                                    strokeLinecap="round"
-                                  />
-                                ) : (
-                                  <path
-                                    d="M 15 36 Q 55 32, 100 43 T 220 61 T 348 76"
-                                    fill="none"
-                                    stroke="#f43f5e"
-                                    strokeWidth="2.5"
-                                    strokeLinecap="round"
-                                  />
-                                )}
-                              </svg>
-
-                              {/* Labels overlaid on chart */}
-                              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] px-1 font-mono">
-                                {/* Take Profit Level */}
-                                <div className="flex items-center justify-between text-emerald-400 font-bold -mt-0.5">
-                                  <span className="flex items-center gap-1 bg-black/70 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                    <Target className="w-2.5 h-2.5 text-emerald-400" />
-                                    <span>Take Profit: {tpFormatted}</span>
-                                  </span>
-                                  <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">
-                                    +{profitPct}% Target
-                                  </span>
-                                </div>
-
-                                {/* Entry Zone */}
-                                <div className="flex items-center justify-between text-cyan-300 font-bold">
-                                  <span className="flex items-center gap-1 bg-black/70 px-1.5 py-0.5 rounded border border-cyan-500/20">
-                                    <Zap className="w-2.5 h-2.5 text-cyan-400" />
-                                    <span>Entry Zone: {entryFormatted}</span>
-                                  </span>
-                                  <span className="text-[9px] text-slate-300 bg-black/60 px-1.5 py-0.2 rounded border border-white/5">
-                                    {isLong ? 'Buy Support' : 'Short Resistance'}
-                                  </span>
-                                </div>
-
-                                {/* Stop Loss Level */}
-                                <div className="flex items-center justify-between text-rose-400 font-bold -mb-0.5">
-                                  <span className="flex items-center gap-1 bg-black/70 px-1.5 py-0.5 rounded border border-rose-500/20">
-                                    <ShieldAlert className="w-2.5 h-2.5 text-rose-400" />
-                                    <span>Stop Loss: {stopFormatted}</span>
-                                  </span>
-                                  <span className="text-[9px] text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.2 rounded">
-                                    -{lossPct}% Invalidation
-                                  </span>
-                                </div>
+                            {/* Horizontal Visual Position Track */}
+                            <div className="relative pt-1.5 pb-0.5">
+                              <div className="h-1.5 w-full bg-slate-800/80 rounded-full overflow-hidden flex">
+                                <div className="h-full bg-rose-500/40" style={{ width: '30%' }} />
+                                <div className="h-full bg-cyan-500/50" style={{ width: '30%' }} />
+                                <div className="h-full bg-emerald-500/40" style={{ width: '40%' }} />
+                              </div>
+                              {/* Live Price Marker Pin */}
+                              <div 
+                                className="absolute top-0 transform -translate-x-1/2 -mt-0.5 transition-all duration-300"
+                                style={{ left: `${liveProgressPct}%` }}
+                                title={`Current Market: ${liveFormatted}`}
+                              >
+                                <div className="w-2.5 h-2.5 rounded-full bg-white ring-2 ring-cyan-400 shadow-lg" />
                               </div>
                             </div>
                           </div>
@@ -931,59 +924,56 @@ export const TradingView = ({
                             </div>
                           </div>
 
-                          {/* Expandable Deep Research Dossier */}
-                          <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
-                              className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                <span>{isDossierOpen ? 'Hide Institutional Dossier' : 'View Institutional Dossier (Dark Pools & Filings)'}</span>
-                              </span>
-                              {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            </button>
+                          {/* Expandable Deep Research Dossier - ONLY rendered if there is content */}
+                          {hasDossierContent && (
+                            <div className="pt-1 border-t border-white/5 space-y-1.5 font-sans">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedDossierIdx(isDossierOpen ? null : idx)}
+                                className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Eye className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                  <span>{isDossierOpen ? 'Hide Research Dossier' : 'View Catalysts & Dark Pools'}</span>
+                                </span>
+                                {isDossierOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
 
-                            {isDossierOpen && (
-                              <div className="space-y-2 p-2.5 rounded-xl bg-black/50 border border-white/5 text-[11px] text-slate-300 animate-in fade-in duration-200">
-                                {play.catalystDossier && (
-                                  <div>
-                                    <div className="font-semibold text-white flex items-center gap-1">
-                                      <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                      <span>Confirmed SEC / Protocol Reports:</span>
+                              {isDossierOpen && (
+                                <div className="space-y-2 p-2.5 rounded-xl bg-black/50 border border-white/5 text-[11px] text-slate-300 animate-in fade-in duration-200">
+                                  {play.catalystDossier && (
+                                    <div>
+                                      <div className="font-semibold text-white flex items-center gap-1">
+                                        <FileText className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                        <span>Confirmed SEC / Protocol Reports:</span>
+                                      </div>
+                                      <p className="text-slate-300 pl-4 mt-0.5">{typeof play.catalystDossier === 'object' ? Object.values(play.catalystDossier).join(' ') : String(play.catalystDossier)}</p>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.catalystDossier === 'object' ? Object.values(play.catalystDossier).join(' ') : String(play.catalystDossier)}</p>
-                                  </div>
-                                )}
+                                  )}
 
-                                {play.institutionalFlow && (
-                                  <div>
-                                    <div className="font-semibold text-white flex items-center gap-1">
-                                      <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                      <span>Whale & Dark Pool Footprint:</span>
+                                  {play.institutionalFlow && (
+                                    <div>
+                                      <div className="font-semibold text-white flex items-center gap-1">
+                                        <Building2 className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                        <span>Whale & Dark Pool Footprint:</span>
+                                      </div>
+                                      <p className="text-slate-300 pl-4 mt-0.5">{typeof play.institutionalFlow === 'object' ? Object.values(play.institutionalFlow).join(' ') : String(play.institutionalFlow)}</p>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.institutionalFlow === 'object' ? Object.values(play.institutionalFlow).join(' ') : String(play.institutionalFlow)}</p>
-                                  </div>
-                                )}
+                                  )}
 
-                                {play.technicalStructure && (
-                                  <div>
-                                    <div className="font-semibold text-white flex items-center gap-1">
-                                      <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                      <span>Orderbook & Volume Profile:</span>
+                                  {play.technicalStructure && (
+                                    <div>
+                                      <div className="font-semibold text-white flex items-center gap-1">
+                                        <Target className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                        <span>Orderbook & Volume Profile:</span>
+                                      </div>
+                                      <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
                                     </div>
-                                    <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            <div className="text-[11px] text-slate-400 pt-0.5 flex items-center gap-1">
-                              <span className="text-rose-400 font-bold">Invalidation Rule:</span>
-                              <span>{typeof play.invalidation === 'object' ? Object.values(play.invalidation).join(' ') : String(play.invalidation || `Hourly candle close below ${stopFormatted}.`)}</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          </div>
+                          )}
                         </GlassCard>
                       );
                     })}

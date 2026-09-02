@@ -33,7 +33,7 @@ export const HyperliquidDirectExecutionPanel = ({
 }) => {
   const [ticker, setTicker] = useState(initialTicker);
   const [leverage, setLeverage] = useState(initialLeverage);
-  const [sizePercent, setSizePercent] = useState(100);
+  const [sizePercent, setSizePercent] = useState(25);
 
   useEffect(() => {
     if (initialTicker) setTicker(initialTicker);
@@ -70,7 +70,7 @@ export const HyperliquidDirectExecutionPanel = ({
     playSound('click', soundEnabled);
     setTicker(setup.ticker);
     setLeverage(setup.leverage || 5);
-    setSizePercent(100);
+    setSizePercent(25);
     setEnableSl(true);
     setSlPercent(2);
     setEnableTp(true);

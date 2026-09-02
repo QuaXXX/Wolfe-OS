@@ -27,10 +27,18 @@ export const HermesOrderEntryModal = ({
   const ticker = (play.ticker || 'BTC').toUpperCase();
   const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
 
-  // Parse planned limit entry price
-  const entryMatches = String(play.entryTrigger).match(/\$?([0-9,.]+)/);
-  const plannedLimitPrice = entryMatches ? Number(entryMatches[1].replace(/,/g, '')) : 100;
-  const currentPrice = livePrice ? Number(livePrice) : plannedLimitPrice;
+  const extractNum = (val) => {
+    if (!val) return null;
+    const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+    return match ? parseFloat(match[1]) : null;
+  };
+
+  // Parse planned limit entry price accurately
+  const currentPrice = livePrice ? Number(livePrice) : (play.entryNumeric || 100);
+  const plannedLimitPrice = play.entryNumeric 
+    || extractNum(play.entryTrigger) 
+    || extractNum(play.riskManagement) 
+    || currentPrice;
 
   // Calculate distance
   const diffPct = plannedLimitPrice > 0 
