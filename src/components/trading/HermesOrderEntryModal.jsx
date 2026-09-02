@@ -25,7 +25,7 @@ export const HermesOrderEntryModal = ({
   if (!isOpen || !play) return null;
 
   const ticker = (play.ticker || 'BTC').toUpperCase();
-  const isLong = (play.bias || 'LONG').toUpperCase() === 'LONG';
+  const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
 
   // Parse planned limit entry price
   const entryMatches = String(play.entryTrigger).match(/\$?([0-9,.]+)/);
@@ -88,9 +88,11 @@ export const HermesOrderEntryModal = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white tracking-tight">Execute Forward-Test</h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10 flex items-center gap-0.5">
-                    {isLong ? <ArrowUpRight className="w-3 h-3 text-slate-300" /> : <ArrowDownRight className="w-3 h-3 text-slate-300" />}
-                    {play.bias} 5x
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold border flex items-center gap-0.5 ${
+                    isLong ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                  }`}>
+                    {isLong ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : <ArrowDownRight className="w-3 h-3 text-rose-400" />}
+                    {isLong ? 'LONG 5x' : 'SHORT 5x'}
                   </span>
                   <span className="text-[10px] font-mono text-slate-300 font-semibold">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
                 </div>

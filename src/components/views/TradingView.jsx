@@ -28,6 +28,7 @@ import {
   Loader2,
   RotateCcw,
   Bell,
+  ShieldAlert,
   X
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
@@ -697,7 +698,8 @@ export const TradingView = ({
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {availableWarRoomPlays.map((play, idx) => {
-                      const isLong = play.bias === 'LONG';
+                      // Fix arrow and bias normalization (Long = up arrow, Short = down arrow)
+                      const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
                       const isDossierOpen = expandedDossierIdx === idx;
 
                       const riskMgmtText = typeof play.riskManagement === 'object' && play.riskManagement !== null
@@ -724,29 +726,56 @@ export const TradingView = ({
                         ? (play.riskRewardRatio.ratio || String(play.riskRewardRatio))
                         : String(play.riskRewardRatio || '1:2.6');
 
+                      // Extract numerical prices for precise chart visualization
+                      const extractFirstNum = (val) => {
+                        if (!val) return null;
+                        const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+                        return match ? parseFloat(match[1]) : null;
+                      };
+
+                      const currentLive = livePrices[play.ticker] || 100;
+                      const entryNum = play.entryNumeric || extractFirstNum(play.entryTrigger) || extractFirstNum(riskMgmtText) || currentLive;
+                      const stopNum = extractFirstNum(stopLossDisplay) || extractFirstNum(riskMgmtText?.split('Stop Loss')?.[1]) || (isLong ? Number((entryNum * 0.95).toFixed(2)) : Number((entryNum * 1.05).toFixed(2)));
+                      const tpNum = extractFirstNum(target2RDisplay) || extractFirstNum(riskMgmtText?.split('Take Profit')?.[1]) || (isLong ? Number((entryNum * 1.10).toFixed(2)) : Number((entryNum * 0.90).toFixed(2)));
+
+                      const profitPct = entryNum && tpNum ? Math.abs(((tpNum - entryNum) / entryNum) * 100).toFixed(1) : '10.0';
+                      const lossPct = entryNum && stopNum ? Math.abs(((entryNum - stopNum) / entryNum) * 100).toFixed(1) : '4.5';
+
+                      const entryFormatted = entryNum >= 1000 ? `$${entryNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${entryNum.toFixed(2)}`;
+                      const tpFormatted = tpNum >= 1000 ? `$${tpNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${tpNum.toFixed(2)}`;
+                      const stopFormatted = stopNum >= 1000 ? `$${stopNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${stopNum.toFixed(2)}`;
+
                       return (
                         <GlassCard key={idx} hoverEffect={false} className="p-4 space-y-3 border border-white/10 hover:border-white/20 transition-all shadow-md">
-                          {/* Card Header: Ticker, Category, Leverage, Alpha Score, and 1-Click Action Buttons */}
+                          {/* Card Header: Ticker, Direction Badge, Category, Grade, and 1-Click Action Buttons */}
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-sm font-bold text-white font-mono tracking-wide">{play.ticker}</span>
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.06] text-slate-200 border border-white/10 flex items-center gap-0.5">
-                                {isLong ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : <ArrowDownRight className="w-3 h-3 text-rose-400" />}
-                                {play.bias} 5x
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-base font-bold text-white font-mono tracking-wide">{play.ticker}</span>
+                              
+                              {/* Direction & Leverage Badge with Correct Arrow */}
+                              <span className={`text-[11px] font-mono px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 ${
+                                isLong 
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              }`}>
+                                {isLong ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
+                                <span>{isLong ? 'Long 5x' : 'Short 5x'}</span>
                               </span>
+
+                              {/* Category Badge */}
                               {play.category && (
-                                <span className="text-[9px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.04] text-amber-300 border border-amber-500/20">
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-medium bg-white/[0.04] text-amber-300 border border-amber-500/20">
                                   {typeof play.category === 'object' ? Object.values(play.category).join(' ') : String(play.category)}
                                 </span>
                               )}
-                              {play.confluenceScore && (
-                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                                  {play.confluenceScore}% Alpha • Grade {play.convictionGrade || 'A'}
-                                </span>
-                              )}
+
+                              {/* Grade Badge Only */}
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-white/[0.06] text-slate-200 border border-white/10">
+                                Grade <strong className="text-amber-300 font-extrabold">{play.convictionGrade || 'A+'}</strong>
+                              </span>
                             </div>
 
-                            {/* Direct 1-Click Action Buttons (Single Clean Plus) */}
+                            {/* Direct 1-Click Action Buttons */}
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button
                                 type="button"
@@ -777,47 +806,114 @@ export const TradingView = ({
                             </div>
                           </div>
 
-                          {/* Visual Metric Pills Row: Entry, Stop Loss, Take Profit 2R/3R, Risk/Reward */}
-                          <div className="grid grid-cols-4 gap-1.5 p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-center text-xs">
-                            <div className="space-y-0.5">
-                              <div className="text-[9px] text-slate-400 uppercase tracking-wider">Trigger Entry</div>
-                              <div className="font-bold text-white truncate text-[11px]">{play.entryNumeric ? `$${play.entryNumeric}` : (play.entryTrigger ? String(play.entryTrigger).split(' ')[0] : 'Market')}</div>
+                          {/* Visual Trade Execution & Risk-Reward Ladder Chart */}
+                          <div className="p-3 rounded-2xl bg-black/50 border border-white/5 space-y-2 relative overflow-hidden font-mono">
+                            <div className="flex items-center justify-between text-[10px] pb-1 border-b border-white/5 relative z-10">
+                              <span className="text-slate-400 flex items-center gap-1">
+                                <SlidersHorizontal className="w-3 h-3 text-cyan-400" />
+                                <span>Visual Setup Map</span>
+                              </span>
+                              <span className="text-slate-200 font-bold px-1.5 py-0.2 rounded bg-white/[0.06] border border-white/10">
+                                R:R {riskRewardDisplay}
+                              </span>
                             </div>
-                            <div className="space-y-0.5">
-                              <div className="text-[9px] text-rose-400 uppercase tracking-wider">Stop Loss</div>
-                              <div className="font-bold text-rose-300 text-[11px]">{stopLossDisplay}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                              <div className="text-[9px] text-emerald-400 uppercase tracking-wider">Take Profit (2R)</div>
-                              <div className="font-bold text-emerald-300 text-[11px]">{target2RDisplay}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                              <div className="text-[9px] text-cyan-400 uppercase tracking-wider">Risk / Reward</div>
-                              <div className="font-bold text-cyan-300 text-[11px]">{riskRewardDisplay}</div>
+
+                            <div className="relative py-1">
+                              <svg className="w-full h-24 overflow-visible" viewBox="0 0 360 86">
+                                <defs>
+                                  {/* Profit Gradient */}
+                                  <linearGradient id={`profitGrad-${idx}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
+                                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+                                  </linearGradient>
+                                  {/* Risk Gradient */}
+                                  <linearGradient id={`riskGrad-${idx}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.02" />
+                                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.20" />
+                                  </linearGradient>
+                                  {/* Trajectory Stroke Gradient */}
+                                  <linearGradient id={`trajGrad-${idx}`} x1="0%" y1="100%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#38bdf8" />
+                                    <stop offset="50%" stopColor="#06b6d4" />
+                                    <stop offset="100%" stopColor="#10b981" />
+                                  </linearGradient>
+                                </defs>
+
+                                {/* Shaded Profit Zone */}
+                                <rect x="0" y="10" width="360" height="33" fill={`url(#profitGrad-${idx})`} rx="4" />
+                                
+                                {/* Shaded Risk Zone */}
+                                <rect x="0" y="43" width="360" height="33" fill={`url(#riskGrad-${idx})`} rx="4" />
+
+                                {/* Level 1: Take Profit (Top) */}
+                                <line x1="0" y1="10" x2="360" y2="10" stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.9" />
+                                <circle cx="348" cy="10" r="3.5" fill="#10b981" />
+
+                                {/* Level 2: Entry Trigger (Middle) */}
+                                <line x1="0" y1="43" x2="360" y2="43" stroke="#38bdf8" strokeWidth="1.5" opacity="0.85" />
+                                <circle cx="100" cy="43" r="4" fill="#38bdf8" stroke="#000" strokeWidth="1.5" />
+
+                                {/* Level 3: Stop Loss (Bottom) */}
+                                <line x1="0" y1="76" x2="360" y2="76" stroke="#f43f5e" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.9" />
+                                <circle cx="348" cy="76" r="3.5" fill="#f43f5e" />
+
+                                {/* Projected Price Trajectory Curve */}
+                                {isLong ? (
+                                  <path
+                                    d="M 15 50 Q 55 54, 100 43 T 220 25 T 348 10"
+                                    fill="none"
+                                    stroke={`url(#trajGrad-${idx})`}
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                  />
+                                ) : (
+                                  <path
+                                    d="M 15 36 Q 55 32, 100 43 T 220 61 T 348 76"
+                                    fill="none"
+                                    stroke="#f43f5e"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                  />
+                                )}
+                              </svg>
+
+                              {/* Labels overlaid on chart */}
+                              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] px-1 font-mono">
+                                {/* Take Profit Level */}
+                                <div className="flex items-center justify-between text-emerald-400 font-bold -mt-0.5">
+                                  <span className="flex items-center gap-1 bg-black/70 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                    <Target className="w-2.5 h-2.5 text-emerald-400" />
+                                    <span>Take Profit: {tpFormatted}</span>
+                                  </span>
+                                  <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">
+                                    +{profitPct}% Target
+                                  </span>
+                                </div>
+
+                                {/* Entry Zone */}
+                                <div className="flex items-center justify-between text-cyan-300 font-bold">
+                                  <span className="flex items-center gap-1 bg-black/70 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                                    <Zap className="w-2.5 h-2.5 text-cyan-400" />
+                                    <span>Entry Zone: {entryFormatted}</span>
+                                  </span>
+                                  <span className="text-[9px] text-slate-300 bg-black/60 px-1.5 py-0.2 rounded border border-white/5">
+                                    {isLong ? 'Buy Support' : 'Short Resistance'}
+                                  </span>
+                                </div>
+
+                                {/* Stop Loss Level */}
+                                <div className="flex items-center justify-between text-rose-400 font-bold -mb-0.5">
+                                  <span className="flex items-center gap-1 bg-black/70 px-1.5 py-0.5 rounded border border-rose-500/20">
+                                    <ShieldAlert className="w-2.5 h-2.5 text-rose-400" />
+                                    <span>Stop Loss: {stopFormatted}</span>
+                                  </span>
+                                  <span className="text-[9px] text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.2 rounded">
+                                    -{lossPct}% Invalidation
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-
-                          {/* Multi-Factor Alpha Confluence Grid */}
-                          {play.factorScores && (
-                            <div className="grid grid-cols-4 gap-1 p-1.5 rounded-xl bg-black/30 border border-white/5 font-mono text-center">
-                              <div>
-                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Whale Flow</div>
-                                <div className="font-bold text-emerald-400 text-[10px]">{play.factorScores.smartMoney || 90}/100</div>
-                              </div>
-                              <div>
-                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Structure</div>
-                                <div className="font-bold text-cyan-400 text-[10px]">{play.factorScores.structure || 90}/100</div>
-                              </div>
-                              <div>
-                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Catalyst</div>
-                                <div className="font-bold text-amber-400 text-[10px]">{play.factorScores.catalyst || 90}/100</div>
-                              </div>
-                              <div>
-                                <div className="text-slate-400 text-[8px] uppercase tracking-wider">Macro</div>
-                                <div className="font-bold text-purple-400 text-[10px]">{play.factorScores.macro || 90}/100</div>
-                              </div>
-                            </div>
-                          )}
 
                           {/* 3 Point-Form Bullets: Why Chosen, Expected Move, Risk & Invalidation */}
                           <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
@@ -885,7 +981,7 @@ export const TradingView = ({
 
                             <div className="text-[11px] text-slate-400 pt-0.5 flex items-center gap-1">
                               <span className="text-rose-400 font-bold">Invalidation Rule:</span>
-                              <span>{typeof play.invalidation === 'object' ? Object.values(play.invalidation).join(' ') : String(play.invalidation || `Hourly candle close below ${stopLossDisplay}.`)}</span>
+                              <span>{typeof play.invalidation === 'object' ? Object.values(play.invalidation).join(' ') : String(play.invalidation || `Hourly candle close below ${stopFormatted}.`)}</span>
                             </div>
                           </div>
                         </GlassCard>
