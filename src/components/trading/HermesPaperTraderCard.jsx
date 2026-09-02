@@ -19,7 +19,11 @@ import {
   SlidersHorizontal,
   Hourglass,
   Layers,
-  Zap
+  Zap,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  FileText
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { 
@@ -38,12 +42,14 @@ export const HermesPaperTraderCard = ({
   latestBrief,
   livePrices = {},
   onPositionChanged,
+  onOpenHyperliquid,
   soundEnabled = true
 }) => {
   const [account, setAccount] = useState(getPaperAccount());
   const [paperPositions, setPaperPositions] = useState(getPaperPositions());
   const [paperHistory, setPaperHistory] = useState(getPaperTradeHistory());
   const [activeSubTab, setActiveSubTab] = useState('open'); // 'open' | 'history'
+  const [expandedTradeId, setExpandedTradeId] = useState(null);
 
   const refreshState = () => {
     setAccount(getPaperAccount());
@@ -81,7 +87,7 @@ export const HermesPaperTraderCard = ({
   };
 
   const handleResetAccount = () => {
-    if (window.confirm("Reset Hermes Forward-Test Paper Account back to $10,000.00?")) {
+    if (window.confirm("Reset Forward Test Account back to $10,000.00?")) {
       playSound('click', soundEnabled);
       const res = resetPaperTradingAccount();
       setAccount(res);
@@ -102,33 +108,29 @@ export const HermesPaperTraderCard = ({
   return (
     <div className="space-y-3 font-sans">
       {/* 1. Header & Performance Metrics HUD */}
-      <GlassCard hoverEffect={false} className="p-4 space-y-3">
+      <GlassCard hoverEffect={false} className="p-3.5 space-y-3">
         <div 
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b"
+          className="flex items-center justify-between pb-2.5 border-b"
           style={{ borderColor: 'rgba(255,255,255,0.06)' }}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <div 
-              className="w-8 h-8 rounded-xl border flex items-center justify-center"
+              className="w-7 h-7 rounded-xl border flex items-center justify-center"
               style={{ 
                 backgroundColor: 'var(--accent-subtle)',
                 borderColor: 'var(--accent-border)'
               }}
             >
-              <Bot className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+              <Bot className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Forward-Test Paper Desk
+                <h3 className="text-xs font-bold text-white tracking-wide">
+                  Forward Test Desk
                 </h3>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  <span>Individual Selection Active</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                  Live Simulation
                 </span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                100% Exchange Clearinghouse Math • 5x Leverage ROE Tracking
               </div>
             </div>
           </div>
@@ -137,58 +139,51 @@ export const HermesPaperTraderCard = ({
             <button
               type="button"
               onClick={handleResetAccount}
-              title="Reset paper account"
-              className="p-1.5 rounded-xl bg-white/[0.02] hover:bg-rose-500/15 text-slate-400 hover:text-rose-400 border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs"
+              title="Reset account"
+              className="px-2 py-1 rounded-lg text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-medium transition-colors cursor-pointer border border-white/5 flex items-center gap-1"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Desk</span>
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
             </button>
           </div>
         </div>
 
-        {/* Account Metrics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-          <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
-            <div className="text-[9px] text-slate-400 uppercase font-sans">Paper Balance</div>
-            <div className="text-sm font-bold text-white mt-0.5">
-              ${account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </div>
+        {/* HUD Metric Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+          <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+            <div className="text-[9px] uppercase text-slate-400">Account Value</div>
+            <div className="text-sm font-bold text-white mt-0.5">${account.balance?.toFixed(2) || '10,000.00'}</div>
           </div>
 
-          <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
-            <div className="text-[9px] text-slate-400 uppercase font-sans">Realized P&L</div>
-            <div className={`text-sm font-bold mt-0.5 ${account.realizedPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {account.realizedPnlUSD >= 0 ? `+$${account.realizedPnlUSD.toFixed(2)}` : `-$${Math.abs(account.realizedPnlUSD).toFixed(2)}`}
-            </div>
-          </div>
-
-          <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
-            <div className="text-[9px] text-slate-400 uppercase font-sans">Win Rate</div>
-            <div className="text-sm font-bold text-white mt-0.5">
-              {winRate}% <span className="text-[10px] text-slate-400 font-normal">({account.winningTrades}W / {account.losingTrades}L)</span>
-            </div>
-          </div>
-
-          <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
-            <div className="text-[9px] text-slate-400 uppercase font-sans">Unrealized P&L</div>
+          <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+            <div className="text-[9px] uppercase text-slate-400">Unrealized P&L</div>
             <div className={`text-sm font-bold mt-0.5 ${totalUnrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {totalUnrealizedPnl >= 0 ? `+$${totalUnrealizedPnl.toFixed(2)}` : `-$${Math.abs(totalUnrealizedPnl).toFixed(2)}`}
+            </div>
+          </div>
+
+          <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+            <div className="text-[9px] uppercase text-slate-400">Win Rate</div>
+            <div className="text-sm font-bold text-white mt-0.5">{winRate}% <span className="text-[10px] text-slate-400 font-sans font-normal">({account.winningTrades}/{account.totalTrades})</span></div>
+          </div>
+
+          <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+            <div className="text-[9px] uppercase text-slate-400">Realized P&L</div>
+            <div className={`text-sm font-bold mt-0.5 ${account.realizedPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {account.realizedPnlUSD >= 0 ? `+$${account.realizedPnlUSD.toFixed(2)}` : `-$${Math.abs(account.realizedPnlUSD).toFixed(2)}`}
             </div>
           </div>
         </div>
       </GlassCard>
 
-      {/* 2. Sub-Tabs */}
-      <div 
-        className="flex items-center gap-2 border-b pb-1"
-        style={{ borderColor: 'rgba(255,255,255,0.06)' }}
-      >
+      {/* 2. Sub-Tab Switcher */}
+      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/30 border border-white/5 w-fit">
         <button
           type="button"
           onClick={() => setActiveSubTab('open')}
           className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer ${
             activeSubTab === 'open'
-              ? 'text-white'
+              ? 'text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
           }`}
           style={activeSubTab === 'open' ? { 
@@ -204,7 +199,7 @@ export const HermesPaperTraderCard = ({
           onClick={() => setActiveSubTab('history')}
           className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all cursor-pointer ${
             activeSubTab === 'history'
-              ? 'text-white'
+              ? 'text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
           }`}
           style={activeSubTab === 'history' ? { 
@@ -213,7 +208,7 @@ export const HermesPaperTraderCard = ({
             color: 'var(--accent-primary)'
           } : {}}
         >
-          Completed History ({paperHistory.length})
+          Completed ({paperHistory.length})
         </button>
       </div>
 
@@ -221,151 +216,76 @@ export const HermesPaperTraderCard = ({
       {activeSubTab === 'open' && (
         <div className="space-y-2">
           {paperPositions.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {paperPositions.map((pos) => {
                 const isLong = pos.side === 'LONG';
                 const isPending = pos.status === 'PENDING_ENTRY';
                 const currentPrice = pos.currentPrice || pos.entryPrice;
                 const isProfitable = (pos.unrealizedPnlUSD || 0) >= 0;
+                const isExpanded = expandedTradeId === pos.id;
 
                 // Progress towards TP vs SL
                 const totalRange = Math.abs(pos.takeProfit - pos.stopLoss);
                 const distanceCovered = isLong ? (currentPrice - pos.stopLoss) : (pos.stopLoss - currentPrice);
                 const progressPct = Math.max(0, Math.min(100, (distanceCovered / totalRange) * 100));
 
-                // Price distance from Entry for pending orders
-                const distanceToEntryPct = pos.entryPrice > 0 
-                  ? (((currentPrice - pos.entryPrice) / pos.entryPrice) * 100).toFixed(2)
-                  : '0.00';
-
                 return (
-                  <GlassCard key={pos.id} hoverEffect={false} className="p-3.5 space-y-2.5 relative">
+                  <GlassCard 
+                    key={pos.id} 
+                    hoverEffect={false} 
+                    className={`p-3.5 space-y-2.5 transition-all cursor-pointer border ${
+                      isExpanded ? 'border-white/20 bg-white/[0.04]' : 'border-white/5 hover:border-white/10'
+                    }`}
+                    onClick={() => setExpandedTradeId(isExpanded ? null : pos.id)}
+                  >
+                    {/* Summary Row */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-white">{pos.ticker}</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10">
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="text-sm font-bold text-white">{pos.ticker}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10">
                           {pos.side} {pos.leverage}x
                         </span>
 
                         {isPending ? (
-                          <span 
-                            className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold bg-white/[0.04] text-slate-300 border border-white/10"
-                          >
-                            <Hourglass className="w-3 h-3 text-slate-400" />
-                            <span>Waiting for Entry Trigger</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 font-sans">
+                            <Hourglass className="w-3 h-3 text-amber-400" />
+                            <span>Pending Entry</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                            <span>Active in Market</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 font-semibold font-sans">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            <span>Active</span>
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         {!isPending ? (
                           <div className="text-right font-mono">
                             <div className={`text-xs font-bold ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {isProfitable ? `+$${(pos.unrealizedPnlUSD || 0).toFixed(2)}` : `-$${Math.abs(pos.unrealizedPnlUSD || 0).toFixed(2)}`}
                             </div>
                             <div className="text-[10px] text-slate-300">
-                              ROE: <strong className={isProfitable ? 'text-emerald-400' : 'text-rose-400'}>{pos.roePct > 0 ? `+${pos.roePct}` : pos.roePct}%</strong> <span className="text-slate-400">({pos.spotMovePct > 0 ? `+${pos.spotMovePct}` : pos.spotMovePct}% Spot × {pos.leverage}x)</span>
+                              ROE: <strong className={isProfitable ? 'text-emerald-400' : 'text-rose-400'}>{pos.roePct > 0 ? `+${pos.roePct}` : pos.roePct}%</strong>
                             </div>
                           </div>
                         ) : (
-                          <div className="text-right font-mono">
-                            <div className="text-xs font-bold text-slate-400">$0.00 PnL</div>
-                            <div className="text-[10px] text-slate-400 font-sans">Resting Limit Order</div>
+                          <div className="text-right font-mono text-slate-400 text-xs font-bold">
+                            @ ${pos.entryPrice}
                           </div>
                         )}
 
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeletePosition(pos.id, e)}
-                          title="Remove trade"
-                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-white/[0.04] transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Pending Entry Highlight Banner */}
-                    {isPending && (
-                      <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5 font-mono">
-                        <div className="flex items-center justify-between text-xs text-slate-200">
-                          <span className="font-semibold flex items-center gap-1">
-                            <Hourglass className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Resting Limit Order: <strong className="text-white">${pos.entryPrice}</strong></span>
-                          </span>
-                          <span className="text-[11px] text-slate-300">Live Market: <strong className="text-white">${currentPrice}</strong> ({Number(distanceToEntryPct) > 0 ? `+${distanceToEntryPct}` : distanceToEntryPct}%)</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
-                          <span>Order unfilled • Zero risk until filled</span>
-                          <button
-                            type="button"
-                            onClick={(e) => handleFillPendingAtMarket(pos.id, currentPrice, e)}
-                            className="px-2 py-0.5 rounded-md font-bold text-white flex items-center gap-1 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                            style={{ backgroundColor: 'var(--accent-primary)' }}
-                          >
-                            <Zap className="w-3 h-3" />
-                            <span>Fill at Market Now (${currentPrice})</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stats Matrix: Size, Margin, Notional, Current R */}
-                    <div className="grid grid-cols-4 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-[10px]">
-                      <div>
-                        <div className="text-[9px] text-slate-400 uppercase">Size</div>
-                        <div className="text-white font-bold">{pos.size}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-slate-400 uppercase">Margin (5x)</div>
-                        <div className="text-slate-200">${pos.marginUSD}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-slate-400 uppercase">Notional</div>
-                        <div className="text-slate-200">${pos.notionalUSD}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-slate-400 uppercase">R-Multiple</div>
-                        <div className={`font-bold ${pos.rMultiple >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {pos.rMultiple > 0 ? `+${pos.rMultiple}` : pos.rMultiple}R
+                        <div className="p-1 text-slate-400">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </div>
                       </div>
                     </div>
 
-                    {/* Timeframe & Trade Duration */}
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 font-sans">
-                      <Clock className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                      <span><strong>Timeframe:</strong> <span className="text-white">{pos.timeframe || '1H - 4H Intraday'}</span></span>
-                      <span>•</span>
-                      <span>{pos.expectedDuration || '3 - 8h'}</span>
-                    </div>
-
-                    {/* Entry, Stop Loss, 2R Take Profit Matrix */}
-                    <div className="grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-[11px]">
-                      <div>
-                        <div className="text-[9px] text-slate-400 uppercase">Entry Trigger</div>
-                        <div className="text-white font-bold">${pos.entryPrice}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-slate-400 uppercase">Stop Loss</div>
-                        <div className="text-slate-200 font-bold">${pos.stopLoss}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-slate-400 uppercase">2R Target</div>
-                        <div className="text-slate-200 font-bold">${pos.takeProfit}</div>
-                      </div>
-                    </div>
-
-                    {/* Live Progress Bar */}
+                    {/* Progress Bar (Visible Always) */}
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px] font-mono text-slate-400">
                         <span>SL: ${pos.stopLoss}</span>
-                        <span className="text-white font-bold">Current: ${currentPrice}</span>
+                        <span className="text-white font-bold">Price: ${currentPrice}</span>
                         <span>TP: ${pos.takeProfit}</span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden relative">
@@ -375,6 +295,83 @@ export const HermesPaperTraderCard = ({
                         />
                       </div>
                     </div>
+
+                    {/* Expandable Dropdown Menu Details */}
+                    {isExpanded && (
+                      <div 
+                        className="pt-2 border-t border-white/5 space-y-2.5 font-sans animate-in fade-in duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Timestamp & Meta */}
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Taken: <strong className="text-slate-200">{pos.enteredAt || pos.date || 'Today'}</strong></span>
+                          </span>
+                          <span>Timeframe: <strong className="text-slate-200">{pos.timeframe || '1H - 4H'}</strong></span>
+                        </div>
+
+                        {/* Stats Matrix: Size, Margin, Notional, Current R */}
+                        <div className="grid grid-cols-4 gap-1.5 text-center p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-[10px]">
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Size</div>
+                            <div className="text-white font-bold">{pos.size}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Margin</div>
+                            <div className="text-slate-200">${pos.marginUSD}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Notional</div>
+                            <div className="text-slate-200">${pos.notionalUSD}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">R-Multiple</div>
+                            <div className={`font-bold ${pos.rMultiple >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {pos.rMultiple > 0 ? `+${pos.rMultiple}` : pos.rMultiple}R
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Thesis & Invalidation */}
+                        {pos.thesis && (
+                          <div className="p-2 rounded-xl bg-black/30 border border-white/5 text-[11px] space-y-1">
+                            <div className="text-slate-300">
+                              <strong className="text-slate-400">Thesis:</strong> {pos.thesis}
+                            </div>
+                            {pos.invalidation && (
+                              <div className="text-rose-300/80">
+                                <strong className="text-rose-400">Invalidation:</strong> {pos.invalidation}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Action Buttons inside Dropdown */}
+                        <div className="flex items-center justify-between pt-1">
+                          {isPending && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleFillPendingAtMarket(pos.id, currentPrice, e)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-white flex items-center gap-1 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                              style={{ backgroundColor: 'var(--accent-primary)' }}
+                            >
+                              <Zap className="w-3.5 h-3.5" />
+                              <span>Fill at Market (${currentPrice})</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeletePosition(pos.id, e)}
+                            className="ml-auto px-2 py-1 rounded-lg text-rose-400 hover:text-white hover:bg-rose-500/20 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remove</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </GlassCard>
                 );
               })}
@@ -390,9 +387,9 @@ export const HermesPaperTraderCard = ({
               >
                 <Bot className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
-              <div className="text-sm font-bold text-white">No Tracked Trades Yet</div>
+              <div className="text-sm font-bold text-white">No Tracked Trades</div>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Review the candidate plays in the Morning War Room and tap <strong>"+ Forward-Test"</strong> on any individual setup you'd like to test!
+                Select trade setups in the War Room to forward test.
               </p>
             </GlassCard>
           )}
@@ -405,47 +402,91 @@ export const HermesPaperTraderCard = ({
           {paperHistory.length > 0 ? (
             paperHistory.map((trade) => {
               const isWin = trade.isWin || trade.pnlUSD >= 0;
+              const isExpanded = expandedTradeId === trade.id;
+
               return (
-                <GlassCard key={trade.id} hoverEffect={false} className="p-3 text-xs font-mono flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
-                      isWin ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
-                    }`}>
-                      {trade.ticker}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white">{trade.side}</span>
-                        <span className="text-slate-300">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                          isWin ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                        }`}>
-                          {trade.exitReason}
-                        </span>
+                <GlassCard 
+                  key={trade.id} 
+                  hoverEffect={false} 
+                  className={`p-3 text-xs font-mono transition-all cursor-pointer border ${
+                    isExpanded ? 'border-white/20 bg-white/[0.04]' : 'border-white/5 hover:border-white/10'
+                  }`}
+                  onClick={() => setExpandedTradeId(isExpanded ? null : trade.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+                        isWin ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
+                      }`}>
+                        {trade.ticker}
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5 font-sans">
-                        {new Date(trade.closedAt).toLocaleString()} • {trade.strategy}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">{trade.side}</span>
+                          <span className="text-slate-300">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                            isWin ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                          }`}>
+                            {trade.exitReason}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 font-sans">
+                          {new Date(trade.closedAt).toLocaleDateString()} • {trade.strategy}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 text-right">
+                      <div>
+                        <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          ROE: {trade.roePct > 0 ? `+${trade.roePct}` : trade.roePct}%
+                        </div>
+                      </div>
+
+                      <div className="p-1 text-slate-400">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 text-right">
-                    <div>
-                      <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
+                  {/* Expandable History Dropdown */}
+                  {isExpanded && (
+                    <div 
+                      className="pt-2.5 mt-2 border-t border-white/5 space-y-2 font-sans animate-in fade-in duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-black/40 border border-white/5 text-[11px] font-mono text-center">
+                        <div>
+                          <div className="text-[9px] text-slate-400 uppercase">Entry Price</div>
+                          <div className="text-white font-bold">${trade.entryPrice}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-slate-400 uppercase">Exit Price</div>
+                          <div className="text-white font-bold">${trade.exitPrice}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-slate-400 uppercase">Realized PnL</div>
+                          <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-400">
-                        ROE: {trade.roePct > 0 ? `+${trade.roePct}` : trade.roePct}%
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 font-mono">
+                        <span>Closed: <strong className="text-slate-300">{new Date(trade.closedAt).toLocaleString()}</strong></span>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteHistory(trade.id, e)}
+                          className="px-2 py-0.5 rounded text-rose-400 hover:text-white hover:bg-rose-500/20 transition-colors cursor-pointer"
+                        >
+                          Delete Record
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteHistory(trade.id, e)}
-                      className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  )}
                 </GlassCard>
               );
             })
@@ -460,9 +501,9 @@ export const HermesPaperTraderCard = ({
               >
                 <Layers className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
-              <div className="text-sm font-bold text-white">No Completed Trades Yet</div>
+              <div className="text-sm font-bold text-white">No Completed Trades</div>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                When active forward-test trades hit their 2R Take-Profit or Stop Loss targets, they will appear here.
+                Completed trades will be recorded here automatically.
               </p>
             </GlassCard>
           )}

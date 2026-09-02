@@ -243,24 +243,21 @@ export const HyperliquidDirectExecutionPanel = ({
   };
 
   return (
-    <GlassCard className="p-4 sm:p-5 border-white/10 space-y-4">
+    <GlassCard className="p-3.5 sm:p-4 border-white/10 space-y-3.5">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-white/5">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-xl bg-white/10 text-white border border-white/15">
-            <Zap className="w-5 h-5" />
+            <Zap className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-white tracking-wide">Hyperliquid L1 Execution & Risk Terminal</h3>
+              <h3 className="text-sm font-bold text-white tracking-wide">Hyperliquid Desk</h3>
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                L1 LIVE
+                L1 Live
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
-              Direct cryptographic order routing with automated leverage, sizing, TP & SL triggers
-            </p>
           </div>
         </div>
 
@@ -282,7 +279,7 @@ export const HyperliquidDirectExecutionPanel = ({
 
           <button
             type="button"
-            onClick={fetchLiveState}
+            onClick={() => fetchLiveState(false)}
             disabled={isLoadingBalance}
             className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer disabled:opacity-50"
             title="Refresh Live Balances"
@@ -297,9 +294,9 @@ export const HyperliquidDirectExecutionPanel = ({
         <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs font-sans flex items-start gap-2.5">
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-0.5">
-            <div className="font-bold text-amber-300">Your ${spotEquity.toFixed(2)} USDC is in your Spot Account</div>
+            <div className="font-bold text-amber-300">USDC is currently in Spot (${spotEquity.toFixed(2)})</div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Hyperliquid BTC perps orders execute from your <strong>Perps Account</strong>. On <a href="https://app.hyperliquid.xyz/trade" target="_blank" rel="noreferrer" className="underline text-amber-300 font-semibold hover:text-white">app.hyperliquid.xyz</a>, click <strong>"Transfer"</strong> to move your USDC from Spot ➔ Perps with 1 click (free & instant).
+              Transfer USDC from Spot ➔ Perps on <a href="https://app.hyperliquid.xyz/trade" target="_blank" rel="noreferrer" className="underline text-amber-300 font-semibold hover:text-white">Hyperliquid</a> to trade perps.
             </p>
           </div>
         </div>

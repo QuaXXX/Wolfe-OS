@@ -96,6 +96,8 @@ export const TradingView = ({
   const [selectedPlayForOrder, setSelectedPlayForOrder] = useState(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [hyperliquidTicker, setHyperliquidTicker] = useState('BTC');
+  const [expandedJournalId, setExpandedJournalId] = useState(null);
+  const [expandedPositionId, setExpandedPositionId] = useState(null);
 
   // New Ticker input
   const [newTickerInput, setNewTickerInput] = useState('');
@@ -1023,48 +1025,75 @@ export const TradingView = ({
           </div>
 
           {openPositions.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {openPositions.map((pos) => {
                 const isLong = pos.side === 'LONG';
+                const isExpanded = expandedPositionId === pos.id;
+
                 return (
-                  <GlassCard key={pos.id} hoverEffect={false} className="p-4 space-y-3">
+                  <GlassCard 
+                    key={pos.id} 
+                    hoverEffect={false} 
+                    className={`p-3.5 space-y-2.5 transition-all cursor-pointer border ${
+                      isExpanded ? 'border-white/20 bg-white/[0.04]' : 'border-white/5 hover:border-white/10'
+                    }`}
+                    onClick={() => setExpandedPositionId(isExpanded ? null : pos.id)}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-base font-bold text-white">{pos.ticker}</span>
+                        <span className="font-mono text-sm font-bold text-white">{pos.ticker}</span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
                           isLong ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
                         }`}>
                           {pos.side} {pos.leverage}x
                         </span>
+                        <span className="text-[10px] font-mono text-slate-300">@ ${pos.entryPrice}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleClosePosition(pos.id)}
-                        className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-semibold cursor-pointer transition-all"
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClosePosition(pos.id);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[11px] font-semibold cursor-pointer transition-all"
+                        >
+                          Close
+                        </button>
+                        <div className="p-1 text-slate-400">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable Dropdown Details */}
+                    {isExpanded && (
+                      <div 
+                        className="pt-2 border-t border-white/5 space-y-2 font-mono text-xs animate-in fade-in duration-200"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Market Close
-                      </button>
-                    </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>Opened: <strong className="text-white">{pos.openedAt ? new Date(pos.openedAt).toLocaleString() : 'Live Session'}</strong></span>
+                          <span>Strategy: <strong className="text-white">{pos.strategy || 'Hyperliquid L1'}</strong></span>
+                        </div>
 
-                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-black/40 border border-white/5 font-mono text-xs">
-                      <div>
-                        <div className="text-[10px] text-slate-400 uppercase">Size</div>
-                        <div className="font-bold text-white">{pos.size}</div>
+                        <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-black/40 border border-white/5 text-[11px] text-center">
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Size</div>
+                            <div className="font-bold text-white">{pos.size}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Entry Price</div>
+                            <div className="text-slate-200">${pos.entryPrice}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-rose-400 uppercase">Stop Loss</div>
+                            <div className="text-rose-300">${pos.stopLoss || 'None'}</div>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-[10px] text-slate-400 uppercase">Entry Price</div>
-                        <div className="text-slate-200">${pos.entryPrice}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-rose-400 uppercase">Stop Loss</div>
-                        <div className="text-rose-300">${pos.stopLoss || 'None'}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs font-mono pt-1 text-slate-400">
-                      <span>Strategy: {pos.strategy}</span>
-                      <span className="text-[10px] text-emerald-400">24/7 Cloud Synced</span>
-                    </div>
+                    )}
                   </GlassCard>
                 );
               })}
@@ -1094,7 +1123,7 @@ export const TradingView = ({
         <div className="space-y-3 font-sans">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Completed Trade History & AI Reviews ({tradeJournal.length})
+              Completed Trades ({tradeJournal.length})
             </h3>
             <button
               type="button"
@@ -1109,7 +1138,7 @@ export const TradingView = ({
               }}
             >
               <Plus className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-              <span>Log Trade Manually</span>
+              <span>Log Trade</span>
             </button>
           </div>
 
@@ -1117,49 +1146,104 @@ export const TradingView = ({
             <div className="space-y-2">
               {tradeJournal.map((trade) => {
                 const isWin = trade.pnlUSD >= 0;
+                const isExpanded = expandedJournalId === trade.id;
+
                 return (
                   <GlassCard
                     key={trade.id}
                     hoverEffect={false}
-                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    className={`p-3 transition-all cursor-pointer border ${
+                      isExpanded ? 'border-white/20 bg-white/[0.04]' : 'border-white/5 hover:border-white/10'
+                    }`}
+                    onClick={() => setExpandedJournalId(isExpanded ? null : trade.id)}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-xs ${
-                        isWin ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
-                      }`}>
-                        {trade.ticker}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 font-mono">
-                          <span className="font-bold text-white">{trade.side}</span>
-                          <span className="text-slate-300 text-[11px]">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-xs ${
+                          isWin ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
+                        }`}>
+                          {trade.ticker}
                         </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">{trade.strategy}</div>
+                        <div>
+                          <div className="flex items-center gap-2 font-mono">
+                            <span className="font-bold text-white">{trade.side}</span>
+                            <span className="text-slate-300 text-[11px]">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                              isWin ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                            }`}>
+                              {isWin ? 'WIN' : 'LOSS'}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">{trade.closedAt ? new Date(trade.closedAt).toLocaleDateString() : trade.date} • {trade.strategy}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-right">
+                        <div>
+                          <div className={`font-mono font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono">{trade.returnPct}%</span>
+                        </div>
+
+                        <div className="p-1 text-slate-400">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
                       </div>
                     </div>
 
-                    {/* AI Post-Mortem Quote */}
-                    {trade.aiPostMortem && (
-                      <div className="flex-1 max-w-md text-[11px] text-slate-300 italic truncate hidden lg:block">
-                        "{trade.aiPostMortem}"
+                    {/* Expandable Journal Dropdown */}
+                    {isExpanded && (
+                      <div 
+                        className="pt-2.5 mt-2 border-t border-white/5 space-y-2 font-sans animate-in fade-in duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-black/40 border border-white/5 font-mono text-[11px] text-center">
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Entry Price</div>
+                            <div className="text-white font-bold">${trade.entryPrice}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Exit Price</div>
+                            <div className="text-white font-bold">${trade.exitPrice}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-400 uppercase">Realized Return</div>
+                            <div className={`font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`} ({trade.returnPct}%)
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                          <span>Taken: <strong className="text-slate-200">{trade.enteredAt || trade.date || 'Recorded'}</strong></span>
+                          <span>Closed: <strong className="text-slate-200">{trade.closedAt ? new Date(trade.closedAt).toLocaleString() : trade.date}</strong></span>
+                        </div>
+
+                        {trade.notes && (
+                          <div className="p-2 rounded-xl bg-black/30 border border-white/5 text-[11px] text-slate-300">
+                            <strong className="text-slate-400">Notes:</strong> {trade.notes}
+                          </div>
+                        )}
+
+                        {trade.aiPostMortem && (
+                          <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-[11px] text-slate-300 italic">
+                            <strong className="text-slate-400 font-sans not-italic">AI Review: </strong>
+                            "{trade.aiPostMortem}"
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteTrade(trade.id, e)}
+                            className="px-2 py-0.5 rounded text-rose-400 hover:text-white hover:bg-rose-500/20 text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Delete Record
+                          </button>
+                        </div>
                       </div>
                     )}
-
-                    <div className="flex items-center justify-between sm:justify-end gap-3 text-right">
-                      <div>
-                        <div className={`font-mono font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {isWin ? `+$${trade.pnlUSD}` : `-$${Math.abs(trade.pnlUSD)}`}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-mono">{trade.returnPct}%</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteTrade(trade.id, e)}
-                        className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
                   </GlassCard>
                 );
               })}
@@ -1177,7 +1261,7 @@ export const TradingView = ({
               </div>
               <div className="text-sm font-bold text-white">Trade Journal Empty</div>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Closed positions and manual trades will be logged here with automatic AI post-mortems.
+                Closed positions and manual trades will be logged here.
               </p>
             </GlassCard>
           )}
