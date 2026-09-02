@@ -88,24 +88,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 96,
       factorScores: { smartMoney: 98, structure: 95, catalyst: 99, macro: 92 },
       timeframe: "4H Swing / Secular Core",
+      validForHours: 36,
       expectedDuration: "Multi-Week / Long Term",
       optimalWindow: "NY Session Open",
-      entryTrigger: "$24.80 (Pullback to 4H POC & 1H FVG Demand Zone)",
+      entryTrigger: "$24.80 (50% 1H FVG Mitigation & 4H POC Reclaim)",
       entryNumeric: 24.80,
-      stopLoss: "$23.20",
+      stopLoss: "$23.20 (0.20 Below 4H Swing Low Wick)",
       stopNumeric: 23.20,
-      target2R: "$29.60",
+      target2R: "$29.60 (Untested Daily Naked POC & Liquidity Pool)",
       target2RNumeric: 29.60,
-      target3R: "$33.50",
+      target3R: "$33.50 (Macro Range High Expansion)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $24.80 aligns with 50% mitigation of the 1H Fair Value Gap and 4H POC. Stop loss at $23.20 is tucked 0.20 below the pivotal 4H swing-low wick to protect against liquidity sweeps. Target at $29.60 sweeps buy-side liquidity above prior equal highs.",
+      invalidationCondition: "4H candle close below $23.20 swing wick, or setup expires if untriggered within 36 hours.",
       whyChosen: "Selected directly due to the confirmed FCC direct-to-cell commercial spectrum approval (referenced in Section 2) and massive 13F whale accumulation from Stanley Druckenmiller and Peter Thiel ($38M in dark pool blocks at $26.10 VWAP).",
       projectedMove: "We are willing to enter ASTS on a disciplined pullback to the 4H Volume Profile Point of Control & Fair Value Gap at $24.80. With all public warrants redeemed, there is zero dilution overhang, making this a prime asymmetric trade targeting $29.60 (2R) and $33.50 (3R).",
-      riskManagement: "Trigger Entry $24.80 | Invalidation Stop Loss $23.20 | Target 2R $29.60 / 3R $33.50 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $24.80 | Invalidation Stop Loss $23.20 | Target 2R $29.60 / 3R $33.50 (1.5% max capital risk | 36H Expiration Window).",
       catalystDossier: "FCC commercial direct-to-cell spectrum clearance confirmed. Orbital telemetry beat benchmark throughput by 35%. Public warrants fully redeemed, eliminating dilution overhang.",
       institutionalFlow: "Stanley Druckenmiller (Duquesne) & Peter Thiel (Founders Fund) 13F disclosures show massive multi-quarter stake accumulation with $38M in off-exchange dark pool blocks printed at $26.10 VWAP.",
       technicalStructure: "Structural reclaim of 4H Volume Profile Point of Control (POC) with clean 1H Fair Value Gap (FVG) bounce at dynamic EMA20 support.",
       thesis: "Secular Mega-Trend: Ubiquitous space satellite cellular broadband connecting 5 billion mobile subscribers globally without cell towers.",
-      invalidation: "Hourly candle close below $23.00 invalidates structural momentum."
+      invalidation: "4H candle close below $23.20 swing wick, or setup expires if untriggered within 36 hours."
     },
     {
       ticker: "HYPE",
@@ -117,24 +120,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 97,
       factorScores: { smartMoney: 98, structure: 96, catalyst: 97, macro: 94 },
       timeframe: "4H Swing / Secular Hold",
+      validForHours: 48,
       expectedDuration: "Multi-Month / Secular",
       optimalWindow: "Perp Volume Inflow",
       entryTrigger: "$77.50 (Value Area Low Reclaim & Bullish Order Block)",
       entryNumeric: 77.50,
-      stopLoss: "$73.80",
+      stopLoss: "$73.80 (Below Prior 4H Higher Low Wick)",
       stopNumeric: 73.80,
-      target2R: "$88.50",
+      target2R: "$88.50 (Equal Highs Buy-Side Liquidity)",
       target2RNumeric: 88.50,
-      target3R: "$96.00",
+      target3R: "$96.00 (Fib 1.618 Extension)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $77.50 catches the retest of the bullish 4H order block. Stop loss at $73.80 is positioned under the structural swing low. Target at $88.50 captures resting buy stops above $85-$87 resistance.",
+      invalidationCondition: "1H candle close below $73.80, or setup expires if untriggered within 48 hours.",
       whyChosen: "Chosen due to explosive on-chain clearing adoption (referenced in Section 1), with 24h trading volume crossing $2.4B and 100% of trading fee revenue flowing directly to HYPE validator staking vaults.",
       projectedMove: "We see HYPE consolidating in an ascending accumulation range. Our strategic buy trigger is positioned at the $77.50 Value Area Low demand zone. Supply scarcity from validator staking creates strong upside continuation targeting $88.50 (2R) and $96.00 (3R).",
-      riskManagement: "Trigger Entry $77.50 | Invalidation Stop Loss $73.80 | Target 2R $88.50 / 3R $96.00 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $77.50 | Invalidation Stop Loss $73.80 | Target 2R $88.50 / 3R $96.00 (1.5% max capital risk | 48H Expiration Window).",
       catalystDossier: "Hyperliquid L1 24h trading volume surpassed $2.4B with 100% of trading fee revenue directly distributed to HYPE validator staking vaults, yielding industry-leading real cash yield.",
       institutionalFlow: "Net validator staking lockups absorbed over 180,000 HYPE tokens this week, with persistent institutional taker buy delta on every dip.",
       technicalStructure: "High-timeframe ascending triangle accumulation breaking above 4H Value Area High with zero overhead token unlock dilution.",
       thesis: "The Future of Finance: Native L1 on-chain clearinghouse eating CME and Binance perpetual market share with sub-second execution.",
-      invalidation: "1H close below $73.00."
+      invalidation: "1H candle close below $73.80, or setup expires if untriggered within 48 hours."
     },
     {
       ticker: "TAO",
@@ -146,24 +152,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 95,
       factorScores: { smartMoney: 96, structure: 93, catalyst: 98, macro: 94 },
       timeframe: "4H Swing / Secular Hold",
+      validForHours: 36,
       expectedDuration: "Multi-Week / Secular",
       optimalWindow: "Compute Inflow Window",
       entryTrigger: "$480.00 (1H FVG Reclaim & Subnet Rebalance Support)",
       entryNumeric: 480.00,
-      stopLoss: "$452.00",
+      stopLoss: "$452.00 (Below Daily EMA50 & Consolidation Low Wick)",
       stopNumeric: 452.00,
-      target2R: "$564.00",
+      target2R: "$564.00 (Unmitigated 4H Bearish Order Block Supply)",
       target2RNumeric: 564.00,
-      target3R: "$620.00",
+      target3R: "$620.00 (Multi-Month Resistance Sweep)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger entry at $480.00 captures the full fill of the 1H imbalance. Stop loss at $452.00 sits safely underneath the Daily EMA50 dynamic support. Target at $564.00 taps the origin of the last bearish institutional rejection candle.",
+      invalidationCondition: "4H candle close below $452.00, or setup expires if untriggered within 36 hours.",
       whyChosen: "Chosen because of the massive institutional staking rotation into decentralized AI infrastructure (referenced in Section 1), with Pantera and Polychain locking over 420,000 TAO into neural subnet emissions.",
       projectedMove: "We are willing to enter TAO at the $480.00 Fair Value Gap confluence zone. As enterprise AI models begin utilizing Dynamic TAO subnets, buying pressure will squeeze short sellers and drive price toward $564 (2R) and $620 (3R).",
-      riskManagement: "Trigger Entry $480.00 | Invalidation Stop Loss $452.00 | Target 2R $564.00 / 3R $620.00 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $480.00 | Invalidation Stop Loss $452.00 | Target 2R $564.00 / 3R $620.00 (1.5% max capital risk | 36H Expiration Window).",
       catalystDossier: "Dynamic TAO subnet registration acceleration with enterprise AI model fine-tuning deploying directly on Bittensor decentralized neural networks.",
       institutionalFlow: "Pantera Capital, Digital Currency Group, and Polychain Capital institutional staking disclosures reveal over 420,000 TAO locked into subnet emission validators.",
       technicalStructure: "Reclaimed 4H Volume Profile Point of Control above $500 milestone with parabolic volume expansion on breakout.",
       thesis: "Decentralized AI Monopoly: Peer-to-peer intelligence market incentivizing global open-source machine intelligence clusters.",
-      invalidation: "4H close below $450.00."
+      invalidation: "4H close below $452.00, or setup expires if untriggered within 36 hours."
     },
     {
       ticker: "ONDO",
@@ -175,24 +184,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 93,
       factorScores: { smartMoney: 95, structure: 92, catalyst: 96, macro: 91 },
       timeframe: "4H Swing / Secular Hold",
+      validForHours: 48,
       expectedDuration: "Multi-Week / Secular",
       optimalWindow: "RWA Inflow Epoch",
       entryTrigger: "$1.060 (Support / Resistance Flip & EMA50 Retest)",
       entryNumeric: 1.060,
-      stopLoss: "$0.990",
+      stopLoss: "$0.990 (Below 4H Range Low Wick & Psychological $1.00)",
       stopNumeric: 0.990,
-      target2R: "$1.270",
+      target2R: "$1.270 (Buy-Side Liquidity Pool above $1.25)",
       target2RNumeric: 1.270,
-      target3R: "$1.380",
+      target3R: "$1.380 (Weekly High Extension)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger entry at $1.060 retests the upper bound of the 3-week accumulation range. Stop loss at $0.990 is below the whole $1.00 round number and swing-low wick. Target at $1.270 runs buy-side stops.",
+      invalidationCondition: "4H close below $0.990, or setup expires if untriggered within 48 hours.",
       whyChosen: "Chosen due to the institutional migration of Wall Street fixed income onto blockchains (referenced in Section 2), highlighted by BlackRock BUIDL expanding tokenized US Treasury AUM on Ondo to $650M with $22M institutional USDC mints.",
       projectedMove: "Our planned entry sits at $1.060 on a retest of the multi-week breakout shelf. Holding this structural support provides an asymmetric 1:3.0 R:R setup targeting $1.270 (2R) and $1.380 (3R).",
-      riskManagement: "Trigger Entry $1.060 | Invalidation Stop Loss $0.990 | Target 2R $1.270 / 3R $1.380 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $1.060 | Invalidation Stop Loss $0.990 | Target 2R $1.270 / 3R $1.380 (1.5% max capital risk | 48H Expiration Window).",
       catalystDossier: "BlackRock BUIDL fund integration expanding tokenized US Treasury assets under management to over $650M on-chain.",
       institutionalFlow: "Whale custody transfers reveal $22M institutional USDC minted directly into Ondo Short-Term US Government Bond Fund (OUSG).",
       technicalStructure: "Clean breakout from multi-week accumulation channel with 4H EMA20 dynamic support retest.",
       thesis: "Bridging Trillions in Wall Street Fixed Income: Leading the institutional tokenization of US Treasuries and sovereign bonds.",
-      invalidation: "4H close below $0.985."
+      invalidation: "4H close below $0.990, or setup expires if untriggered within 48 hours."
     },
     {
       ticker: "PLTR",
@@ -204,24 +216,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 92,
       factorScores: { smartMoney: 94, structure: 91, catalyst: 96, macro: 89 },
       timeframe: "Intraday / Multi-Day Swing",
+      validForHours: 24,
       expectedDuration: "Multi-Day to Secular",
       optimalWindow: "NY 9:30 AM - 10:30 AM EST",
       entryTrigger: "$64.50 (Pullback to VAH Support & Gap Fill)",
       entryNumeric: 64.50,
-      stopLoss: "$61.80",
+      stopLoss: "$61.80 (Beneath Previous Day Swing Low Wick)",
       stopNumeric: 61.80,
-      target2R: "$72.60",
+      target2R: "$72.60 (Upper Value Area Resistance Expansion)",
       target2RNumeric: 72.60,
-      target3R: "$77.50",
+      target3R: "$77.50 (All-Time High Discovery Target)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger entry at $64.50 fills the morning opening gap down to Value Area High. Stop loss at $61.80 is shielded by the previous day's swing-low candle base. Target at $72.60 targets the 1.272 Fibonacci extension.",
+      invalidationCondition: "15m candle close below $61.80, or setup expires if untriggered within 24 hours.",
       whyChosen: "Chosen following confirmed Department of Defense AIP enterprise contract expansion (referenced in Section 2) and aggressive call sweep flow from Citadel and Renaissance Technologies breaking above Value Area High ($68.20).",
       projectedMove: "We are willing to enter PLTR at the $64.50 technical support pullback. The stock is exhibiting strong relative strength, with a clear runway toward $72.60 (2R) and $77.50 (3R).",
-      riskManagement: "Trigger Entry $64.50 | Invalidation Stop Loss $61.80 | Target 2R $72.60 / 3R $77.50 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $64.50 | Invalidation Stop Loss $61.80 | Target 2R $72.60 / 3R $77.50 (1.5% max capital risk | 24H Expiration Window).",
       catalystDossier: "Defense Department AIP enterprise contract expansion finalized (+18% ARR increase) with Fortune 500 bootcamps converting to multi-million enterprise subscriptions.",
       institutionalFlow: "Citadel, Renaissance Technologies, and Point72 expanded 13F positioning by +24% with abnormal call sweep blocks hitting weekly and monthly strikes.",
       technicalStructure: "Opening Range Breakout above prior session Value Area High ($68.20) with expanding buyer volume.",
       thesis: "The Sovereign AI Operating System: Mission-critical enterprise and defense analytics with unbeatable net retention rates.",
-      invalidation: "15m close back below $61.50."
+      invalidation: "15m close back below $61.80, or setup expires if untriggered within 24 hours."
     },
     {
       ticker: "SOL",
@@ -233,24 +248,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 94,
       factorScores: { smartMoney: 96, structure: 94, catalyst: 95, macro: 93 },
       timeframe: "1H - 4H Intraday",
+      validForHours: 12,
       expectedDuration: "3 - 8 Hours",
       optimalWindow: "NY Session Open",
       entryTrigger: "$94.50 (Pullback to 4H EMA20 & Orderbook Bid Cluster)",
       entryNumeric: 94.50,
-      stopLoss: "$89.50",
+      stopLoss: "$89.50 (Below Intraday Liquidity Sweep Wick)",
       stopNumeric: 89.50,
-      target2R: "$109.50",
+      target2R: "$109.50 (Equal Highs Buy-Side Liquidity Pool)",
       target2RNumeric: 109.50,
-      target3R: "$118.00",
+      target3R: "$118.00 (Macro POC Target)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $94.50 aligns with dynamic 4H EMA20 support and the top of the unmitigated 1H FVG. Stop loss at $89.50 sits below the liquidity sweep wick to survive fakeouts. Target at $109.50 sweeps stops above $105 resistance.",
+      invalidationCondition: "1H candle close below $89.50, or setup expires if untriggered within 12 hours.",
       whyChosen: "Chosen due to record on-chain DEX trading volume (+42% WoW acceleration post-latency patch) and $28.5M in aggressive market taker buy delta executed by Hyperliquid Whale Desk #4 defending $100.",
       projectedMove: "Our planned trigger entry is set at $94.50 at the 4H EMA20 dynamic support. Dense resting bid walls on the orderbook make this a high-conviction bounce entry targeting $109.50 (2R) and $118.00 (3R).",
-      riskManagement: "Trigger Entry $94.50 | Invalidation Stop Loss $89.50 | Target 2R $109.50 / 3R $118.00 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $94.50 | Invalidation Stop Loss $89.50 | Target 2R $109.50 / 3R $118.00 (1.5% max capital risk | 12H Expiration Window).",
       catalystDossier: "Confirmed on-chain DEX trading volume surge (+42% WoW) following mainnet engine performance and latency optimization upgrades.",
       institutionalFlow: "Hyperliquid Whale Desk #4 executed $28.5M in net taker market orders with solid bid walls layered from $99.50 to $100.20.",
       technicalStructure: "Reclaimed 4H Volume Profile Point of Control (POC) with clean 1H Fair Value Gap (FVG) retest at dynamic support.",
       thesis: "High-throughput execution layer dominating retail DEX trading, memecoin liquidity velocity, and tokenized payments.",
-      invalidation: "Hourly candle close below $89.00 negates structural momentum."
+      invalidation: "Hourly candle close below $89.50, or setup expires if untriggered within 12 hours."
     },
     {
       ticker: "BTC",
@@ -262,24 +280,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 95,
       factorScores: { smartMoney: 97, structure: 96, catalyst: 94, macro: 95 },
       timeframe: "4H Swing / Macro Reserve",
+      validForHours: 48,
       expectedDuration: "Multi-Week / Secular",
       optimalWindow: "Daily Session Reclaim",
       entryTrigger: "$73,800 (4H POC Reclaim & CME Gap Fill)",
       entryNumeric: 73800,
-      stopLoss: "$70,500",
+      stopLoss: "$70,500 (Below Macro Bull Flag Lower Trendline Wick)",
       stopNumeric: 70500,
-      target2R: "$83,700",
+      target2R: "$83,700 (High-Timeframe Resistance Liquidity Sweep)",
       target2RNumeric: 83700,
-      target3R: "$90,500",
+      target3R: "$90,500 (Psychological ATH Target)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $73,800 fills the CME weekend futures gap and retests the 4H POC. Stop loss at $70,500 sits below the bull flag channel wick. Target at $83,700 runs buy-side stops above $80,000.",
+      invalidationCondition: "4H candle close below $70,500, or setup expires if untriggered within 48 hours.",
       whyChosen: "Chosen as the benchmark sovereign monetary asset benefiting from DXY softening to 103.8 (referenced in Section 1) and continuous institutional spot ETF inflows (+4,520 BTC absorbed by BlackRock IBIT in 24h).",
       projectedMove: "We are willing to enter Bitcoin at the $73,800 CME gap & 4H POC retest. Low derivative liquidation risk sets up a clean asymmetric trend leg targeting $83,700 (2R) and $90,500 (3R).",
-      riskManagement: "Trigger Entry $73,800 | Invalidation Stop Loss $70,500 | Target 2R $83,700 / 3R $90,500 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $73,800 | Invalidation Stop Loss $70,500 | Target 2R $83,700 / 3R $90,500 (1.5% max capital risk | 48H Expiration Window).",
       catalystDossier: "Spot ETF net daily inflows registered +$340M with BlackRock (IBIT) absorbing 4,520 BTC into cold storage.",
       institutionalFlow: "Dark pool block prints show $45M OTC accumulation with negligible liquidation cascade risk on perp orderbooks.",
       technicalStructure: "Multi-day bull flag consolidation retest with dynamic support holding at the 4H EMA50.",
       thesis: "Global Sovereign Reserve Asset: Hard monetary protection against global fiat debasement and central bank money supply expansion.",
-      invalidation: "4H close below $70,000 negates swing structure."
+      invalidation: "4H close below $70,500, or setup expires if untriggered within 48 hours."
     },
     {
       ticker: "SUI",
@@ -291,24 +312,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 90,
       factorScores: { smartMoney: 93, structure: 89, catalyst: 92, macro: 87 },
       timeframe: "1H Scalp",
+      validForHours: 6,
       expectedDuration: "2 - 5 Hours",
       optimalWindow: "Asian / London Handover",
       entryTrigger: "$2.920 (1H EMA20 & Range Low Liquidity Sweep)",
       entryNumeric: 2.920,
-      stopLoss: "$2.700",
+      stopLoss: "$2.700 (Below 1H Asian Session Low Wick)",
       stopNumeric: 2.700,
-      target2R: "$3.580",
+      target2R: "$3.580 (Previous Session High Resistance)",
       target2RNumeric: 3.580,
-      target3R: "$4.000",
+      target3R: "$4.000 (Psychological Whole Number Liquidity)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $2.920 captures the turtle soup sweep and reclaim of the Asian session low. Stop loss at $2.700 is protected below the wick. Target at $3.580 targets trailing stop losses above prior high.",
+      invalidationCondition: "1H candle close below $2.700, or setup expires if untriggered within 6 hours.",
       whyChosen: "Chosen due to rapid DeFi TVL expansion reaching a record $1.2B and +45M tokens deposited into validator staking custody by Jump Trading and a16z crypto.",
       projectedMove: "Our planned trigger sits at $2.920 to capture the liquidity sweep of local range lows. Momentum recovery targets $3.580 (2R) and $4.000 (3R).",
-      riskManagement: "Trigger Entry $2.920 | Invalidation Stop Loss $2.700 | Target 2R $3.580 / 3R $4.000 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $2.920 | Invalidation Stop Loss $2.700 | Target 2R $3.580 / 3R $4.000 (1.5% max capital risk | 6H Expiration Window).",
       catalystDossier: "DeFi Total Value Locked (TVL) hit new record of $1.2B with daily active wallets growing 28% week-over-week.",
       institutionalFlow: "a16z crypto & Jump Trading institutional staking custody deposits increased by +45M tokens during consolidation.",
       technicalStructure: "Support/Resistance flip above prior consolidation high with clean 1H EMA20 dynamic bounce.",
       thesis: "Fast-growing high-beta layer 1 protocol experiencing organic TVL growth and institutional staking accumulation.",
-      invalidation: "1H close below $2.680."
+      invalidation: "1H close below $2.700, or setup expires if untriggered within 6 hours."
     },
     {
       ticker: "RENDER",
@@ -320,24 +344,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 91,
       factorScores: { smartMoney: 92, structure: 90, catalyst: 94, macro: 90 },
       timeframe: "4H Swing",
+      validForHours: 36,
       expectedDuration: "1 - 3 Days",
       optimalWindow: "AI Tech Wave",
       entryTrigger: "$6.15 (4H POC Rebound & Demand Zone)",
       entryNumeric: 6.15,
-      stopLoss: "$5.70",
+      stopLoss: "$5.70 (Below 4H Double Bottom Swing Low Wick)",
       stopNumeric: 5.70,
-      target2R: "$7.50",
+      target2R: "$7.50 (Untested Naked Supply Zone)",
       target2RNumeric: 7.50,
-      target3R: "$8.30",
+      target3R: "$8.30 (Range High Expansion)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $6.15 is the upper boundary of the 4H demand block. Stop loss at $5.70 is placed 0.15 below the double-bottom wick. Target at $7.50 taps the unmitigated bearish supply block.",
+      invalidationCondition: "4H candle close below $5.70, or setup expires if untriggered within 36 hours.",
       whyChosen: "Chosen due to exponential GPU node compute utilization (+38%) driven by AI 3D generative model pipelines, and $14M in spot OTC accumulation from Solana venture funds.",
       projectedMove: "We are willing to enter RENDER on a pullback to the $6.15 demand zone. Reclaiming the 50 EMA sets up a clean upside continuation targeting $7.50 (2R) and $8.30 (3R).",
-      riskManagement: "Trigger Entry $6.15 | Invalidation Stop Loss $5.70 | Target 2R $7.50 / 3R $8.30 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $6.15 | Invalidation Stop Loss $5.70 | Target 2R $7.50 / 3R $8.30 (1.5% max capital risk | 36H Expiration Window).",
       catalystDossier: "Decentralized GPU node network utilization surged 38% due to AI 3D generative model rendering batches from Hollywood and gaming studios.",
       institutionalFlow: "Multicoin Capital and Solana ecosystem venture funds executed $14M in spot OTC accumulation.",
       technicalStructure: "Double-bottom base on 4H chart with bullish RSI divergence reclaiming the 50 EMA.",
       thesis: "The Airbnb of GPU Compute: Connecting decentralized GPU hardware to meet exponential generative AI rendering demand.",
-      invalidation: "4H close below $5.65."
+      invalidation: "4H close below $5.70, or setup expires if untriggered within 36 hours."
     },
     {
       ticker: "ENA",
@@ -349,24 +376,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 88,
       factorScores: { smartMoney: 90, structure: 87, catalyst: 91, macro: 86 },
       timeframe: "1H Scalp / 4H Swing",
+      validForHours: 12,
       expectedDuration: "1 - 2 Days",
       optimalWindow: "Funding Rate Expansion",
       entryTrigger: "$0.540 (Range Low Sweep Bounce)",
       entryNumeric: 0.540,
-      stopLoss: "$0.490",
+      stopLoss: "$0.490 (Below 0.50 Psychological Floor & Range Wick)",
       stopNumeric: 0.490,
-      target2R: "$0.690",
+      target2R: "$0.690 (Mid-Range Liquidity Pool)",
       target2RNumeric: 0.690,
-      target3R: "$0.780",
+      target3R: "$0.780 (Range High Supply)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $0.540 captures the liquidity sweep and reclaim of the range low. Stop loss at $0.490 is tucked under the key round $0.50 level. Target at $0.690 takes profit into resting bids at mid-range.",
+      invalidationCondition: "1H candle close below $0.490, or setup expires if untriggered within 12 hours.",
       whyChosen: "Chosen due to USDe supply crossing $3.2B and Arthur Hayes (Maelstrom) adding $18M in sUSDe staking custody to capture double-digit basis yields.",
       projectedMove: "We see ENA establishing a bottom. Our entry trigger is $0.540 at the range low sweep level, targeting an asymmetric momentum recovery to $0.690 (2R) and $0.780 (3R).",
-      riskManagement: "Trigger Entry $0.540 | Invalidation Stop Loss $0.490 | Target 2R $0.690 / 3R $0.780 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $0.540 | Invalidation Stop Loss $0.490 | Target 2R $0.690 / 3R $0.780 (1.5% max capital risk | 12H Expiration Window).",
       catalystDossier: "USDe synthetic dollar circulating supply crossed $3.2B with annualized basis yield distribution outperforming traditional money market funds.",
       institutionalFlow: "Arthur Hayes (Maelstrom) and DragonFly Capital added $18M in sUSDe staking custody.",
       technicalStructure: "Liquidity sweep of local range lows with strong 1H reclaim and volume confirmation.",
       thesis: "Synthetic Dollar Basis Protocol: Capturing institutional funding rate spreads across global crypto perpetual markets.",
-      invalidation: "1H close below $0.485."
+      invalidation: "1H close below $0.490, or setup expires if untriggered within 12 hours."
     },
     {
       ticker: "QQQ",
@@ -378,24 +408,27 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 92,
       factorScores: { smartMoney: 93, structure: 91, catalyst: 94, macro: 95 },
       timeframe: "4H Swing",
+      validForHours: 24,
       expectedDuration: "1 - 3 Days",
       optimalWindow: "NY Session Open",
-      entryTrigger: "$481.50 (Pullback to Value Area High)",
+      entryTrigger: "$481.50 (Pullback to Prior Session VAH & 4H EMA20)",
       entryNumeric: 481.50,
-      stopLoss: "$474.00",
+      stopLoss: "$474.00 (Below Morning Swing Low Wick)",
       stopNumeric: 474.00,
-      target2R: "$504.00",
+      target2R: "$504.00 (Fibonacci 1.272 Trend Extension)",
       target2RNumeric: 504.00,
-      target3R: "$516.00",
+      target3R: "$516.00 (Channel Resistance Target)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $481.50 retests previous session Value Area High. Stop loss at $474.00 is anchored below the morning pullback wick. Target at $504.00 targets all-time high buy stops.",
+      invalidationCondition: "4H candle close below $474.00, or setup expires if untriggered within 24 hours.",
       whyChosen: "Selected directly from Section 1 macro liquidity tailwinds: US Dollar (DXY) softening to 103.8 combined with 10Y yield stabilization at 4.28% removes borrowing friction across high-growth tech components.",
       projectedMove: "Our planned trigger is $481.50 on a test of Value Area High. Upside continuation targets $504.00 (2R) and $516.00 (3R).",
-      riskManagement: "Trigger Entry $481.50 | Invalidation Stop Loss $474.00 | Target 2R $504.00 / 3R $516.00 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $481.50 | Invalidation Stop Loss $474.00 | Target 2R $504.00 / 3R $516.00 (1.5% max capital risk | 24H Expiration Window).",
       catalystDossier: "Institutional capital rotation accelerating into tech index baskets following positive semiconductor shipment data and yield curve flattening.",
       institutionalFlow: "Net ETF creation units expanded with +$850M in institutional block inflows across major custodian desks.",
       technicalStructure: "Ascending trendline reclaim holding firmly above 4H EMA20 dynamic support.",
       thesis: "Macro Liquidity Play: Lower real yields driving broad index expansion across megacap technology leaders.",
-      invalidation: "4H candle close below $473.50 invalidates upward structure."
+      invalidation: "4H candle close below $474.00, or setup expires if untriggered within 24 hours."
     },
     {
       ticker: "NVDA",
@@ -407,28 +440,39 @@ export function generateDynamicSetups(livePrices = {}) {
       confluenceScore: 94,
       factorScores: { smartMoney: 95, structure: 93, catalyst: 97, macro: 93 },
       timeframe: "4H Swing / Secular Core",
+      validForHours: 48,
       expectedDuration: "Multi-Week / Secular",
       optimalWindow: "NY Tech Open",
-      entryTrigger: "$124.50 (4H POC Reclaim & FVG Fill)",
+      entryTrigger: "$124.50 (4H POC Reclaim & 1H Bullish FVG Fill)",
       entryNumeric: 124.50,
-      stopLoss: "$118.00",
+      stopLoss: "$118.00 (Below Weekly Support Shelf Wick)",
       stopNumeric: 118.00,
-      target2R: "$144.00",
+      target2R: "$144.00 (Unmitigated Liquidity Pool above $140)",
       target2RNumeric: 144.00,
-      target3R: "$155.00",
+      target3R: "$155.00 (ATH Breakout Discovery)",
       riskRewardRatio: "1:3.0",
+      candlestickRationale: "Trigger at $124.50 fills the 1H bullish FVG directly into the 4H Point of Control. Stop loss at $118.00 is protected below the weekly pivot wick. Target at $144.00 runs buy-side stops.",
+      invalidationCondition: "4H candle close below $118.00, or setup expires if untriggered within 48 hours.",
       whyChosen: "Chosen following multi-billion datacenter compute orderbook expansions from hyperscalers (Microsoft, Meta, Google) and heavy institutional call sweep flow breaking above $132.",
       projectedMove: "We are willing to enter NVDA on a healthy pullback to the $124.50 Point of Control & Fair Value Gap. Continued AI Capex demand creates strong institutional support targeting $144.00 (2R) and $155.00 (3R).",
-      riskManagement: "Trigger Entry $124.50 | Invalidation Stop Loss $118.00 | Target 2R $144.00 / 3R $155.00 (1.5% max capital risk).",
+      riskManagement: "Trigger Entry $124.50 | Invalidation Stop Loss $118.00 | Target 2R $144.00 / 3R $155.00 (1.5% max capital risk | 48H Expiration Window).",
       catalystDossier: "Blackwell chip production ramp accelerating with hyperscaler delivery commitments locked in through 2027.",
       institutionalFlow: "Institutional options order flow flagged $62M in aggressive out-of-the-money call sweeps at $135 and $140 strike prices.",
       technicalStructure: "Bullish consolidation above 4H Volume Profile Point of Control with expanding volume on up-candles.",
       thesis: "Hyperscaler Compute Monopoly: Irreplaceable compute backbone powering enterprise and sovereign AI deployments worldwide.",
-      invalidation: "4H candle close below $117.50."
+      invalidation: "4H candle close below $118.00, or setup expires if untriggered within 48 hours."
     }
   ];
 
-  return candidatePool;
+  const nowMs = Date.now();
+  return candidatePool.map(play => {
+    const validHours = play.validForHours || (play.timeframe?.includes('Scalp') ? 6 : play.timeframe?.includes('Swing') ? 36 : 72);
+    return {
+      ...play,
+      validForHours: validHours,
+      expiresAt: play.expiresAt || new Date(nowMs + validHours * 3600000).toISOString()
+    };
+  });
 }
 
 /**
@@ -468,18 +512,20 @@ Your council investigates real-time crypto perps, DePIN, RWA, and high-convictio
 1. ATLAS: Macro liquidity, DXY, bond yields, sector rotation.
 2. POSEIDON: Smart Money, 13F disclosures, dark pool block sweeps, Hyperliquid taker buy delta.
 3. ARTEMIS: Confirmed corporate/protocol metrics, earnings beats, DEX volume growth, fee revenues.
-4. ARES: Fair Value Gaps (FVG), Volume Profile Point of Control (POC), orderbook depth.
-5. THE SKEPTIC: Adversarial red-team auditor. Rejects setups with R:R < 1:2.5.
+4. ARES: Candlestick price action, Fair Value Gaps (FVG), order blocks, Volume Profile Point of Control (POC), swing wicks.
+5. THE SKEPTIC: Adversarial red-team auditor. Rejects setups with R:R < 1:2.5, validates stop loss placement against liquidity hunts, and enforces timeframe invalidation rules.
 6. HERMES-PRIME: Synthesizes high-conviction asymmetric trade dossiers across Intraday, Swing, and Secular Core horizons.
 
-CRITICAL DIRECTIVES FOR TRADE SETUP PLANNING & WILLINGNESS-TO-PAY TRIGGER PRICES:
-- Strategists do NOT need to wait until an asset is at the exact current market price to recommend it. If an asset has strong confluence, smart money accumulation, or an impending catalyst, strategists MUST identify the explicit planned Trigger Entry level (e.g. key Fair Value Gap, 4H POC pullback, Support/Resistance flip, or Breakout level) where the council is willing to execute the trade.
-- NEVER automatically set the Trigger Entry to the current live market price. The Trigger Entry ('entryNumeric' and 'entryTrigger') MUST represent the strategic planned buy/sell level, which may be 2% to 15% away from the current market price.
-- Always provide:
-  - 'entryNumeric': Exact numerical trigger entry price where the council is willing to execute.
-  - 'entryTrigger': String description of the level (e.g. '$24.80 (Pullback to 4H POC & 1H FVG)').
-  - 'stopNumeric': Invalidation stop loss price (calculated relative to 'entryNumeric').
-  - 'target2RNumeric': Take Profit price (minimum 1:2.5 to 1:3 R:R relative to 'entryNumeric').
+CRITICAL DIRECTIVES FOR CANDLESTICK CONFLUENCE & TIMEFRAME INVALIDATION:
+- ARES (Market Structure & Candlestick Specialist): Every entry trigger, stop loss, and take profit must be anchored strictly to CANDLESTICK STRUCTURE, not arbitrary percentage increases/decreases:
+  1. Trigger Entry: Anchored to 50% Fair Value Gap (FVG) mitigation, Volume Profile Point of Control (POC), order block mitigation, or dynamic EMA support/resistance.
+  2. Stop Loss: Placed strictly beyond the structural swing-low/high wick or order block base with a 0.2% protective buffer. Must explicitly explain why a candle close beyond this point invalidates the trade.
+  3. Take Profit: Anchored to opposing liquidity pools, prior equal highs/lows (buy/sell-side liquidity), or untested high-timeframe Value Area boundaries for minimum 1:2.5 to 1:3.5 R:R.
+- THE SKEPTIC & HERMES-PRIME (Timeframe Invalidation Expiration):
+  - Every trade setup MUST include:
+    - 'validForHours': Expiration window in hours (4-6 hours for 1H scalps, 24-48 hours for 4H swings, 72-120 hours for secular core holds).
+    - 'invalidationCondition': Specific technical condition (e.g., 'Hourly candle close below $23.20 before trigger, or expires if not hit within 36 hours').
+  - If the trigger point is NOT hit within the targeted timeframe, the setup MUST expire to allow the trader to escape before market conditions evolve.
 - The macro brief must ONLY contain Section 1 (What's Happening & Why) and Section 2 (Critical Upcoming Dates/Events & Recent News). DO NOT include trade buy/sell orders in the macro/news brief.
 - Return ONLY valid JSON matching the schema.`;
 
@@ -497,8 +543,17 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
       apiKey: config.openRouterApiKey
     });
     if (hermesResult && hermesResult.highConvictionPlays && Array.isArray(hermesResult.highConvictionPlays)) {
+      const enrichedPlays = hermesResult.highConvictionPlays.map(play => {
+        const validHours = play.validForHours || (play.timeframe?.includes('Scalp') ? 6 : play.timeframe?.includes('Swing') ? 36 : 72);
+        return {
+          ...play,
+          validForHours: validHours,
+          expiresAt: play.expiresAt || new Date(Date.now() + validHours * 3600000).toISOString()
+        };
+      });
       const saved = saveHermesBrief({
         ...hermesResult,
+        highConvictionPlays: enrichedPlays,
         id: `scan_${Date.now()}`,
         scannedAt: now.toISOString(),
         date: scanDateStr,
@@ -512,8 +567,17 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
   try {
     const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 45000);
     if (res && res.highConvictionPlays && Array.isArray(res.highConvictionPlays)) {
+      const enrichedPlays = res.highConvictionPlays.map(play => {
+        const validHours = play.validForHours || (play.timeframe?.includes('Scalp') ? 6 : play.timeframe?.includes('Swing') ? 36 : 72);
+        return {
+          ...play,
+          validForHours: validHours,
+          expiresAt: play.expiresAt || new Date(Date.now() + validHours * 3600000).toISOString()
+        };
+      });
       const saved = saveHermesBrief({
         ...res,
+        highConvictionPlays: enrichedPlays,
         id: `scan_${Date.now()}`,
         scannedAt: now.toISOString(),
         date: scanDateStr,
@@ -556,7 +620,7 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
       role: "Chief Strategist",
       stage: "War Room Convener",
       timestamp: new Date(Date.now() - 420000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      message: `Attention Council. Convening live quantitative trading pod. We are scouting both tactical intraday momentum and high-conviction secular compounders across Hyperliquid crypto perps, DePIN/AI, RWA, and tech equities. We do not take surface-level setups; I need hard quantitative data, cross-examined evidence, and tight risk boundaries. @Atlas, break down the macro liquidity tape and yield curve dynamics.`
+      message: `Attention Council. Convening live quantitative trading pod. We are scouting both tactical intraday momentum and high-conviction secular compounders across Hyperliquid crypto perps, DePIN/AI, RWA, and tech equities. We do not chase current market prices; every setup must have an explicit technical willingness-to-pay trigger level, structural stop loss, and invalidation timeframe. @Atlas, break down the macro liquidity tape and yield curve dynamics.`
     },
     {
       step: 2,
@@ -601,36 +665,36 @@ This macro backdrop specifically favors trend continuation on SOL ($${solPrice.t
 4. PLTR ($${pltrPrice.toFixed(2)}): Department of Defense AIP enterprise contract expansion was finalized, increasing annual recurring revenue (ARR) by +18% with high gross margins.
 5. SOL: Solana 24h decentralized exchange (DEX) swap volume reached $3.8B, a +42% WoW acceleration post-mainnet latency patch.
 6. ONDO: BlackRock BUIDL integration expanding tokenized US Treasury assets under management to over $650M on-chain.
-@Ares, map the structural entry zones, Fair Value Gaps, and Point of Control levels.`
+@Ares, map the structural entry zones, Fair Value Gaps, Point of Control levels, and candlestick wicks.`
     },
     {
       step: 5,
       speaker: "Ares",
       recipient: "Council Pod",
       role: "Market Structure",
-      stage: "Orderbook POC & FVG Mapping",
+      stage: "Candlestick Confluence & Structure Mapping",
       timestamp: new Date(Date.now() - 260000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      message: `Technical orderbook structure mapped across our primary setups:
-• ASTS ($${astsPrice.toFixed(2)}): Price reclaimed the 4H Volume Profile Point of Control (POC). The 1H Fair Value Gap (FVG) sits at $26.20-$26.50, aligning with dynamic EMA20 support. Stop loss at $24.90 ($1.30 risk), Target 2R at $29.40 ($3.20 reward), delivering 1:2.8 R:R.
-• HYPE ($${hypePrice.toFixed(2)}): Ascending triangle accumulation retesting Value Area High at $81.50-$81.94. Stop loss at $79.60, Target 2R at $86.70 (1:2.7 R:R).
-• TAO ($${taoPrice.toFixed(1)}): Reclaimed 4H POC above $505. Limit entry at $508-$512, Stop loss at $494, Target 2R at $556 (1:2.7 R:R).
-• SOL ($${solPrice.toFixed(2)}): Structural reclaim of 4H Value Area High with 1H FVG retest at $99.40-$100.20. Stop loss at $97.50, Target 2R at $105.40 (1:2.6 R:R).
-• PLTR ($${pltrPrice.toFixed(2)}): Opening Range Breakout holding above previous session Value Area High ($67.80). Stop loss at $65.90, Target 2R at $72.60 (1:2.5 R:R).
-• BTC ($${btcPrice.toLocaleString()}): 4H bull flag consolidation holding firmly above the 4H EMA50 ($77,100). Stop loss at $75,800, Target 2R at $80,200 (1:2.8 R:R).
-• ONDO ($${ondoPrice.toFixed(3)}): Reclaimed multi-week consolidation resistance at $1.14. Stop loss at $1.11, Target 2R at $1.24 (1:2.6 R:R).
-@TheSkeptic, conduct the adversarial red-team stress test.`
+      message: `I've mapped candlestick price action and structural order blocks across our key setups:
+• ASTS: Current $${astsPrice.toFixed(2)}. We refuse to chase here; our strategic Trigger Entry is at $24.80, aligning with 50% mitigation of the 1H Fair Value Gap and 4H Volume Profile Point of Control. Stop loss at $23.20 is placed 0.20 below the prior 4H swing-low wick. Target 2R is at $29.60 (untested naked POC), delivering a clean 1:3.0 R:R. Valid for 36 hours.
+• HYPE: Current $${hypePrice.toFixed(2)}. Strategic Trigger Entry at $77.50 Value Area Low demand zone. Stop loss at $73.80 beneath the 4H higher-low wick. Target 2R at $88.50 capturing buy-side liquidity (1:3.0 R:R). Valid for 48 hours.
+• TAO: Current $${taoPrice.toFixed(1)}. Strategic Trigger Entry at $480.00 to capture 1H FVG mitigation. Stop loss at $452.00 beneath the consolidation base. Target 2R at $564.00 (1:3.0 R:R). Valid for 36 hours.
+• SOL: Current $${solPrice.toFixed(2)}. Strategic Trigger Entry at $94.50 at the 4H EMA20 dynamic support. Stop loss at $89.50 below the liquidity sweep wick. Target 2R at $109.50 (1:3.0 R:R). Valid for 12 hours.
+• PLTR: Current $${pltrPrice.toFixed(2)}. Strategic Trigger Entry at $64.50 retesting prior session Value Area High. Stop loss at $61.80 below previous day's swing-low wick. Target 2R at $72.60 (1:3.0 R:R). Valid for 24 hours.
+• BTC: Current $${btcPrice.toLocaleString()}. Strategic Trigger Entry at $73,800 to fill CME gap and retest 4H POC. Stop loss at $70,500 below the bull flag channel wick. Target 2R at $83,700 (1:3.0 R:R). Valid for 48 hours.
+@TheSkeptic, stress-test these candlestick levels and confirm the invalidation rules.`
     },
     {
       step: 6,
       speaker: "The Skeptic",
-      recipient: "Poseidon, Artemis & Ares",
+      recipient: "Ares & Pod",
       role: "Risk Auditor & Red Team",
-      stage: "Adversarial Stress-Testing",
+      stage: "Candlestick Stress-Testing & Invalidation Window",
       timestamp: new Date(Date.now() - 220000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      message: `I'm attacking this thesis on three fronts:
-1. On ASTS: @Poseidon, retail hype is high around space telecom. How do you know those $26.10 dark pool prints weren't early venture funds offloading into retail liquidity before warrant redemptions?
-2. On HYPE & TAO: @Ares, both HYPE and TAO have had massive multi-week runs. Are we buying the top of a local blowoff or is there genuine orderbook absorption on pullbacks?
-3. On SOL: @Ares, $100 is a heavy psychological resistance level with dense call open interest on Deribit. If Bitcoin sweeps liquidity down to $75k, SOL could wick to $96. Why should we enter at $100 rather than waiting for a deeper flush?`
+      message: `Auditing the candlestick boundaries and risk profiles:
+1. On ASTS: $23.20 stop loss is structurally sound because it sits below the 4H rejection wick. If price closes a 4H candle below $23.20 before triggering our entry, the setup is immediately invalidated. Furthermore, if $24.80 is not tagged within 36 hours, we cancel the order to avoid holding stale risk.
+2. On HYPE & TAO: Both stops ($73.80 and $452.00) are placed under genuine order block bases, not arbitrary percentage stops. If price breaches these wicks, institutional market structure has failed.
+3. On SOL: 12-hour expiration window is enforced. If SOL does not pull back to $94.50 within 12 hours, intraday momentum has evolved and we escape before entering.
+All setups deliver a minimum of 1:3.0 R:R with explicit time-based auto-escape conditions. Hermes-Prime, you have clearance.`
     },
     {
       step: 7,

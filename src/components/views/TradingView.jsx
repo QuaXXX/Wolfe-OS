@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Bell,
   ShieldAlert,
+  Timer,
   X
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
@@ -296,6 +297,11 @@ export const TradingView = ({
           hlPosition
         });
       } else {
+        // Auto-remove untriggered setups if timeframe has expired
+        if (play.expiresAt && Date.now() > new Date(play.expiresAt).getTime()) {
+          return;
+        }
+
         // Auto-remove untriggered setups if live price has pierced stop loss (Invalidated)
         const currentLive = livePricesMap?.[play.ticker];
         if (currentLive) {
@@ -813,6 +819,10 @@ export const TradingView = ({
                   const pnlUSD = play.forwardPosition?.unrealizedPnlUSD || 0;
                   const roePct = play.forwardPosition?.roePct || 0;
 
+                  // Expiration Calculation
+                  const remainingMs = play.expiresAt ? new Date(play.expiresAt).getTime() - Date.now() : null;
+                  const remainingHours = remainingMs !== null ? Math.max(0, Math.round(remainingMs / (1000 * 60 * 60))) : (play.validForHours || null);
+
                   return (
                     <GlassCard 
                       key={isActive ? `active_${idx}` : idx} 
@@ -848,6 +858,18 @@ export const TradingView = ({
                             <Clock className="w-3 h-3 text-cyan-400" />
                             <span>{timeframeDisplay}</span>
                           </span>
+
+                          {/* Invalidation Expiration Window Badge */}
+                          {remainingHours !== null && !isActive && (
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold border flex items-center gap-1 ${
+                              remainingHours <= 4 
+                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' 
+                                : 'bg-white/[0.04] text-slate-300 border-white/10'
+                            }`}>
+                              <Timer className="w-3 h-3 text-amber-400" />
+                              <span>{remainingHours > 0 ? `Valid ${remainingHours}h` : 'Expiring Soon'}</span>
+                            </span>
+                          )}
 
                           {/* Active Status Badge if filled/testing */}
                           {isActive && (
@@ -978,19 +1000,25 @@ export const TradingView = ({
                         </div>
                       </div>
 
-                      {/* 3 Point-Form Bullets: Why Chosen, Expected Move, Risk & Invalidation */}
+                      {/* Point-Form Bullets: Why Chosen, Candlestick Structure, Expected Move, Risk & Invalidation */}
                       <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">
                         <div className="flex items-start gap-1.5 leading-relaxed">
                           <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
                           <span><strong className="text-white">Why Chosen:</strong> {whyChosenText}</span>
                         </div>
+                        {play.candlestickRationale && (
+                          <div className="flex items-start gap-1.5 leading-relaxed">
+                            <span className="text-indigo-400 font-bold shrink-0 mt-0.5">•</span>
+                            <span><strong className="text-white">Candlestick Structure:</strong> {play.candlestickRationale}</span>
+                          </div>
+                        )}
                         <div className="flex items-start gap-1.5 leading-relaxed">
                           <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
                           <span><strong className="text-white">Expected Move:</strong> {projectedMoveText}</span>
                         </div>
                         <div className="flex items-start gap-1.5 leading-relaxed">
                           <span className="text-emerald-400 font-bold shrink-0 mt-0.5">•</span>
-                          <span><strong className="text-white">Risk & Invalidation:</strong> {riskMgmtText}</span>
+                          <span><strong className="text-white">Risk & Invalidation:</strong> {play.invalidationCondition ? `${riskMgmtText} | Invalidation: ${play.invalidationCondition}` : riskMgmtText}</span>
                         </div>
                       </div>
 

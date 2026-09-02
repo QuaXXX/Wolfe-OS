@@ -270,6 +270,10 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
     leverage,
     timeframe: play.timeframe || '1H - 4H Intraday',
     expectedDuration: play.expectedDuration || '3 - 8 Hours',
+    validForHours: play.validForHours || (play.timeframe?.includes('Scalp') ? 6 : play.timeframe?.includes('Swing') ? 36 : 72),
+    expiresAt: play.expiresAt || new Date(Date.now() + (play.validForHours || (play.timeframe?.includes('Scalp') ? 6 : play.timeframe?.includes('Swing') ? 36 : 72)) * 3600000).toISOString(),
+    invalidationCondition: play.invalidationCondition || play.invalidation || null,
+    candlestickRationale: play.candlestickRationale || null,
     thesis: play.thesis,
     convictionGrade: play.convictionGrade || 'A+',
     briefDate: briefDate || new Date().toISOString().split('T')[0],
@@ -312,18 +316,19 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
 
     // 1. If Position is PENDING ENTRY: check if limit price touched in real market OR if expired / invalidated
     if (pos.status === 'PENDING_ENTRY') {
+      const isExpiredByTimeframe = pos.expiresAt && Date.now() > new Date(pos.expiresAt).getTime();
       const todayIso = new Date().toISOString().split('T')[0];
       const posDate = pos.date ? String(pos.date).split('T')[0] : (pos.enteredAt ? String(pos.enteredAt).split('T')[0] : null);
-      const isOlderThanToday = posDate && posDate < todayIso;
-      const isStaleIntraday = pos.enteredAt && (Date.now() - new Date(pos.enteredAt).getTime() > 14 * 60 * 60 * 1000);
+      const isOlderThanToday = posDate && posDate < todayIso && (!pos.timeframe || pos.timeframe.includes('Scalp') || pos.timeframe.includes('Intraday'));
+      const isStaleIntraday = pos.enteredAt && (!pos.timeframe || pos.timeframe.includes('Scalp')) && (Date.now() - new Date(pos.enteredAt).getTime() > 14 * 60 * 60 * 1000);
 
       // Check if price pierced stop loss before ever filling limit entry (Invalidated)
       const isInvalidatedBeforeFill = isLong 
         ? (pos.stopLoss && currentPrice <= pos.stopLoss)
         : (pos.stopLoss && currentPrice >= pos.stopLoss);
 
-      // Auto-expire/cancel intraday pending orders if day has ended or if setup was invalidated
-      if (isOlderThanToday || isStaleIntraday || isInvalidatedBeforeFill) {
+      // Auto-expire/cancel pending limit orders if timeframe elapsed or if setup was invalidated
+      if (isExpiredByTimeframe || isOlderThanToday || isStaleIntraday || isInvalidatedBeforeFill) {
         history.unshift({
           id: pos.id,
           ticker: pos.ticker,
@@ -336,8 +341,12 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
           spotMovePct: 0.00,
           rMultiple: 0.00,
           isWin: false,
-          exitReason: isInvalidatedBeforeFill ? 'INVALIDATED (Price pierced SL before entry)' : 'EXPIRED (Unfilled Intraday)',
-          strategy: pos.strategy || 'Intraday Limit Order',
+          exitReason: isInvalidatedBeforeFill 
+            ? 'INVALIDATED (Price pierced SL before entry)' 
+            : isExpiredByTimeframe 
+              ? `EXPIRED (Trigger point not hit within ${pos.validForHours || 'targeted'}h timeframe - Escaped trade safely)`
+              : 'EXPIRED (Unfilled Intraday)',
+          strategy: pos.strategy || 'Pending Limit Order',
           enteredAt: pos.enteredAt || pos.date,
           closedAt: new Date().toISOString()
         });
