@@ -95,6 +95,7 @@ export const TradingView = ({
   const [selectedTradeForEdit, setSelectedTradeForEdit] = useState(null);
   const [selectedPlayForOrder, setSelectedPlayForOrder] = useState(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [hyperliquidTicker, setHyperliquidTicker] = useState('BTC');
 
   // New Ticker input
   const [newTickerInput, setNewTickerInput] = useState('');
@@ -258,26 +259,34 @@ export const TradingView = ({
     refreshAllData();
   };
 
+  const availableWarRoomPlays = useMemo(() => {
+    return (hermesBrief?.highConvictionPlays || []).filter(play => {
+      const isForwardTesting = paperPositions.some(p => p.ticker === play.ticker && p.status !== 'CLOSED');
+      const isCompleted = tradeJournal.some(j => j.ticker === play.ticker);
+      return !isForwardTesting && !isCompleted;
+    });
+  }, [hermesBrief, paperPositions, tradeJournal]);
+
   const tabsConfig = [
     { 
       id: 'overview', 
-      label: 'Morning War Room', 
+      label: 'War Room', 
       icon: Compass, 
-      count: hermesBrief?.highConvictionPlays?.length || 0,
+      count: availableWarRoomPlays.length,
       isLoading: isScanning 
     },
+    { id: 'execute', label: 'Hyperliquid', icon: Zap, count: 0, isLoading: false },
+    { id: 'papertrader', label: 'Forward Test', icon: Bot, count: paperPositions.length, isLoading: false },
+    { id: 'positions', label: 'Positions', icon: Layers, count: openPositions.length, isLoading: false },
+    { id: 'journal', label: 'Journal', icon: BookOpen, count: tradeJournal.length, isLoading: false },
+    { id: 'webhooks', label: 'Webhooks', icon: Radio, count: webhookLogs.length, isLoading: false },
     { 
       id: 'council', 
-      label: 'Council Deliberation Chat', 
+      label: 'Council Chat', 
       icon: MessageSquare, 
       count: hermesBrief?.councilDialogue?.length || 7,
       isLoading: isScanning 
-    },
-    { id: 'papertrader', label: 'Forward-Test Desk', icon: Bot, count: paperPositions.length, isLoading: false },
-    { id: 'execute', label: 'Hyperliquid 1-Click L1 Execution', icon: Zap, count: 0, isLoading: false },
-    { id: 'positions', label: 'Live Positions', icon: Layers, count: openPositions.length, isLoading: false },
-    { id: 'journal', label: 'Trade Journal', icon: BookOpen, count: tradeJournal.length, isLoading: false },
-    { id: 'webhooks', label: 'Webhook Signals', icon: Radio, count: webhookLogs.length, isLoading: false }
+    }
   ];
 
   const currentTabObj = tabsConfig.find(t => t.id === activeTab) || tabsConfig[0];
@@ -472,19 +481,7 @@ export const TradingView = ({
                   className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Hermes War Room</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setIsWebhookModalOpen(true);
-                    setIsActionsDropdownOpen(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Radio className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Webhooks Setup</span>
+                  <span>War Room Brief</span>
                 </button>
                 <button
                   type="button"
@@ -496,7 +493,19 @@ export const TradingView = ({
                   className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Zap className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>1-Click L1 Execution</span>
+                  <span>Hyperliquid</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setIsWebhookModalOpen(true);
+                    setIsActionsDropdownOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Radio className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                  <span>Webhooks</span>
                 </button>
                 <button
                   type="button"
@@ -508,7 +517,7 @@ export const TradingView = ({
                   className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Key className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Hyperliquid Bridge</span>
+                  <span>API Keys</span>
                 </button>
                 <button
                   type="button"
@@ -521,7 +530,7 @@ export const TradingView = ({
                   className="w-full px-3 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <BookOpen className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Log Manual Trade</span>
+                  <span>Log Trade</span>
                 </button>
 
                 <div className="my-1 border-t border-white/5" />
@@ -620,60 +629,91 @@ export const TradingView = ({
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                     <Target className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                    <span>Deep Research Trade Dossiers ({hermesBrief?.highConvictionPlays?.length || 4})</span>
+                    <span>Actionable Trade Dossiers ({availableWarRoomPlays.length})</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {(hermesBrief?.highConvictionPlays || []).map((play, idx) => {
-                    const isLong = play.bias === 'LONG';
-                    const trackedPosition = paperPositions.find(p => p.ticker === play.ticker && p.status !== 'CLOSED');
-                    const isAlreadyTracking = !!trackedPosition;
-                    const isPending = trackedPosition?.status === 'PENDING_ENTRY';
-                    const isDossierOpen = expandedDossierIdx === idx;
+                {availableWarRoomPlays.length === 0 ? (
+                  <GlassCard hoverEffect={false} className="p-8 text-center space-y-3 border border-white/5">
+                    <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-400" />
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-white">All Setups Active or Completed</h4>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto">
+                        All daily trade dossiers are currently active in Forward Test or recorded in your Journal.
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playSound('click', soundEnabled);
+                          setActiveTab('execute');
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-semibold text-emerald-300 border border-emerald-500/30 cursor-pointer flex items-center gap-1.5 active:scale-95"
+                      >
+                        <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Hyperliquid Desk</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playSound('click', soundEnabled);
+                          setActiveTab('papertrader');
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-xs font-semibold text-white cursor-pointer flex items-center gap-1.5 active:scale-95"
+                      >
+                        <Bot className="w-3.5 h-3.5 text-slate-300" />
+                        <span>View Forward Test</span>
+                      </button>
+                    </div>
+                  </GlassCard>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {availableWarRoomPlays.map((play, idx) => {
+                      const isLong = play.bias === 'LONG';
+                      const isDossierOpen = expandedDossierIdx === idx;
 
-                    return (
-                      <GlassCard key={idx} hoverEffect={false} className="p-3.5 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-white font-mono">{play.ticker}</span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10 flex items-center gap-0.5">
-                              {isLong ? <ArrowUpRight className="w-3 h-3 text-slate-300" /> : <ArrowDownRight className="w-3 h-3 text-slate-300" />}
-                              {play.bias} 5x
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
-                          </div>
-
-                          {/* Forward-Test Status / Action Button */}
-                          {isAlreadyTracking ? (
-                            <div className="flex items-center gap-1.5">
-                              {isPending ? (
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
-                                  <Clock className="w-3 h-3 text-slate-400" />
-                                  <span>Waiting for Entry Fill</span>
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
-                                  <Check className="w-3 h-3 text-slate-400" />
-                                  <span>Active in Market</span>
-                                </span>
-                              )}
+                      return (
+                        <GlassCard key={idx} hoverEffect={false} className="p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white font-mono">{play.ticker}</span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10 flex items-center gap-0.5">
+                                {isLong ? <ArrowUpRight className="w-3 h-3 text-slate-300" /> : <ArrowDownRight className="w-3 h-3 text-slate-300" />}
+                                {play.bias} 5x
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-300">Grade: <strong className="text-white">{play.convictionGrade}</strong></span>
                             </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenOrderModal(play)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer text-white"
-                              style={{
-                                backgroundColor: 'var(--accent-subtle)',
-                                border: '1px solid var(--accent-border)'
-                              }}
-                            >
-                              <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                              <span>+ Forward-Test</span>
-                            </button>
-                          )}
-                        </div>
+
+                            {/* Actions: Direct Hyperliquid Execution or Forward-Test */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  playSound('click', soundEnabled);
+                                  setHyperliquidTicker(play.ticker);
+                                  setActiveTab('execute');
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 active:scale-95"
+                                title="Execute directly on Hyperliquid L1"
+                              >
+                                <Zap className="w-3 h-3 text-emerald-400" />
+                                <span>Hyperliquid</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenOrderModal(play)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95"
+                                style={{
+                                  backgroundColor: 'var(--accent-subtle)',
+                                  border: '1px solid var(--accent-border)'
+                                }}
+                              >
+                                <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                                <span>+ Test</span>
+                              </button>
+                            </div>
+                          </div>
 
                         {/* Timeframe & Trade Duration */}
                         <div className="flex items-center gap-2 text-[11px] text-slate-400">
@@ -760,7 +800,8 @@ export const TradingView = ({
                     );
                   })}
                 </div>
-              </div>
+              )}
+            </div>
 
               {/* Big Fund & Whale Intelligence Log */}
               {hermesBrief?.fundIntelligence && hermesBrief.fundIntelligence.length > 0 && (
@@ -954,10 +995,11 @@ export const TradingView = ({
         />
       )}
 
-      {/* 5.5 TAB: HYPERLIQUID 1-CLICK EXECUTION DESK */}
+      {/* 5.5 TAB: HYPERLIQUID EXECUTION DESK */}
       {activeTab === 'execute' && (
         <div className="space-y-4">
           <HyperliquidDirectExecutionPanel 
+            initialTicker={hyperliquidTicker}
             soundEnabled={soundEnabled} 
             onOrderExecuted={refreshAllData} 
           />
@@ -967,8 +1009,9 @@ export const TradingView = ({
       {/* 6. TAB 4: LIVE OPEN POSITIONS */}
       {activeTab === 'positions' && (
         <div className="space-y-4 font-sans">
-          {/* Direct 1-Click L1 Execution Panel embedded at top of Positions */}
+          {/* Direct L1 Execution Panel embedded at top of Positions */}
           <HyperliquidDirectExecutionPanel 
+            initialTicker={hyperliquidTicker}
             soundEnabled={soundEnabled} 
             onOrderExecuted={refreshAllData} 
           />

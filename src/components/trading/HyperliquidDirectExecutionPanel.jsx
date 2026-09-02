@@ -24,10 +24,19 @@ import { getTradingConfig } from '../../utils/tradingStorage';
 import { getHyperliquidMeta } from '../../utils/hyperliquidSigning';
 import { playSound } from '../../utils/soundFX';
 
-export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderExecuted }) => {
-  const [ticker, setTicker] = useState('BTC');
-  const [leverage, setLeverage] = useState(3);
+export const HyperliquidDirectExecutionPanel = ({ 
+  initialTicker = 'BTC', 
+  initialLeverage = 3, 
+  soundEnabled = true, 
+  onOrderExecuted 
+}) => {
+  const [ticker, setTicker] = useState(initialTicker);
+  const [leverage, setLeverage] = useState(initialLeverage);
   const [sizePercent, setSizePercent] = useState(100);
+
+  useEffect(() => {
+    if (initialTicker) setTicker(initialTicker);
+  }, [initialTicker]);
   const [liveEquity, setLiveEquity] = useState(null);
   const [withdrawable, setWithdrawable] = useState(null);
   const [livePrice, setLivePrice] = useState(null);
