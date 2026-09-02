@@ -25,8 +25,8 @@ export const DEFAULT_TRADING_CONFIG = {
   isLive: true,
   testnet: false,
   masterWalletAddress: '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7', // Master Account holding USDC funds
-  agentWalletAddress: '0x801aE5E21C711Fbe2e73002263b5a18a39838419',
-  agentPrivateKey: '0x4a5e347243b8eb5691780586f7d624b9a117dd240a502fce63d7e052c4288686', // Stored locally only for trade-only signing
+  agentWalletAddress: '0x9D90e9a0270f253A8A60cAa091d81b789dA573a0',
+  agentPrivateKey: '0x8208dec6f092c3a5c614239b19628db4b0b32bd24fddc047836a024e7b5767f2', // Stored locally only for trade-only signing
   aiProvider: 'hermes3', // 'hermes3' | 'gemini'
   hermesModel: 'nousresearch/hermes-3-llama-3.1-405b', // 'nousresearch/hermes-3-llama-3.1-405b' | 'nousresearch/hermes-3-llama-3.1-70b'
   openRouterApiKey: '', // Optional OpenRouter key for Nous Hermes 3

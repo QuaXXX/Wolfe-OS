@@ -35,7 +35,7 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
 
   const config = getTradingConfig();
   const masterWallet = config.masterWalletAddress || '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7';
-  const agentWallet = config.agentWalletAddress || '0x02a7afa9dee99d4efe16459cf592cd30af2f5869';
+  const agentWallet = config.agentWalletAddress || '0x9D90e9a0270f253A8A60cAa091d81b789dA573a0';
 
   const addLog = (msg, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
