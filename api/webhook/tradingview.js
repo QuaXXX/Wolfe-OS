@@ -203,6 +203,69 @@ export default async function handler(req, res) {
       const effectiveKey = process.env.HYPERLIQUID_AGENT_KEY || DEFAULT_AGENT_KEY;
       const account = privateKeyToAccount(effectiveKey.startsWith('0x') ? effectiveKey : `0x${effectiveKey}`);
       
+      const domain = {
+        name: 'Exchange',
+        version: '1',
+        chainId: 1337,
+        verifyingContract: '0x0000000000000000000000000000000000000000'
+      };
+
+      const types = {
+        Agent: [
+          { name: 'source', type: 'string' },
+          { name: 'connectionId', type: 'bytes32' }
+        ]
+      };
+
+      // 5a. Automatically Update Cross Leverage on Hyperliquid for this asset
+      if (!isClose && leverage && leverage >= 1) {
+        try {
+          const levAction = {
+            type: 'updateLeverage',
+            asset: assetIdx,
+            isCross: true,
+            leverage: Number(leverage)
+          };
+          const levNonce = Date.now();
+          const levActionBytes = new Uint8Array(encode(levAction));
+          const levNonceBuf = new ArrayBuffer(8);
+          const levNonceView = new DataView(levNonceBuf);
+          levNonceView.setBigUint64(0, BigInt(levNonce), false);
+          const levNonceBytes = new Uint8Array(levNonceBuf);
+
+          const levPayloadBytes = new Uint8Array(levActionBytes.length + 8 + 1);
+          levPayloadBytes.set(levActionBytes, 0);
+          levPayloadBytes.set(levNonceBytes, levActionBytes.length);
+          levPayloadBytes.set(new Uint8Array([0]), levActionBytes.length + 8);
+
+          const levConnectionId = keccak256(levPayloadBytes);
+          const levRawSig = await account.signTypedData({
+            domain,
+            types,
+            primaryType: 'Agent',
+            message: { source: 'a', connectionId: levConnectionId }
+          });
+          const levParsedSig = parseSignature(levRawSig);
+
+          await fetch('https://api.hyperliquid.xyz/exchange', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: levAction,
+              nonce: levNonce,
+              signature: {
+                r: levParsedSig.r,
+                s: levParsedSig.s,
+                v: Number(levParsedSig.v)
+              },
+              vaultAddress: null
+            })
+          });
+        } catch (levErr) {
+          console.warn("Could not update leverage on Hyperliquid:", levErr);
+        }
+      }
+
       // Instant Market Fill price with 1% slippage tolerance (max 5 significant figures)
       const marketPrice = isBuyOrder ? (price * 1.01) : (price * 0.99);
       const formattedPrice = String(Number(marketPrice.toPrecision(5)));
@@ -226,7 +289,7 @@ export default async function handler(req, res) {
         grouping: 'na'
       };
 
-      const nonce = Date.now();
+      const nonce = Date.now() + 1;
       const actionBytes = new Uint8Array(encode(orderAction));
 
       const nonceBuf = new ArrayBuffer(8);
@@ -242,20 +305,6 @@ export default async function handler(req, res) {
       payloadBytes.set(vaultBytes, actionBytes.length + 8);
 
       const connectionId = keccak256(payloadBytes);
-
-      const domain = {
-        name: 'Exchange',
-        version: '1',
-        chainId: 1337,
-        verifyingContract: '0x0000000000000000000000000000000000000000'
-      };
-
-      const types = {
-        Agent: [
-          { name: 'source', type: 'string' },
-          { name: 'connectionId', type: 'bytes32' }
-        ]
-      };
 
       const rawSig = await account.signTypedData({
         domain,

@@ -43,6 +43,7 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
   const masterWallet = config.masterWalletAddress || '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7';
   const [perpsEquity, setPerpsEquity] = useState(0);
   const [spotEquity, setSpotEquity] = useState(0);
+  const [confirmFlat, setConfirmFlat] = useState(false);
   
   // Risk & Target Controls
   const [enableSl, setEnableSl] = useState(true);
@@ -55,9 +56,11 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
     setExecutionLogs(prev => [{ timestamp, msg, type }, ...prev.slice(0, 15)]);
   };
 
-  const fetchLiveState = async () => {
+  const fetchLiveState = async (silent = false) => {
     setIsLoadingBalance(true);
-    addLog(`Fetching live state for Master: ${masterWallet.slice(0, 8)}...`, 'info');
+    if (!silent) {
+      addLog(`Fetching live state for Master: ${masterWallet.slice(0, 8)}...`, 'info');
+    }
     
     try {
       let perpsVal = 0;
@@ -103,7 +106,9 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
       setSpotEquity(spotVal);
       const totalVal = perpsVal > 0 ? perpsVal : spotVal;
       setLiveEquity(totalVal);
-      addLog(`Balances: Perps = $${perpsVal.toFixed(2)} USDC | Spot = $${spotVal.toFixed(2)} USDC`, 'success');
+      if (!silent) {
+        addLog(`Balances: Perps = $${perpsVal.toFixed(2)} USDC | Spot = $${spotVal.toFixed(2)} USDC`, 'success');
+      }
 
       // 3. Fetch Live Price & Meta
       const metaData = await getHyperliquidMeta();
@@ -113,19 +118,23 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
           const ctx = metaData.assetCtxs[assetIdx];
           const px = Number(ctx?.midPx || ctx?.markPx || 0);
           setLivePrice(px);
-          addLog(`Live ${ticker} Mid Price: $${px.toFixed(2)}`, 'info');
+          if (!silent) {
+            addLog(`Live ${ticker} Mid Price: $${px.toFixed(2)}`, 'info');
+          }
         }
       }
     } catch (err) {
-      addLog(`Error querying Hyperliquid: ${err.message}`, 'error');
+      if (!silent) {
+        addLog(`Error querying Hyperliquid: ${err.message}`, 'error');
+      }
     } finally {
       setIsLoadingBalance(false);
     }
   };
 
   useEffect(() => {
-    fetchLiveState();
-    const interval = setInterval(fetchLiveState, 15000);
+    fetchLiveState(false);
+    const interval = setInterval(() => fetchLiveState(true), 15000);
     return () => clearInterval(interval);
   }, [ticker]);
 
@@ -523,24 +532,36 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
           </div>
         </button>
 
-        {/* Button 3: FLAT / CLOSE */}
+        {/* Button 3: FLAT / CLOSE (Guarded 2-Step Confirmation) */}
         <button
           type="button"
-          onClick={() => handleExecuteOrder('FLAT')}
+          onClick={() => {
+            if (!confirmFlat) {
+              setConfirmFlat(true);
+              setTimeout(() => setConfirmFlat(false), 4000);
+            } else {
+              setConfirmFlat(false);
+              handleExecuteOrder('FLAT');
+            }
+          }}
           disabled={isExecuting}
-          className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white transition-all cursor-pointer group hover:scale-[1.01] active:scale-95 disabled:opacity-50 space-y-1 text-left"
+          className={`p-3.5 rounded-2xl transition-all cursor-pointer group hover:scale-[1.01] active:scale-95 disabled:opacity-50 space-y-1 text-left ${
+            confirmFlat 
+              ? 'bg-red-500/25 border-2 border-red-500 text-red-200 shadow-lg shadow-red-500/20 animate-pulse'
+              : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white'
+          }`}
         >
           <div className="flex items-center justify-between">
-            <span className="font-bold text-xs flex items-center gap-1 text-white">
-              <XOctagon className="w-4 h-4 text-slate-300" />
-              <span>FLAT / CLOSE</span>
+            <span className={`font-bold text-xs flex items-center gap-1 ${confirmFlat ? 'text-red-300' : 'text-white'}`}>
+              <XOctagon className={`w-4 h-4 ${confirmFlat ? 'text-red-400' : 'text-slate-300'}`} />
+              <span>{confirmFlat ? '⚠️ CONFIRM FLAT (4s)' : 'FLAT / CLOSE'}</span>
             </span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
-              100% Exit
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${confirmFlat ? 'bg-red-500/30 text-red-100' : 'bg-white/10 text-slate-300'}`}>
+              {confirmFlat ? 'CLICK AGAIN' : '100% Exit'}
             </span>
           </div>
-          <div className="text-[10px] text-slate-400">
-            Market close open position & cancel all triggers
+          <div className={`text-[10px] ${confirmFlat ? 'text-red-200 font-semibold' : 'text-slate-400'}`}>
+            {confirmFlat ? 'Click once more to instantly close position' : 'Market close open position & cancel all triggers'}
           </div>
         </button>
       </div>
