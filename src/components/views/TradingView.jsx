@@ -555,7 +555,7 @@ export const TradingView = ({
 
               {/* Collapsible Macro Regime Summary */}
               {hermesBrief && (
-                <GlassCard hoverEffect={false} className="p-3.5 space-y-1">
+                <GlassCard hoverEffect={false} className="p-3.5 space-y-2">
                   <div 
                     onClick={() => setIsMacroExpanded(prev => !prev)}
                     className="flex items-center justify-between cursor-pointer"
@@ -572,10 +572,33 @@ export const TradingView = ({
                       {isMacroExpanded ? <ChevronUp className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />}
                     </div>
                   </div>
+
                   {isMacroExpanded && (
-                    <p className="text-xs text-slate-300 leading-relaxed pt-1.5 border-t border-white/5">
-                      {hermesBrief.macroAnalysis}
-                    </p>
+                    <div className="pt-2 border-t border-white/5 space-y-2.5 text-xs text-slate-300 animate-in fade-in duration-200">
+                      {hermesBrief.macroPoints && Array.isArray(hermesBrief.macroPoints) ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          {hermesBrief.macroPoints.map((sec, sIdx) => (
+                            <div key={sIdx} className="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
+                              <div className="font-bold text-white text-[11px] flex items-center gap-1.5">
+                                <span>{sec.category}</span>
+                              </div>
+                              <ul className="space-y-1 text-[11px] text-slate-300 pl-1">
+                                {sec.items.map((item, iIdx) => (
+                                  <li key={iIdx} className="flex items-start gap-1.5 leading-relaxed">
+                                    <span className="text-amber-400 font-bold shrink-0">•</span>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="leading-relaxed">
+                          {hermesBrief.macroAnalysis}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </GlassCard>
               )}
@@ -871,38 +894,59 @@ export const TradingView = ({
               {(hermesBrief?.councilDialogue || []).map((msg, mIdx) => {
                 const isStrategist = msg.speaker === 'Hermes-Prime';
                 const isSkeptic = msg.speaker === 'The Skeptic';
+                const isPoseidon = msg.speaker === 'Poseidon';
+                const isArtemis = msg.speaker === 'Artemis';
+                const isAtlas = msg.speaker === 'Atlas';
+                const isAres = msg.speaker === 'Ares';
+
+                const avatarStyle = isStrategist ? {
+                  backgroundColor: 'var(--accent-primary)',
+                  color: '#ffffff',
+                  borderColor: 'var(--accent-border)'
+                } : isSkeptic ? {
+                  backgroundColor: 'rgba(244,63,94,0.2)',
+                  color: '#fda4af',
+                  borderColor: 'rgba(244,63,94,0.4)'
+                } : isPoseidon ? {
+                  backgroundColor: 'rgba(16,185,129,0.2)',
+                  color: '#6ee7b7',
+                  borderColor: 'rgba(16,185,129,0.4)'
+                } : isArtemis ? {
+                  backgroundColor: 'rgba(217,70,239,0.2)',
+                  color: '#f0abfc',
+                  borderColor: 'rgba(217,70,239,0.4)'
+                } : isAtlas ? {
+                  backgroundColor: 'rgba(6,182,212,0.2)',
+                  color: '#67e8f9',
+                  borderColor: 'rgba(6,182,212,0.4)'
+                } : {
+                  backgroundColor: 'rgba(59,130,246,0.2)',
+                  color: '#93c5fd',
+                  borderColor: 'rgba(59,130,246,0.4)'
+                };
+
+                // Split by @mentions to highlight like Discord
+                const messageParts = (msg.message || '').split(/(@\w+(?:-\w+)?)/g);
 
                 return (
-                  <GlassCard key={mIdx} hoverEffect={false} className="p-3.5 space-y-2.5">
+                  <GlassCard key={mIdx} hoverEffect={false} className="p-3.5 space-y-2.5 border-white/5 hover:border-white/10 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         <div 
-                          className="w-7 h-7 rounded-xl border flex items-center justify-center font-bold text-xs shrink-0"
-                          style={isStrategist ? {
-                            backgroundColor: 'var(--accent-primary)',
-                            color: '#ffffff',
-                            borderColor: 'var(--accent-border)'
-                          } : isSkeptic ? {
-                            backgroundColor: 'rgba(244,63,94,0.15)',
-                            color: '#fda4af',
-                            borderColor: 'rgba(244,63,94,0.3)'
-                          } : {
-                            backgroundColor: 'var(--accent-subtle)',
-                            color: 'var(--accent-primary)',
-                            borderColor: 'var(--accent-border)'
-                          }}
+                          className="w-8 h-8 rounded-xl border flex items-center justify-center font-bold text-xs shrink-0 shadow-sm font-mono"
+                          style={avatarStyle}
                         >
                           {msg.speaker[0]}
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
                           {msg.step && (
-                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-white/[0.06] text-white">
-                              Step {msg.step}/7
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-white/[0.08] text-white">
+                              #{msg.step}
                             </span>
                           )}
                           <span className="font-bold text-white text-xs font-mono">{msg.speaker}</span>
                           <span 
-                            className="text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold"
+                            className="text-[9px] font-mono px-2 py-0.2 rounded font-semibold"
                             style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgb(203 213 225)' }}
                           >
                             {msg.role}
@@ -920,13 +964,25 @@ export const TradingView = ({
                             {msg.stage}
                           </span>
                         )}
-                        <span>{msg.timestamp || '05:30 AM'}</span>
+                        <span>{msg.timestamp || 'Live'}</span>
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-200 leading-relaxed pl-2 sm:pl-9 font-sans border-l-2 border-white/5 ml-3 sm:ml-0">
-                      {msg.message}
-                    </p>
+                    <div className="text-xs text-slate-200 leading-relaxed pl-2 sm:pl-10 font-sans border-l-2 border-white/5 ml-3 sm:ml-0 space-y-1.5 whitespace-pre-line">
+                      {messageParts.map((part, pIdx) => {
+                        if (part.startsWith('@')) {
+                          return (
+                            <span 
+                              key={pIdx} 
+                              className="font-bold font-mono text-[11px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-block mr-1"
+                            >
+                              {part}
+                            </span>
+                          );
+                        }
+                        return <span key={pIdx}>{part}</span>;
+                      })}
+                    </div>
                   </GlassCard>
                 );
               })}
