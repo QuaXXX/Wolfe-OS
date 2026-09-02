@@ -43,7 +43,7 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
   const masterWallet = config.masterWalletAddress || '0x5bB10c46b7CF48126CC1bb4a103a9c8cDfF30DC7';
   const [perpsEquity, setPerpsEquity] = useState(0);
   const [spotEquity, setSpotEquity] = useState(0);
-  const [confirmFlat, setConfirmFlat] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   
   // Risk & Target Controls
   const [enableSl, setEnableSl] = useState(true);
@@ -490,45 +490,73 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
 
       {/* 3 Dynamic Action Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-        {/* Button 1: BUY / LONG */}
+        {/* Button 1: BUY / LONG (Guarded 2-Step Confirmation) */}
         <button
           type="button"
-          onClick={() => handleExecuteOrder('BUY')}
+          onClick={() => {
+            if (confirmAction !== 'BUY') {
+              setConfirmAction('BUY');
+              setTimeout(() => setConfirmAction(null), 4000);
+            } else {
+              setConfirmAction(null);
+              handleExecuteOrder('BUY');
+            }
+          }}
           disabled={isExecuting}
-          className="p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 hover:border-emerald-500/40 text-emerald-300 transition-all cursor-pointer group hover:scale-[1.01] active:scale-95 disabled:opacity-50 space-y-1 text-left"
+          className={`p-3.5 rounded-2xl transition-all cursor-pointer group hover:scale-[1.01] active:scale-95 disabled:opacity-50 space-y-1 text-left ${
+            confirmAction === 'BUY'
+              ? 'bg-emerald-500/25 border-2 border-emerald-500 text-emerald-200 shadow-lg shadow-emerald-500/20 animate-pulse'
+              : 'bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 hover:border-emerald-500/40 text-emerald-300'
+          }`}
         >
           <div className="flex items-center justify-between">
-            <span className="font-bold text-xs flex items-center gap-1 text-emerald-300">
-              <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-              <span>BUY LONG ({sizePercent}%)</span>
+            <span className={`font-bold text-xs flex items-center gap-1 ${confirmAction === 'BUY' ? 'text-emerald-200' : 'text-emerald-300'}`}>
+              <ArrowUpRight className={`w-4 h-4 ${confirmAction === 'BUY' ? 'text-emerald-300' : 'text-emerald-400'}`} />
+              <span>{confirmAction === 'BUY' ? '⚠️ CONFIRM BUY (4s)' : `BUY LONG (${sizePercent}%)`}</span>
             </span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200">
-              {leverage}x
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${confirmAction === 'BUY' ? 'bg-emerald-500/40 text-emerald-100 font-bold' : 'bg-emerald-500/20 text-emerald-200'}`}>
+              {confirmAction === 'BUY' ? 'CLICK AGAIN' : `${leverage}x`}
             </span>
           </div>
-          <div className="text-[10px] text-slate-400">
-            ${allocatedMarginUSD.toFixed(2)} Margin ➔ ${notionalPositionUSD.toFixed(2)} Position
+          <div className={`text-[10px] ${confirmAction === 'BUY' ? 'text-emerald-200 font-semibold' : 'text-slate-400'}`}>
+            {confirmAction === 'BUY' 
+              ? `Click to execute $${allocatedMarginUSD.toFixed(2)} Margin ($${notionalPositionUSD.toFixed(2)} Pos)`
+              : `$${allocatedMarginUSD.toFixed(2)} Margin ➔ $${notionalPositionUSD.toFixed(2)} Position`}
           </div>
         </button>
 
-        {/* Button 2: SELL / SHORT */}
+        {/* Button 2: SELL / SHORT (Guarded 2-Step Confirmation) */}
         <button
           type="button"
-          onClick={() => handleExecuteOrder('SELL')}
+          onClick={() => {
+            if (confirmAction !== 'SELL') {
+              setConfirmAction('SELL');
+              setTimeout(() => setConfirmAction(null), 4000);
+            } else {
+              setConfirmAction(null);
+              handleExecuteOrder('SELL');
+            }
+          }}
           disabled={isExecuting}
-          className="p-3.5 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 hover:border-red-500/40 text-red-300 transition-all cursor-pointer group hover:scale-[1.01] active:scale-95 disabled:opacity-50 space-y-1 text-left"
+          className={`p-3.5 rounded-2xl transition-all cursor-pointer group hover:scale-[1.01] active:scale-95 disabled:opacity-50 space-y-1 text-left ${
+            confirmAction === 'SELL'
+              ? 'bg-red-500/25 border-2 border-red-500 text-red-200 shadow-lg shadow-red-500/20 animate-pulse'
+              : 'bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 hover:border-red-500/40 text-red-300'
+          }`}
         >
           <div className="flex items-center justify-between">
-            <span className="font-bold text-xs flex items-center gap-1 text-red-300">
-              <ArrowDownRight className="w-4 h-4 text-red-400" />
-              <span>SELL SHORT ({sizePercent}%)</span>
+            <span className={`font-bold text-xs flex items-center gap-1 ${confirmAction === 'SELL' ? 'text-red-200' : 'text-red-300'}`}>
+              <ArrowDownRight className={`w-4 h-4 ${confirmAction === 'SELL' ? 'text-red-300' : 'text-red-400'}`} />
+              <span>{confirmAction === 'SELL' ? '⚠️ CONFIRM SELL (4s)' : `SELL SHORT (${sizePercent}%)`}</span>
             </span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-200">
-              {leverage}x
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${confirmAction === 'SELL' ? 'bg-red-500/40 text-red-100 font-bold' : 'bg-red-500/20 text-red-200'}`}>
+              {confirmAction === 'SELL' ? 'CLICK AGAIN' : `${leverage}x`}
             </span>
           </div>
-          <div className="text-[10px] text-slate-400">
-            ${allocatedMarginUSD.toFixed(2)} Margin ➔ ${notionalPositionUSD.toFixed(2)} Position
+          <div className={`text-[10px] ${confirmAction === 'SELL' ? 'text-red-200 font-semibold' : 'text-slate-400'}`}>
+            {confirmAction === 'SELL'
+              ? `Click to execute $${allocatedMarginUSD.toFixed(2)} Margin ($${notionalPositionUSD.toFixed(2)} Pos)`
+              : `$${allocatedMarginUSD.toFixed(2)} Margin ➔ $${notionalPositionUSD.toFixed(2)} Position`}
           </div>
         </button>
 
@@ -536,32 +564,32 @@ export const HyperliquidDirectExecutionPanel = ({ soundEnabled = true, onOrderEx
         <button
           type="button"
           onClick={() => {
-            if (!confirmFlat) {
-              setConfirmFlat(true);
-              setTimeout(() => setConfirmFlat(false), 4000);
+            if (confirmAction !== 'FLAT') {
+              setConfirmAction('FLAT');
+              setTimeout(() => setConfirmAction(null), 4000);
             } else {
-              setConfirmFlat(false);
+              setConfirmAction(null);
               handleExecuteOrder('FLAT');
             }
           }}
           disabled={isExecuting}
           className={`p-3.5 rounded-2xl transition-all cursor-pointer group hover:scale-[1.01] active:scale-95 disabled:opacity-50 space-y-1 text-left ${
-            confirmFlat 
-              ? 'bg-red-500/25 border-2 border-red-500 text-red-200 shadow-lg shadow-red-500/20 animate-pulse'
+            confirmAction === 'FLAT' 
+              ? 'bg-amber-500/25 border-2 border-amber-500 text-amber-200 shadow-lg shadow-amber-500/20 animate-pulse'
               : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`font-bold text-xs flex items-center gap-1 ${confirmFlat ? 'text-red-300' : 'text-white'}`}>
-              <XOctagon className={`w-4 h-4 ${confirmFlat ? 'text-red-400' : 'text-slate-300'}`} />
-              <span>{confirmFlat ? '⚠️ CONFIRM FLAT (4s)' : 'FLAT / CLOSE'}</span>
+            <span className={`font-bold text-xs flex items-center gap-1 ${confirmAction === 'FLAT' ? 'text-amber-300' : 'text-white'}`}>
+              <XOctagon className={`w-4 h-4 ${confirmAction === 'FLAT' ? 'text-amber-400' : 'text-slate-300'}`} />
+              <span>{confirmAction === 'FLAT' ? '⚠️ CONFIRM FLAT (4s)' : 'FLAT / CLOSE'}</span>
             </span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${confirmFlat ? 'bg-red-500/30 text-red-100' : 'bg-white/10 text-slate-300'}`}>
-              {confirmFlat ? 'CLICK AGAIN' : '100% Exit'}
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${confirmAction === 'FLAT' ? 'bg-amber-500/30 text-amber-100 font-bold' : 'bg-white/10 text-slate-300'}`}>
+              {confirmAction === 'FLAT' ? 'CLICK AGAIN' : '100% Exit'}
             </span>
           </div>
-          <div className={`text-[10px] ${confirmFlat ? 'text-red-200 font-semibold' : 'text-slate-400'}`}>
-            {confirmFlat ? 'Click once more to instantly close position' : 'Market close open position & cancel all triggers'}
+          <div className={`text-[10px] ${confirmAction === 'FLAT' ? 'text-amber-200 font-semibold' : 'text-slate-400'}`}>
+            {confirmAction === 'FLAT' ? 'Click once more to instantly close position' : 'Market close open position & cancel all triggers'}
           </div>
         </button>
       </div>
