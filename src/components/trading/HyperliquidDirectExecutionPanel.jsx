@@ -27,6 +27,7 @@ import { playSound } from '../../utils/soundFX';
 export const HyperliquidDirectExecutionPanel = ({ 
   initialTicker = 'BTC', 
   initialLeverage = 3, 
+  scannedSetups = [],
   soundEnabled = true, 
   onOrderExecuted 
 }) => {
@@ -63,6 +64,18 @@ export const HyperliquidDirectExecutionPanel = ({
   const addLog = (msg, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setExecutionLogs(prev => [{ timestamp, msg, type }, ...prev.slice(0, 15)]);
+  };
+
+  const handleApplySetup = (setup) => {
+    playSound('click', soundEnabled);
+    setTicker(setup.ticker);
+    setLeverage(setup.leverage || 5);
+    setSizePercent(100);
+    setEnableSl(true);
+    setSlPercent(2);
+    setEnableTp(true);
+    setTpPercent(4);
+    addLog(`✓ Loaded Scanned Setup: ${setup.ticker} (${setup.bias || 'LONG'}) • 5x Leverage • 2% SL / 4% TP. Ready to confirm.`, 'success');
   };
 
   const fetchLiveState = async (silent = false) => {
@@ -288,6 +301,47 @@ export const HyperliquidDirectExecutionPanel = ({
           </button>
         </div>
       </div>
+
+      {/* Scanned Strategy Setups Quick-Loader */}
+      {scannedSetups && scannedSetups.length > 0 && (
+        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-slate-300 flex items-center gap-1.5 text-[11px]">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Scanned Strategy Setups</span>
+            </span>
+            <span className="text-[10px] text-slate-400">Click to Auto-Configure</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono text-xs">
+            {scannedSetups.map((setup, idx) => {
+              const isSelected = ticker === setup.ticker;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleApplySetup(setup)}
+                  className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-sm' 
+                      : 'bg-black/30 border-white/5 text-slate-300 hover:text-white hover:border-white/15'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold">
+                    <span>{setup.ticker}</span>
+                    <span className={`text-[9px] px-1 py-0.2 rounded font-sans ${setup.bias === 'LONG' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                      {setup.bias || 'LONG'}
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-slate-400 truncate mt-0.5 font-sans">
+                    Grade {setup.convictionGrade || 'A+'} • 5x Lev
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Row 1: Asset Selection & Live Price */}
       <div className="grid grid-cols-2 gap-2 text-xs">

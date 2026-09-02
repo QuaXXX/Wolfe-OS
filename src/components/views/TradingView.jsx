@@ -284,7 +284,7 @@ export const TradingView = ({
   const tabsConfig = [
     { 
       id: 'overview', 
-      label: 'War Room', 
+      label: 'Strategy Scanner', 
       icon: Compass, 
       count: availableWarRoomPlays.length,
       isLoading: isScanning 
@@ -648,14 +648,13 @@ export const TradingView = ({
                   type="button"
                   onClick={triggerFreshDailySweep}
                   disabled={isScanning}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50 shadow-md hover:opacity-95"
                   style={{
-                    backgroundColor: 'var(--accent-subtle)',
-                    border: '1px solid var(--accent-border)'
+                    backgroundColor: 'var(--accent-primary)'
                   }}
                 >
-                  <Sparkles className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Re-Scan Markets</span>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Scan Markets</span>
                 </button>
               </div>
 
@@ -1056,6 +1055,7 @@ export const TradingView = ({
         <div className="space-y-4">
           <HyperliquidDirectExecutionPanel 
             initialTicker={hyperliquidTicker}
+            scannedSetups={availableWarRoomPlays}
             soundEnabled={soundEnabled} 
             onOrderExecuted={refreshAllData} 
           />
@@ -1065,14 +1065,7 @@ export const TradingView = ({
       {/* 6. TAB 4: LIVE OPEN POSITIONS */}
       {activeTab === 'positions' && (
         <div className="space-y-4 font-sans">
-          {/* Direct L1 Execution Panel embedded at top of Positions */}
-          <HyperliquidDirectExecutionPanel 
-            initialTicker={hyperliquidTicker}
-            soundEnabled={soundEnabled} 
-            onOrderExecuted={refreshAllData} 
-          />
-
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-between pt-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
               Active Hyperliquid Positions ({openPositions.length})
             </h3>
