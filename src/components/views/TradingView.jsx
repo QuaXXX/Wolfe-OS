@@ -285,14 +285,15 @@ export const TradingView = ({
     const active = [];
 
     (hermesBrief?.highConvictionPlays || []).forEach(play => {
-      const forwardPosition = paperPositions.find(p => p.ticker === play.ticker && p.status !== 'CLOSED');
-      const journalEntry = tradeJournal.find(j => j.ticker === play.ticker);
+      // ONLY mark as active/filled if user currently has an ACTIVE or PENDING position in Forward Test or on Hyperliquid
+      const forwardPosition = paperPositions.find(p => p.ticker === play.ticker && (p.status === 'ACTIVE' || p.status === 'PENDING_ENTRY' || p.status === 'FILLED'));
+      const hlPosition = openPositions.find(p => (p.coin === play.ticker || p.ticker === play.ticker || p.symbol === play.ticker));
 
-      if (forwardPosition || journalEntry) {
+      if (forwardPosition || hlPosition) {
         active.push({
           ...play,
-          forwardPosition,
-          journalEntry
+          forwardPosition: forwardPosition || (hlPosition ? { status: 'ACTIVE', unrealizedPnlUSD: Number(hlPosition.pnl || hlPosition.unrealizedPnl || 0), roePct: Number(hlPosition.returnOnEquity || 0) } : null),
+          hlPosition
         });
       } else {
         // Auto-remove untriggered setups if live price has pierced stop loss (Invalidated)
@@ -310,7 +311,7 @@ export const TradingView = ({
     });
 
     return { availableWarRoomPlays: available, activeWarRoomPlays: active };
-  }, [hermesBrief, paperPositions, tradeJournal, livePricesMap]);
+  }, [hermesBrief, paperPositions, openPositions, livePricesMap]);
 
   const tabsConfig = [
     { 
