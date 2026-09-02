@@ -342,6 +342,8 @@ export function saveHermesBrief(brief) {
       aiEngine: brief.aiEngine || 'Nous Hermes 3 Deep Quantitative Council',
       macroRegime: brief.macroRegime || 'Selective Risk-On',
       macroAnalysis: brief.macroAnalysis || '',
+      macroPoints: brief.macroPoints || [],
+      scannedAt: brief.scannedAt || new Date().toISOString(),
       agentLogs: brief.agentLogs || [],
       councilDialogue: brief.councilDialogue || [],
       fundIntelligence: brief.fundIntelligence || [],
