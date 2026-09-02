@@ -823,6 +823,12 @@ export const TradingView = ({
                   const remainingMs = play.expiresAt ? new Date(play.expiresAt).getTime() - Date.now() : null;
                   const remainingHours = remainingMs !== null ? Math.max(0, Math.round(remainingMs / (1000 * 60 * 60))) : (play.validForHours || null);
 
+                  // Execution Immediacy / Proximity Calculation
+                  const distPct = entryNum > 0 ? (((currentLive - entryNum) / entryNum) * 100) : 0;
+                  const absDistPct = Math.abs(distPct);
+                  const isReadyNow = absDistPct <= 1.2;
+                  const isBreakout = isLong ? (currentLive < entryNum && distPct > -3.5 && !isReadyNow) : (currentLive > entryNum && distPct < 3.5 && !isReadyNow);
+
                   return (
                     <GlassCard 
                       key={isActive ? `active_${idx}` : idx} 
@@ -858,6 +864,26 @@ export const TradingView = ({
                             <Clock className="w-3 h-3 text-cyan-400" />
                             <span>{timeframeDisplay}</span>
                           </span>
+
+                          {/* Execution Proximity / Readiness Badge */}
+                          {!isActive && (
+                            isReadyNow ? (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm animate-pulse">
+                                <Zap className="w-3 h-3 text-emerald-400 fill-emerald-400" />
+                                <span>Ready Now ({absDistPct.toFixed(1)}%)</span>
+                              </span>
+                            ) : isBreakout ? (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                                <ArrowUpRight className="w-3 h-3 text-cyan-400" />
+                                <span>Breakout ({Math.abs(distPct).toFixed(1)}% away)</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-purple-400" />
+                                <span>Pullback ({Math.abs(distPct).toFixed(1)}% away)</span>
+                              </span>
+                            )
+                          )}
 
                           {/* Invalidation Expiration Window Badge */}
                           {remainingHours !== null && !isActive && (
@@ -918,15 +944,23 @@ export const TradingView = ({
                                 stopNumeric: stopNum,
                                 target2RNumeric: tpNum
                               })}
-                              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer text-white active:scale-95 shadow-sm"
-                              style={{
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm ${
+                                isReadyNow || isBetterThanLimit
+                                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
+                                  : 'text-white'
+                              }`}
+                              style={!(isReadyNow || isBetterThanLimit) ? {
                                 backgroundColor: 'var(--accent-subtle)',
                                 border: '1px solid var(--accent-border)'
-                              }}
-                              title={isBetterThanLimit ? "Immediate fill at better price" : `Resting limit order at ${entryFormatted}`}
+                              } : {}}
+                              title={isReadyNow ? "Price is in buy zone - enter now" : isBetterThanLimit ? "Immediate fill at better price" : `Resting limit order at ${entryFormatted}`}
                             >
-                              <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                              <span>{isBetterThanLimit ? 'Test (Fill Now)' : 'Test (Limit)'}</span>
+                              {isReadyNow || isBetterThanLimit ? (
+                                <Zap className="w-3 h-3 text-emerald-400 fill-emerald-400" />
+                              ) : (
+                                <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                              )}
+                              <span>{isReadyNow || isBetterThanLimit ? 'Test (Fill Now)' : 'Test (Limit)'}</span>
                             </button>
                           )}
                         </div>
