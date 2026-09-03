@@ -30,6 +30,7 @@ import {
   Bell,
   ShieldAlert,
   Timer,
+  Activity,
   X
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
@@ -356,7 +357,9 @@ export const TradingView = ({
     const active = [];
 
     sourcePlays.forEach(rawPlay => {
-      const currentLive = livePricesMap?.[rawPlay.ticker];
+      const currentLive = (typeof livePricesMap?.[rawPlay.ticker] === 'number' && livePricesMap[rawPlay.ticker] > 0)
+        ? livePricesMap[rawPlay.ticker]
+        : (typeof rawPlay.entryNumeric === 'number' && rawPlay.entryNumeric > 0 ? rawPlay.entryNumeric : null);
       let play = { ...rawPlay };
 
       // ⚡ STRICT DATA INTEGRITY FILTER ("No suggestion is better than the wrong one"):
