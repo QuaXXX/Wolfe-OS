@@ -31,6 +31,7 @@ import {
   ShieldAlert,
   Timer,
   Activity,
+  Calendar,
   X
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
@@ -1115,6 +1116,24 @@ export const TradingView = ({
                   const isReadyNow = absDistPct <= 1.2;
                   const isBreakout = isLong ? (currentLive < entryNum && distPct > -3.5 && !isReadyNow) : (currentLive > entryNum && distPct < 3.5 && !isReadyNow);
 
+                  // Date and Time Stamp Formatting
+                  const rawCreated = play.createdAt || play.scannedAt || (play.forwardPosition?.createdAt) || null;
+                  let formattedCreatedShort = 'Today';
+                  let formattedCreatedFull = 'Today';
+                  if (rawCreated) {
+                    try {
+                      const d = new Date(rawCreated);
+                      const isToday = d.toDateString() === new Date().toDateString();
+                      const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                      formattedCreatedShort = isToday ? `Today • ${timeStr}` : `${dateStr} • ${timeStr}`;
+                      formattedCreatedFull = d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    } catch (e) {}
+                  } else if (play.scanTimestamp) {
+                    formattedCreatedShort = play.scanTimestamp;
+                    formattedCreatedFull = play.scanTimestamp;
+                  }
+
                   return (
                     <GlassCard 
                       key={isActive ? `active_${idx}` : idx} 
@@ -1125,7 +1144,7 @@ export const TradingView = ({
                           : 'border border-white/10 hover:border-white/20'
                       }`}
                     >
-                      {/* Card Header: Ticker, Direction, Grade, Timeframe Badge, and Action Buttons */}
+                      {/* Card Header: Ticker, Direction, Grade, Timeframe Badge, Date Stamp, and Action Buttons */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-base font-bold text-white font-mono tracking-wide">{play.ticker}</span>
@@ -1160,6 +1179,15 @@ export const TradingView = ({
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1">
                             <Clock className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                             <span>{timeframeDisplay}</span>
+                          </span>
+
+                          {/* Date & Time Stamp Badge */}
+                          <span 
+                            className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1"
+                            title={isActive ? `Position opened / placed: ${formattedCreatedFull}` : `Opportunity scanned & verified: ${formattedCreatedFull}`}
+                          >
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            <span>{isActive ? `Entered ${formattedCreatedShort}` : `Scanned ${formattedCreatedShort}`}</span>
                           </span>
 
                           {/* Execution Readiness Badge (Only shown when actionable now) */}
@@ -1986,7 +2014,9 @@ export const TradingView = ({
                               {isWin ? 'WIN' : 'LOSS'}
                             </span>
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">{trade.closedAt ? new Date(trade.closedAt).toLocaleDateString() : trade.date} • {trade.strategy}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {trade.closedAt ? `${new Date(trade.closedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} at ${new Date(trade.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : (trade.date || 'Recent')} • {trade.strategy}
+                          </div>
                         </div>
                       </div>
 

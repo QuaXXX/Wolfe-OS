@@ -700,11 +700,22 @@ export function generateDynamicSetups(livePrices = {}) {
   });
 
   const nowMs = Date.now();
+  const scanDateObj = new Date();
+  const scanDateStr = scanDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const scanTimeStr = scanDateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const scanTimestamp = `${scanDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • ${scanTimeStr}`;
+  const scannedAtIso = scanDateObj.toISOString();
+
   return verifiedPlays.map(play => {
     const validHours = play.validForHours || (play.timeframe?.includes('Scalp') ? 4 : play.timeframe?.includes('Swing') ? 24 : 72);
     return {
       ...play,
       validForHours: validHours,
+      createdAt: play.createdAt || scannedAtIso,
+      scannedAt: play.scannedAt || scannedAtIso,
+      scanDate: play.scanDate || scanDateStr,
+      scanTime: play.scanTime || scanTimeStr,
+      scanTimestamp: play.scanTimestamp || scanTimestamp,
       expiresAt: play.expiresAt || new Date(nowMs + validHours * 3600000).toISOString()
     };
   });
@@ -822,7 +833,15 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
         const match = dynamicPlays.find(dp => dp.ticker === play.ticker);
         return {
           ...play,
+          entryNumeric: play.entryNumeric || match?.entryNumeric,
+          stopNumeric: play.stopNumeric || match?.stopNumeric,
+          target2RNumeric: play.target2RNumeric || match?.target2RNumeric,
           validForHours: validHours,
+          createdAt: play.createdAt || match?.createdAt || now.toISOString(),
+          scannedAt: now.toISOString(),
+          scanDate: scanDateStr,
+          scanTime: scanTimeStr,
+          scanTimestamp: `${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • ${scanTimeStr}`,
           expiresAt: play.expiresAt || new Date(Date.now() + validHours * 3600000).toISOString(),
           chronosBacktest: play.chronosBacktest?.status === 'PASSED' ? play.chronosBacktest : (match?.chronosBacktest || {
             agent: "Chronos (Quantitative Backtester)",
@@ -862,7 +881,15 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
           const match = dynamicPlays.find(dp => dp.ticker === play.ticker);
           return {
             ...play,
+            entryNumeric: play.entryNumeric || match?.entryNumeric,
+            stopNumeric: play.stopNumeric || match?.stopNumeric,
+            target2RNumeric: play.target2RNumeric || match?.target2RNumeric,
             validForHours: validHours,
+            createdAt: play.createdAt || match?.createdAt || now.toISOString(),
+            scannedAt: now.toISOString(),
+            scanDate: scanDateStr,
+            scanTime: scanTimeStr,
+            scanTimestamp: `${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • ${scanTimeStr}`,
             expiresAt: play.expiresAt || new Date(Date.now() + validHours * 3600000).toISOString(),
             chronosBacktest: play.chronosBacktest?.status === 'PASSED' ? play.chronosBacktest : (match?.chronosBacktest || {
               agent: "Chronos (Quantitative Backtester)",

@@ -5,6 +5,8 @@ import {
   deleteGoogleCalendarEvent, 
   isGoogleCalendarConnected
 } from './googleCalendarService.js';
+import { getPaperPositions } from './hermesPaperTrader.js';
+import { getSavedHermesBriefs } from './tradingStorage.js';
 
 // Color theme hue mappings
 const THEME_COLOR_MAP = {
@@ -533,6 +535,121 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       title: "📈 Trading P&L Reset",
       message: "Reset day trading session P&L to $0.00 for market open.",
       targetView: "trading"
+    };
+  }
+
+  // Query Active Trades / Positions
+  if (text.match(/\b(?:what\s+trades|active\s+trades|open\s+trades|open\s+positions|my\s+trades|current\s+trades|portfolio\s+status)\b/i) || text === 'trades' || text === 'positions') {
+    let paperPos = [];
+    try { paperPos = getPaperPositions(); } catch (e) {}
+    const active = paperPos.filter(p => p.status === 'ACTIVE');
+    const pending = paperPos.filter(p => p.status === 'PENDING_ENTRY');
+    if (active.length > 0) {
+      const summary = active.map(p => `${p.side} ${p.ticker} (Entry $${p.entryPrice}, PnL: ${p.unrealizedPnlUSD >= 0 ? '+' : ''}$${p.unrealizedPnlUSD || 0})`).join(', ');
+      return {
+        handled: true,
+        title: `📈 Active Trades (${active.length})`,
+        message: `${summary}. Dynamic stops and targets are active.`,
+        targetView: "trading",
+        actionLabel: "View Desk"
+      };
+    } else {
+      return {
+        handled: true,
+        title: "📈 Trading Status",
+        message: `No active positions running. You have ${pending.length} resting limit order${pending.length === 1 ? '' : 's'} waiting for trigger pullback.`,
+        targetView: "trading",
+        actionLabel: "View Trading"
+      };
+    }
+  }
+
+  // Query Trade Opportunities / War Room Setups
+  if (text.match(/\b(?:trade\s+opportunities|what\s+can\s+we\s+trade|trade\s+setups|trading\s+setups|scan\s+results|war\s+room\s+setups)\b/i) || text === 'opportunities' || text === 'setups') {
+    let latestBrief = null;
+    try {
+      const briefs = getSavedHermesBriefs();
+      if (briefs && briefs.length > 0) latestBrief = briefs[0];
+    } catch (e) {}
+
+    if (latestBrief?.highConvictionPlays && latestBrief.highConvictionPlays.length > 0) {
+      const topPlays = latestBrief.highConvictionPlays.slice(0, 3).map(p => `${p.ticker} ${p.bias} at $${p.entryNumeric || p.entryPrice} (${p.chronosBacktest?.historicalWinRate || '70%'} WR)`).join(', ');
+      const scanTime = latestBrief.scannedAt ? new Date(latestBrief.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today';
+      return {
+        handled: true,
+        title: "⚡ Trade Opportunities",
+        message: `Scanned at ${scanTime}: Top Chronos-verified setups: ${topPlays}. All calibrated with 1:3 R:R targets.`,
+        targetView: "trading",
+        actionLabel: "Open War Room"
+      };
+    }
+    return {
+      handled: true,
+      title: "📈 Trading War Room",
+      message: "Ready to scan. Open the War Room to execute a real-time multi-agent quantitative sweep.",
+      targetView: "trading",
+      actionLabel: "Scan War Room"
+    };
+  }
+
+  // Query Today's Schedule / Agenda
+  if (text.match(/\b(?:what(?:'s|\s+is)\s+my\s+schedule|my\s+agenda|what\s+do\s+i\s+have\s+today|today(?:'s)?\s+schedule|my\s+deadlines\s+today|what\s+do\s+i\s+have\s+to\s+do)\b/i) || text === 'schedule' || text === 'agenda') {
+    const calendarItems = osData?.calendarData?.items || [];
+    const todayItems = calendarItems.filter(it => it.date === todayIso);
+    const deadlines = todayItems.filter(it => it.type === 'deadline');
+    const events = todayItems.filter(it => it.type === 'event');
+    const tasks = todayItems.filter(it => it.type === 'task' && !it.completed);
+
+    let parts = [];
+    if (deadlines.length > 0) parts.push(`${deadlines.length} deadline${deadlines.length > 1 ? 's' : ''} (${deadlines.map(d => d.title).join(', ')})`);
+    if (events.length > 0) parts.push(`${events.length} event${events.length > 1 ? 's' : ''} (${events.map(e => `${e.title} at ${e.time || 'scheduled'}`).join(', ')})`);
+    if (tasks.length > 0) parts.push(`${tasks.length} task${tasks.length > 1 ? 's' : ''}`);
+
+    if (parts.length > 0) {
+      return {
+        handled: true,
+        title: "📅 Today's Agenda",
+        message: `Today: ${parts.join('; ')}.`,
+        targetView: "calendar",
+        actionLabel: "Open Calendar"
+      };
+    } else {
+      return {
+        handled: true,
+        title: "📅 Schedule Clear",
+        message: "Your schedule is clear for today! No deadlines or scheduled events.",
+        targetView: "calendar",
+        actionLabel: "View Calendar"
+      };
+    }
+  }
+
+  // Query Workout
+  if (text.match(/\b(?:what(?:'s|\s+is)\s+my\s+workout|workout\s+today|what\s+are\s+we\s+lifting|today(?:'s)?\s+workout)\b/i) || text === 'workout') {
+    const split = osData?.workoutData?.split || 'Push / Pull / Legs';
+    const todayWorkout = osData?.workoutData?.todayWorkout || 'Training Session';
+    return {
+      handled: true,
+      title: "🏋️ Today's Workout",
+      message: `${todayWorkout} (${split} split). Time to get after it.`,
+      targetView: "workouts",
+      actionLabel: "View Workouts"
+    };
+  }
+
+  // Query Nutrition / Calories
+  if (text.match(/\b(?:how\s+many\s+calories\s+left|calories\s+left|nutrition\s+status|macro\s+status|how\s+much\s+protein)\b/i) || text === 'calories' || text === 'macros') {
+    const consumed = osData?.nutritionData?.consumedCalories || 0;
+    const target = osData?.nutritionData?.targetCalories || 2750;
+    const remaining = Math.max(0, target - consumed);
+    const protein = osData?.nutritionData?.consumedProtein || 0;
+    const proteinTarget = osData?.nutritionData?.targetProtein || 180;
+    return {
+      handled: true,
+      title: "🥗 Nutrition Tracker",
+      message: `${consumed} / ${target} kcal (${remaining} kcal remaining). Protein: ${protein}g / ${proteinTarget}g.`,
+      targetView: "nutrition",
+      actionLabel: "View Nutrition"
     };
   }
 

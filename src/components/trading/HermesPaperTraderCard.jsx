@@ -257,6 +257,12 @@ export const HermesPaperTraderCard = ({
                             <span>Active</span>
                           </span>
                         )}
+
+                        {/* Timestamp Badge */}
+                        <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1" title={pos.createdAt ? `Placed: ${new Date(pos.createdAt).toLocaleString()}` : ''}>
+                          <Clock className="w-2.5 h-2.5 text-slate-500" />
+                          <span>{pos.createdAt ? (new Date(pos.createdAt).toDateString() === new Date().toDateString() ? new Date(pos.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(pos.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })) : 'Today'}</span>
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-2.5">
@@ -492,7 +498,7 @@ export const HermesPaperTraderCard = ({
                           </span>
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5 font-sans">
-                          {new Date(trade.closedAt).toLocaleDateString()} • {trade.strategy}
+                          {trade.closedAt ? `${new Date(trade.closedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${new Date(trade.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Recent'} • {trade.strategy || 'Discretionary'}
                         </div>
                       </div>
                     </div>
