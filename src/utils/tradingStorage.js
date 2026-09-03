@@ -404,7 +404,7 @@ export function getSavedHermesBriefs() {
     const briefs = JSON.parse(raw);
     if (!Array.isArray(briefs)) return [];
 
-    // Filter out stale briefs that contain old prices from previous sessions
+    // Filter out stale briefs that contain old prices from previous sessions or lack Chronos backtest verification
     const validBriefs = briefs.filter(b => {
       if (!b || !b.highConvictionPlays || !Array.isArray(b.highConvictionPlays) || b.highConvictionPlays.length === 0) return false;
       // Stale check: If ASTS has entry < 45 or PLTR has entry < 120 or NVDA < 180, it's an outdated brief
@@ -414,6 +414,9 @@ export function getSavedHermesBriefs() {
       if (pltr && Number(pltr.entryNumeric) < 120) return false;
       const nvda = b.highConvictionPlays.find(p => p.ticker === 'NVDA');
       if (nvda && Number(nvda.entryNumeric) < 180) return false;
+      // Stale check: Must have Chronos backtest verification
+      const hasBacktests = b.highConvictionPlays.some(p => p.chronosBacktest && p.chronosBacktest.status === 'PASSED');
+      if (!hasBacktests) return false;
       return true;
     }).map(b => ({
       ...b,
