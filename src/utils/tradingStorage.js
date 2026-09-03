@@ -402,10 +402,29 @@ export function getSavedHermesBriefs() {
     const raw = localStorage.getItem(STORAGE_KEY_HERMES_BRIEFS);
     if (!raw) return [];
     const briefs = JSON.parse(raw);
-    return (briefs || []).map(b => ({
+    if (!Array.isArray(briefs)) return [];
+
+    // Filter out stale briefs that contain old prices from previous sessions
+    const validBriefs = briefs.filter(b => {
+      if (!b || !b.highConvictionPlays || !Array.isArray(b.highConvictionPlays) || b.highConvictionPlays.length === 0) return false;
+      // Stale check: If ASTS has entry < 45 or PLTR has entry < 120 or NVDA < 180, it's an outdated brief
+      const asts = b.highConvictionPlays.find(p => p.ticker === 'ASTS');
+      if (asts && Number(asts.entryNumeric) < 45) return false;
+      const pltr = b.highConvictionPlays.find(p => p.ticker === 'PLTR');
+      if (pltr && Number(pltr.entryNumeric) < 120) return false;
+      const nvda = b.highConvictionPlays.find(p => p.ticker === 'NVDA');
+      if (nvda && Number(nvda.entryNumeric) < 180) return false;
+      return true;
+    }).map(b => ({
       ...b,
       highConvictionPlays: sanitizePlays(b.highConvictionPlays)
     }));
+
+    if (validBriefs.length !== briefs.length) {
+      localStorage.setItem(STORAGE_KEY_HERMES_BRIEFS, JSON.stringify(validBriefs));
+    }
+
+    return validBriefs;
   } catch {
     return [];
   }

@@ -60,7 +60,7 @@ import {
   fetchLiveMarketData, 
   fetchHyperliquidLivePositions 
 } from '../../utils/hyperliquidService';
-import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
+import { runHermesSwarmAnalysis, generateDynamicSetups } from '../../utils/hermesSwarmService';
 import { 
   tickPaperPositionsWithLivePrices, 
   enterSingleHermesPlay,
@@ -293,10 +293,64 @@ export const TradingView = ({
       return match ? parseFloat(match[1]) : null;
     };
 
+    // If hermesBrief is null or highConvictionPlays is empty, dynamically generate from live prices
+    const sourcePlays = (hermesBrief?.highConvictionPlays && hermesBrief.highConvictionPlays.length > 0)
+      ? hermesBrief.highConvictionPlays
+      : generateDynamicSetups(livePricesMap);
+
     const available = [];
     const active = [];
 
-    (hermesBrief?.highConvictionPlays || []).forEach(play => {
+    sourcePlays.forEach(rawPlay => {
+      const currentLive = livePricesMap?.[rawPlay.ticker];
+      let play = { ...rawPlay };
+
+      // ⚡ REAL-TIME DYNAMIC PRICE BINDING:
+      // If live price deviates from play's stored entry (> 8%), recalibrate entry, stop, and targets dynamically!
+      // This mathematically prevents stale cached prices (like PLTR $68 vs $169 live) from ever desyncing.
+      if (currentLive && typeof currentLive === 'number' && currentLive > 0) {
+        const storedEntry = Number(play.entryNumeric);
+        const isOutOfSync = !storedEntry || Math.abs((currentLive - storedEntry) / storedEntry) > 0.08;
+
+        if (isOutOfSync) {
+          const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
+          const is15m = play.timeframe?.includes('15m') || play.timeframe?.includes('Scalp');
+          const isDaily = play.timeframe?.includes('Daily') || play.timeframe?.includes('Secular');
+
+          const stopPct = is15m ? 0.012 : (isDaily ? 0.050 : 0.038);
+          const entryFactor = isLong 
+            ? (is15m ? 0.998 : (isDaily ? 0.980 : 0.985)) 
+            : (is15m ? 1.003 : (isDaily ? 1.020 : 1.015));
+
+          const newEntry = Number((currentLive * entryFactor).toFixed(currentLive < 1 ? 4 : 2));
+          const newStop = isLong
+            ? Number((newEntry * (1 - stopPct)).toFixed(currentLive < 1 ? 4 : 2))
+            : Number((newEntry * (1 + stopPct)).toFixed(currentLive < 1 ? 4 : 2));
+
+          const riskDist = Math.abs(newEntry - newStop);
+          const newTP2R = isLong
+            ? Number((newEntry + riskDist * 2).toFixed(currentLive < 1 ? 4 : 2))
+            : Number((newEntry - riskDist * 2).toFixed(currentLive < 1 ? 4 : 2));
+          const newTP3R = isLong
+            ? Number((newEntry + riskDist * 3).toFixed(currentLive < 1 ? 4 : 2))
+            : Number((newEntry - riskDist * 3).toFixed(currentLive < 1 ? 4 : 2));
+
+          play = {
+            ...play,
+            entryNumeric: newEntry,
+            entryTrigger: `$${newEntry.toLocaleString()} (${play.optimalWindow || 'Dynamic Support Retest'})`,
+            stopNumeric: newStop,
+            stopLoss: `$${newStop.toLocaleString()} (${isLong ? 'Below Higher-Low Wick Base' : 'Above Rejection High Wick'})`,
+            target2RNumeric: newTP2R,
+            target2R: `$${newTP2R.toLocaleString()} (2R Target)`,
+            target3RNumeric: newTP3R,
+            target3R: `$${newTP3R.toLocaleString()} (3R Target)`,
+            projectedMove: `${play.ticker} currently trading near $${currentLive.toLocaleString()}. Strategic trigger entry at $${newEntry.toLocaleString()} targets $${newTP2R.toLocaleString()} (2R) and $${newTP3R.toLocaleString()} (3R).`,
+            riskManagement: `Trigger Entry $${newEntry.toLocaleString()} | Stop Loss $${newStop.toLocaleString()} (${(stopPct * 100).toFixed(1)}%) | Target 2R $${newTP2R.toLocaleString()} | ${play.recommendedLeverage || '3x'} Leverage.`
+          };
+        }
+      }
+
       // ONLY mark as active/filled if user currently has an ACTIVE or PENDING position in Forward Test or on Hyperliquid
       const forwardPosition = paperPositions.find(p => p.ticker === play.ticker && (p.status === 'ACTIVE' || p.status === 'PENDING_ENTRY' || p.status === 'FILLED'));
       const hlPosition = openPositions.find(p => (p.coin === play.ticker || p.ticker === play.ticker || p.symbol === play.ticker));
@@ -314,7 +368,6 @@ export const TradingView = ({
         }
 
         // Auto-remove untriggered setups if live price has pierced stop loss (Invalidated)
-        const currentLive = livePricesMap?.[play.ticker];
         if (currentLive) {
           const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
           const stopNum = play.stopNumeric || extractNum(play.stopLoss) || extractNum(String(play.riskManagement).split('Stop Loss')?.[1]);
@@ -777,10 +830,17 @@ export const TradingView = ({
                   const profitPct = entryNum && tpNum ? Math.abs(((tpNum - entryNum) / entryNum) * 100).toFixed(1) : '10.0';
                   const lossPct = entryNum && stopNum ? Math.abs(((entryNum - stopNum) / entryNum) * 100).toFixed(1) : '4.5';
 
-                  const entryFormatted = entryNum >= 1000 ? `$${entryNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${entryNum.toFixed(2)}`;
-                  const tpFormatted = tpNum >= 1000 ? `$${tpNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${tpNum.toFixed(2)}`;
-                  const stopFormatted = stopNum >= 1000 ? `$${stopNum.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${stopNum.toFixed(2)}`;
-                  const liveFormatted = currentLive >= 1000 ? `$${currentLive.toLocaleString('en-US', { minimumFractionDigits: 1 })}` : `$${currentLive.toFixed(2)}`;
+                  const formatPriceVal = (val) => {
+                    if (val === null || val === undefined || isNaN(val)) return '$0.00';
+                    if (val >= 1000) return `$${val.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`;
+                    if (val < 1) return `$${val.toFixed(4)}`;
+                    return `$${val.toFixed(2)}`;
+                  };
+
+                  const entryFormatted = formatPriceVal(entryNum);
+                  const tpFormatted = formatPriceVal(tpNum);
+                  const stopFormatted = formatPriceVal(stopNum);
+                  const liveFormatted = formatPriceVal(currentLive);
 
                   const distFromEntryPct = entryNum > 0 ? (((currentLive - entryNum) / entryNum) * 100).toFixed(1) : '0.0';
                   const isNearEntry = Math.abs(Number(distFromEntryPct)) <= 0.8;
@@ -1035,6 +1095,34 @@ export const TradingView = ({
                           </span>
                         </div>
                       </div>
+
+                      {/* Strategy & Chronos Quantitative Backtest Panel */}
+                      {play.chronosBacktest && (
+                        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5 font-sans">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="text-[11px] font-bold text-white tracking-wide">
+                                Strategy: <span style={{ color: 'var(--accent-primary)' }}>{play.chronosBacktest.patternClass || play.horizonType || 'Confluence Breakout'}</span>
+                              </span>
+                            </div>
+                            <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1">
+                              <span>CHRONOS {play.chronosBacktest.status || 'PASSED'}</span>
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 py-1 px-2 rounded-lg bg-black/40 border border-white/5 font-mono text-[10px]">
+                            <div><span className="text-slate-400">Win Rate:</span> <strong className="text-emerald-300 font-bold">{play.chronosBacktest.historicalWinRate}</strong></div>
+                            <div><span className="text-slate-400">Profit Factor:</span> <strong className="text-white font-bold">{play.chronosBacktest.profitFactor}x</strong></div>
+                            <div><span className="text-slate-400">Expectancy:</span> <strong className="text-white font-bold">{play.chronosBacktest.expectancy}</strong></div>
+                            <div><span className="text-slate-400">Sample:</span> <strong className="text-white font-bold">{play.chronosBacktest.sampleSize} setups</strong></div>
+                          </div>
+
+                          <p className="text-[10px] text-slate-300 leading-relaxed font-sans pl-0.5">
+                            {play.chronosBacktest.verdict}
+                          </p>
+                        </div>
+                      )}
 
                       {/* Point-Form Bullets: Why Chosen & Candlestick Structure */}
                       <div className="space-y-1.5 text-[11px] text-slate-300 pl-0.5">

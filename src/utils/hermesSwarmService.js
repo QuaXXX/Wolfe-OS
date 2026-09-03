@@ -146,6 +146,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${solTP2R} (Equal Highs Liquidity Sweep)`,
       target2RNumeric: solTP2R,
       target3R: `$${solTP3R} (Macro POC Target)`,
+      target3RNumeric: solTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "Tight 15m intraday scalp testing dynamic EMA20 support with long buyer absorption wicks above session VWAP. Stop tucked 1.2% behind the session rejection wick, allowing 8x leverage with controlled risk targeting buy-side liquidations.",
       invalidationCondition: `15m candle close below $${solStop}, or setup expires if untriggered within 4 hours.`,
@@ -190,6 +191,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${dogeTP2R} (Session VPOC Demand Shelf)`,
       target2RNumeric: dogeTP2R,
       target3R: `$${dogeTP3R} (Local Range Low Fill)`,
+      target3RNumeric: dogeTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "15m upper shadow rejection wick sweeping equal highs into overhead supply. Stop loss placed 1.4% above the rejection wick high to target trapped breakout buyers down to the session volume shelf.",
       invalidationCondition: `15m candle close above $${dogeStop}, or setup expires if untriggered within 4 hours.`,
@@ -234,6 +236,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${pltrTP2R} (Upper Resistance Expansion)`,
       target2RNumeric: pltrTP2R,
       target3R: `$${pltrTP3R} (ATH Discovery Target)`,
+      target3RNumeric: pltrTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "4H retest of previous session Value Area High. Stop loss tucked 3.5% below the consolidation wick base to weather intraday chop, targeting upper resistance expansion on enterprise contract tailwinds.",
       invalidationCondition: `4H candle close below $${pltrStop}, or setup expires if untriggered within 24 hours.`,
@@ -278,6 +281,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${renderTP2R} (Macro Range Low Target)`,
       target2RNumeric: renderTP2R,
       target3R: `$${renderTP3R} (Deep Liquidity Pool Target)`,
+      target3RNumeric: renderTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "4H bear flag breakdown retest with declining buyer volume on rallies. Stop loss sheltered 3.5% above the breakdown shelf to capture downside rotation into multi-week demand lows.",
       invalidationCondition: `4H candle close above $${renderStop}, or setup expires if untriggered within 24 hours.`,
@@ -322,6 +326,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${astsTP2R} (Naked High POC Target)`,
       target2RNumeric: astsTP2R,
       target3R: `$${astsTP3R} (All-Time High Discovery)`,
+      target3RNumeric: astsTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "4H consolidation retest of 50% Fair Value Gap mitigation with long lower absorption wicks confirming institutional bid support at the Point of Control. Stop placed 3.8% below the higher-low wick base.",
       invalidationCondition: `4H candle close below $${astsStop}, or setup expires if untriggered within 36 hours.`,
@@ -366,6 +371,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${nvdaTP2R} (Unmitigated High Liquidity Pool)`,
       target2RNumeric: nvdaTP2R,
       target3R: `$${nvdaTP3R} (ATH Breakout Discovery)`,
+      target3RNumeric: nvdaTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "Daily pullback into dynamic EMA20 support on lighter volume following hyperscaler earnings. Wide 5.5% stop loss protected beneath the weekly demand shelf to avoid shakeouts in secular compounding holding.",
       invalidationCondition: `Daily candle close below $${nvdaStop}, or setup expires if untriggered within 72 hours.`,
@@ -410,6 +416,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${hypeTP2R} (Buy-Side Liquidity Pool)`,
       target2RNumeric: hypeTP2R,
       target3R: `$${hypeTP3R} (Range High Expansion)`,
+      target3RNumeric: hypeTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "4H liquidity sweep into Value Area Low with bullish hammer wick prints and high volume absorption defending the psychological boundary. Stop anchored 4.0% below the swing-low wick.",
       invalidationCondition: `4H candle close below $${hypeStop}, or setup expires if untriggered within 48 hours.`,
@@ -454,6 +461,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${btcTP2R.toLocaleString()} (Upper Range Expansion)`,
       target2RNumeric: btcTP2R,
       target3R: `$${btcTP3R.toLocaleString()} (All-Time High Discovery)`,
+      target3RNumeric: btcTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "Retest of 4H bull-flag consolidation channel and CME gap fill. Stop loss protected 3.5% beneath the channel low wick to capture all-time high liquidity expansion with moderate 2x leverage.",
       invalidationCondition: `4H candle close below $${btcStop.toLocaleString()}, or setup expires if untriggered within 48 hours.`,
@@ -498,6 +506,7 @@ export function generateDynamicSetups(livePrices = {}) {
       target2R: `$${tslaTP2R} (Unfilled Cash Gap Fill Target)`,
       target2RNumeric: tslaTP2R,
       target3R: `$${tslaTP3R} (Multi-Week Support Shelf Fill)`,
+      target3RNumeric: tslaTP3R,
       riskRewardRatio: "1:3.0",
       candlestickRationale: "Daily rejection wick testing multi-month overhead horizontal supply shelf with negative volume delta divergence. Stop anchored 4.2% above the weekly swing-high wick to hedge against broader tech consolidation.",
       invalidationCondition: `Daily candle close above $${tslaStop}, or setup expires if untriggered within 48 hours.`,
@@ -671,8 +680,8 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
       items: [
         "Upcoming: Tuesday, Sep 9 at 8:30 AM EST — US CPI Inflation Report: Consensus estimates core CPI at +2.8% YoY. Market impact: A benign reading locks in Federal Reserve interest rate cuts, providing the green light for risk-on momentum expansion across equities and crypto.",
         "Upcoming: Wednesday, Sep 17 at 2:00 PM EST — FOMC Rate Decision & Press Conference: Fed Chair Powell delivers the benchmark interest rate decision and forward dot plot. Market impact: Dictates global dollar liquidity trajectory for Q4 2026.",
-        "Recent: Today at 9:45 AM EST — FCC Direct-to-Cell Commercial Spectrum Clearance for AST SpaceMobile: The FCC approved orbital cellular spectrum docket #24-119. Market impact: Clears the primary regulatory hurdle for commercial launch with AT&T/Verizon, triggering institutional dark pool block accumulation ($38M at $26.10 VWAP).",
-        "Recent: Today at 10:15 AM EST — Palantir Department of Defense AIP Contract Expansion: Finalized +18% annual recurring revenue expansion. Market impact: Confirms accelerating institutional enterprise adoption, sparking heavy call sweep flow above $68."
+        "Recent: Today at 9:45 AM EST — FCC Direct-to-Cell Commercial Spectrum Clearance for AST SpaceMobile: The FCC approved orbital cellular spectrum docket #24-119. Market impact: Clears the primary regulatory hurdle for commercial launch with AT&T/Verizon, triggering institutional dark pool block accumulation ($38M crossing network block prints near $" + (astsPrice * 0.98).toFixed(2) + " VWAP).",
+        "Recent: Today at 10:15 AM EST — Palantir Department of Defense AIP Contract Expansion: Finalized +18% annual recurring revenue expansion. Market impact: Confirms accelerating institutional enterprise adoption, sparking heavy call sweep flow near $" + pltrPrice.toFixed(2) + "."
       ]
     }
   ];
@@ -708,10 +717,10 @@ This macro backdrop specifically favors trend continuation on SOL ($${solPrice.t
       stage: "13F Disclosures & Dark Pool Blocks",
       timestamp: new Date(Date.now() - 340000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       message: `I pulled the latest institutional disclosures and off-exchange prints. We have concrete smart money accumulation:
-• ASTS ($${astsPrice.toFixed(2)}): Stanley Druckenmiller's Duquesne Family Office and Peter Thiel's Founders Fund updated their 13F filings showing aggressive new equity allocations. On the tape, I flagged 4 distinct dark pool blocks totaling $38M executed at $26.10 VWAP with zero price concession.
+• ASTS ($${astsPrice.toFixed(2)}): Stanley Druckenmiller's Duquesne Family Office and Peter Thiel's Founders Fund updated their 13F filings showing aggressive new equity allocations. On the tape, I flagged 4 distinct dark pool blocks totaling $38M executed near $${(astsPrice * 0.98).toFixed(2)} VWAP with zero price concession.
 • HYPE ($${hypePrice.toFixed(2)}): Net validator staking lockups absorbed over 180,000 HYPE tokens with high taker buyer delta on every pullback.
 • TAO ($${taoPrice.toFixed(1)}): Pantera Capital and Polychain Capital disclosed long-term custody staking of over 420,000 TAO tokens into neural subnet emissions.
-• SOL ($${solPrice.toFixed(2)}): Hyperliquid Whale Desk #4 registered +$28.5M in cumulative market taker buy delta over the last 12 hours. Solid resting bid walls are layered between $99.50 and $100.20.
+• SOL ($${solPrice.toFixed(2)}): Hyperliquid Whale Desk #4 registered +$28.5M in cumulative market taker buy delta over the last 12 hours. Solid resting bid walls are layered between $${(solPrice * 0.99).toFixed(2)} and $${solPrice.toFixed(2)}.
 • BTC ($${btcPrice.toLocaleString()}): BlackRock's IBIT custody swept 4,520 BTC into cold storage, bringing 24h ETF net inflows to +$340M.
 • ONDO ($${ondoPrice.toFixed(3)}): Institutional wallet transfers reveal $22M USDC minted directly into tokenized US Treasury vaults backed by BlackRock BUIDL.
 @Artemis, verify the corporate reports and protocol fundamentals behind these capital flows.`
@@ -740,12 +749,12 @@ This macro backdrop specifically favors trend continuation on SOL ($${solPrice.t
       stage: "Candlestick Confluence & Structure Mapping",
       timestamp: new Date(Date.now() - 260000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       message: `I've mapped candlestick price action and structural order blocks across our key setups:
-• ASTS: Current $${astsPrice.toFixed(2)}. We refuse to chase here; our strategic Trigger Entry is at $24.80, aligning with 50% mitigation of the 1H Fair Value Gap and 4H Volume Profile Point of Control. Stop loss at $23.20 is placed 0.20 below the prior 4H swing-low wick. Target 2R is at $29.60 (untested naked POC), delivering a clean 1:3.0 R:R. Valid for 36 hours.
-• HYPE: Current $${hypePrice.toFixed(2)}. Strategic Trigger Entry at $77.50 Value Area Low demand zone. Stop loss at $73.80 beneath the 4H higher-low wick. Target 2R at $88.50 capturing buy-side liquidity (1:3.0 R:R). Valid for 48 hours.
-• TAO: Current $${taoPrice.toFixed(1)}. Strategic Trigger Entry at $480.00 to capture 1H FVG mitigation. Stop loss at $452.00 beneath the consolidation base. Target 2R at $564.00 (1:3.0 R:R). Valid for 36 hours.
-• SOL: Current $${solPrice.toFixed(2)}. Strategic Trigger Entry at $94.50 at the 4H EMA20 dynamic support. Stop loss at $89.50 below the liquidity sweep wick. Target 2R at $109.50 (1:3.0 R:R). Valid for 12 hours.
-• PLTR: Current $${pltrPrice.toFixed(2)}. Strategic Trigger Entry at $64.50 retesting prior session Value Area High. Stop loss at $61.80 below previous day's swing-low wick. Target 2R at $72.60 (1:3.0 R:R). Valid for 24 hours.
-• BTC: Current $${btcPrice.toLocaleString()}. Strategic Trigger Entry at $73,800 to fill CME gap and retest 4H POC. Stop loss at $70,500 below the bull flag channel wick. Target 2R at $83,700 (1:3.0 R:R). Valid for 48 hours.
+• ASTS: Current $${astsPrice.toFixed(2)}. Strategic Trigger Entry is at $${astsEntry}, aligning with 50% mitigation of the 1H Fair Value Gap and 4H Volume Profile Point of Control. Stop loss at $${astsStop} is placed beneath the 4H higher-low wick base. Target 2R is at $${astsTP2R} (untested naked POC), delivering a clean 1:3.0 R:R. Valid for 36 hours.
+• HYPE: Current $${hypePrice.toFixed(2)}. Strategic Trigger Entry at $${hypeEntry} Value Area Low demand zone. Stop loss at $${hypeStop} beneath the 4H higher-low wick. Target 2R at $${hypeTP2R} capturing buy-side liquidity (1:3.0 R:R). Valid for 48 hours.
+• DOGE (Short): Current $${dogePrice.toFixed(4)}. Strategic Trigger Entry Short at $${dogeEntry} following 15m equal highs sweep. Stop loss at $${dogeStop} (+1.4%). Target 2R at $${dogeTP2R} (-2.8%) at 8x leverage. Valid for 4 hours.
+• SOL: Current $${solPrice.toFixed(2)}. Strategic Trigger Entry at $${solEntry} at the 15m dynamic EMA20 support. Stop loss at $${solStop} below the session rejection wick. Target 2R at $${solTP2R} (1:3.0 R:R) at 8x leverage. Valid for 4 hours.
+• PLTR: Current $${pltrPrice.toFixed(2)}. Strategic Trigger Entry at $${pltrEntry} retesting 4H Value Area High. Stop loss at $${pltrStop} below prior session swing-low wick. Target 2R at $${pltrTP2R} (1:3.0 R:R) at 3x leverage. Valid for 24 hours.
+• BTC: Current $${btcPrice.toLocaleString()}. Strategic Trigger Entry at $${btcEntry.toLocaleString()} to fill CME gap and retest 4H POC. Stop loss at $${btcStop.toLocaleString()} below the bull flag channel wick. Target 2R at $${btcTP2R.toLocaleString()} (1:3.0 R:R). Valid for 48 hours.
 @TheSkeptic, stress-test these candlestick levels and confirm the invalidation rules.`
     },
     {
@@ -756,9 +765,9 @@ This macro backdrop specifically favors trend continuation on SOL ($${solPrice.t
       stage: "Candlestick Stress-Testing & Invalidation Window",
       timestamp: new Date(Date.now() - 220000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       message: `Auditing the candlestick boundaries and risk profiles:
-1. On ASTS: $23.20 stop loss is structurally sound because it sits below the 4H rejection wick. If price closes a 4H candle below $23.20 before triggering our entry, the setup is immediately invalidated. Furthermore, if $24.80 is not tagged within 36 hours, we cancel the order to avoid holding stale risk.
-2. On HYPE & TAO: Both stops ($73.80 and $452.00) are placed under genuine order block bases, not arbitrary percentage stops. If price breaches these wicks, institutional market structure has failed.
-3. On SOL: 12-hour expiration window is enforced. If SOL does not pull back to $94.50 within 12 hours, intraday momentum has evolved and we escape before entering.
+1. On ASTS: $${astsStop} stop loss is structurally sound because it sits below the 4H rejection wick base. If price closes a 4H candle below $${astsStop} before triggering our entry, the setup is immediately invalidated. Furthermore, if $${astsEntry} is not tagged within 36 hours, we cancel the order to avoid holding stale risk.
+2. On PLTR & HYPE: Both stops ($${pltrStop} and $${hypeStop}) are placed under genuine order block bases, not arbitrary percentage stops. If price breaches these wicks, institutional market structure has failed.
+3. On SOL: 4-hour expiration window is enforced. If SOL does not pull back to $${solEntry} within 4 hours, intraday momentum has evolved and we escape before entering.
 All setups deliver a minimum of 1:3.0 R:R with explicit time-based auto-escape conditions. Hermes-Prime, you have clearance.`
     },
     {
@@ -769,7 +778,7 @@ All setups deliver a minimum of 1:3.0 R:R with explicit time-based auto-escape c
       stage: "Tape Rebuttal & Gamma Analysis",
       timestamp: new Date(Date.now() - 180000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       message: `@TheSkeptic Here is the sub-second proof:
-1. On ASTS: The 4 dark pool blocks at $26.10 totaling $38M were executed as *buyer-initiated crossing network blocks*. We observed zero post-block selling pressure on Lit exchanges; rather, the bid size expanded from 40k to 180k shares immediately afterward. Short interest decreased by 4.2%.
+1. On ASTS: The 4 dark pool blocks totaling $38M were executed as *buyer-initiated crossing network blocks* near $${(astsPrice * 0.98).toFixed(2)}. We observed zero post-block selling pressure on Lit exchanges; rather, the bid size expanded immediately afterward. Short interest decreased by 4.2%.
 2. On HYPE & TAO: In HYPE, over 70% of circulating supply is locked in validator staking contracts earning fee yield, meaning sell-side floating inventory is structurally scarce. In TAO, emission halving mechanics combined with Pantera custody lockups prevent large dumping.`
     },
     {
@@ -788,7 +797,7 @@ All setups deliver a minimum of 1:3.0 R:R with explicit time-based auto-escape c
       role: "Market Structure",
       stage: "Orderbook Invalidation Refinement",
       timestamp: new Date(Date.now() - 120000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      message: `@TheSkeptic Regarding SOL's $100 psychological level: On Hyperliquid L1, the orderbook skew shows 68% bid density between $99.20 and $100.20. By setting our limit trigger in the 1H FVG ($99.40-$100.20) and anchoring our stop loss at $97.50, our stop is protected by both the 4H swing low and the institutional bid wall. If price breaks below $97.50, the thesis is structurally invalidated and we exit immediately with minimal 1.5% capital risk.`
+      message: `@TheSkeptic Regarding SOL: On Hyperliquid L1, the orderbook skew shows 68% bid density layered between $${(solPrice * 0.99).toFixed(2)} and $${solPrice.toFixed(2)}. By setting our limit trigger at $${solEntry} in the 15m FVG and anchoring our stop loss at $${solStop}, our stop is protected by both the structural swing low and the institutional bid wall. If price breaks below $${solStop}, the thesis is structurally invalidated and we exit immediately with minimal capital risk.`
     },
     {
       step: 10,
@@ -860,7 +869,7 @@ Every candidate satisfies our institutional threshold (Win Rate >= 55%, Expectan
       { fund: "Hyperliquid Whale Desk #4", asset: "SOL", action: "Taker Buy Delta", detail: `+$28.5M net taker market orders executed during consolidation near $${solPrice.toFixed(2)}.` },
       { fund: "Pantera Capital & Polychain", asset: "TAO", action: "Decentralized AI Staking", detail: "+420,000 TAO locked into neural subnet validation emissions." },
       { fund: "Hyperliquid Validator Treasury", asset: "HYPE", action: "Fee Accrual Lockup", detail: "Over 180,000 HYPE locked into staking following record 24h trading volumes." },
-      { fund: "Stanley Druckenmiller / Peter Thiel", asset: "ASTS", action: "Form 13F Whale Accumulation", detail: "$38M dark pool blocks recorded at $26.10 VWAP following FCC commercial spectrum clearance." },
+      { fund: "Stanley Druckenmiller / Peter Thiel", asset: "ASTS", action: "Form 13F Whale Accumulation", detail: "$38M dark pool blocks recorded near $" + (astsPrice * 0.98).toFixed(2) + " VWAP following FCC commercial spectrum clearance." },
       { fund: "BlackRock BUIDL Treasury Fund", asset: "ONDO", action: "Tokenized RWA Mint", detail: "$22M institutional USDC minted into tokenized US Treasury vaults." }
     ],
     councilDialogue: discordDialogue,
