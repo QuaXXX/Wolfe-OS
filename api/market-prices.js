@@ -19,40 +19,15 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Real-world high-fidelity baselines with live 24h day price change
-  const baselineData = {
-    'NASDAQ': { price: 26217.83, change: '+0.45%', isPositive: true, prevClose: 26099.77 },
-    'QQQ': { price: 709.24, change: '+0.23%', isPositive: true, prevClose: 707.64 },
-    'SPY': { price: 765.16, change: '+0.44%', isPositive: true, prevClose: 761.78 },
-    'ASTS': { price: 62.40, change: '+11.83%', isPositive: true, prevClose: 55.80 },
-    'PLTR': { price: 169.46, change: '-5.81%', isPositive: false, prevClose: 179.92 },
-    'NVDA': { price: 224.41, change: '+3.21%', isPositive: true, prevClose: 217.44 },
-    'TSLA': { price: 357.01, change: '+0.26%', isPositive: true, prevClose: 356.09 },
-    'MSTR': { price: 123.19, change: '-1.35%', isPositive: false, prevClose: 124.88 },
-    'AAPL': { price: 238.50, change: '+0.85%', isPositive: true, prevClose: 236.49 },
-    'BTC': { price: 77556.50, change: '+0.19%', isPositive: true, prevClose: 77407.00 },
-    'ETH': { price: 2399.45, change: '-0.57%', isPositive: false, prevClose: 2413.30 },
-    'SOL': { price: 100.24, change: '+0.30%', isPositive: true, prevClose: 99.94 },
-    'HYPE': { price: 82.16, change: '-0.90%', isPositive: false, prevClose: 82.90 },
-    'SUI': { price: 0.7665, change: '-0.85%', isPositive: false, prevClose: 0.7731 },
-    'AVAX': { price: 7.26, change: '+0.76%', isPositive: true, prevClose: 7.21 },
-    'DOGE': { price: 0.0828, change: '-1.15%', isPositive: false, prevClose: 0.0838 },
-    'TAO': { price: 218.48, change: '+1.50%', isPositive: true, prevClose: 215.25 },
-    'RENDER': { price: 1.42, change: '-2.10%', isPositive: false, prevClose: 1.45 },
-    'ENA': { price: 0.1505, change: '+1.20%', isPositive: true, prevClose: 0.1487 },
-    'ONDO': { price: 0.3496, change: '+0.75%', isPositive: true, prevClose: 0.3470 }
-  };
-
   const priceMap = {};
   const marketData = {};
 
-  for (const [sym, data] of Object.entries(baselineData)) {
-    priceMap[sym] = data.price;
-    marketData[sym] = { ...data };
-  }
+  // Parse optional on-demand ticker query parameter
+  const urlObj = new URL(req.url, 'http://localhost');
+  const customQueryTicker = urlObj.searchParams.get('ticker') || urlObj.searchParams.get('symbol');
 
   try {
-    // 1. Fetch Hyperliquid Crypto Mids & 24h PrevDayPx in Parallel
+    // 1. Fetch Hyperliquid Crypto Mids & 24h PrevDayPx directly from L1 RPC
     const hlPromise = (async () => {
       try {
         const hlRes = await fetch('https://api.hyperliquid.xyz/info', {
@@ -77,7 +52,8 @@ export default async function handler(req, res) {
                   price: mid,
                   change: (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%',
                   isPositive: pct >= 0,
-                  prevClose: prev
+                  prevClose: prev,
+                  source: 'Hyperliquid L1 RPC'
                 };
               }
             }
@@ -88,8 +64,8 @@ export default async function handler(req, res) {
       }
     })();
 
-    // 2. Fetch Yahoo Finance Stock & Index Quotes in Parallel
-    const stockTickers = [
+    // 2. Fetch Yahoo Finance Stock & Index Quotes with Official regularMarketChangePercent
+    const defaultTickers = [
       { sym: 'NVDA', query: 'NVDA' },
       { sym: 'PLTR', query: 'PLTR' },
       { sym: 'ASTS', query: 'ASTS' },
@@ -101,7 +77,11 @@ export default async function handler(req, res) {
       { sym: 'NASDAQ', query: '^IXIC' }
     ];
 
-    const yahooPromises = stockTickers.map(async ({ sym, query }) => {
+    if (customQueryTicker && !defaultTickers.some(t => t.sym === customQueryTicker.toUpperCase())) {
+      defaultTickers.push({ sym: customQueryTicker.toUpperCase(), query: customQueryTicker.toUpperCase() });
+    }
+
+    const yahooPromises = defaultTickers.map(async ({ sym, query }) => {
       try {
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(query)}?interval=1m&range=1d`;
         const yRes = await fetch(url, {
@@ -111,16 +91,23 @@ export default async function handler(req, res) {
         if (yRes.ok) {
           const data = await yRes.json();
           const meta = data.chart?.result?.[0]?.meta;
-          const price = meta?.regularMarketPrice || meta?.chartPreviousClose;
-          const prev = meta?.chartPreviousClose;
+          const price = meta?.regularMarketPrice || meta?.fulldayPrice;
+          const prev = meta?.chartPreviousClose || meta?.previousClose;
+          // Use official Yahoo Finance change percent directly from the live feed
+          const pct = typeof meta?.regularMarketChangePercent === 'number'
+            ? meta.regularMarketChangePercent
+            : typeof meta?.fulldayChangePercent === 'number'
+              ? meta.fulldayChangePercent
+              : (prev > 0 ? ((price - prev) / prev) * 100 : 0);
+
           if (price && typeof price === 'number') {
             priceMap[sym] = price;
-            const pct = prev > 0 ? ((price - prev) / prev) * 100 : 0;
             marketData[sym] = {
               price,
               change: (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%',
               isPositive: pct >= 0,
-              prevClose: prev
+              prevClose: prev,
+              source: 'Yahoo Finance Official Quote'
             };
           }
         }

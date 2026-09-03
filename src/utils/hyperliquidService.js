@@ -32,49 +32,22 @@ const ASSET_PRECISION = {
  * Aggregates Yahoo Finance (Equities, Indices) and Hyperliquid L1 (Crypto).
  */
 export async function fetchLiveMarketData() {
-  const baselineData = {
-    'NASDAQ': { price: 26217.83, change: '+0.45%', isPositive: true, prevClose: 26099.77 },
-    'QQQ': { price: 709.24, change: '+0.23%', isPositive: true, prevClose: 707.64 },
-    'SPY': { price: 765.16, change: '+0.44%', isPositive: true, prevClose: 761.78 },
-    'ASTS': { price: 62.40, change: '+11.83%', isPositive: true, prevClose: 55.80 },
-    'PLTR': { price: 169.46, change: '-5.81%', isPositive: false, prevClose: 179.92 },
-    'NVDA': { price: 224.41, change: '+3.21%', isPositive: true, prevClose: 217.44 },
-    'TSLA': { price: 357.01, change: '+0.26%', isPositive: true, prevClose: 356.09 },
-    'MSTR': { price: 123.19, change: '-1.35%', isPositive: false, prevClose: 124.88 },
-    'AAPL': { price: 238.50, change: '+0.85%', isPositive: true, prevClose: 236.49 },
-    'BTC': { price: 77556.50, change: '+0.19%', isPositive: true, prevClose: 77407.00 },
-    'ETH': { price: 2399.45, change: '-0.57%', isPositive: false, prevClose: 2413.30 },
-    'SOL': { price: 100.24, change: '+0.30%', isPositive: true, prevClose: 99.94 },
-    'HYPE': { price: 82.16, change: '-0.90%', isPositive: false, prevClose: 82.90 },
-    'SUI': { price: 0.7665, change: '-0.85%', isPositive: false, prevClose: 0.7731 },
-    'AVAX': { price: 7.26, change: '+0.76%', isPositive: true, prevClose: 7.21 },
-    'DOGE': { price: 0.0828, change: '-1.15%', isPositive: false, prevClose: 0.0838 },
-    'TAO': { price: 218.48, change: '+1.50%', isPositive: true, prevClose: 215.25 },
-    'RENDER': { price: 1.42, change: '-2.10%', isPositive: false, prevClose: 1.45 },
-    'ENA': { price: 0.1505, change: '+1.20%', isPositive: true, prevClose: 0.1487 },
-    'ONDO': { price: 0.3496, change: '+0.75%', isPositive: true, prevClose: 0.3470 }
-  };
-
   const priceMap = {};
   const marketData = {};
-  for (const [sym, data] of Object.entries(baselineData)) {
-    priceMap[sym] = data.price;
-    marketData[sym] = { ...data };
-  }
 
   // 1. Primary: Query the serverless market prices & change aggregator
   try {
     const apiRes = await fetch('/api/market-prices', {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
     if (apiRes.ok) {
       const data = await apiRes.json();
       if (data && data.marketData && Object.keys(data.marketData).length > 0) {
         return {
-          prices: { ...priceMap, ...data.prices },
-          marketData: { ...marketData, ...data.marketData }
+          prices: data.prices || {},
+          marketData: data.marketData || {}
         };
       }
     }
@@ -82,13 +55,13 @@ export async function fetchLiveMarketData() {
     // Falls through to direct Hyperliquid RPC fetch
   }
 
-  // 2. Direct L1 Fallback: Query Hyperliquid's public metaAndAssetCtxs endpoint
+  // 2. Direct L1 Fallback: Query Hyperliquid's public metaAndAssetCtxs endpoint (CORS-enabled directly in browser)
   try {
     const res = await fetch('https://api.hyperliquid.xyz/info', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
 
     if (res.ok) {
@@ -107,7 +80,8 @@ export async function fetchLiveMarketData() {
               price: mid,
               change: (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%',
               isPositive: pct >= 0,
-              prevClose: prev
+              prevClose: prev,
+              source: 'Hyperliquid L1 RPC'
             };
           }
         }
@@ -115,7 +89,7 @@ export async function fetchLiveMarketData() {
       return { prices: priceMap, marketData };
     }
   } catch (err) {
-    console.warn("Could not fetch live Hyperliquid market data (using baselines):", err);
+    console.warn("Could not fetch live Hyperliquid market data:", err);
   }
 
   return { prices: priceMap, marketData };
