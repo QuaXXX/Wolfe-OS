@@ -251,7 +251,7 @@ export const HermesWarRoomModal = ({
                 color: 'var(--accent-primary)'
               } : {}}
             >
-              Agent Council Logs ({brief?.agentLogs?.length || 5})
+              Agent Council Logs ({brief?.agentLogs?.length || 6})
             </button>
             <button
               type="button"
@@ -426,6 +426,27 @@ export const HermesWarRoomModal = ({
                                       <span>Orderbook & Volume Profile:</span>
                                     </div>
                                     <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
+                                  </div>
+                                )}
+
+                                {play.chronosBacktest && (
+                                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 space-y-1.5 font-sans">
+                                    <div className="font-bold flex items-center justify-between text-emerald-300">
+                                      <span className="flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span>Chronos Quantitative Backtest Report</span>
+                                      </span>
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase font-bold">
+                                        {play.chronosBacktest.status}
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5 font-mono text-[10px]">
+                                      <div><span className="text-slate-400">Win Rate:</span> <strong className="text-emerald-300">{play.chronosBacktest.historicalWinRate}</strong></div>
+                                      <div><span className="text-slate-400">Profit Factor:</span> <strong className="text-white">{play.chronosBacktest.profitFactor}x</strong></div>
+                                      <div><span className="text-slate-400">Expectancy:</span> <strong className="text-white">{play.chronosBacktest.expectancy}</strong></div>
+                                      <div><span className="text-slate-400">Sample:</span> <strong className="text-white">{play.chronosBacktest.sampleSize} setups</strong></div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-300 leading-relaxed pt-0.5">{play.chronosBacktest.verdict}</p>
                                   </div>
                                 )}
                               </div>

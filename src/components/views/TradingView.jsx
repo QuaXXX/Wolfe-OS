@@ -851,7 +851,7 @@ export const TradingView = ({
                               : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                           }`}>
                             {isLong ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
-                            <span>{isLong ? 'Long 5x' : 'Short 5x'}</span>
+                            <span>{isLong ? 'Long' : 'Short'} {play.recommendedLeverage || (play.timeframe?.includes('Scalp') ? '8x' : play.timeframe?.includes('Swing') ? '3x' : '1x')}</span>
                           </span>
 
                           {/* Grade Badge */}
@@ -859,37 +859,29 @@ export const TradingView = ({
                             Grade <strong className="text-amber-300 font-extrabold">{play.convictionGrade || 'A+'}</strong>
                           </span>
 
+                          {/* Chronos Historical Backtest Badge */}
+                          {play.chronosBacktest && (
+                            <span 
+                              className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 flex items-center gap-1"
+                              title={play.chronosBacktest.verdict}
+                            >
+                              <Sparkles className="w-3 h-3 text-emerald-400" />
+                              <span>{play.chronosBacktest.historicalWinRate} WR</span>
+                            </span>
+                          )}
+
                           {/* Timeframe Badge */}
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1">
                             <Clock className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                             <span>{timeframeDisplay}</span>
                           </span>
 
-                          {/* Execution Proximity / Readiness Badge */}
-                          {!isActive && (
-                            isReadyNow ? (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm animate-pulse">
-                                <Zap className="w-3 h-3 text-emerald-400 fill-emerald-400" />
-                                <span>Ready Now ({absDistPct.toFixed(1)}%)</span>
-                              </span>
-                            ) : isBreakout ? (
-                              <span 
-                                className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shadow-sm"
-                                style={{
-                                  backgroundColor: 'var(--accent-subtle)',
-                                  color: 'var(--accent-primary)',
-                                  border: '1px solid var(--accent-border)'
-                                }}
-                              >
-                                <ArrowUpRight className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                                <span>Breakout ({Math.abs(distPct).toFixed(1)}% away)</span>
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-semibold bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-slate-400" />
-                                <span>Pullback ({Math.abs(distPct).toFixed(1)}% away)</span>
-                              </span>
-                            )
+                          {/* Execution Readiness Badge (Only shown when actionable now) */}
+                          {!isActive && isReadyNow && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm animate-pulse">
+                              <Zap className="w-3 h-3 text-emerald-400 fill-emerald-400" />
+                              <span>Ready Now</span>
+                            </span>
                           )}
 
                           {/* Invalidation Expiration Window Badge */}
@@ -951,23 +943,15 @@ export const TradingView = ({
                                 stopNumeric: stopNum,
                                 target2RNumeric: tpNum
                               })}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm ${
-                                isReadyNow || isBetterThanLimit
-                                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
-                                  : 'text-white'
-                              }`}
-                              style={!(isReadyNow || isBetterThanLimit) ? {
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm text-white hover:opacity-90"
+                              style={{
                                 backgroundColor: 'var(--accent-subtle)',
                                 border: '1px solid var(--accent-border)'
-                              } : {}}
-                              title={isReadyNow ? "Price is in buy zone - enter now" : isBetterThanLimit ? "Immediate fill at better price" : `Resting limit order at ${entryFormatted}`}
+                              }}
+                              title={`Test trade setup at ${entryFormatted}`}
                             >
-                              {isReadyNow || isBetterThanLimit ? (
-                                <Zap className="w-3 h-3 text-emerald-400 fill-emerald-400" />
-                              ) : (
-                                <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
-                              )}
-                              <span>{isReadyNow || isBetterThanLimit ? 'Test (Fill Now)' : 'Test (Limit)'}</span>
+                              <Plus className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
+                              <span>Test</span>
                             </button>
                           )}
                         </div>
@@ -1035,14 +1019,8 @@ export const TradingView = ({
                           <span className="text-slate-300 font-medium">
                             Trigger Entry: <strong className="text-white">{entryFormatted}</strong>
                           </span>
-                          <span className={`px-1.5 py-0.2 rounded border font-semibold ${
-                            isBetterThanLimit && currentLive !== entryNum
-                              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                              : 'bg-white/[0.06] text-slate-300 border-white/10'
-                          }`}>
-                            {isBetterThanLimit && currentLive !== entryNum 
-                              ? `⚡ Better Entry: 1:${effectiveRR} R:R (Instant Fill)`
-                              : `R:R ${riskRewardDisplay} (${profitPct}% TP / -${lossPct}% SL)`}
+                          <span className="px-1.5 py-0.5 rounded border font-semibold bg-white/[0.06] text-slate-300 border-white/10">
+                            R:R {riskRewardDisplay} ({profitPct}% TP / -{lossPct}% SL)
                           </span>
                         </div>
                       </div>
@@ -1105,6 +1083,27 @@ export const TradingView = ({
                                     <span>Orderbook & Volume Profile:</span>
                                   </div>
                                   <p className="text-slate-300 pl-4 mt-0.5">{typeof play.technicalStructure === 'object' ? Object.values(play.technicalStructure).join(' ') : String(play.technicalStructure)}</p>
+                                </div>
+                              )}
+
+                              {play.chronosBacktest && (
+                                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 space-y-1.5">
+                                  <div className="font-bold flex items-center justify-between text-emerald-300">
+                                    <span className="flex items-center gap-1.5">
+                                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                                      <span>Chronos Quantitative Backtest Report</span>
+                                    </span>
+                                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase font-bold">
+                                      {play.chronosBacktest.status}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5 font-mono text-[10px]">
+                                    <div><span className="text-slate-400">Win Rate:</span> <strong className="text-emerald-300">{play.chronosBacktest.historicalWinRate}</strong></div>
+                                    <div><span className="text-slate-400">Profit Factor:</span> <strong className="text-white">{play.chronosBacktest.profitFactor}x</strong></div>
+                                    <div><span className="text-slate-400">Expectancy:</span> <strong className="text-white">{play.chronosBacktest.expectancy}</strong></div>
+                                    <div><span className="text-slate-400">Sample:</span> <strong className="text-white">{play.chronosBacktest.sampleSize} setups</strong></div>
+                                  </div>
+                                  <p className="text-[10px] text-slate-300 font-sans leading-relaxed pt-0.5">{play.chronosBacktest.verdict}</p>
                                 </div>
                               )}
                             </div>
