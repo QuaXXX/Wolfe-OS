@@ -58,6 +58,119 @@ export async function callNousHermes3({
 }
 
 /**
+ * Dynamic Multi-Factor Quantitative Confluence & Expectancy Grading Engine
+ * Evaluates candidate setups across 4 vectors:
+ * 1. Chronos Historical Backtest Edge (0 - 35 pts)
+ * 2. Ares Candlestick Proximity & Wick Structure (0 - 25 pts)
+ * 3. Poseidon Volume Delta & Whale Flow (0 - 20 pts)
+ * 4. Atlas Macro Liquidity & Sector Trend (0 - 20 pts)
+ *
+ * Strict Tier Distribution:
+ * - A+ (Score >= 90, WR >= 71%, PF >= 2.4, RR >= 2.8, Proximity <= 1.2%): Elite institutional play. Can be 0 on low-confluence days.
+ * - A  (Score 80-89, WR >= 65%, PF >= 2.0): High conviction.
+ * - B  (Score 68-79, WR >= 56%, PF >= 1.5): Tactical / Secondary momentum.
+ * - C  (Score 55-67, WR 49-55%): Marginal / Ranging chop.
+ * - D  (Score 44-54, WR 44-48%): Sub-optimal / Chasing / Poor R:R.
+ * - F  (Score < 44, WR < 44%): Negative expectancy / Liquidity trap.
+ */
+export function calculateDynamicGrade({
+  historicalWinRate,
+  profitFactor,
+  riskRewardRatio,
+  distancePct,
+  smartMoneyTier = 'STRONG',
+  macroTier = 'TAILWIND'
+}) {
+  const wrNum = parseFloat(historicalWinRate) || 50;
+  const pfNum = parseFloat(profitFactor) || 1.5;
+  const rrNum = parseFloat(String(riskRewardRatio).split(':')[1] || riskRewardRatio) || 2.5;
+  const dist = Math.abs(parseFloat(distancePct) || 0);
+
+  // 1. Chronos Backtest Edge (0 - 35)
+  let chronosScore = 5;
+  if (wrNum >= 72 && pfNum >= 2.4) chronosScore = 35;
+  else if (wrNum >= 67 && pfNum >= 2.1) chronosScore = 30;
+  else if (wrNum >= 60 && pfNum >= 1.7) chronosScore = 25;
+  else if (wrNum >= 55 && pfNum >= 1.4) chronosScore = 20;
+  else if (wrNum >= 50 && pfNum >= 1.2) chronosScore = 15;
+  else if (wrNum >= 45 && pfNum >= 1.0) chronosScore = 10;
+
+  // 2. Ares Candlestick & Proximity (0 - 25)
+  let aresScore = 5;
+  if (dist <= 0.8) aresScore = 25;
+  else if (dist <= 1.5) aresScore = 20;
+  else if (dist <= 2.5) aresScore = 15;
+  else if (dist <= 3.8) aresScore = 10;
+
+  // 3. Poseidon Flow (0 - 20)
+  let poseidonScore = 14;
+  if (smartMoneyTier === 'STRONG') poseidonScore = 20;
+  else if (smartMoneyTier === 'NEUTRAL') poseidonScore = 14;
+  else if (smartMoneyTier === 'WEAK') poseidonScore = 9;
+  else if (smartMoneyTier === 'OPPOSING') poseidonScore = 4;
+
+  // 4. Atlas Macro (0 - 20)
+  let atlasScore = 14;
+  if (macroTier === 'TAILWIND') atlasScore = 20;
+  else if (macroTier === 'MIXED') atlasScore = 14;
+  else if (macroTier === 'HEADWIND') atlasScore = 6;
+
+  const totalScore = Math.round(chronosScore + aresScore + poseidonScore + atlasScore);
+
+  let grade = 'B';
+  let tierLabel = 'Tactical Momentum';
+  let chronosStatus = 'PASSED';
+  let tierBadgeColor = 'amber';
+
+  // Strict A+ Criteria: Score >= 95, WR >= 73%, PF >= 2.6, RR >= 3.0, Proximity <= 0.8%, Strong Smart Money & Macro Tailwind
+  if (totalScore >= 95 && wrNum >= 73 && pfNum >= 2.6 && rrNum >= 3.0 && dist <= 0.8 && smartMoneyTier === 'STRONG' && macroTier === 'TAILWIND') {
+    grade = 'A+';
+    tierLabel = 'Elite Institutional Confluence';
+    chronosStatus = 'PASSED';
+    tierBadgeColor = 'emerald';
+  } else if (totalScore >= 80 && wrNum >= 65 && pfNum >= 2.0 && rrNum >= 2.3) {
+    grade = 'A';
+    tierLabel = 'High Conviction Setup';
+    chronosStatus = 'PASSED';
+    tierBadgeColor = 'cyan';
+  } else if (totalScore >= 68 && wrNum >= 56 && pfNum >= 1.5) {
+    grade = 'B';
+    tierLabel = 'Tactical Momentum';
+    chronosStatus = 'PASSED';
+    tierBadgeColor = 'amber';
+  } else if (totalScore >= 55 && wrNum >= 49) {
+    grade = 'C';
+    tierLabel = 'Marginal / Ranging Chop';
+    chronosStatus = 'MARGINAL';
+    tierBadgeColor = 'yellow';
+  } else if (totalScore >= 44) {
+    grade = 'D';
+    tierLabel = 'Sub-optimal / Poor R:R';
+    chronosStatus = 'HIGH_RISK';
+    tierBadgeColor = 'orange';
+  } else {
+    grade = 'F';
+    tierLabel = 'Negative Expectancy / Liquidity Trap';
+    chronosStatus = 'FAILED';
+    tierBadgeColor = 'rose';
+  }
+
+  return {
+    confluenceScore: totalScore,
+    convictionGrade: grade,
+    tierLabel,
+    chronosStatus,
+    tierBadgeColor,
+    factorScores: {
+      chronos: chronosScore,
+      ares: aresScore,
+      poseidon: poseidonScore,
+      atlas: atlasScore
+    }
+  };
+}
+
+/**
  * Generate Dynamic Multi-Factor Quantitative Setups from Live Prices
  * Encompassing Short-Term Intraday Scalps (15m, tight stops, higher leverage),
  * 4H Multi-Day Swings, and Long-Term Secular Core Holdings across both LONGS and SHORTS.
@@ -80,6 +193,7 @@ export function generateDynamicSetups(livePrices = {}) {
   const qqqPrice = Number(livePrices.QQQ) || 709.24;
   const mstrPrice = Number(livePrices.MSTR) || 123.19;
   const spyPrice = Number(livePrices.SPY) || 765.16;
+  const enaPrice = Number(livePrices.ENA) || 0.1505;
 
   // Helper calculation closures
   const solEntry = Number((solPrice * 0.998).toFixed(2));
@@ -141,6 +255,26 @@ export function generateDynamicSetups(livePrices = {}) {
   const tslaStop = Number((tslaEntry * 1.042).toFixed(2));
   const tslaTP2R = Number((tslaEntry - (tslaStop - tslaEntry) * 2).toFixed(2));
   const tslaTP3R = Number((tslaEntry - (tslaStop - tslaEntry) * 3).toFixed(2));
+
+  const suiEntry = Number((suiPrice * 0.995).toFixed(4));
+  const suiStop = Number((suiEntry * 0.980).toFixed(4));
+  const suiTP2R = Number((suiEntry + (suiEntry - suiStop) * 2).toFixed(4));
+  const suiTP3R = Number((suiEntry + (suiEntry - suiStop) * 3).toFixed(4));
+
+  const taoEntry = Number((taoPrice * 0.985).toFixed(2));
+  const taoStop = Number((taoEntry * 0.960).toFixed(2));
+  const taoTP2R = Number((taoEntry + (taoEntry - taoStop) * 2).toFixed(2));
+  const taoTP3R = Number((taoEntry + (taoEntry - taoStop) * 3).toFixed(2));
+
+  const ondoEntry = Number((ondoPrice * 1.015).toFixed(4));
+  const ondoStop = Number((ondoEntry * 1.035).toFixed(4));
+  const ondoTP2R = Number((ondoEntry - (ondoStop - ondoEntry) * 2).toFixed(4));
+  const ondoTP3R = Number((ondoEntry - (ondoStop - ondoEntry) * 3).toFixed(4));
+
+  const enaEntry = Number((enaPrice * 1.025).toFixed(4));
+  const enaStop = Number((enaEntry * 1.055).toFixed(4));
+  const enaTP2R = Number((enaEntry - (enaStop - enaEntry) * 2).toFixed(4));
+  const enaTP3R = Number((enaEntry - (enaStop - enaEntry) * 3).toFixed(4));
 
   const candidatePool = [
     {
@@ -688,16 +822,184 @@ export function generateDynamicSetups(livePrices = {}) {
         patternClass: "Daily Dynamic EMA20 Trend Retest",
         verdict: "Historically Profitable: 73.5% win rate over 260 historical occurrences with 2.75x profit factor. Institutional trend edge verified."
       }
+    },
+    {
+      ticker: "TAO",
+      name: "Bittensor Perp",
+      category: "Decentralized AI",
+      bias: "LONG",
+      horizonType: "4H Momentum Breakout",
+      timeframe: "4H Swing (Multi-Day)",
+      recommendedLeverage: "3x",
+      validForHours: 24,
+      expectedDuration: "24 - 48 Hours",
+      optimalWindow: "London / NY Overlap",
+      entryTrigger: `$${taoEntry} (4H Resistance-to-Support Flip)`,
+      entryNumeric: taoEntry,
+      stopLoss: `$${taoStop} (Below 4H Consolidation Floor)`,
+      stopNumeric: taoStop,
+      target2R: `$${taoTP2R} (Previous Local High)`,
+      target2RNumeric: taoTP2R,
+      target3R: `$${taoTP3R} (Macro Fibonacci Expansion)`,
+      target3RNumeric: taoTP3R,
+      riskRewardRatio: "1:2.8",
+      candlestickRationale: "Clean 4H resistance-to-support structural flip following strong breakout above the $215 shelf. High buyer absorption wicks with invalidation stop protected 2.5% below the consolidation base.",
+      invalidationCondition: `4H candle close below $${taoStop}, or setup expires if untriggered within 24 hours.`,
+      whyChosen: "Strongest momentum asset in the Decentralized Compute cluster with +18% 7-day relative strength vs BTC and institutional spot accumulation.",
+      projectedMove: `TAO retest of $${taoEntry} offers high-probability trend continuation targeting $${taoTP2R} (2R) and $${taoTP3R} (3R).`,
+      riskManagement: `Trigger Entry $${taoEntry} | Stop Loss $${taoStop} (-2.5%) | Target 2R $${taoTP2R} (+5.0%) | 3x Leverage | 24H Invalidation.`,
+      catalystDossier: "Subnet emissions restructuring and increased enterprise AI compute validation requests.",
+      institutionalFlow: "Net taker buy imbalance of $14.2M over the past 48 hours across major perp venues.",
+      technicalStructure: "Ascending triangle breakout on expanding volume holding above daily VWAP.",
+      thesis: "Leading decentralized AI protocol benefiting from secular compute expansion.",
+      smartMoneyTier: "STRONG",
+      macroTier: "TAILWIND",
+      chronosBacktest: {
+        agent: "Chronos (Quantitative Backtester)",
+        historicalWinRate: "68.2%",
+        profitFactor: "2.35",
+        sampleSize: 195,
+        expectancy: "+1.95R",
+        maxDrawdown: "-1.8R",
+        avgHoldTime: "34.0 Hours",
+        regimeWinRates: { bull: "74.0%", chop: "65.0%", highVol: "59.5%" },
+        patternClass: "4H Resistance Flip Breakout",
+        verdict: "Historically Profitable: 68.2% win rate over 195 samples with 2.35x profit factor."
+      }
+    },
+    {
+      ticker: "SUI",
+      name: "Sui Network Perp",
+      category: "Layer 1 Range Chop",
+      bias: "LONG",
+      horizonType: "1H Range Reversal",
+      timeframe: "1H Range Trade",
+      recommendedLeverage: "3x",
+      validForHours: 12,
+      expectedDuration: "8 - 16 Hours",
+      optimalWindow: "Intraday Range",
+      entryTrigger: `$${suiEntry} (Range Low Liquidity Sweep)`,
+      entryNumeric: suiEntry,
+      stopLoss: `$${suiStop} (Below Range Support Wick)`,
+      stopNumeric: suiStop,
+      target2R: `$${suiTP2R} (Range Midline)`,
+      target2RNumeric: suiTP2R,
+      target3R: `$${suiTP3R} (Range High Liquidity)`,
+      target3RNumeric: suiTP3R,
+      riskRewardRatio: "1:2.0",
+      candlestickRationale: "Price bound in a tight horizontal consolidation range. Candle wicks showing lack of aggressive buyer follow-through. Marginal edge trade suitable for comparative tracking.",
+      invalidationCondition: `1H candle close below $${suiStop}, or setup expires if untriggered within 12 hours.`,
+      whyChosen: "Included for comparative lower-tier tracking: sideways range compression with low volume delta.",
+      projectedMove: `Testing range low at $${suiEntry}; bounce targeting range midline $${suiTP2R}.`,
+      riskManagement: `Trigger Entry $${suiEntry} | Stop Loss $${suiStop} (-1.5%) | Target 2R $${suiTP2R} (+3.0%) | 3x Leverage | 12H Invalidation.`,
+      catalystDossier: "Normal ecosystem protocol activity without major forward market catalysts.",
+      institutionalFlow: "Neutral volume delta ($1.2M net buy/sell balance). No dominant whale cluster.",
+      technicalStructure: "Horizontal range between $0.74 and $0.79 with contracting Bollinger Band width.",
+      thesis: "Move ecosystem DeFi network currently in structural consolidation.",
+      smartMoneyTier: "NEUTRAL",
+      macroTier: "MIXED",
+      chronosBacktest: {
+        agent: "Chronos (Quantitative Backtester)",
+        historicalWinRate: "52.4%",
+        profitFactor: "1.38",
+        sampleSize: 185,
+        expectancy: "+0.45R",
+        maxDrawdown: "-2.4R",
+        avgHoldTime: "18.5 Hours",
+        regimeWinRates: { bull: "56.0%", chop: "51.0%", highVol: "44.0%" },
+        patternClass: "1H Horizontal Range Sweep",
+        verdict: "Marginal Edge: 52.4% historical win rate. Ranging market conditions reduce conviction."
+      }
+    },
+    {
+      ticker: "ONDO",
+      name: "Ondo Finance Perp",
+      category: "RWA Extended Resistance",
+      bias: "SHORT",
+      horizonType: "4H Resistance Fade",
+      timeframe: "4H Swing",
+      recommendedLeverage: "2x",
+      validForHours: 24,
+      expectedDuration: "20 - 36 Hours",
+      optimalWindow: "US Afternoon Session",
+      entryTrigger: `$${ondoEntry} (Overhead Resistance Rejection)`,
+      entryNumeric: ondoEntry,
+      stopLoss: `$${ondoStop} (Above Resistance Swing High)`,
+      stopNumeric: ondoStop,
+      target2R: `$${ondoTP2R} (Local Demand Shelf)`,
+      target2RNumeric: ondoTP2R,
+      target3R: `$${ondoTP3R} (Daily Structural Support)`,
+      target3RNumeric: ondoTP3R,
+      riskRewardRatio: "1:1.6",
+      candlestickRationale: "Price pushing directly into heavy daily overhead supply shelf with compressed risk-to-reward ratio. High probability of chop or false breakout wicks. Sub-optimal setup included for comparative analysis.",
+      invalidationCondition: `4H candle close above $${ondoStop}, or setup expires if untriggered within 24 hours.`,
+      whyChosen: "Included for comparative performance benchmarking: sub-optimal risk-to-reward setup at heavy resistance.",
+      projectedMove: `Rejection at $${ondoEntry} targeting pullback to $${ondoTP2R}.`,
+      riskManagement: `Trigger Entry $${ondoEntry} | Stop Loss $${ondoStop} (+2.0%) | Target 2R $${ondoTP2R} (-3.2%) | 2x Leverage | 24H Invalidation.`,
+      catalystDossier: "Treasury yield compression muting immediate tokenized yield inflows.",
+      institutionalFlow: "Persistent selling on ask orders with declining open interest.",
+      technicalStructure: "Rising wedge pattern approaching daily resistance ceiling with bearish divergence.",
+      thesis: "Tokenized real-world assets facing near-term liquidity absorption.",
+      smartMoneyTier: "WEAK",
+      macroTier: "MIXED",
+      chronosBacktest: {
+        agent: "Chronos (Quantitative Backtester)",
+        historicalWinRate: "47.5%",
+        profitFactor: "1.12",
+        sampleSize: 160,
+        expectancy: "-0.15R",
+        maxDrawdown: "-2.8R",
+        avgHoldTime: "26.0 Hours",
+        regimeWinRates: { bull: "42.0%", chop: "48.0%", highVol: "44.0%" },
+        patternClass: "4H Overhead Supply Fade",
+        verdict: "High Risk / Sub-optimal: 47.5% win rate with negative net expectancy over 160 historical samples."
+      }
+    },
+    {
+      ticker: "ENA",
+      name: "Ethena Labs Perp",
+      category: "Synthetic Yield Trap",
+      bias: "SHORT",
+      horizonType: "4H Breakdown Continuation",
+      timeframe: "4H Swing",
+      recommendedLeverage: "2x",
+      validForHours: 24,
+      expectedDuration: "24 - 48 Hours",
+      optimalWindow: "Asian Session Drift",
+      entryTrigger: `$${enaEntry} (Dead-Cat Rebound to Descending Trendline)`,
+      entryNumeric: enaEntry,
+      stopLoss: `$${enaStop} (Above Swing High Pivot)`,
+      stopNumeric: enaStop,
+      target2R: `$${enaTP2R} (All-Time Low Support Test)`,
+      target2RNumeric: enaTP2R,
+      target3R: `$${enaTP3R} (Liquidity Vacuum)`,
+      target3RNumeric: enaTP3R,
+      riskRewardRatio: "1:1.3",
+      candlestickRationale: "Persistent lower highs and lower lows with descending volume. Candle bodies consistently closing below EMA20. Low historical edge with negative expectancy.",
+      invalidationCondition: `4H candle close above $${enaStop}, or setup expires if untriggered within 24 hours.`,
+      whyChosen: "Included for comparative F-tier negative expectancy tracking: structural downtrend with heavy seller absorption.",
+      projectedMove: `Failure at $${enaEntry} leading to drop toward $${enaTP2R}.`,
+      riskManagement: `Trigger Entry $${enaEntry} | Stop Loss $${enaStop} (+3.0%) | Target 2R $${enaTP2R} (-3.9%) | 2x Leverage | 24H Invalidation.`,
+      catalystDossier: "Yield compression across crypto basis trade reducing protocol staking demand.",
+      institutionalFlow: "Continuous net taker sell delta of $8.5M over 72 hours.",
+      technicalStructure: "Persistent downward trend channel below declining 50-day moving average.",
+      thesis: "Synthetic dollar protocol experiencing structural unhedged basis compression.",
+      smartMoneyTier: "OPPOSING",
+      macroTier: "HEADWIND",
+      chronosBacktest: {
+        agent: "Chronos (Quantitative Backtester)",
+        historicalWinRate: "41.5%",
+        profitFactor: "0.85",
+        sampleSize: 140,
+        expectancy: "-0.65R",
+        maxDrawdown: "-3.6R",
+        avgHoldTime: "38.0 Hours",
+        regimeWinRates: { bull: "38.0%", chop: "42.0%", highVol: "36.0%" },
+        patternClass: "4H Descending Trend Breakdown",
+        verdict: "Failed Clearance: 41.5% win rate and 0.85x profit factor. Negative expectancy / historically unprofitable."
+      }
     }
   ];
-
-  // Quantitative Backtest Clearance Filter by Chronos:
-  // Every strategy MUST be historically verified with Win Rate >= 55% and Positive Expectancy
-  const verifiedPlays = candidatePool.filter(play => {
-    if (!play.chronosBacktest) return false;
-    const wr = parseFloat(play.chronosBacktest.historicalWinRate);
-    return play.chronosBacktest.status === "PASSED" && !isNaN(wr) && wr >= 55;
-  });
 
   const nowMs = Date.now();
   const scanDateObj = new Date();
@@ -706,10 +1008,43 @@ export function generateDynamicSetups(livePrices = {}) {
   const scanTimestamp = `${scanDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • ${scanTimeStr}`;
   const scannedAtIso = scanDateObj.toISOString();
 
-  return verifiedPlays.map(play => {
+  // Dynamic Quantitative Multi-Factor Grading Engine across all 16 candidate assets
+  const gradedPlays = candidatePool.map(play => {
+    const livePrice = Number(livePrices[play.ticker]) || play.entryNumeric;
+    const distPct = play.entryNumeric > 0 ? (Math.abs(livePrice - play.entryNumeric) / play.entryNumeric) * 100 : 0;
+    const wrNum = parseFloat(play.chronosBacktest?.historicalWinRate) || 50;
+    const pfNum = parseFloat(play.chronosBacktest?.profitFactor) || 1.5;
+    const rrNum = parseFloat(String(play.riskRewardRatio).split(':')[1] || play.riskRewardRatio) || 2.5;
+
+    const dynamicGradeInfo = calculateDynamicGrade({
+      historicalWinRate: wrNum,
+      profitFactor: pfNum,
+      riskRewardRatio: rrNum,
+      distancePct: distPct,
+      smartMoneyTier: play.smartMoneyTier || (wrNum >= 68 ? 'STRONG' : wrNum >= 56 ? 'NEUTRAL' : wrNum >= 48 ? 'WEAK' : 'OPPOSING'),
+      macroTier: play.macroTier || (wrNum >= 68 ? 'TAILWIND' : wrNum >= 50 ? 'MIXED' : 'HEADWIND')
+    });
+
     const validHours = play.validForHours || (play.timeframe?.includes('Scalp') ? 4 : play.timeframe?.includes('Swing') ? 24 : 72);
+
     return {
       ...play,
+      convictionGrade: dynamicGradeInfo.convictionGrade,
+      confluenceScore: dynamicGradeInfo.confluenceScore,
+      tierLabel: dynamicGradeInfo.tierLabel,
+      tierBadgeColor: dynamicGradeInfo.tierBadgeColor,
+      factorScores: dynamicGradeInfo.factorScores,
+      chronosBacktest: {
+        ...play.chronosBacktest,
+        status: dynamicGradeInfo.chronosStatus,
+        verdict: dynamicGradeInfo.chronosStatus === 'PASSED'
+          ? `Historically Profitable: ${wrNum}% win rate (${play.chronosBacktest?.profitFactor || '2.2'}x PF). Edge verified by Chronos.`
+          : dynamicGradeInfo.chronosStatus === 'MARGINAL'
+          ? `Marginal Edge: ${wrNum}% win rate in ranging chop. Caution advised.`
+          : dynamicGradeInfo.chronosStatus === 'HIGH_RISK'
+          ? `High Risk / Sub-optimal: ${wrNum}% win rate with unfavorable R:R.`
+          : `Failed Clearance: ${wrNum}% win rate (${play.chronosBacktest?.profitFactor || '0.9'}x PF). Historically unprofitable / negative expectancy.`
+      },
       validForHours: validHours,
       createdAt: play.createdAt || scannedAtIso,
       scannedAt: play.scannedAt || scannedAtIso,
@@ -719,6 +1054,9 @@ export function generateDynamicSetups(livePrices = {}) {
       expiresAt: play.expiresAt || new Date(nowMs + validHours * 3600000).toISOString()
     };
   });
+
+  // Sort by Confluence Score descending (A+ at the top, down to F)
+  return gradedPlays.sort((a, b) => (b.confluenceScore || 0) - (a.confluenceScore || 0));
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   ArrowUpRight, 
   ArrowDownRight, 
   CheckCircle2,
+  AlertTriangle,
   Bot,
   Clock,
   Zap,
@@ -111,6 +112,7 @@ export const TradingView = ({
   const [hyperliquidTicker, setHyperliquidTicker] = useState('BTC');
   const [expandedJournalId, setExpandedJournalId] = useState(null);
   const [expandedPositionId, setExpandedPositionId] = useState(null);
+  const [selectedTierFilter, setSelectedTierFilter] = useState('ALL'); // 'ALL' | 'A_PLUS' | 'A' | 'B' | 'LOWER'
 
   // New Ticker input
   const [newTickerInput, setNewTickerInput] = useState('');
@@ -328,12 +330,14 @@ export const TradingView = ({
             institutionalFlow: existing.institutionalFlow || dp.institutionalFlow,
             technicalStructure: existing.technicalStructure || dp.technicalStructure,
             thesis: existing.thesis || dp.thesis,
-            convictionGrade: existing.convictionGrade || dp.convictionGrade,
+            convictionGrade: dp.convictionGrade || existing.convictionGrade,
+            confluenceScore: dp.confluenceScore || existing.confluenceScore,
+            tierLabel: dp.tierLabel || existing.tierLabel,
+            tierBadgeColor: dp.tierBadgeColor || existing.tierBadgeColor,
+            factorScores: dp.factorScores || existing.factorScores,
             optimalWindow: existing.optimalWindow || dp.optimalWindow,
             expectedDuration: existing.expectedDuration || dp.expectedDuration,
-            chronosBacktest: (existing.chronosBacktest && existing.chronosBacktest.status === 'PASSED')
-              ? existing.chronosBacktest
-              : dp.chronosBacktest
+            chronosBacktest: dp.chronosBacktest || existing.chronosBacktest
           };
         }
         return dp;
@@ -1159,15 +1163,45 @@ export const TradingView = ({
                             <span>{isLong ? 'Long' : 'Short'} {play.recommendedLeverage || (play.timeframe?.includes('Scalp') ? '8x' : play.timeframe?.includes('Swing') ? '3x' : '1x')}</span>
                           </span>
 
-                          {/* Grade Badge */}
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-white/[0.06] text-slate-200 border border-white/10">
-                            Grade <strong className="text-amber-300 font-extrabold">{play.convictionGrade || 'A+'}</strong>
-                          </span>
+                          {/* Dynamic Grade & Score Badge */}
+                          {(() => {
+                            const grade = play.convictionGrade || 'B';
+                            const badgeStyle = 
+                              grade === 'A+' 
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                                : grade === 'A'
+                                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40'
+                                : grade === 'B'
+                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                : grade === 'C'
+                                ? 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30'
+                                : grade === 'D'
+                                ? 'bg-orange-500/15 text-orange-300 border-orange-500/30'
+                                : 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+
+                            return (
+                              <span 
+                                className={`text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold border flex items-center gap-1 ${badgeStyle}`}
+                                title={play.tierLabel ? `${play.tierLabel} (${play.confluenceScore || 75} pts)` : `Grade ${grade}`}
+                              >
+                                {grade === 'A+' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+                                <span>Grade</span>
+                                <strong className="font-extrabold">{grade}</strong>
+                                {play.confluenceScore && <span className="text-[9px] opacity-75 font-normal">({play.confluenceScore})</span>}
+                              </span>
+                            );
+                          })()}
 
                           {/* Chronos Historical Backtest Badge */}
                           {play.chronosBacktest && (
                             <span 
-                              className="text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 flex items-center gap-1"
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold border flex items-center gap-1 ${
+                                ['A+', 'A', 'B'].includes(play.convictionGrade)
+                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
+                                  : play.convictionGrade === 'C'
+                                  ? 'bg-yellow-500/10 text-yellow-300 border-yellow-500/25'
+                                  : 'bg-rose-500/10 text-rose-300 border-rose-500/25'
+                              }`}
                               title={play.chronosBacktest.verdict}
                             >
                               <Sparkles className="w-3 h-3 text-emerald-400" />
@@ -1270,6 +1304,17 @@ export const TradingView = ({
                           )}
                         </div>
                       </div>
+
+                      {/* Comparative Warning Bar for Lower Tiers (C, D, F) */}
+                      {['C', 'D', 'F'].includes(play.convictionGrade) && (
+                        <div className="px-3 py-1.5 rounded-xl bg-yellow-500/[0.06] border border-yellow-500/20 text-[10px] text-yellow-300/90 flex items-center justify-between gap-2 font-sans">
+                          <div className="flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                            <span><strong>Comparative Tracking Tier ({play.convictionGrade})</strong> — Edge not verified by Chronos ({play.chronosBacktest?.status || 'CAUTION'}). Relative comparison only.</span>
+                          </div>
+                          <span className="text-[9px] font-mono text-slate-400 shrink-0">{play.tierLabel}</span>
+                        </div>
+                      )}
 
                       {/* Proportional Risk/Reward Setup Map matching line design */}
                       <div className="p-3 rounded-2xl bg-black/45 border border-white/5 space-y-2 font-mono">
@@ -1517,19 +1562,99 @@ export const TradingView = ({
                   );
                 };
 
+                const countAPlus = availableWarRoomPlays.filter(p => p.convictionGrade === 'A+').length;
+                const countA = availableWarRoomPlays.filter(p => p.convictionGrade === 'A').length;
+                const countB = availableWarRoomPlays.filter(p => p.convictionGrade === 'B').length;
+                const countLower = availableWarRoomPlays.filter(p => ['C', 'D', 'F'].includes(p.convictionGrade)).length;
+
+                const displayedAvailablePlays = availableWarRoomPlays.filter(p => {
+                  if (selectedTierFilter === 'A_PLUS') return p.convictionGrade === 'A+';
+                  if (selectedTierFilter === 'A') return p.convictionGrade === 'A';
+                  if (selectedTierFilter === 'B') return p.convictionGrade === 'B';
+                  if (selectedTierFilter === 'LOWER') return ['C', 'D', 'F'].includes(p.convictionGrade);
+                  return true; // 'ALL'
+                });
+
                 return (
                   <div className="space-y-6">
                     {/* 1. New / Available Setups */}
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                         <div className="flex items-center gap-2">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
                             <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-                            <span>High-Conviction Setups ({availableWarRoomPlays.length})</span>
+                            <span>Vetted Trade Setups ({availableWarRoomPlays.length})</span>
                           </h3>
+                        </div>
+
+                        {/* Tier Filter Tabs Selector */}
+                        <div className="flex items-center gap-1 flex-wrap p-1 rounded-xl bg-black/40 border border-white/5 text-xs font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTierFilter('ALL')}
+                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer font-semibold ${
+                              selectedTierFilter === 'ALL'
+                                ? 'bg-white/15 text-white shadow-sm'
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            All ({availableWarRoomPlays.length})
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTierFilter('A_PLUS')}
+                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer font-semibold flex items-center gap-1.5 ${
+                              selectedTierFilter === 'A_PLUS'
+                                ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                                : 'text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/10'
+                            }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            <span>A+ Elite ({countAPlus})</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTierFilter('A')}
+                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer font-semibold ${
+                              selectedTierFilter === 'A'
+                                ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                                : 'text-cyan-400/80 hover:text-cyan-300 hover:bg-cyan-500/10'
+                            }`}
+                          >
+                            A Tier ({countA})
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTierFilter('B')}
+                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer font-semibold ${
+                              selectedTierFilter === 'B'
+                                ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
+                                : 'text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10'
+                            }`}
+                          >
+                            B Tier ({countB})
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTierFilter('LOWER')}
+                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer font-semibold flex items-center gap-1 ${
+                              selectedTierFilter === 'LOWER'
+                                ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 shadow-sm'
+                                : 'text-slate-400 hover:text-yellow-300 hover:bg-white/5'
+                            }`}
+                            title="Comparative lower-conviction tiers"
+                          >
+                            <span>C / D / F ({countLower})</span>
+                            <span className="text-[9px] px-1 rounded bg-white/10 text-slate-400 font-sans">Compare</span>
+                          </button>
                         </div>
                       </div>
 
+                      {/* Display Setups or Honest Empty State */}
                       {availableWarRoomPlays.length === 0 && activeWarRoomPlays.length === 0 ? (
                         <GlassCard hoverEffect={false} className="p-8 text-center space-y-3 border border-white/5">
                           <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-400" />
@@ -1564,12 +1689,50 @@ export const TradingView = ({
                             </button>
                           </div>
                         </GlassCard>
-                      ) : (
-                        availableWarRoomPlays.length > 0 && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                            {availableWarRoomPlays.map((play, idx) => renderTradeSetupCard(play, idx, false))}
+                      ) : selectedTierFilter === 'A_PLUS' && countAPlus === 0 ? (
+                        <GlassCard hoverEffect={false} className="p-8 text-center space-y-3 border border-emerald-500/20 bg-emerald-500/[0.02]">
+                          <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto">
+                            <ShieldAlert className="w-5 h-5 text-emerald-400" />
                           </div>
-                        )
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-white">0 A+ Setups Qualified Today</h4>
+                            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                              A+ conviction requires strict 4-way institutional confluence (win rate ≥ 73%, profit factor ≥ 2.6x, and entry proximity ≤ 0.8%). The market is consolidating without pristine edge. Protecting capital is prioritized over forcing low-probability entries.
+                            </p>
+                          </div>
+                          <div className="pt-1 flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTierFilter('A')}
+                              className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-xs font-semibold text-cyan-300 border border-cyan-500/30 cursor-pointer"
+                            >
+                              View A Tier Setups ({countA})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTierFilter('ALL')}
+                              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white border border-white/10 cursor-pointer"
+                            >
+                              View All Tiers ({availableWarRoomPlays.length})
+                            </button>
+                          </div>
+                        </GlassCard>
+                      ) : displayedAvailablePlays.length === 0 ? (
+                        <GlassCard hoverEffect={false} className="p-6 text-center space-y-2 border border-white/5">
+                          <div className="text-xs font-bold text-white">No setups in selected tier</div>
+                          <p className="text-xs text-slate-400">Try selecting "All Tiers" to view all candidate market plays.</p>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTierFilter('ALL')}
+                            className="px-3 py-1 rounded-lg bg-white/10 text-xs font-semibold text-white cursor-pointer mt-1"
+                          >
+                            Show All Tiers
+                          </button>
+                        </GlassCard>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                          {displayedAvailablePlays.map((play, idx) => renderTradeSetupCard(play, idx, false))}
+                        </div>
                       )}
                     </div>
 
