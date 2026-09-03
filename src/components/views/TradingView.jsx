@@ -39,6 +39,7 @@ import { WebhookConfigModal } from '../trading/WebhookConfigModal';
 import { TradeJournalModal } from '../trading/TradeJournalModal';
 import { HermesPaperTraderCard } from '../trading/HermesPaperTraderCard';
 import { HermesOrderEntryModal } from '../trading/HermesOrderEntryModal';
+import { MarketPriceTesterModal } from '../trading/MarketPriceTesterModal';
 import { HyperliquidDirectExecutionPanel } from '../trading/HyperliquidDirectExecutionPanel';
 import { 
   getTradingConfig, 
@@ -104,6 +105,7 @@ export const TradingView = ({
   const [selectedTradeForEdit, setSelectedTradeForEdit] = useState(null);
   const [selectedPlayForOrder, setSelectedPlayForOrder] = useState(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isPriceTesterOpen, setIsPriceTesterOpen] = useState(false);
   const [hyperliquidTicker, setHyperliquidTicker] = useState('BTC');
   const [expandedJournalId, setExpandedJournalId] = useState(null);
   const [expandedPositionId, setExpandedPositionId] = useState(null);
@@ -357,6 +359,12 @@ export const TradingView = ({
       const currentLive = livePricesMap?.[rawPlay.ticker];
       let play = { ...rawPlay };
 
+      // ⚡ STRICT DATA INTEGRITY FILTER ("No suggestion is better than the wrong one"):
+      // If live market price is unconfirmed by the market feed, withhold trade until confirmed
+      if (!currentLive || typeof currentLive !== 'number' || currentLive <= 0) {
+        return;
+      }
+
       // ⚡ GUARANTEE CHRONOS BACKTEST ON EVERY PLAY:
       if (!play.chronosBacktest || play.chronosBacktest.status !== 'PASSED') {
         const match = dynamicPool.find(dp => dp.ticker === play.ticker);
@@ -376,13 +384,11 @@ export const TradingView = ({
       }
 
       // ⚡ REAL-TIME DYNAMIC PRICE BINDING:
-      // If live price deviates from play's stored entry (> 8%), recalibrate entry, stop, and targets dynamically!
-      // This mathematically prevents stale cached prices (like PLTR $68 vs $169 live) from ever desyncing.
-      if (currentLive && typeof currentLive === 'number' && currentLive > 0) {
-        const storedEntry = Number(play.entryNumeric);
-        const isOutOfSync = !storedEntry || Math.abs((currentLive - storedEntry) / storedEntry) > 0.08;
+      // If live price deviates from play's stored entry (> 5%), recalibrate entry, stop, and targets dynamically!
+      const storedEntry = Number(play.entryNumeric);
+      const isOutOfSync = !storedEntry || Math.abs((currentLive - storedEntry) / storedEntry) > 0.05;
 
-        if (isOutOfSync) {
+      if (isOutOfSync) {
           const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
           const is15m = play.timeframe?.includes('15m') || play.timeframe?.includes('Scalp');
           const isDaily = play.timeframe?.includes('Daily') || play.timeframe?.includes('Secular');
@@ -419,7 +425,6 @@ export const TradingView = ({
             riskManagement: `Trigger Entry $${newEntry.toLocaleString()} | Stop Loss $${newStop.toLocaleString()} (${(stopPct * 100).toFixed(1)}%) | Target 2R $${newTP2R.toLocaleString()} | ${play.recommendedLeverage || '3x'} Leverage.`
           };
         }
-      }
 
       // ONLY mark as active/filled if user currently has an ACTIVE or PENDING position in Forward Test or on Hyperliquid
       const forwardPosition = paperPositions.find(p => p.ticker === play.ticker && (p.status === 'ACTIVE' || p.status === 'PENDING_ENTRY' || p.status === 'FILLED'));
@@ -705,24 +710,34 @@ export const TradingView = ({
             </GlassCard>
           ) : (
             <>
-              {/* Header Bar with On-Demand Re-Scan */}
-              <div className="flex items-center justify-between">
+              {/* Header Bar with On-Demand Re-Scan & Price Tester */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                   <Target className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Actionable Trade Dossiers ({availableWarRoomPlays.length})</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={triggerFreshDailySweep}
-                  disabled={isScanning}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50 shadow-md hover:opacity-95"
-                  style={{
-                    backgroundColor: 'var(--accent-primary)'
-                  }}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Scan Markets</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPriceTesterOpen(true)}
+                    className="px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-bold text-emerald-300 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>Test Prices & Backtester</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={triggerFreshDailySweep}
+                    disabled={isScanning}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50 shadow-md hover:opacity-95"
+                    style={{
+                      backgroundColor: 'var(--accent-primary)'
+                    }}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Scan Markets</span>
+                  </button>
+                </div>
               </div>
 
               {/* Collapsible Macro Regime Summary */}
@@ -839,14 +854,24 @@ export const TradingView = ({
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsBacktestLabOpen(!isBacktestLabOpen)}
-                    className="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-200 hover:text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    <span>{isBacktestLabOpen ? "Hide Strategy Matrix" : "View Strategy Matrix"}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBacktestLabOpen ? "rotate-180" : ""}`} />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsPriceTesterOpen(true)}
+                      className="px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <Radio className="w-3.5 h-3.5" />
+                      <span>Test Prices & Feed</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsBacktestLabOpen(!isBacktestLabOpen)}
+                      className="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-200 hover:text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <span>{isBacktestLabOpen ? "Hide Strategy Matrix" : "View Strategy Matrix"}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBacktestLabOpen ? "rotate-180" : ""}`} />
+                    </button>
+                  </div>
                 </div>
 
                 {isBacktestLabOpen && (
@@ -2122,6 +2147,13 @@ export const TradingView = ({
         livePrice={selectedPlayForOrder ? livePricesMap[selectedPlayForOrder.ticker] : null}
         onConfirmOrder={handleConfirmOrderExecution}
         soundEnabled={soundEnabled}
+      />
+
+      <MarketPriceTesterModal
+        isOpen={isPriceTesterOpen}
+        onClose={() => setIsPriceTesterOpen(false)}
+        soundEnabled={soundEnabled}
+        livePricesMap={livePricesMap}
       />
     </div>
   );
