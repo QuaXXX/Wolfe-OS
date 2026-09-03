@@ -112,6 +112,7 @@ export const TradingView = ({
 
   const viewDropdownRef = useRef(null);
   const actionsDropdownRef = useRef(null);
+  const hasAutoSweptRef = useRef(false);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -129,6 +130,17 @@ export const TradingView = ({
 
   useEffect(() => {
     refreshAllData();
+
+    // Autonomous Fresh-Day Rollover Engine:
+    // If opening on a new day (or brief is missing), automatically convene the Hermes Council sweep
+    if (!hasAutoSweptRef.current) {
+      hasAutoSweptRef.current = true;
+      const todayStr = new Date().toISOString().split('T')[0];
+      const latest = getLatestHermesBrief();
+      if (!latest || latest.date !== todayStr) {
+        triggerFreshDailySweep();
+      }
+    }
 
     // 1. Live market price and Hyperliquid position polling every 10s
     const updatePricesAndPositions = async () => {
