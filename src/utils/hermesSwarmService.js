@@ -727,15 +727,56 @@ export async function runHermesSwarmAnalysis(customWatchlist = null) {
   const scanTimeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const scanDateStr = now.toISOString().split('T')[0];
 
-  const solPrice = livePrices.SOL || 100.61;
-  const btcPrice = livePrices.BTC || 77336.50;
-  const astsPrice = livePrices.ASTS || 26.40;
-  const pltrPrice = livePrices.PLTR || 68.20;
-  const suiPrice = livePrices.SUI || 3.25;
-  const hypePrice = livePrices.HYPE || 81.94;
-  const taoPrice = livePrices.TAO || 512.40;
-  const ondoPrice = livePrices.ONDO || 1.15;
-  const renderPrice = livePrices.RENDER || 6.85;
+  const getPlay = (sym) => dynamicPlays.find(p => p.ticker === sym) || {};
+  const astsPlay = getPlay('ASTS');
+  const pltrPlay = getPlay('PLTR');
+  const nvdaPlay = getPlay('NVDA');
+  const qqqPlay = getPlay('QQQ');
+  const spyPlay = getPlay('SPY');
+  const mstrPlay = getPlay('MSTR');
+  const solPlay = getPlay('SOL');
+  const btcPlay = getPlay('BTC');
+  const hypePlay = getPlay('HYPE');
+  const dogePlay = getPlay('DOGE');
+
+  const astsPrice = livePrices.ASTS || astsPlay.entryNumeric || 61.91;
+  const pltrPrice = livePrices.PLTR || pltrPlay.entryNumeric || 183.00;
+  const nvdaPrice = livePrices.NVDA || nvdaPlay.entryNumeric || 229.85;
+  const qqqPrice = livePrices.QQQ || qqqPlay.entryNumeric || 718.72;
+  const spyPrice = livePrices.SPY || spyPlay.entryNumeric || 773.73;
+  const mstrPrice = livePrices.MSTR || mstrPlay.entryNumeric || 141.76;
+  const solPrice = livePrices.SOL || solPlay.entryNumeric || 104.96;
+  const btcPrice = livePrices.BTC || btcPlay.entryNumeric || 81006.50;
+  const hypePrice = livePrices.HYPE || hypePlay.entryNumeric || 84.33;
+  const dogePrice = livePrices.DOGE || dogePlay.entryNumeric || 0.08929;
+  const suiPrice = livePrices.SUI || 0.77;
+  const taoPrice = livePrices.TAO || 218.48;
+  const ondoPrice = livePrices.ONDO || 0.35;
+  const renderPrice = livePrices.RENDER || 1.42;
+
+  const astsEntry = astsPlay.entryNumeric || Number((astsPrice * 0.975).toFixed(2));
+  const astsStop = astsPlay.stopNumeric || Number((astsEntry * 0.962).toFixed(2));
+  const astsTP2R = astsPlay.target2RNumeric || Number((astsEntry + (astsEntry - astsStop) * 2).toFixed(2));
+
+  const pltrEntry = pltrPlay.entryNumeric || Number((pltrPrice * 0.985).toFixed(2));
+  const pltrStop = pltrPlay.stopNumeric || Number((pltrEntry * 0.965).toFixed(2));
+  const pltrTP2R = pltrPlay.target2RNumeric || Number((pltrEntry + (pltrEntry - pltrStop) * 2).toFixed(2));
+
+  const solEntry = solPlay.entryNumeric || Number((solPrice * 0.998).toFixed(2));
+  const solStop = solPlay.stopNumeric || Number((solEntry * 0.988).toFixed(2));
+  const solTP2R = solPlay.target2RNumeric || Number((solEntry + (solEntry - solStop) * 2).toFixed(2));
+
+  const hypeEntry = hypePlay.entryNumeric || Number((hypePrice * 0.985).toFixed(2));
+  const hypeStop = hypePlay.stopNumeric || Number((hypeEntry * 0.960).toFixed(2));
+  const hypeTP2R = hypePlay.target2RNumeric || Number((hypeEntry + (hypeEntry - hypeStop) * 2).toFixed(2));
+
+  const dogeEntry = dogePlay.entryNumeric || Number((dogePrice * 1.003).toFixed(4));
+  const dogeStop = dogePlay.stopNumeric || Number((dogeEntry * 1.014).toFixed(4));
+  const dogeTP2R = dogePlay.target2RNumeric || Number((dogeEntry - (dogeStop - dogeEntry) * 2).toFixed(4));
+
+  const btcEntry = btcPlay.entryNumeric || Number((btcPrice * 0.985).toFixed(1));
+  const btcStop = btcPlay.stopNumeric || Number((btcEntry * 0.965).toFixed(1));
+  const btcTP2R = btcPlay.target2RNumeric || Number((btcEntry + (btcEntry - btcStop) * 2).toFixed(1));
 
   const priceSummary = Object.entries(livePrices)
     .slice(0, 15)
@@ -810,44 +851,47 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
     }
   }
 
-  // 2. Try Gemini Pro / Flash with Deep Quantitative Council Instructions
-  try {
-    const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 45000);
-    if (res && res.highConvictionPlays && Array.isArray(res.highConvictionPlays)) {
-      const enrichedPlays = res.highConvictionPlays.map(play => {
-        const validHours = play.validForHours || (play.timeframe?.includes('Scalp') ? 6 : play.timeframe?.includes('Swing') ? 36 : 72);
-        const match = dynamicPlays.find(dp => dp.ticker === play.ticker);
-        return {
-          ...play,
-          validForHours: validHours,
-          expiresAt: play.expiresAt || new Date(Date.now() + validHours * 3600000).toISOString(),
-          chronosBacktest: play.chronosBacktest?.status === 'PASSED' ? play.chronosBacktest : (match?.chronosBacktest || {
-            agent: "Chronos (Quantitative Backtester)",
-            status: "PASSED",
-            historicalWinRate: "70.5%",
-            profitFactor: "2.55",
-            sampleSize: 130,
-            expectancy: "+1.95R",
-            maxDrawdown: "-1.8R",
-            avgHoldTime: "28.0 Hours",
-            regimeWinRates: { bull: "76.4%", chop: "68.2%", highVol: "62.0%" },
-            patternClass: play.horizonType || "Confluence Pattern Breakout",
-            verdict: "Historically Profitable: Edge verified by Chronos."
-          })
-        };
-      });
-      const saved = saveHermesBrief({
-        ...res,
-        highConvictionPlays: enrichedPlays,
-        id: `scan_${Date.now()}`,
-        scannedAt: now.toISOString(),
-        date: scanDateStr,
-        aiEngine: 'Hermes Deep Quantitative Council'
-      });
-      return saved;
+  // 2. Try Gemini Pro / Flash with Deep Quantitative Council Instructions (if key is configured)
+  const hasGeminiKey = Boolean(config.geminiApiKey || (typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_gemini_api_key')));
+  if (hasGeminiKey) {
+    try {
+      const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 15000);
+      if (res && res.highConvictionPlays && Array.isArray(res.highConvictionPlays)) {
+        const enrichedPlays = res.highConvictionPlays.map(play => {
+          const validHours = play.validForHours || (play.timeframe?.includes('Scalp') ? 6 : play.timeframe?.includes('Swing') ? 36 : 72);
+          const match = dynamicPlays.find(dp => dp.ticker === play.ticker);
+          return {
+            ...play,
+            validForHours: validHours,
+            expiresAt: play.expiresAt || new Date(Date.now() + validHours * 3600000).toISOString(),
+            chronosBacktest: play.chronosBacktest?.status === 'PASSED' ? play.chronosBacktest : (match?.chronosBacktest || {
+              agent: "Chronos (Quantitative Backtester)",
+              status: "PASSED",
+              historicalWinRate: "70.5%",
+              profitFactor: "2.55",
+              sampleSize: 130,
+              expectancy: "+1.95R",
+              maxDrawdown: "-1.8R",
+              avgHoldTime: "28.0 Hours",
+              regimeWinRates: { bull: "76.4%", chop: "68.2%", highVol: "62.0%" },
+              patternClass: play.horizonType || "Confluence Pattern Breakout",
+              verdict: "Historically Profitable: Edge verified by Chronos."
+            })
+          };
+        });
+        const saved = saveHermesBrief({
+          ...res,
+          highConvictionPlays: enrichedPlays,
+          id: `scan_${Date.now()}`,
+          scannedAt: now.toISOString(),
+          date: scanDateStr,
+          aiEngine: 'Hermes Deep Quantitative Council'
+        });
+        return saved;
+      }
+    } catch (err) {
+      console.warn("Hermes Swarm AI run notice:", err);
     }
-  } catch (err) {
-    console.warn("Hermes Swarm AI run notice:", err);
   }
 
   // 3. High-Conviction Real-Time Algorithmic Synthesis

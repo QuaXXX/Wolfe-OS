@@ -399,6 +399,7 @@ function sanitizePlays(plays) {
 
 export function getSavedHermesBriefs() {
   try {
+    if (typeof localStorage === 'undefined') return [];
     const raw = localStorage.getItem(STORAGE_KEY_HERMES_BRIEFS);
     if (!raw) return [];
     const briefs = JSON.parse(raw);
@@ -435,6 +436,7 @@ export function getSavedHermesBriefs() {
 
 export function saveHermesBrief(brief) {
   try {
+    if (typeof localStorage === 'undefined') return brief;
     const briefs = getSavedHermesBriefs();
     const entry = {
       id: brief.id || `brief_${new Date().toISOString().split('T')[0]}_${Date.now()}`,
