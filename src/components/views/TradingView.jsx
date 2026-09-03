@@ -56,7 +56,8 @@ import {
   calculateTradingStats, 
   getWebhookLogs, 
   getLatestHermesBrief,
-  clearTradingWorkspaceState
+  clearTradingWorkspaceState,
+  resetDeskForFreshScan
 } from '../../utils/tradingStorage';
 import { 
   fetchHyperliquidAccount, 
@@ -137,18 +138,19 @@ export const TradingView = ({
   }, []);
 
   useEffect(() => {
+    // Automatic clean slate wipe requested by user to start fresh before scanning
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_requested_clean_desk_v4') !== 'true') {
+      localStorage.setItem('wolfe_user_requested_clean_desk_v4', 'true');
+      resetDeskForFreshScan();
+      setHermesBrief(null);
+      setPaperPositions([]);
+      setOpenPositions([]);
+    }
+
     refreshAllData();
 
-    // Autonomous Fresh-Day Rollover Engine:
-    // If opening on a new day (or brief is missing), automatically convene the Hermes Council sweep
-    if (!hasAutoSweptRef.current) {
-      hasAutoSweptRef.current = true;
-      const todayStr = new Date().toISOString().split('T')[0];
-      const latest = getLatestHermesBrief();
-      if (!latest || latest.date !== todayStr) {
-        triggerFreshDailySweep();
-      }
-    }
+    // User initiates scans manually via "Scan for Trades Now"
+    hasAutoSweptRef.current = true;
 
     // 1. Live market price and Hyperliquid position polling every 10s
     const updatePricesAndPositions = async () => {
@@ -257,6 +259,15 @@ export const TradingView = ({
     }
   };
 
+  const handleResetDesk = () => {
+    playSound('click', soundEnabled);
+    resetDeskForFreshScan();
+    setHermesBrief(null);
+    setPaperPositions([]);
+    setOpenPositions([]);
+    refreshAllData();
+  };
+
   const stats = useMemo(() => calculateTradingStats(), [tradeJournal]);
 
   const handleOpenOrderModal = (play) => {
@@ -313,56 +324,36 @@ export const TradingView = ({
       return match ? parseFloat(match[1]) : null;
     };
 
-    // Guarantee full candidate pool with live prices and verified Chronos backtests across all assets
     const dynamicPool = generateDynamicSetups(livePricesMap);
-    let sourcePlays = dynamicPool;
+    const poolMap = new Map(dynamicPool.map(dp => [dp.ticker, dp]));
+
+    // Only display trade dossiers when a scan has been run (hermesBrief exists).
+    // If no active scan, sourcePlays remains empty so the desk is clean and ready for a fresh scan.
+    let sourcePlays = [];
 
     if (hermesBrief?.highConvictionPlays && hermesBrief.highConvictionPlays.length > 0) {
-      const briefMap = new Map(hermesBrief.highConvictionPlays.map(p => [p.ticker, p]));
-      sourcePlays = dynamicPool.map(dp => {
-        const existing = briefMap.get(dp.ticker);
-        if (existing) {
+      sourcePlays = hermesBrief.highConvictionPlays.map(bp => {
+        const dp = poolMap.get(bp.ticker);
+        if (dp) {
           return {
-            ...existing,
+            ...bp,
             ...dp,
-            whyChosen: existing.whyChosen || dp.whyChosen,
-            catalystDossier: existing.catalystDossier || dp.catalystDossier,
-            institutionalFlow: existing.institutionalFlow || dp.institutionalFlow,
-            technicalStructure: existing.technicalStructure || dp.technicalStructure,
-            thesis: existing.thesis || dp.thesis,
-            convictionGrade: dp.convictionGrade || existing.convictionGrade,
-            confluenceScore: dp.confluenceScore || existing.confluenceScore,
-            tierLabel: dp.tierLabel || existing.tierLabel,
-            tierBadgeColor: dp.tierBadgeColor || existing.tierBadgeColor,
-            factorScores: dp.factorScores || existing.factorScores,
-            optimalWindow: existing.optimalWindow || dp.optimalWindow,
-            expectedDuration: existing.expectedDuration || dp.expectedDuration,
-            chronosBacktest: dp.chronosBacktest || existing.chronosBacktest
+            whyChosen: bp.whyChosen || dp.whyChosen,
+            catalystDossier: bp.catalystDossier || dp.catalystDossier,
+            institutionalFlow: bp.institutionalFlow || dp.institutionalFlow,
+            technicalStructure: bp.technicalStructure || dp.technicalStructure,
+            thesis: bp.thesis || dp.thesis,
+            convictionGrade: dp.convictionGrade || bp.convictionGrade,
+            confluenceScore: dp.confluenceScore || bp.confluenceScore,
+            tierLabel: dp.tierLabel || bp.tierLabel,
+            tierBadgeColor: dp.tierBadgeColor || bp.tierBadgeColor,
+            factorScores: dp.factorScores || bp.factorScores,
+            optimalWindow: bp.optimalWindow || dp.optimalWindow,
+            expectedDuration: bp.expectedDuration || dp.expectedDuration,
+            chronosBacktest: dp.chronosBacktest || bp.chronosBacktest
           };
         }
-        return dp;
-      });
-
-      // Include any other non-standard custom plays from hermesBrief
-      hermesBrief.highConvictionPlays.forEach(bp => {
-        if (!sourcePlays.some(sp => sp.ticker === bp.ticker)) {
-          sourcePlays.push({
-            ...bp,
-            chronosBacktest: bp.chronosBacktest || {
-              agent: "Chronos (Quantitative Backtester)",
-              status: "PASSED",
-              historicalWinRate: "70.5%",
-              profitFactor: "2.52",
-              sampleSize: 124,
-              expectancy: "+1.95R",
-              maxDrawdown: "-1.8R",
-              avgHoldTime: "28.0 Hours",
-              regimeWinRates: { bull: "76.4%", chop: "68.2%", highVol: "62.0%" },
-              patternClass: bp.horizonType || "Confluence Pattern Breakout",
-              verdict: "Historically Profitable: Edge verified by Chronos."
-            }
-          });
-        }
+        return bp;
       });
     }
 
@@ -733,6 +724,15 @@ export const TradingView = ({
                   <span>Actionable Trade Dossiers ({availableWarRoomPlays.length})</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetDesk}
+                    className="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Clear active trade setups and reset desk for fresh scan"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Reset Desk</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setIsPriceTesterOpen(true)}

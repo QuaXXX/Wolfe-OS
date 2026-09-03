@@ -86,7 +86,7 @@ export const GoogleCalendarModal = ({
     setSyncMessage(null);
 
     try {
-      const events = await fetchGoogleCalendarEvents();
+      const events = await fetchGoogleCalendarEvents(true);
       playSound('success', soundEnabled);
       setSyncMessage(`Successfully synced ${events.length} item(s) across all your Google Calendars & Tasks!`);
       if (onSyncSuccess) {

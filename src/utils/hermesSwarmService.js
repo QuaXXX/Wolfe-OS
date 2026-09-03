@@ -1259,8 +1259,17 @@ Produce a structured 2-part macro/news summary and a deep collaborative debate b
     }
   }
 
-  // 3. High-Conviction Real-Time Algorithmic Synthesis
-  const selectedPlays = dynamicPlays;
+  // 3. Selective Institutional Synthesis:
+  // We do NOT force a prediction or setup on every asset. On any given trading day,
+  // only 5 assets have genuine, high-confluence structural patterns forming.
+  // This preserves focus and capital for future days.
+  const aPlusPlays = dynamicPlays.filter(p => p.convictionGrade === 'A+').slice(0, 1);
+  const aPlays = dynamicPlays.filter(p => p.convictionGrade === 'A').slice(0, aPlusPlays.length > 0 ? 2 : 3);
+  const bPlays = dynamicPlays.filter(p => p.convictionGrade === 'B').slice(0, 1);
+  const lowerPlays = dynamicPlays.filter(p => ['C', 'D', 'F'].includes(p.convictionGrade)).slice(0, 1);
+
+  const curatedPlays = [...aPlusPlays, ...aPlays, ...bPlays, ...lowerPlays];
+  const selectedPlays = curatedPlays.length >= 3 ? curatedPlays : dynamicPlays.slice(0, 5);
 
   const structuredMacroPoints = [
     {

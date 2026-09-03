@@ -192,7 +192,7 @@ export const SettingsModal = ({
     setIsSyncingGCal(true);
     setGcalMsg(null);
     try {
-      const events = await fetchGoogleCalendarEvents();
+      const events = await fetchGoogleCalendarEvents(true);
       playSound('success', soundEnabled);
       setGcalMsg(`Synced ${events.length} event(s)!`);
       if (onSyncGoogleCalendarSuccess) {

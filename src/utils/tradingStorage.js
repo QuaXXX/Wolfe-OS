@@ -470,6 +470,18 @@ export function getLatestHermesBrief() {
   return briefs.length > 0 ? briefs[0] : null;
 }
 
+export function resetDeskForFreshScan() {
+  try {
+    localStorage.removeItem(STORAGE_KEY_HERMES_BRIEFS);
+    localStorage.removeItem('wolfe_hermes_paper_positions_v1');
+    localStorage.removeItem(STORAGE_KEY_POSITIONS);
+    return true;
+  } catch (err) {
+    console.warn("Notice resetting desk state:", err);
+    return false;
+  }
+}
+
 export function clearTradingWorkspaceState() {
   try {
     localStorage.removeItem(STORAGE_KEY_HERMES_BRIEFS);

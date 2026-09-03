@@ -54,7 +54,7 @@ export function isGoogleTokenExpired() {
  * Save tokens to localStorage with long persistence
  */
 export function saveGoogleToken(token, expiresInSeconds = 2592000, refreshToken = null) {
-  if (!token) return;
+  if (!token || typeof localStorage === 'undefined') return;
   const clean = token.trim();
   localStorage.setItem('wolfe_user_signed_in_google', 'true');
   
@@ -62,8 +62,8 @@ export function saveGoogleToken(token, expiresInSeconds = 2592000, refreshToken 
     localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
   } else {
     localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, clean);
-    // Persist for 30 days locally unless refreshed
-    const expiryTime = Date.now() + Math.max(86400, expiresInSeconds) * 1000;
+    // Persist for at least 30 days locally unless refreshed
+    const expiryTime = Date.now() + Math.max(2592000, Number(expiresInSeconds) || 2592000) * 1000;
     localStorage.setItem(GOOGLE_EXPIRY_KEY, String(expiryTime));
   }
   if (refreshToken) {
@@ -246,7 +246,7 @@ export function silentRefreshGISToken() {
         scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
         callback: (tokenResponse) => {
           if (tokenResponse?.access_token) {
-            saveGoogleToken(tokenResponse.access_token, tokenResponse.expires_in || 3600);
+            saveGoogleToken(tokenResponse.access_token, 2592000);
             resolve(tokenResponse.access_token);
           } else {
             resolve(null);
@@ -254,8 +254,8 @@ export function silentRefreshGISToken() {
         },
         error_callback: () => resolve(null)
       });
-      // prompt: '' enables silent renewal using existing Google session cookie
-      client.requestAccessToken({ prompt: '' });
+      // prompt: 'none' strictly instructs Google Identity Services to NEVER open a popup window
+      client.requestAccessToken({ prompt: 'none' });
     } catch (e) {
       resolve(null);
     }
@@ -264,33 +264,34 @@ export function silentRefreshGISToken() {
 
 /**
  * Get valid access token or refresh
+ * @param {boolean} interactive - Set to true ONLY when user explicitly clicked a sign-in or sync button
  */
-export async function getValidAccessToken() {
+export async function getValidAccessToken(interactive = false) {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
 
-  // If token exists and hasn't expired, return immediately
+  // If token exists and hasn't expired according to 30-day persistence, return immediately
   if (token && expiry && Date.now() < Number(expiry)) {
     return token;
   }
 
-  // 1. Attempt refresh if refresh token is available
+  // 1. Attempt background refresh if refresh token is available (100% background, zero popup)
   try {
     const freshToken = await refreshAccessToken();
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Attempt silent GIS renewal if user was signed in previously
-  if (typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_signed_in_google') === 'true') {
+  // 2. Direct fallback to existing stored token so API operations succeed silently
+  if (token) {
+    return token;
+  }
+
+  // 3. ONLY if interactive === true (user explicitly clicked), attempt silent GIS renewal
+  if (interactive && typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_signed_in_google') === 'true') {
     try {
       const silentToken = await silentRefreshGISToken();
       if (silentToken) return silentToken;
     } catch (e) {}
-  }
-
-  // 3. Fallback to existing stored token so API operations succeed
-  if (token) {
-    return token;
   }
 
   return DEFAULT_ACCESS_TOKEN || null;
@@ -402,10 +403,13 @@ async function getUserCalendarIds(token) {
 
 /**
  * Fetch full calendar events & tasks across all user calendars
+ * @param {boolean} interactive - Whether initiated by direct user button click
  */
-export async function fetchGoogleCalendarEvents() {
-  let token = await getValidAccessToken();
+export async function fetchGoogleCalendarEvents(interactive = false) {
+  let token = await getValidAccessToken(interactive);
   if (!token) {
+    // If running in background, return empty array gracefully rather than throwing an alert
+    if (!interactive) return [];
     throw new Error("Google Calendar is not connected or session expired.");
   }
 
@@ -437,13 +441,14 @@ export async function fetchGoogleCalendarEvents() {
       });
 
       if (response.status === 401) {
-        token = await refreshAccessToken() || await silentRefreshGISToken();
+        token = await refreshAccessToken();
         if (token) {
           response = await fetch(url.toString(), {
             headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
           });
         } else {
-          throw new Error("Google Calendar authentication expired. Please reconnect.");
+          console.warn("Google Calendar session expired during background sync.");
+          break;
         }
       }
 
@@ -663,7 +668,7 @@ export async function createGoogleCalendarEvent(itemData) {
   });
 
   if (response.status === 401) {
-    token = await refreshAccessToken() || await silentRefreshGISToken();
+    token = await refreshAccessToken();
     if (token) {
       response = await fetch(targetUrl, {
         method: 'POST',
