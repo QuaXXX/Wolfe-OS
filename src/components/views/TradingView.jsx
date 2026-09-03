@@ -54,7 +54,12 @@ import {
   getLatestHermesBrief,
   clearTradingWorkspaceState
 } from '../../utils/tradingStorage';
-import { fetchHyperliquidAccount, fetchLiveMarketPrices, fetchHyperliquidLivePositions } from '../../utils/hyperliquidService';
+import { 
+  fetchHyperliquidAccount, 
+  fetchLiveMarketPrices, 
+  fetchLiveMarketData, 
+  fetchHyperliquidLivePositions 
+} from '../../utils/hyperliquidService';
 import { runHermesSwarmAnalysis } from '../../utils/hermesSwarmService';
 import { 
   tickPaperPositionsWithLivePrices, 
@@ -128,10 +133,13 @@ export const TradingView = ({
     // 1. Live market price and Hyperliquid position polling every 10s
     const updatePricesAndPositions = async () => {
       try {
-        const [livePrices, hlPositions] = await Promise.all([
-          fetchLiveMarketPrices(),
+        const [marketRes, hlPositions] = await Promise.all([
+          fetchLiveMarketData(),
           fetchHyperliquidLivePositions(config?.masterWalletAddress)
         ]);
+
+        const livePrices = marketRes?.prices || {};
+        const marketData = marketRes?.marketData || {};
 
         if (livePrices && Object.keys(livePrices).length > 0) {
           setLivePricesMap(livePrices);
@@ -143,13 +151,16 @@ export const TradingView = ({
             refreshAllData();
           }
 
+          // Live Watchlist Synchronization (Prices + 24h Day Percentage Change)
           setWatchlist(prev => prev.map(item => {
             const symbol = item.symbol.toUpperCase();
-            if (livePrices[symbol]) {
-              const newPrice = livePrices[symbol];
+            const live = marketData[symbol] || (symbol === 'NASDAQ' ? marketData['^IXIC'] : null) || (livePrices[symbol] ? { price: livePrices[symbol] } : null);
+            if (live) {
               return {
                 ...item,
-                price: newPrice
+                price: typeof live.price === 'number' ? live.price : item.price,
+                change: live.change || item.change,
+                isPositive: live.isPositive !== undefined ? live.isPositive : (item.change ? !item.change.includes('-') : true)
               };
             }
             return item;
@@ -1274,11 +1285,17 @@ export const TradingView = ({
                   </div>
                   <div className="flex items-baseline justify-between mt-1">
                     <div className="font-mono text-xs font-bold text-white">
-                      ${stock.price?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      ${typeof stock.price === 'number' 
+                        ? stock.price.toLocaleString('en-US', { 
+                            minimumFractionDigits: stock.price < 1 ? 4 : 2, 
+                            maximumFractionDigits: stock.price < 1 ? 4 : 2 
+                          }) 
+                        : stock.price}
                     </div>
                     {stock.change && (
-                      <span className={`text-[10px] font-mono font-semibold ${stock.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {stock.change}
+                      <span className={`text-[10px] font-mono font-semibold flex items-center gap-0.5 ${stock.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <span>{stock.isPositive ? '▲' : '▼'}</span>
+                        <span>{String(stock.change).replace(/^[+-]/, '')}</span>
                       </span>
                     )}
                   </div>

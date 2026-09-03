@@ -12,22 +12,22 @@ const STORAGE_KEY_HERMES_BRIEFS = 'wolfe_trading_hermes_briefs_v1';
 
 // Default Tickers for High-Liquidity Crypto & Small/Mid-Cap Growth Equities & Major Market Indices
 export const DEFAULT_WATCHLIST = [
-  { symbol: 'NASDAQ', name: 'Nasdaq Composite', price: 19842.50, change: '+0.78%', isPositive: true, category: 'US Index' },
-  { symbol: 'QQQ', name: 'Invesco QQQ Tech ETF', price: 482.30, change: '+0.85%', isPositive: true, category: 'Tech ETF' },
-  { symbol: 'SPY', name: 'S&P 500 ETF Trust', price: 588.60, change: '+0.52%', isPositive: true, category: 'US Index' },
-  { symbol: 'ASTS', name: 'AST SpaceMobile', price: 26.40, change: '+4.20%', isPositive: true, category: 'Space Telecom' },
-  { symbol: 'PLTR', name: 'Palantir Technologies', price: 68.20, change: '+2.10%', isPositive: true, category: 'Enterprise AI' },
-  { symbol: 'HYPE', name: 'Hyperliquid Native L1', price: 81.94, change: '+6.80%', isPositive: true, category: 'L1 DEX Clearing' },
-  { symbol: 'SOL', name: 'Solana Perp', price: 100.61, change: '+2.45%', isPositive: true, category: 'High-Throughput L1' },
-  { symbol: 'BTC', name: 'Bitcoin Perp', price: 77336.50, change: '+1.12%', isPositive: true, category: 'Macro Hard Asset' },
-  { symbol: 'SUI', name: 'Sui Protocol Perp', price: 3.25, change: '+5.40%', isPositive: true, category: 'Layer 1 DeFi' },
-  { symbol: 'TAO', name: 'Bittensor AI', price: 512.40, change: '+7.30%', isPositive: true, category: 'Decentralized AI' },
-  { symbol: 'RENDER', name: 'Render Network', price: 6.85, change: '+3.90%', isPositive: true, category: 'DePIN GPU Compute' },
-  { symbol: 'ONDO', name: 'Ondo Finance RWA', price: 1.15, change: '+4.50%', isPositive: true, category: 'Tokenized RWAs' },
-  { symbol: 'ENA', name: 'Ethena USDe', price: 0.62, change: '+8.20%', isPositive: true, category: 'Basis Yield Engine' },
-  { symbol: 'NVDA', name: 'Nvidia Corp', price: 132.80, change: '+1.94%', isPositive: true, category: 'Hyperscaler Compute' },
-  { symbol: 'MSTR', name: 'MicroStrategy', price: 345.20, change: '+5.10%', isPositive: true, category: 'BTC Reserve Treasury' },
-  { symbol: 'TSLA', name: 'Tesla Inc', price: 218.40, change: '+1.80%', isPositive: true, category: 'Autonomous AI & Robotics' }
+  { symbol: 'NASDAQ', name: 'Nasdaq Composite', price: 26217.83, change: '+0.45%', isPositive: true, category: 'US Index' },
+  { symbol: 'QQQ', name: 'Invesco QQQ Tech ETF', price: 709.24, change: '+0.23%', isPositive: true, category: 'Tech ETF' },
+  { symbol: 'SPY', name: 'S&P 500 ETF Trust', price: 765.16, change: '+0.44%', isPositive: true, category: 'US Index' },
+  { symbol: 'ASTS', name: 'AST SpaceMobile', price: 62.40, change: '+11.83%', isPositive: true, category: 'Space Telecom' },
+  { symbol: 'PLTR', name: 'Palantir Technologies', price: 169.46, change: '-5.81%', isPositive: false, category: 'Enterprise AI' },
+  { symbol: 'HYPE', name: 'Hyperliquid Native L1', price: 82.16, change: '-0.90%', isPositive: false, category: 'L1 DEX Clearing' },
+  { symbol: 'SOL', name: 'Solana Perp', price: 100.24, change: '+0.30%', isPositive: true, category: 'High-Throughput L1' },
+  { symbol: 'BTC', name: 'Bitcoin Perp', price: 77556.50, change: '+0.19%', isPositive: true, category: 'Macro Hard Asset' },
+  { symbol: 'SUI', name: 'Sui Protocol Perp', price: 0.7665, change: '-0.85%', isPositive: false, category: 'Layer 1 DeFi' },
+  { symbol: 'TAO', name: 'Bittensor AI', price: 218.48, change: '+1.50%', isPositive: true, category: 'Decentralized AI' },
+  { symbol: 'RENDER', name: 'Render Network', price: 1.42, change: '-2.10%', isPositive: false, category: 'DePIN GPU Compute' },
+  { symbol: 'ONDO', name: 'Ondo Finance RWA', price: 0.3496, change: '+0.75%', isPositive: true, category: 'Tokenized RWAs' },
+  { symbol: 'ENA', name: 'Ethena USDe', price: 0.1505, change: '+1.20%', isPositive: true, category: 'Basis Yield Engine' },
+  { symbol: 'NVDA', name: 'Nvidia Corp', price: 224.41, change: '+3.21%', isPositive: true, category: 'Hyperscaler Compute' },
+  { symbol: 'MSTR', name: 'MicroStrategy', price: 123.19, change: '-1.35%', isPositive: false, category: 'BTC Reserve Treasury' },
+  { symbol: 'TSLA', name: 'Tesla Inc', price: 357.01, change: '+0.26%', isPositive: true, category: 'Autonomous AI & Robotics' }
 ];
 
 export const DEFAULT_TRADING_CONFIG = {
@@ -58,14 +58,8 @@ export const DEFAULT_TRADING_CONFIG = {
 export function getTradingConfig() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
-    const parsed = raw ? JSON.parse(raw) : null;
-    // Auto-update to latest authorized agent if mismatched
-    if (parsed && parsed.agentWalletAddress !== DEFAULT_TRADING_CONFIG.agentWalletAddress) {
-      const merged = { ...parsed, ...DEFAULT_TRADING_CONFIG };
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(merged));
-      return merged;
-    }
-    return parsed ? { ...DEFAULT_TRADING_CONFIG, ...parsed } : DEFAULT_TRADING_CONFIG;
+    const config = raw ? JSON.parse(raw) : DEFAULT_TRADING_CONFIG;
+    return { ...DEFAULT_TRADING_CONFIG, ...config };
   } catch {
     return DEFAULT_TRADING_CONFIG;
   }
@@ -73,10 +67,8 @@ export function getTradingConfig() {
 
 export function saveTradingConfig(config) {
   try {
-    const current = getTradingConfig();
-    const updated = { ...current, ...config, updatedAt: new Date().toISOString() };
-    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(updated));
-    return updated;
+    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
+    return config;
   } catch (err) {
     console.warn("Failed to save trading config:", err);
     return config;
@@ -91,14 +83,14 @@ export function getWatchlist() {
     const raw = localStorage.getItem(STORAGE_KEY_WATCHLIST);
     let list = raw ? JSON.parse(raw) : DEFAULT_WATCHLIST;
 
-    // Ensure all monitored candidate assets are present in the list
+    // Ensure all monitored candidate assets are present and updated with latest baselines
     DEFAULT_WATCHLIST.forEach(def => {
       const idx = list.findIndex(item => item.symbol === def.symbol);
       if (idx === -1) {
         list.push(def);
       } else {
-        // Update price/category if default has updated metadata
-        list[idx] = { ...def, ...list[idx] };
+        // Sync default baseline changes while preserving user customizations
+        list[idx] = { ...list[idx], ...def };
       }
     });
 
@@ -106,6 +98,29 @@ export function getWatchlist() {
     return list;
   } catch {
     return DEFAULT_WATCHLIST;
+  }
+}
+
+export function updateWatchlistWithLiveMarketData(marketData) {
+  try {
+    const list = getWatchlist();
+    const updated = list.map(item => {
+      const sym = item.symbol.toUpperCase();
+      const live = marketData[sym] || (sym === 'NASDAQ' ? marketData['^IXIC'] : null);
+      if (live) {
+        return {
+          ...item,
+          price: typeof live.price === 'number' ? live.price : item.price,
+          change: live.change || item.change,
+          isPositive: live.isPositive !== undefined ? live.isPositive : (item.change ? !item.change.includes('-') : true)
+        };
+      }
+      return item;
+    });
+    saveWatchlist(updated);
+    return updated;
+  } catch {
+    return getWatchlist();
   }
 }
 
