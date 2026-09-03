@@ -320,9 +320,17 @@ export const TradingView = ({
         const existing = briefMap.get(dp.ticker);
         if (existing) {
           return {
-            ...dp,
             ...existing,
-            chronosBacktest: existing.chronosBacktest && existing.chronosBacktest.status === 'PASSED'
+            ...dp,
+            whyChosen: existing.whyChosen || dp.whyChosen,
+            catalystDossier: existing.catalystDossier || dp.catalystDossier,
+            institutionalFlow: existing.institutionalFlow || dp.institutionalFlow,
+            technicalStructure: existing.technicalStructure || dp.technicalStructure,
+            thesis: existing.thesis || dp.thesis,
+            convictionGrade: existing.convictionGrade || dp.convictionGrade,
+            optimalWindow: existing.optimalWindow || dp.optimalWindow,
+            expectedDuration: existing.expectedDuration || dp.expectedDuration,
+            chronosBacktest: (existing.chronosBacktest && existing.chronosBacktest.status === 'PASSED')
               ? existing.chronosBacktest
               : dp.chronosBacktest
           };
@@ -963,7 +971,12 @@ export const TradingView = ({
 
                   const extractFirstNum = (val) => {
                     if (!val) return null;
-                    const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+                    if (typeof val === 'number') return val;
+                    const str = String(val);
+                    // Match price preceded by $ first so percentage annotations (+1.4%) aren't captured
+                    const dollarMatch = str.match(/\$([0-9]+(?:\.[0-9]+)?)/);
+                    if (dollarMatch) return parseFloat(dollarMatch[1]);
+                    const match = str.match(/([0-9]+(?:\.[0-9]+)?)/);
                     return match ? parseFloat(match[1]) : null;
                   };
 
@@ -987,8 +1000,11 @@ export const TradingView = ({
                       stopNum = extractFirstNum(stopPart);
                     }
                   }
+                  const priceDecimals = (entryNum && entryNum < 1) ? 4 : (entryNum && entryNum < 10 ? 3 : 2);
                   if (!stopNum || stopNum === entryNum) {
-                    stopNum = isLong ? Number((entryNum * 0.95).toFixed(2)) : Number((entryNum * 1.05).toFixed(2));
+                    stopNum = isLong 
+                      ? Number((entryNum * 0.95).toFixed(priceDecimals)) 
+                      : Number((entryNum * 1.05).toFixed(priceDecimals));
                   }
 
                   // 3. Precise Extraction of Take Profit Number
@@ -1000,7 +1016,9 @@ export const TradingView = ({
                     }
                   }
                   if (!tpNum || tpNum === entryNum) {
-                    tpNum = isLong ? Number((entryNum * 1.10).toFixed(2)) : Number((entryNum * 0.90).toFixed(2));
+                    tpNum = isLong 
+                      ? Number((entryNum * 1.10).toFixed(priceDecimals)) 
+                      : Number((entryNum * 0.90).toFixed(priceDecimals));
                   }
 
                   // 4. Live Market Price (defaults to entryNum if websocket is loading, avoiding 0% or 100% false clamping)
@@ -1011,9 +1029,11 @@ export const TradingView = ({
 
                   const formatPriceVal = (val) => {
                     if (val === null || val === undefined || isNaN(val)) return '$0.00';
-                    if (val >= 1000) return `$${val.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`;
-                    if (val < 1) return `$${val.toFixed(4)}`;
-                    return `$${val.toFixed(2)}`;
+                    const num = Number(val);
+                    if (num >= 1000) return `$${num.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`;
+                    if (num < 1) return `$${num.toFixed(4)}`;
+                    if (num < 10) return `$${num.toFixed(3)}`;
+                    return `$${num.toFixed(2)}`;
                   };
 
                   const entryFormatted = formatPriceVal(entryNum);
@@ -1025,31 +1045,47 @@ export const TradingView = ({
                   const isNearEntry = Math.abs(Number(distFromEntryPct)) <= 0.8;
 
                   // 1. Calculate risk and reward spans accurately
-                  const riskSpan = Math.max(0.001, Math.abs(entryNum - stopNum));
-                  const rewardSpan = Math.max(0.001, Math.abs(tpNum - entryNum));
+                  const riskSpan = Math.max(0.0001, Math.abs(entryNum - stopNum));
+                  const rewardSpan = Math.max(0.0001, Math.abs(tpNum - entryNum));
                   const totalSpan = riskSpan + rewardSpan;
 
                   // 2. Proportion of the bar for Red vs Green (Red = Risk, Green = Reward)
-                  // Red is proportionally much smaller than green for 1:2 to 1:4 R:R trades!
-                  const entryDividerPct = (riskSpan / totalSpan) * 100;
+                  const entryDividerPct = Math.max(15, Math.min(85, (riskSpan / totalSpan) * 100));
 
                   // 3. Exact position of the Blue Dot (Current Live Market Price) along the total span
+                  // Piecewise linear interpolation ensures the line graph is 100% mathematically TO SCALE:
+                  // - In the Red Zone (Stop Loss to Entry): scales smoothly from 0% to entryDividerPct%
+                  // - In the Green Zone (Entry to Take Profit): scales smoothly from entryDividerPct% to 100%
                   let liveDotPct = entryDividerPct;
+
                   if (isLong) {
                     if (currentLive <= stopNum) {
-                      liveDotPct = 0;
+                      liveDotPct = 0; // At or breached Stop Loss
                     } else if (currentLive >= tpNum) {
-                      liveDotPct = 100;
+                      liveDotPct = 100; // At or breached Take Profit
+                    } else if (currentLive < entryNum) {
+                      // Between Stop Loss and Entry (in Risk Zone)
+                      const progressInRisk = (currentLive - stopNum) / (entryNum - stopNum);
+                      liveDotPct = Math.max(0, Math.min(entryDividerPct, progressInRisk * entryDividerPct));
                     } else {
-                      liveDotPct = Math.max(0, Math.min(100, ((currentLive - stopNum) / (tpNum - stopNum)) * 100));
+                      // Between Entry and Take Profit (in Reward Zone)
+                      const progressInReward = (currentLive - entryNum) / (tpNum - entryNum);
+                      liveDotPct = Math.max(entryDividerPct, Math.min(100, entryDividerPct + progressInReward * (100 - entryDividerPct)));
                     }
                   } else {
+                    // SHORT: stopNum > entryNum > tpNum
                     if (currentLive >= stopNum) {
-                      liveDotPct = 0;
+                      liveDotPct = 0; // At or breached Stop Loss (higher price)
                     } else if (currentLive <= tpNum) {
-                      liveDotPct = 100;
+                      liveDotPct = 100; // At or breached Take Profit (lower price)
+                    } else if (currentLive > entryNum) {
+                      // Between Stop Loss and Entry (in Risk Zone: price is higher than entry)
+                      const progressInRisk = (stopNum - currentLive) / (stopNum - entryNum);
+                      liveDotPct = Math.max(0, Math.min(entryDividerPct, progressInRisk * entryDividerPct));
                     } else {
-                      liveDotPct = Math.max(0, Math.min(100, ((stopNum - currentLive) / (stopNum - tpNum)) * 100));
+                      // Between Entry and Take Profit (in Reward Zone: price is lower than entry)
+                      const progressInReward = (entryNum - currentLive) / (entryNum - tpNum);
+                      liveDotPct = Math.max(entryDividerPct, Math.min(100, entryDividerPct + progressInReward * (100 - entryDividerPct)));
                     }
                   }
 
