@@ -20,6 +20,7 @@ import {
 import { GlassCard } from '../common/GlassCard';
 import { fetchLiveMarketData } from '../../utils/hyperliquidService';
 import { generateDynamicSetups } from '../../utils/hermesSwarmService';
+import { runChronosBacktest, CHRONOS_STRATEGIES } from '../../utils/chronosBacktestEngine';
 import { playSound } from '../../utils/soundFX';
 
 export const MarketPriceTesterModal = ({
@@ -84,58 +85,20 @@ export const MarketPriceTesterModal = ({
     }
   };
 
-  const handleRunBacktest = () => {
+  const handleRunBacktest = async () => {
     setIsBacktesting(true);
     playSound('click', soundEnabled);
 
-    setTimeout(() => {
-      const setups = generateDynamicSetups(livePricesMap);
-      const match = setups.find(s => s.ticker === selectedAsset) || setups[0];
-      const bt = match?.chronosBacktest || {
-        historicalWinRate: '72.5%',
-        profitFactor: '2.68',
-        expectancy: '+2.10R',
-        sampleSize: 180,
-        maxDrawdown: '-1.8R',
-        avgHoldTime: '32.0 Hours',
-        regimeWinRates: { bull: '78.5%', chop: '69.0%', highVol: '64.0%' }
-      };
-
-      const winRateNum = parseFloat(bt.historicalWinRate) / 100;
-      const sampleTrades = [];
-      const now = Date.now();
-
-      for (let i = 1; i <= 10; i++) {
-        const isWin = Math.random() < winRateNum;
-        const rResult = isWin ? (Math.random() > 0.4 ? '+2.0R' : '+3.0R') : '-1.0R';
-        const tradeDate = new Date(now - (11 - i) * 86400000 * 3).toISOString().split('T')[0];
-        sampleTrades.push({
-          id: `BT-${1000 + i}`,
-          date: tradeDate,
-          ticker: selectedAsset,
-          direction: match?.bias || 'LONG',
-          pattern: selectedPattern,
-          rMultiple: rResult,
-          outcome: isWin ? 'WIN' : 'LOSS'
-        });
-      }
-
-      setBacktestResult({
-        asset: selectedAsset,
-        pattern: selectedPattern,
-        winRate: bt.historicalWinRate,
-        profitFactor: bt.profitFactor,
-        expectancy: bt.expectancy,
-        sampleSize: bt.sampleSize,
-        maxDrawdown: bt.maxDrawdown,
-        avgHoldTime: bt.avgHoldTime || '28.5 Hours',
-        regimeWinRates: bt.regimeWinRates || { bull: '77.5%', chop: '68.0%', highVol: '62.5%' },
-        sampleTrades
-      });
-
-      setIsBacktesting(false);
+    try {
+      const result = await runChronosBacktest(selectedAsset, selectedPattern);
+      setBacktestResult(result);
       playSound('success', soundEnabled);
-    }, 450);
+    } catch (err) {
+      console.error("Chronos backtest execution error:", err);
+      setErrorMsg(`Backtest simulation failed: ${err.message}`);
+    } finally {
+      setIsBacktesting(false);
+    }
   };
 
   const quickTickers = ['NVDA', 'PLTR', 'ASTS', 'QQQ', 'SPY', 'TSLA', 'MSTR', 'BTC', 'SOL', 'HYPE', 'DOGE'];
@@ -403,12 +366,17 @@ export const MarketPriceTesterModal = ({
                       onChange={(e) => setSelectedPattern(e.target.value)}
                       className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500/50 font-sans"
                     >
-                      <option value="4H Volume Profile POC Reclaim & Bullish FVG">4H Volume Profile POC Reclaim & Bullish FVG</option>
-                      <option value="15m EMA20 Dynamic Support Sweep">15m EMA20 Dynamic Support Sweep</option>
-                      <option value="Daily Dynamic EMA20 Trend Continuation">Daily Dynamic EMA20 Trend Continuation</option>
-                      <option value="4H Bear Flag Breakdown Retest Short">4H Bear Flag Breakdown Retest Short</option>
-                      <option value="15m Equal Highs Liquidity Sweep Short">15m Equal Highs Liquidity Sweep Short</option>
+                      {Object.values(CHRONOS_STRATEGIES).map(s => (
+                        <option key={s.id} value={s.name}>
+                          [{s.timeframe.toUpperCase()}] {s.name} ({s.bias})
+                        </option>
+                      ))}
                     </select>
+                    {CHRONOS_STRATEGIES[selectedPattern] && (
+                      <p className="text-[10px] text-slate-400 mt-1 italic">
+                        {CHRONOS_STRATEGIES[selectedPattern].description}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -419,28 +387,51 @@ export const MarketPriceTesterModal = ({
                   className="w-full py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isBacktesting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <BarChart3 className="w-3.5 h-3.5" />}
-                  <span>{isBacktesting ? "Simulating Historical Setups..." : "Run Chronos Backtest Simulation"}</span>
+                  <span>{isBacktesting ? "Executing Bar-by-Bar Algorithmic Simulation..." : "Run Chronos Backtest Simulation"}</span>
                 </button>
               </div>
 
               {/* Backtest Results */}
               {backtestResult && (
                 <div className="p-4 rounded-2xl bg-black/60 border border-sky-500/30 space-y-3 shadow-lg font-sans">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-2.5 gap-2">
                     <div>
-                      <span className="text-xs font-bold text-white font-mono">{backtestResult.asset}</span>
-                      <span className="text-[11px] text-slate-400 block mt-0.5">{backtestResult.pattern}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white font-mono">{backtestResult.asset}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300 font-semibold">
+                          TF: {backtestResult.timeframe}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-300 block mt-0.5">{backtestResult.pattern}</span>
+                      <span className="text-[10px] text-sky-400 font-mono block mt-0.5">
+                        Historical Sample: {backtestResult.dateRange} ({backtestResult.totalBars} bars)
+                      </span>
                     </div>
-                    <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                      CHRONOS PASSED
-                    </span>
+
+                    <div>
+                      <span className={`text-[10px] font-mono px-2.5 py-1 rounded-md font-bold border inline-block ${
+                        backtestResult.statusColor === 'emerald'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : backtestResult.statusColor === 'amber'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                            : backtestResult.statusColor === 'rose'
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                      }`}>
+                        {backtestResult.status}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* 4-Metric Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-center">
+                  {/* Metric Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 font-mono text-center">
                     <div className="p-2 rounded-xl bg-white/[0.03] border border-white/5">
                       <span className="text-[10px] text-slate-400 block font-sans">Win Rate</span>
-                      <strong className="text-base text-emerald-300 font-bold block mt-0.5">{backtestResult.winRate}</strong>
+                      <strong className={`text-base font-bold block mt-0.5 ${
+                        parseFloat(backtestResult.winRate) >= 55 ? 'text-emerald-300' : 'text-slate-200'
+                      }`}>
+                        {backtestResult.winRate}
+                      </strong>
                     </div>
                     <div className="p-2 rounded-xl bg-white/[0.03] border border-white/5">
                       <span className="text-[10px] text-slate-400 block font-sans">Profit Factor</span>
@@ -448,11 +439,23 @@ export const MarketPriceTesterModal = ({
                     </div>
                     <div className="p-2 rounded-xl bg-white/[0.03] border border-white/5">
                       <span className="text-[10px] text-slate-400 block font-sans">Expectancy</span>
-                      <strong className="text-base text-white font-bold block mt-0.5">{backtestResult.expectancy}</strong>
+                      <strong className={`text-base font-bold block mt-0.5 ${
+                        backtestResult.expectancy.startsWith('+') ? 'text-emerald-300' : 'text-slate-300'
+                      }`}>
+                        {backtestResult.expectancy}
+                      </strong>
                     </div>
                     <div className="p-2 rounded-xl bg-white/[0.03] border border-white/5">
                       <span className="text-[10px] text-slate-400 block font-sans">Sample Size</span>
                       <strong className="text-base text-slate-200 font-bold block mt-0.5">{backtestResult.sampleSize}</strong>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white/[0.03] border border-white/5">
+                      <span className="text-[10px] text-slate-400 block font-sans">Max DD</span>
+                      <strong className="text-base text-rose-300 font-bold block mt-0.5">{backtestResult.maxDrawdown}</strong>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white/[0.03] border border-white/5">
+                      <span className="text-[10px] text-slate-400 block font-sans">Avg Hold</span>
+                      <strong className="text-base text-slate-300 font-bold block mt-0.5">{backtestResult.avgHoldTime}</strong>
                     </div>
                   </div>
 
@@ -463,7 +466,7 @@ export const MarketPriceTesterModal = ({
                     </span>
                     <div className="grid grid-cols-3 gap-2 font-mono text-center pt-1">
                       <div className="p-1 rounded bg-black/40 border border-white/5">
-                        <div className="text-slate-400 text-[9px]">Bull / Risk-On</div>
+                        <div className="text-slate-400 text-[9px]">Bull / Trend</div>
                         <div className="text-emerald-300 font-bold text-[11px]">{backtestResult.regimeWinRates.bull}</div>
                       </div>
                       <div className="p-1 rounded bg-black/40 border border-white/5">
@@ -480,38 +483,44 @@ export const MarketPriceTesterModal = ({
                   {/* Simulated Trade Execution Log */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-bold text-white uppercase tracking-wider block">
-                      Sample Simulated Trades (Chronos Backtest Run):
+                      Chronos Historical Trade Execution Log ({backtestResult.sampleTrades.length} displayed):
                     </span>
-                    <div className="max-h-36 overflow-y-auto rounded-xl border border-white/5 bg-black/40">
-                      <table className="w-full text-left text-[10px] font-mono">
-                        <thead>
-                          <tr className="border-b border-white/10 text-[9px] text-slate-400 uppercase bg-white/[0.02]">
-                            <th className="py-1.5 px-2.5">ID</th>
-                            <th className="py-1.5 px-2.5">Date</th>
-                            <th className="py-1.5 px-2.5">Side</th>
-                            <th className="py-1.5 px-2.5 text-right">R-Multiple</th>
-                            <th className="py-1.5 px-2.5 text-center">Outcome</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5 text-slate-300">
-                          {backtestResult.sampleTrades.map((t) => (
-                            <tr key={t.id} className="hover:bg-white/[0.02]">
-                              <td className="py-1.5 px-2.5 text-slate-400">{t.id}</td>
-                              <td className="py-1.5 px-2.5">{t.date}</td>
-                              <td className="py-1.5 px-2.5 font-bold text-white">{t.direction}</td>
-                              <td className="py-1.5 px-2.5 text-right font-bold text-white">{t.rMultiple}</td>
-                              <td className="py-1.5 px-2.5 text-center">
-                                <span className={`px-1.5 py-0.2 rounded font-bold text-[9px] ${
-                                  t.outcome === 'WIN' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
-                                }`}>
-                                  {t.outcome}
-                                </span>
-                              </td>
+                    {backtestResult.sampleTrades.length > 0 ? (
+                      <div className="max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-black/40">
+                        <table className="w-full text-left text-[10px] font-mono">
+                          <thead>
+                            <tr className="border-b border-white/10 text-[9px] text-slate-400 uppercase bg-white/[0.02]">
+                              <th className="py-1.5 px-2.5">ID</th>
+                              <th className="py-1.5 px-2.5">Date</th>
+                              <th className="py-1.5 px-2.5">Side</th>
+                              <th className="py-1.5 px-2.5 text-right">R-Multiple</th>
+                              <th className="py-1.5 px-2.5 text-center">Outcome</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody className="divide-y divide-white/5 text-slate-300">
+                            {backtestResult.sampleTrades.map((t) => (
+                              <tr key={t.id} className="hover:bg-white/[0.02]">
+                                <td className="py-1.5 px-2.5 text-slate-400">{t.id}</td>
+                                <td className="py-1.5 px-2.5">{t.date}</td>
+                                <td className="py-1.5 px-2.5 font-bold text-white">{t.direction}</td>
+                                <td className="py-1.5 px-2.5 text-right font-bold text-white">{t.rMultiple}</td>
+                                <td className="py-1.5 px-2.5 text-center">
+                                  <span className={`px-1.5 py-0.2 rounded font-bold text-[9px] ${
+                                    t.outcome === 'WIN' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
+                                  }`}>
+                                    {t.outcome}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-center text-slate-400 text-xs">
+                        No setups met all quantitative entry triggers during this period on the {backtestResult.timeframe} timeframe. Zero forced trades.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

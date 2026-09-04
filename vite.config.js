@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import marketPricesHandler from './api/market-prices.js'
+import historicalCandlesHandler from './api/historical-candles.js'
 import webhookHandler from './api/webhook/tradingview.js'
 
 function apiHandlerMiddleware(handler) {
@@ -45,6 +46,7 @@ export default defineConfig({
       name: 'api-serverless-middleware',
       configureServer(server) {
         server.middlewares.use('/api/market-prices', apiHandlerMiddleware(marketPricesHandler));
+        server.middlewares.use('/api/historical-candles', apiHandlerMiddleware(historicalCandlesHandler));
         server.middlewares.use('/api/webhook/tradingview', apiHandlerMiddleware(webhookHandler));
       }
     }
