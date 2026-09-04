@@ -375,6 +375,7 @@ export function tickPaperPositionsWithLivePrices(livePrices, marketData = {}) {
               ? `EXPIRED (Trigger point not hit within ${pos.validForHours || 'targeted'}h timeframe - Escaped trade safely)`
               : 'EXPIRED (Unfilled Intraday)',
           strategy: pos.strategy || 'Pending Limit Order',
+          convictionGrade: pos.convictionGrade || 'A',
           enteredAt: pos.enteredAt || pos.date,
           closedAt: new Date().toISOString()
         });
@@ -474,6 +475,7 @@ export function tickPaperPositionsWithLivePrices(livePrices, marketData = {}) {
         timeframe: pos.timeframe || '1H - 4H Intraday',
         exitReason: isTpHit ? 'TAKE_PROFIT_HIT (2R)' : 'STOP_LOSS_HIT (Invalidation)',
         strategy: `Hermes Forward-Test (${pos.convictionGrade || 'A'})`,
+        convictionGrade: pos.convictionGrade || 'A',
         thesis: pos.thesis,
         isWin: isTpHit
       };

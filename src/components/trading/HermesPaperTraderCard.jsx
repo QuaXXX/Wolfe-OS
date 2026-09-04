@@ -105,6 +105,33 @@ export const HermesPaperTraderCard = ({
     .filter(p => p.status === 'ACTIVE')
     .reduce((acc, pos) => acc + (pos.unrealizedPnlUSD || 0), 0);
 
+  const renderGradeBadge = (rawGrade) => {
+    const grade = rawGrade || 'A';
+    const badgeStyle = 
+      grade === 'A+' 
+        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.25)]'
+        : grade === 'A'
+        ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40'
+        : grade === 'B'
+        ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+        : grade === 'C'
+        ? 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30'
+        : grade === 'D'
+        ? 'bg-orange-500/15 text-orange-300 border-orange-500/30'
+        : 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+
+    return (
+      <span 
+        className={`text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold border flex items-center gap-1 ${badgeStyle}`}
+        title={`Council Conviction: Grade ${grade}`}
+      >
+        {grade === 'A+' && <Sparkles className="w-2.5 h-2.5 text-emerald-300" />}
+        <span>Grade</span>
+        <strong className="font-extrabold">{grade}</strong>
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-3 font-sans">
       {/* 1. Header & Performance Metrics HUD */}
@@ -245,6 +272,15 @@ export const HermesPaperTraderCard = ({
                         <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-white/[0.05] text-slate-200 border border-white/10">
                           {pos.side} {pos.leverage}x
                         </span>
+
+                        {/* Conviction Grade Badge */}
+                        {renderGradeBadge(pos.convictionGrade)}
+
+                        {['C', 'D', 'F'].includes(pos.convictionGrade) && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-semibold" title="Comparative Tracking Tier">
+                            Compare
+                          </span>
+                        )}
 
                         {isPending ? (
                           <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 font-sans">
@@ -414,6 +450,14 @@ export const HermesPaperTraderCard = ({
                           </div>
                         )}
 
+                        {/* Comparative Tracking Banner for C/D/F tiers */}
+                        {['C', 'D', 'F'].includes(pos.convictionGrade) && (
+                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span><strong>Comparative Tracking Tier ({pos.convictionGrade})</strong> — Edge not verified by Chronos. For relative performance tracking only.</span>
+                          </div>
+                        )}
+
                         {/* Action Buttons inside Dropdown */}
                         <div className="flex items-center justify-between pt-1">
                           {isPending && (
@@ -490,6 +534,7 @@ export const HermesPaperTraderCard = ({
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-white">{trade.side}</span>
+                          {renderGradeBadge(trade.convictionGrade)}
                           <span className="text-slate-300">${trade.entryPrice} ➔ ${trade.exitPrice}</span>
                           <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
                             isWin ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
@@ -543,7 +588,14 @@ export const HermesPaperTraderCard = ({
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 font-mono">
-                        <span>Closed: <strong className="text-slate-300">{new Date(trade.closedAt).toLocaleString()}</strong></span>
+                        <div className="flex items-center gap-2">
+                          <span>Closed: <strong className="text-slate-300">{new Date(trade.closedAt).toLocaleString()}</strong></span>
+                          {trade.convictionGrade && (
+                            <span className="text-[10px] text-slate-400">
+                              (Setup: <strong className="text-slate-200">Grade {trade.convictionGrade}</strong>)
+                            </span>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={(e) => handleDeleteHistory(trade.id, e)}
