@@ -63,7 +63,8 @@ import {
   fetchHyperliquidAccount, 
   fetchLiveMarketPrices, 
   fetchLiveMarketData, 
-  fetchHyperliquidLivePositions 
+  fetchHyperliquidLivePositions,
+  fetchRecentAssetCandleRange 
 } from '../../utils/hyperliquidService';
 import { runHermesSwarmAnalysis, generateDynamicSetups } from '../../utils/hermesSwarmService';
 import { 
@@ -166,8 +167,29 @@ export const TradingView = ({
         if (livePrices && Object.keys(livePrices).length > 0) {
           setLivePricesMap(livePrices);
 
-          // Real-Time TP / SL Trigger Engine for paper trades
-          const tickResult = tickPaperPositionsWithLivePrices(livePrices);
+          // Check extreme candle ranges for any active paper positions to guarantee unbiased stop/profit execution
+          const activePaper = getPaperPositions().filter(p => p.status === 'ACTIVE');
+          if (activePaper.length > 0) {
+            await Promise.allSettled(activePaper.map(async (pos) => {
+              try {
+                const candleRange = await fetchRecentAssetCandleRange(pos.ticker, pos.triggeredAt || pos.createdAt);
+                if (candleRange) {
+                  marketData[pos.ticker] = {
+                    ...marketData[pos.ticker],
+                    dayLow: typeof candleRange.lowestLow === 'number' 
+                      ? Math.min(marketData[pos.ticker]?.dayLow ?? 999999, candleRange.lowestLow) 
+                      : marketData[pos.ticker]?.dayLow,
+                    dayHigh: typeof candleRange.highestHigh === 'number' 
+                      ? Math.max(marketData[pos.ticker]?.dayHigh ?? 0, candleRange.highestHigh) 
+                      : marketData[pos.ticker]?.dayHigh
+                  };
+                }
+              } catch (e) {}
+            }));
+          }
+
+          // Real-Time TP / SL Trigger Engine for paper trades with full session wick & live price verification
+          const tickResult = tickPaperPositionsWithLivePrices(livePrices, marketData);
           if (tickResult.closedTrades && tickResult.closedTrades.length > 0) {
             playSound('success', soundEnabled);
             refreshAllData();
@@ -182,7 +204,9 @@ export const TradingView = ({
                 ...item,
                 price: typeof live.price === 'number' ? live.price : item.price,
                 change: live.change || item.change,
-                isPositive: live.isPositive !== undefined ? live.isPositive : (item.change ? !item.change.includes('-') : true)
+                isPositive: live.isPositive !== undefined ? live.isPositive : (item.change ? !item.change.includes('-') : true),
+                dayLow: live.dayLow ?? item.dayLow,
+                dayHigh: live.dayHigh ?? item.dayHigh
               };
             }
             return item;
@@ -1782,82 +1806,6 @@ export const TradingView = ({
               )}
             </>
           )}
-
-          {/* Clean Real-Time Watchlist (Always Live) */}
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Live Watchlist ({watchlist.length})
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsAddingTicker(prev => !prev)}
-                className="text-xs flex items-center gap-1 cursor-pointer font-medium"
-                style={{ color: 'var(--accent-primary)' }}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Ticker</span>
-              </button>
-            </div>
-
-            {isAddingTicker && (
-              <form onSubmit={handleAddTicker} className="flex gap-2 p-2 rounded-2xl theme-card border" style={{ borderColor: 'var(--accent-border)' }}>
-                <input
-                  type="text"
-                  value={newTickerInput}
-                  onChange={(e) => setNewTickerInput(e.target.value)}
-                  placeholder="Ticker (e.g. SUI, AVAX)..."
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
-                  style={{ borderColor: 'var(--accent-border)' }}
-                />
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold cursor-pointer shadow-md transition-all active:scale-95"
-                  style={{ backgroundColor: 'var(--accent-primary)' }}
-                >
-                  Add
-                </button>
-              </form>
-            )}
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
-              {watchlist.map((stock) => (
-                <GlassCard 
-                  key={stock.symbol} 
-                  hoverEffect={true} 
-                  className="p-3 cursor-pointer hover:border-white/20 transition-all group"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setHyperliquidTicker(stock.symbol);
-                    setActiveTab('execute');
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-xs font-mono group-hover:text-emerald-300 transition-colors">{stock.symbol}</span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/[0.05] text-slate-300 border border-white/5">
-                      {stock.category || 'Asset'}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between mt-1">
-                    <div className="font-mono text-xs font-bold text-white">
-                      ${typeof stock.price === 'number' 
-                        ? stock.price.toLocaleString('en-US', { 
-                            minimumFractionDigits: stock.price < 1 ? 4 : 2, 
-                            maximumFractionDigits: stock.price < 1 ? 4 : 2 
-                          }) 
-                        : stock.price}
-                    </div>
-                    {stock.change && (
-                      <span className={`text-[10px] font-mono font-semibold flex items-center gap-0.5 ${stock.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        <span>{stock.isPositive ? '▲' : '▼'}</span>
-                        <span>{String(stock.change).replace(/^[+-]/, '')}</span>
-                      </span>
-                    )}
-                  </div>
-                </GlassCard>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
@@ -2328,6 +2276,91 @@ export const TradingView = ({
           )}
         </div>
       )}
+
+      {/* 9. REAL-TIME LIVE MARKET WATCHLIST (Always Visible Across All Trading Pages) */}
+      <div className="space-y-2.5 pt-3 border-t border-white/10 font-sans">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+              Live Market Watchlist ({watchlist.length})
+            </h2>
+            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+              • 100% Live Real-Time Feed (10s sync)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAddingTicker(prev => !prev)}
+            className="text-xs flex items-center gap-1 cursor-pointer font-semibold transition-opacity hover:opacity-80"
+            style={{ color: 'var(--accent-primary)' }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Ticker</span>
+          </button>
+        </div>
+
+        {isAddingTicker && (
+          <form onSubmit={handleAddTicker} className="flex gap-2 p-2 rounded-2xl theme-card border" style={{ borderColor: 'var(--accent-border)' }}>
+            <input
+              type="text"
+              value={newTickerInput}
+              onChange={(e) => setNewTickerInput(e.target.value)}
+              placeholder="Ticker (e.g. SUI, AVAX, AAPL)..."
+              className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none"
+              style={{ borderColor: 'var(--accent-border)' }}
+            />
+            <button
+              type="submit"
+              className="px-3 py-1.5 rounded-xl text-white text-xs font-semibold cursor-pointer shadow-md transition-all active:scale-95"
+              style={{ backgroundColor: 'var(--accent-primary)' }}
+            >
+              Add
+            </button>
+          </form>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+          {watchlist.map((stock) => (
+            <GlassCard 
+              key={stock.symbol} 
+              hoverEffect={true} 
+              className="p-3 cursor-pointer hover:border-white/20 transition-all group"
+              onClick={() => {
+                playSound('click', soundEnabled);
+                setHyperliquidTicker(stock.symbol);
+                setActiveTab('execute');
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-white text-xs font-mono group-hover:text-emerald-300 transition-colors">{stock.symbol}</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/[0.05] text-slate-300 border border-white/5">
+                  {stock.category || 'Asset'}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between mt-1">
+                <div className="font-mono text-xs font-bold text-white">
+                  ${typeof stock.price === 'number' 
+                    ? stock.price.toLocaleString('en-US', { 
+                        minimumFractionDigits: stock.price < 1 ? 4 : 2, 
+                        maximumFractionDigits: stock.price < 1 ? 4 : 2 
+                      }) 
+                    : stock.price}
+                </div>
+                {stock.change && (
+                  <span className={`text-[10px] font-mono font-semibold flex items-center gap-0.5 ${stock.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <span>{stock.isPositive ? '▲' : '▼'}</span>
+                    <span>{String(stock.change).replace(/^[+-]/, '')}</span>
+                  </span>
+                )}
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      </div>
 
       {/* ACTIVE MODALS */}
       <HermesWarRoomModal

@@ -105,6 +105,40 @@ export async function fetchLiveMarketPrices() {
 }
 
 /**
+ * Query recent 15m candle extremes for a coin on Hyperliquid L1
+ */
+export async function fetchRecentAssetCandleRange(coin, startTimeMs) {
+  if (!coin || !startTimeMs) return null;
+  try {
+    const res = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'candleSnapshot',
+        req: {
+          coin: String(coin).toUpperCase(),
+          interval: '15m',
+          startTime: Math.max(Date.now() - 48 * 3600 * 1000, Number(startTimeMs))
+        }
+      }),
+      signal: AbortSignal.timeout(3500)
+    });
+    if (res.ok) {
+      const candles = await res.json();
+      if (Array.isArray(candles) && candles.length > 0) {
+        const lows = candles.map(c => Number(c.l)).filter(n => !isNaN(n) && n > 0);
+        const highs = candles.map(c => Number(c.h)).filter(n => !isNaN(n) && n > 0);
+        return {
+          lowestLow: lows.length > 0 ? Math.min(...lows) : null,
+          highestHigh: highs.length > 0 ? Math.max(...highs) : null
+        };
+      }
+    }
+  } catch (err) {}
+  return null;
+}
+
+/**
  * 1. Dynamic Risk & Position Sizing Calculator
  * Calculates precise contract sizing based on stop loss distance, risk %, and asset precision.
  */

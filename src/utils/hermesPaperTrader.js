@@ -13,6 +13,13 @@ const STORAGE_KEY_PAPER_ACCOUNT = 'wolfe_hermes_paper_account_v1';
 const STORAGE_KEY_PAPER_POSITIONS = 'wolfe_hermes_paper_positions_v1';
 const STORAGE_KEY_PAPER_HISTORY = 'wolfe_hermes_paper_history_v1';
 
+export function cleanNumeric(val) {
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  if (!val) return null;
+  const match = String(val).replace(/,/g, '').match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
+  return match ? parseFloat(match[1]) : null;
+}
+
 export const DEFAULT_PAPER_ACCOUNT = {
   balance: 10000.00,
   startingBalance: 10000.00,
@@ -161,11 +168,7 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
   const ticker = (play.ticker || 'BTC').toUpperCase();
   const isLong = !play.bias || String(play.bias).toUpperCase().includes('LONG') || String(play.bias).toUpperCase().includes('BUY');
 
-  const extractNum = (val) => {
-    if (!val) return null;
-    const match = String(val).match(/[\$]?([0-9]+(?:\.[0-9]+)?)/);
-    return match ? parseFloat(match[1]) : null;
-  };
+  const extractNum = cleanNumeric;
 
   const extractKeyedNum = (text, key) => {
     if (!text) return null;
@@ -173,36 +176,38 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
     return part ? extractNum(part) : null;
   };
 
-  const currentLivePrice = livePrices[ticker] ? Number(livePrices[ticker]) : (play.entryNumeric || 100);
+  const currentLivePrice = cleanNumeric(livePrices[ticker]) || cleanNumeric(play.entryNumeric) || 100;
 
   // Parse numeric planned entry from Strategy accurately
-  let plannedLimitEntryPrice = play.entryNumeric 
-    || play.entryPrice 
+  let plannedLimitEntryPrice = cleanNumeric(play.entryNumeric) 
+    || cleanNumeric(play.entryPrice) 
     || extractNum(play.entryTrigger)
     || extractKeyedNum(play.riskManagement, 'Trigger')
     || extractKeyedNum(play.riskManagement, 'Entry')
     || currentLivePrice;
 
-  let stopLoss = play.stopNumeric 
-    || play.stopPrice 
+  const priceDecimals = plannedLimitEntryPrice < 1 ? 4 : 2;
+
+  let stopLoss = cleanNumeric(play.stopNumeric) 
+    || cleanNumeric(play.stopPrice) 
     || extractNum(play.stopLoss) 
     || extractKeyedNum(play.riskManagement, 'Stop Loss')
     || extractKeyedNum(play.riskManagement, 'Stop')
-    || (isLong ? Number((plannedLimitEntryPrice * 0.95).toFixed(2)) : Number((plannedLimitEntryPrice * 1.05).toFixed(2)));
+    || (isLong ? Number((plannedLimitEntryPrice * 0.95).toFixed(priceDecimals)) : Number((plannedLimitEntryPrice * 1.05).toFixed(priceDecimals)));
 
   if (stopLoss === plannedLimitEntryPrice) {
-    stopLoss = isLong ? Number((plannedLimitEntryPrice * 0.95).toFixed(2)) : Number((plannedLimitEntryPrice * 1.05).toFixed(2));
+    stopLoss = isLong ? Number((plannedLimitEntryPrice * 0.95).toFixed(priceDecimals)) : Number((plannedLimitEntryPrice * 1.05).toFixed(priceDecimals));
   }
 
-  let takeProfit = play.target2RNumeric 
-    || play.target2R 
+  let takeProfit = cleanNumeric(play.target2RNumeric) 
+    || cleanNumeric(play.target2R) 
     || extractNum(play.target2R) 
     || extractKeyedNum(play.riskManagement, 'Take Profit')
     || extractKeyedNum(play.riskManagement, 'Target 2R')
-    || (isLong ? Number((plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)) : Number((plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)));
+    || (isLong ? Number((plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(priceDecimals)) : Number((plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(priceDecimals)));
 
   if (takeProfit === plannedLimitEntryPrice) {
-    takeProfit = isLong ? Number((plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2)) : Number((plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(2));
+    takeProfit = isLong ? Number((plannedLimitEntryPrice + Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(priceDecimals)) : Number((plannedLimitEntryPrice - Math.abs(plannedLimitEntryPrice - stopLoss) * 2).toFixed(priceDecimals));
   }
 
   const leverage = account.leverage || 5;
@@ -281,6 +286,8 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
     triggeredAt: isImmediatelyActive ? new Date().toISOString() : null,
     status: isImmediatelyActive ? 'ACTIVE' : 'PENDING_ENTRY',
     unrealizedPnlUSD: isImmediatelyActive ? unrealizedPnlUSD : 0.00,
+    lowestPriceSeen: isImmediatelyActive ? currentLivePrice : actualEntryPrice,
+    highestPriceSeen: isImmediatelyActive ? currentLivePrice : actualEntryPrice,
     spotMovePct: isImmediatelyActive ? spotMovePct : 0.00,
     roePct: isImmediatelyActive ? roePct : 0.00,
     rMultiple: isImmediatelyActive ? rMultiple : 0.00
@@ -293,7 +300,7 @@ export function enterSingleHermesPlay(play, briefDate = '', livePrices = {}, exe
 /**
  * 2. Real-Time TP / SL Monitor Engine with Exact Exchange Math
  */
-export function tickPaperPositionsWithLivePrices(livePrices) {
+export function tickPaperPositionsWithLivePrices(livePrices, marketData = {}) {
   if (!livePrices || Object.keys(livePrices).length === 0) return { closedTrades: [], openPositions: getPaperPositions() };
 
   const positions = getPaperPositions();
@@ -306,13 +313,34 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
   const newlyClosedTrades = [];
 
   for (const pos of positions) {
-    const currentPrice = livePrices[pos.ticker];
-    if (!currentPrice) {
+    const rawPrice = livePrices[pos.ticker];
+    if (rawPrice === undefined || rawPrice === null) {
+      remainingPositions.push(pos);
+      continue;
+    }
+
+    const currentPrice = Number(rawPrice);
+    if (isNaN(currentPrice) || currentPrice <= 0) {
       remainingPositions.push(pos);
       continue;
     }
 
     const isLong = pos.side === 'LONG';
+    const entryPrice = cleanNumeric(pos.entryPrice) || currentPrice;
+    const stopLoss = cleanNumeric(pos.stopLoss) || (isLong ? entryPrice * 0.95 : entryPrice * 1.05);
+    const takeProfit = cleanNumeric(pos.takeProfit) || (isLong ? entryPrice * 1.10 : entryPrice * 0.90);
+    const posSize = cleanNumeric(pos.size) || 1;
+
+    // Track extreme price bounds seen during the position's lifecycle
+    const lowestSeen = Math.min(cleanNumeric(pos.lowestPriceSeen) ?? currentPrice, currentPrice);
+    const highestSeen = Math.max(cleanNumeric(pos.highestPriceSeen) ?? currentPrice, currentPrice);
+    pos.lowestPriceSeen = lowestSeen;
+    pos.highestPriceSeen = highestSeen;
+
+    // Check optional dayLow / dayHigh from marketData
+    const assetMarket = marketData?.[pos.ticker] || {};
+    const dayLow = cleanNumeric(assetMarket.dayLow);
+    const dayHigh = cleanNumeric(assetMarket.dayHigh);
 
     // 1. If Position is PENDING ENTRY: check if limit price touched in real market OR if expired / invalidated
     if (pos.status === 'PENDING_ENTRY') {
@@ -324,8 +352,8 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
 
       // Check if price pierced stop loss before ever filling limit entry (Invalidated)
       const isInvalidatedBeforeFill = isLong 
-        ? (pos.stopLoss && currentPrice <= pos.stopLoss)
-        : (pos.stopLoss && currentPrice >= pos.stopLoss);
+        ? (stopLoss && (currentPrice <= stopLoss || (dayLow && dayLow <= stopLoss)))
+        : (stopLoss && (currentPrice >= stopLoss || (dayHigh && dayHigh >= stopLoss)));
 
       // Auto-expire/cancel pending limit orders if timeframe elapsed or if setup was invalidated
       if (isExpiredByTimeframe || isOlderThanToday || isStaleIntraday || isInvalidatedBeforeFill) {
@@ -333,9 +361,9 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
           id: pos.id,
           ticker: pos.ticker,
           side: pos.side,
-          entryPrice: pos.entryPrice,
+          entryPrice,
           exitPrice: currentPrice,
-          size: pos.size,
+          size: posSize,
           pnlUSD: 0.00,
           roePct: 0.00,
           spotMovePct: 0.00,
@@ -355,18 +383,24 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
       }
 
       let isEntryTriggered = false;
-      if (isLong && currentPrice <= pos.entryPrice * 1.001) {
+      if (isLong && currentPrice <= entryPrice * 1.001) {
         isEntryTriggered = true;
-      } else if (!isLong && currentPrice >= pos.entryPrice * 0.999) {
+      } else if (!isLong && currentPrice >= entryPrice * 0.999) {
         isEntryTriggered = true;
       }
 
       if (isEntryTriggered) {
         remainingPositions.push({
           ...pos,
+          entryPrice,
+          stopLoss,
+          takeProfit,
+          size: posSize,
           status: 'ACTIVE',
           triggeredAt: new Date().toISOString(),
-          currentPrice: pos.entryPrice,
+          currentPrice: entryPrice,
+          lowestPriceSeen: entryPrice,
+          highestPriceSeen: entryPrice,
           unrealizedPnlUSD: 0.00,
           spotMovePct: 0.00,
           roePct: 0.00,
@@ -375,6 +409,10 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
       } else {
         remainingPositions.push({
           ...pos,
+          entryPrice,
+          stopLoss,
+          takeProfit,
+          size: posSize,
           currentPrice
         });
       }
@@ -382,41 +420,51 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
     }
 
     // 2. If Position is ACTIVE: Calculate Exact PnL, Spot % & ROE %
-    const priceDiff = isLong ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-    const unrealizedPnlUSD = Number((priceDiff * pos.size).toFixed(2));
-    const spotMovePct = Number(((priceDiff / pos.entryPrice) * 100).toFixed(2));
-    const margin = Math.max(1, pos.marginUSD || (pos.size * pos.entryPrice / Math.max(1, pos.leverage)));
+    const priceDiff = isLong ? (currentPrice - entryPrice) : (entryPrice - currentPrice);
+    const unrealizedPnlUSD = Number((priceDiff * posSize).toFixed(2));
+    const spotMovePct = Number(((priceDiff / entryPrice) * 100).toFixed(2));
+    const margin = Math.max(1, cleanNumeric(pos.marginUSD) || (posSize * entryPrice / Math.max(1, cleanNumeric(pos.leverage) || 5)));
     const roePct = Number(((unrealizedPnlUSD / margin) * 100).toFixed(2));
-    const stopDistance = Math.max(0.0001, Math.abs(pos.entryPrice - pos.stopLoss));
+    const stopDistance = Math.max(0.0001, Math.abs(entryPrice - stopLoss));
     const rMultiple = Number((priceDiff / stopDistance).toFixed(2));
 
     let isTpHit = false;
     let isSlHit = false;
 
+    // ⚡ UNBIASED REAL-MARKET EXECUTION LOGIC:
+    // 1. Instant price check with 0.05% spread touch buffer (slippage / spread fill)
+    // 2. Continuous tracking of extreme wick prices seen since trade activation (lowestSeen / highestSeen)
+    // 3. Official intraday session low/high verification (dayLow / dayHigh)
     if (isLong) {
-      if (currentPrice >= pos.takeProfit) isTpHit = true;
-      else if (currentPrice <= pos.stopLoss) isSlHit = true;
+      if (currentPrice >= takeProfit * 0.9995 || highestSeen >= takeProfit || (dayHigh && dayHigh >= takeProfit)) {
+        isTpHit = true;
+      } else if (currentPrice <= stopLoss * 1.0005 || lowestSeen <= stopLoss || (dayLow && dayLow <= stopLoss)) {
+        isSlHit = true;
+      }
     } else {
-      if (currentPrice <= pos.takeProfit) isTpHit = true;
-      else if (currentPrice >= pos.stopLoss) isSlHit = true;
+      if (currentPrice <= takeProfit * 1.0005 || lowestSeen <= takeProfit || (dayLow && dayLow <= takeProfit)) {
+        isTpHit = true;
+      } else if (currentPrice >= stopLoss * 0.9995 || highestSeen >= stopLoss || (dayHigh && dayHigh >= stopLoss)) {
+        isSlHit = true;
+      }
     }
 
     if (isTpHit || isSlHit) {
-      // Trade Settled
-      const exitPrice = isTpHit ? pos.takeProfit : pos.stopLoss;
-      const realizedPriceDiff = isLong ? (exitPrice - pos.entryPrice) : (pos.entryPrice - exitPrice);
-      const realizedPnlUSD = Number((realizedPriceDiff * pos.size).toFixed(2));
+      // Trade Settled - Unbiased fill at stop/TP price or market breach
+      const exitPrice = isTpHit ? takeProfit : stopLoss;
+      const realizedPriceDiff = isLong ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
+      const realizedPnlUSD = Number((realizedPriceDiff * posSize).toFixed(2));
       const realizedRoePct = Number(((realizedPnlUSD / margin) * 100).toFixed(2));
-      const realizedSpotPct = Number(((realizedPriceDiff / pos.entryPrice) * 100).toFixed(2));
+      const realizedSpotPct = Number(((realizedPriceDiff / entryPrice) * 100).toFixed(2));
       const realizedRMultiple = Number((realizedPriceDiff / stopDistance).toFixed(2));
 
       const closedTrade = {
         id: pos.id,
         ticker: pos.ticker,
         side: pos.side,
-        entryPrice: pos.entryPrice,
+        entryPrice,
         exitPrice,
-        size: pos.size,
+        size: posSize,
         pnlUSD: realizedPnlUSD,
         roePct: realizedRoePct,
         spotMovePct: realizedSpotPct,
@@ -425,7 +473,7 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
         closedAt: new Date().toISOString(),
         timeframe: pos.timeframe || '1H - 4H Intraday',
         exitReason: isTpHit ? 'TAKE_PROFIT_HIT (2R)' : 'STOP_LOSS_HIT (Invalidation)',
-        strategy: `Hermes Forward-Test (${pos.convictionGrade})`,
+        strategy: `Hermes Forward-Test (${pos.convictionGrade || 'A'})`,
         thesis: pos.thesis,
         isWin: isTpHit
       };
@@ -436,16 +484,16 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
       logCompletedTrade({
         ticker: pos.ticker,
         side: pos.side,
-        entryPrice: pos.entryPrice,
+        entryPrice,
         exitPrice,
-        size: pos.size,
+        size: posSize,
         pnlUSD: realizedPnlUSD,
-        strategy: `Hermes Forward-Test (${pos.convictionGrade})`,
-        notes: `${pos.thesis} (Exit: ${closedTrade.exitReason})`,
+        strategy: `Hermes Forward-Test (${pos.convictionGrade || 'A'})`,
+        notes: `${pos.thesis || 'Algorithmic forward-test setup'} (Exit: ${closedTrade.exitReason})`,
         screenshot: '',
         aiPostMortem: isTpHit 
           ? `Target 2R hit with +${realizedRoePct}% ROE on ${pos.side} setup.`
-          : `Stopped out at invalidation with ${realizedRoePct}% ROE.`
+          : `Stopped out at invalidation (${exitPrice}) with ${realizedRoePct}% ROE. Unbiased execution recorded.`
       });
 
       // Update Account balance
@@ -457,7 +505,13 @@ export function tickPaperPositionsWithLivePrices(livePrices) {
     } else {
       remainingPositions.push({
         ...pos,
+        entryPrice,
+        stopLoss,
+        takeProfit,
+        size: posSize,
         currentPrice,
+        lowestPriceSeen: lowestSeen,
+        highestPriceSeen: highestSeen,
         unrealizedPnlUSD,
         spotMovePct,
         roePct,

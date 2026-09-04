@@ -101,12 +101,17 @@ export default async function handler(req, res) {
               : (prev > 0 ? ((price - prev) / prev) * 100 : 0);
 
           if (price && typeof price === 'number') {
+            const dayLow = typeof meta?.regularMarketDayLow === 'number' ? meta.regularMarketDayLow : null;
+            const dayHigh = typeof meta?.regularMarketDayHigh === 'number' ? meta.regularMarketDayHigh : null;
+
             priceMap[sym] = price;
             marketData[sym] = {
               price,
               change: (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%',
               isPositive: pct >= 0,
               prevClose: prev,
+              dayLow,
+              dayHigh,
               source: 'Yahoo Finance Official Quote'
             };
           }

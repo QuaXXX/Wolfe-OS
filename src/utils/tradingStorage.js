@@ -27,7 +27,8 @@ export const DEFAULT_WATCHLIST = [
   { symbol: 'ENA', name: 'Ethena USDe', price: 0.1505, change: '+1.20%', isPositive: true, category: 'Basis Yield Engine' },
   { symbol: 'NVDA', name: 'Nvidia Corp', price: 224.41, change: '+3.21%', isPositive: true, category: 'Hyperscaler Compute' },
   { symbol: 'MSTR', name: 'MicroStrategy', price: 123.19, change: '-1.35%', isPositive: false, category: 'BTC Reserve Treasury' },
-  { symbol: 'TSLA', name: 'Tesla Inc', price: 357.01, change: '+0.26%', isPositive: true, category: 'Autonomous AI & Robotics' }
+  { symbol: 'TSLA', name: 'Tesla Inc', price: 357.01, change: '+0.26%', isPositive: true, category: 'Autonomous AI & Robotics' },
+  { symbol: 'DOGE', name: 'Dogecoin Perp', price: 0.0885, change: '+1.45%', isPositive: true, category: 'Meme Liquidity' }
 ];
 
 export const DEFAULT_TRADING_CONFIG = {
