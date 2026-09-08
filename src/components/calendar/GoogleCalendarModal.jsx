@@ -5,21 +5,26 @@ import {
   Calendar, 
   CheckCircle2, 
   RefreshCw, 
-  ExternalLink, 
-  Key, 
   Unlink, 
   X, 
   AlertCircle,
   Copy,
   Check,
-  ShieldAlert
+  ShieldCheck,
+  Lock,
+  ChevronDown,
+  ChevronUp,
+  Settings2,
+  Sparkles
 } from 'lucide-react';
 import { 
   isGoogleCalendarConnected, 
   saveGoogleToken, 
   disconnectGoogleCalendar, 
   fetchGoogleCalendarEvents,
-  signInWithGooglePopup
+  signInWithGooglePopup,
+  getDeviceSyncDetails,
+  getGoogleAccount
 } from '../../utils/googleCalendarService';
 import { playSound } from '../../utils/soundFX';
 
@@ -30,26 +35,46 @@ export const GoogleCalendarModal = ({
   soundEnabled = true 
 }) => {
   const [isConnected, setIsConnected] = useState(false);
+  const [syncDetails, setSyncDetails] = useState({ isConnected: false, hasPermanentAccess: false });
+  const [account, setAccount] = useState(null);
   const [manualToken, setManualToken] = useState('');
+  const [customClientId, setCustomClientId] = useState('');
+  const [customClientSecret, setCustomClientSecret] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
   const [error, setError] = useState(null);
-  const [showManualInput, setShowManualInput] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [copiedOrigin, setCopiedOrigin] = useState(false);
+  const [savedNotice, setSavedNotice] = useState(false);
 
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
 
-  // Check connection status on open
+  // Refresh status on open
   useEffect(() => {
     if (isOpen) {
-      setIsConnected(isGoogleCalendarConnected());
+      const connected = isGoogleCalendarConnected();
+      setIsConnected(connected);
+      setSyncDetails(getDeviceSyncDetails());
+      setAccount(getGoogleAccount());
       setError(null);
       setSyncMessage(null);
       setManualToken('');
+
+      if (typeof localStorage !== 'undefined') {
+        setCustomClientId(localStorage.getItem('wolfe_gcal_client_id') || '');
+        setCustomClientSecret(localStorage.getItem('wolfe_gcal_client_secret') || '');
+      }
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const refreshStatus = () => {
+    const connected = isGoogleCalendarConnected();
+    setIsConnected(connected);
+    setSyncDetails(getDeviceSyncDetails());
+    setAccount(getGoogleAccount());
+  };
 
   const handleGoogleSignIn = async () => {
     playSound('click', soundEnabled);
@@ -59,7 +84,7 @@ export const GoogleCalendarModal = ({
 
     try {
       await signInWithGooglePopup();
-      setIsConnected(true);
+      refreshStatus();
       await handleSyncNow();
     } catch (err) {
       console.warn("Google sign-in notice:", err);
@@ -69,6 +94,27 @@ export const GoogleCalendarModal = ({
     }
   };
 
+  const handleSaveCustomCreds = (e) => {
+    e.preventDefault();
+    if (typeof localStorage === 'undefined') return;
+    playSound('click', soundEnabled);
+
+    if (customClientId.trim()) {
+      localStorage.setItem('wolfe_gcal_client_id', customClientId.trim());
+    } else {
+      localStorage.removeItem('wolfe_gcal_client_id');
+    }
+
+    if (customClientSecret.trim()) {
+      localStorage.setItem('wolfe_gcal_client_secret', customClientSecret.trim());
+    } else {
+      localStorage.removeItem('wolfe_gcal_client_secret');
+    }
+
+    setSavedNotice(true);
+    setTimeout(() => setSavedNotice(false), 2500);
+  };
+
   const handleManualTokenSubmit = async (e) => {
     e.preventDefault();
     if (!manualToken.trim()) return;
@@ -76,7 +122,7 @@ export const GoogleCalendarModal = ({
     playSound('click', soundEnabled);
     setError(null);
     saveGoogleToken(manualToken.trim());
-    setIsConnected(true);
+    refreshStatus();
     await handleSyncNow();
   };
 
@@ -88,7 +134,8 @@ export const GoogleCalendarModal = ({
     try {
       const events = await fetchGoogleCalendarEvents(true);
       playSound('success', soundEnabled);
-      setSyncMessage(`Successfully synced ${events.length} item(s) across all your Google Calendars & Tasks!`);
+      refreshStatus();
+      setSyncMessage(`Successfully synced ${events.length} item(s) across all Google Calendars & Tasks!`);
       if (onSyncSuccess) {
         onSyncSuccess(events);
       }
@@ -96,7 +143,7 @@ export const GoogleCalendarModal = ({
       setError(err.message || "Failed to fetch events from Google Calendar.");
       if (err.message?.includes('expired') || err.message?.includes('401')) {
         disconnectGoogleCalendar();
-        setIsConnected(false);
+        refreshStatus();
       }
     } finally {
       setIsSyncing(false);
@@ -106,7 +153,7 @@ export const GoogleCalendarModal = ({
   const handleDisconnect = () => {
     playSound('click', soundEnabled);
     disconnectGoogleCalendar();
-    setIsConnected(false);
+    refreshStatus();
     setSyncMessage(null);
     setError(null);
   };
@@ -131,7 +178,7 @@ export const GoogleCalendarModal = ({
             playSound('click', soundEnabled);
             onClose();
           }}
-          className="fixed inset-0 top-0 left-0 w-full h-full bg-black/50 backdrop-blur-xl transition-all"
+          className="fixed inset-0 top-0 left-0 w-full h-full bg-black/60 backdrop-blur-xl transition-all"
         />
 
         {/* Modal Container */}
@@ -140,10 +187,10 @@ export const GoogleCalendarModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-lg bg-[#0b0e18]/90 border border-white/15 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-10 space-y-4 max-h-[90vh] overflow-y-auto"
+          className="relative w-full max-w-lg bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] backdrop-blur-2xl z-10 space-y-4 max-h-[92vh] overflow-y-auto"
         >
           {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+          <div className="flex items-center justify-between pb-3.5 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div 
                 className="w-10 h-10 rounded-2xl flex items-center justify-center bg-white/[0.04]"
@@ -152,8 +199,13 @@ export const GoogleCalendarModal = ({
                 <Calendar className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight">Google Calendar & Tasks 2-Way Sync</h3>
-                <p className="text-xs text-slate-400">Stream schedule & events across phone and desktop</p>
+                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                  <span>Google Calendar & Tasks</span>
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-300">
+                    2-Way Sync
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">Persistent device authentication with background auto-sync</p>
               </div>
             </div>
 
@@ -170,50 +222,76 @@ export const GoogleCalendarModal = ({
 
           {/* Connected State Card */}
           {isConnected ? (
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-3">
+            <div className="p-4.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-3.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-bold text-emerald-300">Google Calendar & Tasks Connected</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    {account?.picture ? (
+                      <img src={account.picture} alt="Google Avatar" className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                      <span>{account?.name || 'Device Authenticated'}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">
+                        Permanent
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-300 font-mono truncate max-w-[240px]">
+                      {account?.email || 'Google Calendar & Tasks Active'}
+                    </div>
+                  </div>
                 </div>
-                <span className="text-[10px] font-mono text-emerald-400/80 px-2 py-0.5 rounded bg-emerald-500/20">
-                  Live
+
+                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Sync
                 </span>
               </div>
-              <p className="text-xs text-slate-300">
-                Your Google Calendar & Tasks are synchronized 2-way. Events added in Google Calendar on your phone or in Wolfe OS sync automatically.
-              </p>
 
-              <div className="pt-2 border-t border-emerald-500/20">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSyncNow}
-                    disabled={isSyncing}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
-                    style={{ backgroundColor: 'var(--accent-primary)' }}
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing ? "Syncing..." : "Sync 2-Way Now"}</span>
-                  </button>
-
-                  <button
-                    onClick={handleDisconnect}
-                    className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer"
-                    title="Disconnect Google Account"
-                  >
-                    <Unlink className="w-3.5 h-3.5" />
-                  </button>
+              <div className="text-xs text-slate-300/90 leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2 text-emerald-300 font-medium mb-1">
+                  <Lock className="w-3 h-3" />
+                  <span>Permanent Device Access</span>
                 </div>
+                You signed in once on this device. Events, classes, and tasks sync automatically in the background with zero popup prompts.
+              </div>
+
+              <div className="pt-2 border-t border-emerald-500/20 flex items-center gap-2">
+                <button
+                  onClick={handleSyncNow}
+                  disabled={isSyncing}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isSyncing ? "Syncing Calendar & Tasks..." : "Sync 2-Way Now"}</span>
+                </button>
+
+                <button
+                  onClick={handleDisconnect}
+                  className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
+                  title="Disconnect Device"
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Disconnect</span>
+                </button>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Prominent Official 1-Click Google Sign-In Card */}
+              {/* Primary 1-Click Sign-In Hero Card */}
               <div className="p-5 rounded-2xl bg-[#131728] border border-white/10 space-y-4 text-center">
                 <div className="space-y-1.5 text-center">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-medium mb-1">
+                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                    <span>Sign in once • Stay connected on this device</span>
+                  </div>
                   <h4 className="text-sm font-bold text-white tracking-tight">Connect Your Google Account</h4>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    Sign in with Google to sync your calendar events, exams, assignments, and Google Tasks directly with Wolfe OS.
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    Sync calendar events, exams, assignments, and Google Tasks seamlessly across your phone, laptop, and Wolfe OS.
                   </p>
                 </div>
 
@@ -230,72 +308,134 @@ export const GoogleCalendarModal = ({
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                   </svg>
-                  <span>{isSyncing ? "Signing in..." : "Sign in with Google"}</span>
+                  <span>{isSyncing ? "Connecting device..." : "Sign in with Google"}</span>
                 </button>
 
-                {/* Collapsible Manual Token Option */}
-                <div className="pt-2 border-t border-white/5 space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowManualInput(prev => !prev)}
-                    className="text-[11px] text-slate-400 hover:text-white transition-colors underline cursor-pointer"
-                  >
-                    {showManualInput ? "Hide manual token option" : "Or enter token manually / Vercel Domain Setup"}
-                  </button>
-
-                  {showManualInput && (
-                    <div className="space-y-3 pt-2 text-left">
-                      {/* Vercel Origin Info */}
-                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-1.5 font-sans">
-                        <div className="text-[11px] font-bold text-white flex items-center justify-between">
-                          <span>Current Domain (For Google Cloud):</span>
-                          <button
-                            type="button"
-                            onClick={handleCopyOrigin}
-                            className="text-[10px] flex items-center gap-1 font-mono cursor-pointer transition-opacity hover:opacity-80"
-                            style={{ color: 'var(--accent-primary)' }}
-                          >
-                            {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            <span>{copiedOrigin ? "Copied" : "Copy URL"}</span>
-                          </button>
-                        </div>
-                        <div className="text-xs font-mono truncate bg-black/40 p-2 rounded-lg border border-white/5" style={{ color: 'var(--accent-primary)' }}>
-                          {currentOrigin}
-                        </div>
-                        <p className="text-[10px] text-slate-400 leading-normal">
-                          In Google Cloud Console &gt; Credentials, ensure <code>{currentOrigin}</code> is listed under <strong>Authorized JavaScript origins</strong>.
-                        </p>
-                      </div>
-
-                      {/* Manual Token Form */}
-                      <form onSubmit={handleManualTokenSubmit} className="space-y-2">
-                        <label className="text-[11px] font-semibold text-slate-300 block">
-                          Paste Access / Refresh Token (ya29... or 1//...):
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="password"
-                            value={manualToken}
-                            onChange={(e) => setManualToken(e.target.value)}
-                            placeholder="Paste Token..."
-                            className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder:text-slate-600 outline-none font-mono focus:border-white/30"
-                          />
-                          <button
-                            type="submit"
-                            disabled={!manualToken.trim() || isSyncing}
-                            className="px-3.5 py-2 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 disabled:opacity-30 shrink-0 cursor-pointer"
-                            style={{ backgroundColor: 'var(--accent-primary)' }}
-                          >
-                            Connect
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  )}
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400 text-left pt-2 border-t border-white/5">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>One-time sign in</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>0 popup disruptions</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>2-Way calendar sync</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Google Tasks integration</span>
+                  </div>
                 </div>
               </div>
             </div>
           )}
+
+          {/* Advanced / Developer Configuration Accordion */}
+          <div className="pt-1 border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(prev => !prev)}
+              className="w-full flex items-center justify-between py-2 text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5">
+                <Settings2 className="w-3.5 h-3.5" />
+                <span>Advanced Connection & Custom Credentials</span>
+              </span>
+              {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {showAdvanced && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-3.5 pt-2 pb-1 text-left"
+              >
+                {/* Current Origin Info */}
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-1.5">
+                  <div className="text-[11px] font-bold text-white flex items-center justify-between">
+                    <span>Authorized JavaScript Origin:</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyOrigin}
+                      className="text-[10px] flex items-center gap-1 font-mono cursor-pointer transition-opacity hover:opacity-80"
+                      style={{ color: 'var(--accent-primary)' }}
+                    >
+                      {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedOrigin ? "Copied" : "Copy URL"}</span>
+                    </button>
+                  </div>
+                  <div className="text-xs font-mono truncate bg-black/40 p-2 rounded-lg border border-white/5" style={{ color: 'var(--accent-primary)' }}>
+                    {currentOrigin}
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    In Google Cloud Console &gt; Credentials, ensure <code>{currentOrigin}</code> is registered under <strong>Authorized JavaScript origins</strong>.
+                  </p>
+                </div>
+
+                {/* Custom Client ID & Client Secret Form */}
+                <form onSubmit={handleSaveCustomCreds} className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-white">Custom GCP Project Credentials (Optional):</span>
+                    {savedNotice && (
+                      <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Saved
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={customClientId}
+                      onChange={(e) => setCustomClientId(e.target.value)}
+                      placeholder="Google OAuth Client ID (.apps.googleusercontent.com)"
+                      className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/10 text-xs text-white placeholder:text-slate-600 outline-none font-mono focus:border-white/30"
+                    />
+                    <input
+                      type="password"
+                      value={customClientSecret}
+                      onChange={(e) => setCustomClientSecret(e.target.value)}
+                      placeholder="Google OAuth Client Secret (GOCSPX-...)"
+                      className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/10 text-xs text-white placeholder:text-slate-600 outline-none font-mono focus:border-white/30"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-[11px] font-medium transition-colors cursor-pointer"
+                  >
+                    Save Custom Credentials
+                  </button>
+                </form>
+
+                {/* Manual Token or Refresh Token Paste */}
+                <form onSubmit={handleManualTokenSubmit} className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                  <label className="text-[11px] font-bold text-white block">
+                    Direct Token or Refresh Token (1//... or ya29...):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={manualToken}
+                      onChange={(e) => setManualToken(e.target.value)}
+                      placeholder="Paste Token or Refresh Token..."
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-black/50 border border-white/10 text-xs text-white placeholder:text-slate-600 outline-none font-mono focus:border-white/30"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!manualToken.trim() || isSyncing}
+                      className="px-3 py-1.5 rounded-lg text-white text-xs font-semibold shadow-sm transition-all active:scale-95 disabled:opacity-30 shrink-0 cursor-pointer"
+                      style={{ backgroundColor: 'var(--accent-primary)' }}
+                    >
+                      Connect
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+          </div>
 
           {/* Feedback & Error Messages */}
           {syncMessage && (

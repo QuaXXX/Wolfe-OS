@@ -10,6 +10,8 @@ const GOOGLE_CLIENT_SECRET_KEY = 'wolfe_gcal_client_secret';
 const GOOGLE_ACCESS_TOKEN_KEY = 'wolfe_gcal_token';
 const GOOGLE_REFRESH_TOKEN_KEY = 'wolfe_gcal_refresh_token';
 const GOOGLE_EXPIRY_KEY = 'wolfe_gcal_expiry';
+const GOOGLE_ACCOUNT_KEY = 'wolfe_gcal_account';
+const GOOGLE_DEVICE_AUTH_KEY = 'wolfe_device_authenticated';
 
 const DEFAULT_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || '';
 const DEFAULT_CLIENT_SECRET = import.meta.env?.VITE_GOOGLE_CLIENT_SECRET || '';
@@ -23,25 +25,87 @@ export const GOOGLE_CALENDAR_CONFIG = {
 };
 
 /**
- * Check if user has an active or refreshable Google Calendar connection
+ * Get device-specific identifier for persistent connection tracking
+ */
+export function getOrCreateDeviceId() {
+  if (typeof localStorage === 'undefined') return 'device-unknown';
+  let id = localStorage.getItem('wolfe_device_id');
+  if (!id) {
+    id = 'dev-' + Math.random().toString(36).substring(2, 10);
+    localStorage.setItem('wolfe_device_id', id);
+  }
+  return id;
+}
+
+/**
+ * Get cached Google Account details (email, display name, avatar)
+ */
+export function getGoogleAccount() {
+  if (typeof localStorage === 'undefined') return null;
+  const raw = localStorage.getItem(GOOGLE_ACCOUNT_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save Google Account details
+ */
+export function saveGoogleAccount(account) {
+  if (typeof localStorage === 'undefined' || !account) return;
+  localStorage.setItem(GOOGLE_ACCOUNT_KEY, JSON.stringify(account));
+}
+
+/**
+ * Detailed device authentication & sync health status
+ */
+export function getDeviceSyncDetails() {
+  if (typeof localStorage === 'undefined') {
+    return { isConnected: false, hasPermanentAccess: false, deviceId: 'unknown' };
+  }
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
+  const account = getGoogleAccount();
+  const isConnected = isGoogleCalendarConnected();
+
+  return {
+    isConnected,
+    hasPermanentAccess: !!refreshToken,
+    accountEmail: account?.email || null,
+    accountName: account?.name || null,
+    accountPicture: account?.picture || null,
+    hasActiveToken: !!token,
+    isExpired: isGoogleTokenExpired(),
+    deviceId: getOrCreateDeviceId()
+  };
+}
+
+/**
+ * Check if user has an active or refreshable Google Calendar connection on this device
  */
 export function isGoogleCalendarConnected() {
   if (typeof localStorage === 'undefined') return false;
   const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
   const wasSignedIn = localStorage.getItem('wolfe_user_signed_in_google') === 'true';
+  const deviceAuth = localStorage.getItem(GOOGLE_DEVICE_AUTH_KEY) === 'true';
   
-  if (token || refreshToken || wasSignedIn) return true;
+  if (refreshToken || token || wasSignedIn || deviceAuth) return true;
   return false;
 }
 
 /**
- * Check if token exists but has expired
+ * Check if token exists but has expired (if refresh token is present, connection is still valid)
  */
 export function isGoogleTokenExpired() {
   if (typeof localStorage === 'undefined') return true;
   const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  
+  // A refresh token means the device connection never expires
   if (refreshToken) return false;
   if (!token) return true;
 
@@ -51,42 +115,132 @@ export function isGoogleTokenExpired() {
 }
 
 /**
- * Save tokens to localStorage with long persistence
+ * Save tokens to localStorage with long device persistence
  */
 export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = null) {
-  if (!token || typeof localStorage === 'undefined') return;
-  const clean = token.trim();
+  if (!token && !refreshToken) return;
+  if (typeof localStorage === 'undefined') return;
+
   localStorage.setItem('wolfe_user_signed_in_google', 'true');
+  localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
   
-  if (clean.startsWith('1//')) {
-    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
-  } else {
-    localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, clean);
-    // Real expiration calculation with 120-second proactive refresh buffer
-    const duration = Math.max(300, Number(expiresInSeconds) || 3600);
-    const expiryTime = Date.now() + (duration - 120) * 1000;
-    localStorage.setItem(GOOGLE_EXPIRY_KEY, String(expiryTime));
+  if (token) {
+    const clean = token.trim();
+    if (clean.startsWith('1//')) {
+      localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
+    } else {
+      localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, clean);
+      // Real expiration calculation with 120-second proactive refresh buffer
+      const duration = Math.max(300, Number(expiresInSeconds) || 3600);
+      const expiryTime = Date.now() + (duration - 120) * 1000;
+      localStorage.setItem(GOOGLE_EXPIRY_KEY, String(expiryTime));
+    }
   }
-  if (refreshToken) {
+
+  if (refreshToken && typeof refreshToken === 'string' && refreshToken.trim()) {
     localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, refreshToken.trim());
   }
 }
 
 /**
- * Disconnect Google Calendar
+ * Fetch and save Google user profile (email, name, picture)
+ */
+export async function fetchGoogleUserProfile(token = null) {
+  try {
+    const accessToken = token || await getValidAccessToken();
+    if (!accessToken) return null;
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (res.ok) {
+      const uData = await res.json();
+      const account = {
+        email: uData.email,
+        name: uData.name,
+        picture: uData.picture,
+        id: uData.id,
+        connectedAt: Date.now()
+      };
+      saveGoogleAccount(account);
+      return account;
+    }
+  } catch (e) {
+    // Non-blocking
+  }
+  return null;
+}
+
+/**
+ * Disconnect Google Calendar and wipe device credentials
  */
 export function disconnectGoogleCalendar() {
+  if (typeof localStorage === 'undefined') return;
   localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
   localStorage.removeItem(GOOGLE_EXPIRY_KEY);
   localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
+  localStorage.removeItem(GOOGLE_ACCOUNT_KEY);
+  localStorage.removeItem(GOOGLE_DEVICE_AUTH_KEY);
   localStorage.removeItem('wolfe_user_signed_in_google');
 }
 
 /**
- * Check and handle OAuth redirect from URL hash (essential for mobile browsers)
+ * Exchange Authorization Code for permanent Refresh Token and Access Token
  */
-export function checkAndHandleOAuthRedirect() {
+export async function exchangeCodeForTokens(code, redirectUri = 'postmessage', codeVerifier = '') {
+  if (!code) throw new Error("Missing authorization code.");
+
+  const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+  const clientSecret = localStorage.getItem(GOOGLE_CLIENT_SECRET_KEY) || DEFAULT_CLIENT_SECRET || '';
+
+  const res = await fetch('/api/auth/google-auth?action=exchange', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+      client_id: clientId,
+      client_secret: clientSecret
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || data.details?.error_description || "Failed to exchange authorization code.");
+  }
+
+  // Persist permanent tokens on this device
+  saveGoogleToken(data.access_token, data.expires_in || 3600, data.refresh_token);
+  if (data.user) {
+    saveGoogleAccount(data.user);
+  }
+  localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
+
+  return data;
+}
+
+/**
+ * Check and handle OAuth redirect from URL (essential for mobile browsers & full-page redirects)
+ */
+export async function checkAndHandleOAuthRedirect() {
   if (typeof window === 'undefined') return false;
+
+  // 1. Check for authorization code redirect (?code=...)
+  if (window.location.search && window.location.search.includes('code=')) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (code) {
+        window.history.replaceState(null, '', window.location.pathname);
+        await exchangeCodeForTokens(code, window.location.origin);
+        return true;
+      }
+    } catch (e) {
+      console.warn("OAuth code redirect parse notice:", e);
+    }
+  }
+
+  // 2. Check for access_token hash redirect (#access_token=...)
   if (window.location.hash && window.location.hash.includes('access_token=')) {
     try {
       const hash = window.location.hash.substring(1);
@@ -95,7 +249,9 @@ export function checkAndHandleOAuthRedirect() {
       const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
       if (token) {
         saveGoogleToken(token, expiresIn);
+        localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        fetchGoogleUserProfile(token).catch(() => {});
         return true;
       }
     } catch (e) {
@@ -106,9 +262,11 @@ export function checkAndHandleOAuthRedirect() {
 }
 
 /**
- * One-Click Official Google Sign-In using Google Identity Services (GIS)
+ * Sign in once with Google Authorization Code Flow for Permanent Device Access
+ * Uses GIS initCodeClient (ux_mode: popup) to obtain offline code,
+ * then exchanges it via /api/auth/google-auth for a permanent refresh_token + access_token.
  */
-export function signInWithGooglePopup(clientIdOverride = null) {
+export function signInWithGoogleCode(clientIdOverride = null) {
   return new Promise((resolve, reject) => {
     const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
 
@@ -120,38 +278,43 @@ export function signInWithGooglePopup(clientIdOverride = null) {
       return reject(new Error("Window is not defined."));
     }
 
-    // 1. Google Identity Services (GIS) Token Client (Official flow)
-    if (window.google?.accounts?.oauth2) {
+    // 1. Google Identity Services (GIS) Code Client (Official flow for permanent offline access)
+    if (window.google?.accounts?.oauth2?.initCodeClient) {
       try {
-        const client = window.google.accounts.oauth2.initTokenClient({
+        const client = window.google.accounts.oauth2.initCodeClient({
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
-          callback: (tokenResponse) => {
-            if (tokenResponse.error) {
-              return reject(new Error(tokenResponse.error_description || tokenResponse.error));
+          ux_mode: 'popup',
+          callback: async (response) => {
+            if (response.error) {
+              return reject(new Error(response.error_description || response.error));
             }
-            if (tokenResponse.access_token) {
-              saveGoogleToken(tokenResponse.access_token, tokenResponse.expires_in || 3600);
-              resolve(tokenResponse.access_token);
+            if (response.code) {
+              try {
+                const exchangeResult = await exchangeCodeForTokens(response.code, 'postmessage');
+                resolve(exchangeResult);
+              } catch (exErr) {
+                reject(exErr);
+              }
             } else {
-              reject(new Error("No access token received from Google."));
+              reject(new Error("No authorization code received from Google."));
             }
           },
           error_callback: (err) => {
             reject(new Error(err.message || "Google Sign-In was closed or interrupted."));
           }
         });
-        client.requestAccessToken({ prompt: 'consent' });
+        client.requestCode();
         return;
       } catch (err) {
-        console.warn("GIS token client fallback:", err);
+        console.warn("GIS code client initialization fallback:", err);
       }
     }
 
-    // 2. Mobile/Popup Fallback OAuth 2.0 Flow
+    // 2. Mobile/Popup Fallback OAuth 2.0 Authorization Code Flow
     const redirectUri = window.location.origin;
     const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&include_granted_scopes=true&prompt=consent`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
 
     const isMobile = window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
@@ -170,23 +333,25 @@ export function signInWithGooglePopup(clientIdOverride = null) {
       return;
     }
 
-    const pollTimer = setInterval(() => {
+    const pollTimer = setInterval(async () => {
       try {
         if (popup.closed) {
           clearInterval(pollTimer);
           reject(new Error("Google sign-in window was closed."));
           return;
         }
-        if (popup.location.href && popup.location.href.includes('access_token')) {
-          const hash = popup.location.hash.substring(1);
-          const params = new URLSearchParams(hash);
-          const token = params.get('access_token');
-          const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
-          if (token) {
-            saveGoogleToken(token, expiresIn);
-            popup.close();
+        if (popup.location.href && popup.location.href.includes('code=')) {
+          const url = new URL(popup.location.href);
+          const code = url.searchParams.get('code');
+          if (code) {
             clearInterval(pollTimer);
-            resolve(token);
+            popup.close();
+            try {
+              const exchangeResult = await exchangeCodeForTokens(code, redirectUri);
+              resolve(exchangeResult);
+            } catch (exErr) {
+              reject(exErr);
+            }
           }
         }
       } catch (e) {
@@ -197,46 +362,124 @@ export function signInWithGooglePopup(clientIdOverride = null) {
 }
 
 /**
- * Force refresh access token using refresh_token if available
+ * Master One-Click Google Sign-In
+ * Attempts permanent Authorization Code flow first.
+ * If code exchange requires custom credentials, falls back gracefully to GIS Token Client.
+ */
+export async function signInWithGooglePopup(clientIdOverride = null) {
+  try {
+    return await signInWithGoogleCode(clientIdOverride);
+  } catch (codeErr) {
+    console.warn("Permanent code flow notice, trying GIS direct client fallback:", codeErr);
+
+    return new Promise((resolve, reject) => {
+      const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+
+      if (!clientId) {
+        return reject(new Error("No Google Client ID configured."));
+      }
+
+      if (window.google?.accounts?.oauth2?.initTokenClient) {
+        try {
+          const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
+            callback: (tokenResponse) => {
+              if (tokenResponse.error) {
+                return reject(new Error(tokenResponse.error_description || tokenResponse.error));
+              }
+              if (tokenResponse.access_token) {
+                saveGoogleToken(tokenResponse.access_token, tokenResponse.expires_in || 3600);
+                fetchGoogleUserProfile(tokenResponse.access_token).catch(() => {});
+                resolve(tokenResponse.access_token);
+              } else {
+                reject(new Error("No access token received from Google."));
+              }
+            },
+            error_callback: (err) => {
+              reject(new Error(err.message || "Google Sign-In was closed or interrupted."));
+            }
+          });
+          client.requestAccessToken({ prompt: 'consent' });
+          return;
+        } catch (err) {
+          console.warn("Direct token client fallback:", err);
+        }
+      }
+
+      reject(codeErr);
+    });
+  }
+}
+
+/**
+ * Force refresh access token using permanent refresh_token via serverless proxy or Google token endpoint.
+ * Zero popups, zero iframe cookies required.
  */
 export async function refreshAccessToken() {
   if (typeof localStorage === 'undefined') return null;
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY) || DEFAULT_REFRESH_TOKEN;
-  const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID;
+  if (!refreshToken) return null;
+
+  const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
   const clientSecret = localStorage.getItem(GOOGLE_CLIENT_SECRET_KEY) || DEFAULT_CLIENT_SECRET;
 
-  if (!refreshToken || !clientId || !clientSecret) return null;
-
+  // 1. Primary: Serverless refresh endpoint (/api/auth/google-auth?action=refresh)
   try {
-    const res = await fetch('https://oauth2.googleapis.com/token', {
+    const res = await fetch('/api/auth/google-auth?action=refresh', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         refresh_token: refreshToken,
-        grant_type: 'refresh_token'
+        client_id: clientId,
+        client_secret: clientSecret
       })
     });
 
     if (res.ok) {
       const data = await res.json();
       if (data.access_token) {
-        saveGoogleToken(data.access_token, data.expires_in || 3600);
+        saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken);
         return data.access_token;
       }
     }
-  } catch (err) {
-    console.warn("Token refresh notice:", err);
+  } catch (apiErr) {
+    console.debug("Serverless token refresh notice:", apiErr);
   }
+
+  // 2. Direct Google Token Endpoint fallback (if clientSecret is available)
+  if (clientSecret) {
+    try {
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.access_token) {
+          saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken);
+          return data.access_token;
+        }
+      }
+    } catch (err) {
+      console.warn("Direct token refresh notice:", err);
+    }
+  }
+
   return null;
 }
 
 let activeGisRefreshPromise = null;
 
 /**
- * Attempt silent token renewal via Google Identity Services without showing any popup.
- * Uses prompt: 'none' via hidden iframe.
+ * Secondary fallback: Silent GIS token renewal
  * Never opens a popup or modal window.
  */
 export function silentRefreshGISToken() {
@@ -266,12 +509,10 @@ export function silentRefreshGISToken() {
               resolve(null);
             }
           },
-          error_callback: (err) => {
-            console.debug("Silent GIS token renewal notice:", err);
+          error_callback: () => {
             resolve(null);
           }
         });
-        // prompt: 'none' instructs Google Identity Services to run silently via iframe without any popup window
         client.requestAccessToken({ prompt: 'none' });
       } catch (e) {
         resolve(null);
@@ -301,8 +542,8 @@ export function silentRefreshGISToken() {
 }
 
 /**
- * Get valid access token or refresh
- * Automatically attempts silent background renewal if expired.
+ * Get valid access token or refresh in background
+ * Automatically refreshes in background without popups.
  */
 export async function getValidAccessToken(forceRefresh = false) {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
@@ -313,13 +554,13 @@ export async function getValidAccessToken(forceRefresh = false) {
     return token;
   }
 
-  // 1. Attempt background refresh via refresh_token if configured
+  // 1. Primary: Serverless background refresh via permanent refresh_token
   try {
     const freshToken = await refreshAccessToken();
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Attempt silent GIS renewal in the background (zero popup)
+  // 2. Secondary: GIS silent background renewal
   if (typeof window !== 'undefined' && (token || localStorage.getItem('wolfe_user_signed_in_google') === 'true')) {
     try {
       const silentToken = await silentRefreshGISToken();
@@ -353,9 +594,16 @@ export async function authedGoogleFetch(url, options = {}, retryCount = 1) {
   });
 
   if (res.status === 401 && retryCount > 0) {
-    console.log("🔄 Google access token expired (401). Attempting background renewal...");
+    console.log("🔄 Google access token expired (401). Performing automatic background refresh...");
     localStorage.removeItem(GOOGLE_EXPIRY_KEY);
-    const freshToken = await silentRefreshGISToken();
+    
+    // 1. Try serverless refresh token first
+    let freshToken = await refreshAccessToken();
+    // 2. Fallback to silent GIS token
+    if (!freshToken) {
+      freshToken = await silentRefreshGISToken();
+    }
+
     if (freshToken) {
       return fetch(url, {
         ...options,
