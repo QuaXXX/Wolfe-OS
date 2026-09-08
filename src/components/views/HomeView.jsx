@@ -212,11 +212,11 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
-                    title="Connect your Google Calendar."
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium text-slate-400 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Google Calendar is disconnected. Tap to connect."
                   >
                     <CalendarDays className="w-3 h-3 text-slate-400" />
-                    <span>Connect Calendar</span>
+                    <span>Disconnected</span>
                   </button>
                 )}
 

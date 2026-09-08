@@ -89,7 +89,7 @@ export const SettingsModal = ({
   }, [isOpen, settings?.aiConfig?.apiKey]);
 
   useEffect(() => {
-    setIsGCalConnected(isGoogleCalendarConnected());
+    setIsGCalConnected(isGoogleCalendarConnected() && syncStatus !== 'disconnected');
     setVaultMeta(getVaultMetadata());
     setTradingConfig(getTradingConfig());
     setIsFullscreen(!!document.fullscreenElement);
@@ -103,7 +103,7 @@ export const SettingsModal = ({
       document.removeEventListener('fullscreenchange', handleFsChange);
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
     };
-  }, [isOpen]);
+  }, [isOpen, syncStatus]);
 
   const handleToggleFullscreen = () => {
     playSound('click', soundEnabled);
@@ -697,23 +697,49 @@ export const SettingsModal = ({
                     Google Account & Cross-Device Sync
                   </span>
                 </div>
-                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                  !isGCalConnected ? 'bg-white/5 text-slate-500' :
-                  syncStatus === 'failed' || syncStatus === 'error' ? 'bg-rose-500/20 text-rose-300' :
-                  syncStatus === 'out_of_sync' ? 'bg-amber-500/20 text-amber-300' :
-                  syncStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-400' :
-                  'bg-blue-500/20 text-blue-300'
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                  !isGCalConnected || syncStatus === 'disconnected'
+                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/25'
+                    : syncStatus === 'failed' || syncStatus === 'error'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      : syncStatus === 'syncing'
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                        : syncStatus === 'synced'
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
                 }`}>
-                  {!isGCalConnected ? 'Disconnected' :
-                   syncStatus === 'failed' || syncStatus === 'error' ? 'Sync Failed' :
-                   syncStatus === 'out_of_sync' ? 'Out of Sync' :
-                   syncStatus === 'synced' ? '6 Hubs Live' :
-                   'Connected'}
+                  {!isGCalConnected || syncStatus === 'disconnected'
+                    ? 'Disconnected'
+                    : syncStatus === 'failed' || syncStatus === 'error'
+                      ? 'Sync Failed'
+                      : syncStatus === 'syncing'
+                        ? 'Syncing...'
+                        : '6 Hubs Live'}
                 </span>
               </div>
 
-              {isGCalConnected ? (
+              {isGCalConnected && syncStatus !== 'disconnected' ? (
                 <div className="space-y-2.5 pt-1">
+                  {(syncStatus === 'failed' || syncStatus === 'error') && (
+                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-between text-rose-300 text-xs">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                        <div>
+                          <span className="font-semibold text-rose-200">Sync Problem Detected</span>
+                          <div className="text-[11px] text-rose-300/80">Unable to reach Google Calendar or Cloud Vault. Tap Retry.</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleSyncGCalNow}
+                        disabled={isSyncingGCal}
+                        className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isSyncingGCal ? 'animate-spin' : ''}`} />
+                        <span>Retry</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex flex-col">
                       <span className="text-slate-200 font-medium flex items-center gap-1.5">
@@ -785,8 +811,15 @@ export const SettingsModal = ({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2.5 pt-1">
-                  <p className="text-xs text-slate-400">
+                <div className="space-y-3 pt-1">
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-2.5 text-rose-300 text-xs">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-rose-200">Device Disconnected</div>
+                      <div className="text-[11px] text-rose-300/80">Cross-device sync and Google Calendar are currently offline.</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
                     Sign in once with your Google account to keep all your data (trading, nutrition, workouts, academics, and calendar) automatically synchronized between your phone and computer.
                   </p>
                   <button

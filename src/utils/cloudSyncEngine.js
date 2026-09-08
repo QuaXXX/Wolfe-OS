@@ -264,12 +264,14 @@ export function mergeOsState(localVault, remoteVault) {
     courses: localIsNewerNut ? (localSchool.courses || []) : (remoteSchool.courses || [])
   };
 
-  // 5. CALENDAR MERGE
+  // 5. CALENDAR MERGE (Google Calendar is single master when connected)
   const localCalItems = localVault.calendar?.items || [];
   const remoteCalItems = remoteVault.calendar?.items || [];
   merged.calendar = {
     ...(localIsNewerNut ? localVault.calendar : remoteVault.calendar),
-    items: reconcileCalendarItems(localCalItems, remoteCalItems)
+    items: isGoogleCalendarConnected()
+      ? localCalItems
+      : reconcileCalendarItems(localCalItems, remoteCalItems)
   };
 
   // 6. SETTINGS MERGE
@@ -307,7 +309,8 @@ export function importFullOsState(vault) {
   if (vault.school?.dashboard) {
     writeStorageJson(SYNC_KEYS.SCHOOL, vault.school.dashboard);
   }
-  if (vault.calendar) {
+  // Only apply calendar from vault if Google Calendar is not connected (Google is single master)
+  if (vault.calendar && !isGoogleCalendarConnected()) {
     writeStorageJson(SYNC_KEYS.CALENDAR, vault.calendar);
     writeStorageJson(SYNC_KEYS.CALENDAR_FALLBACK, vault.calendar);
   }

@@ -417,8 +417,8 @@ export const TopBar = ({
                 : "Connect Google Account to sync Phone & Computer"
             }
             className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shrink-0 ${
-              !isGoogleConnected
-                ? 'bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 hover:text-white border-white/10'
+              !isGoogleConnected || syncStatus === 'disconnected'
+                ? 'bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-white border-white/10'
                 : syncStatus === 'failed' || syncStatus === 'error'
                   ? 'bg-rose-500/10 text-rose-300 border-rose-500/25 hover:bg-rose-500/20'
                   : syncStatus === 'syncing'
@@ -435,17 +435,27 @@ export const TopBar = ({
             ) : (
               <Cloud 
                 className={`w-3.5 h-3.5 shrink-0 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`}
-                style={{ color: isGoogleConnected ? (syncStatus === 'failed' ? '#f43f5e' : '#10b981') : 'var(--accent-primary)' }}
+                style={{ color: (!isGoogleConnected || syncStatus === 'disconnected') ? '#94a3b8' : (syncStatus === 'failed' || syncStatus === 'error' ? '#f43f5e' : '#10b981') }}
               />
             )}
             <span className="hidden sm:inline text-[11px]">
-              {!isGoogleConnected ? "Sync PC/Phone" : syncStatus === 'syncing' ? "Syncing..." : "Synced"}
+              {!isGoogleConnected || syncStatus === 'disconnected'
+                ? "Disconnected"
+                : syncStatus === 'failed' || syncStatus === 'error'
+                  ? "Sync Failed"
+                  : syncStatus === 'syncing'
+                    ? "Syncing..."
+                    : "Synced"}
             </span>
-            {isGoogleConnected && (
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                syncStatus === 'failed' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'
-              }`} />
-            )}
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              !isGoogleConnected || syncStatus === 'disconnected'
+                ? 'bg-slate-500'
+                : syncStatus === 'failed' || syncStatus === 'error'
+                  ? 'bg-rose-500'
+                  : syncStatus === 'syncing'
+                    ? 'bg-sky-400 animate-spin'
+                    : 'bg-emerald-400 animate-pulse'
+            }`} />
           </button>
 
           {/* Settings Gear Button */}

@@ -182,7 +182,8 @@ export function App() {
       if (vault.workouts) setWorkoutData(vault.workouts);
       if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
       if (vault.school?.dashboard) setSchoolData(vault.school.dashboard);
-      if (vault.calendar) setCalendarData(vault.calendar);
+      // Only apply calendar from vault if Google Calendar is NOT connected (Google Calendar is single master)
+      if (vault.calendar && !isGoogleCalendarConnected()) setCalendarData(vault.calendar);
       if (vault.settings) setSettings(prev => ({ ...prev, ...vault.settings }));
       setLastSyncTimestamp(Date.now());
       setSyncStatus('synced');
@@ -259,14 +260,14 @@ export function App() {
         }));
       }
 
-      // 3. Fetch fresh remote events & tasks from Google
+      // 3. Fetch fresh remote events & tasks from Google (taking everything directly from Google Calendar)
       const liveGoogleItems = await fetchGoogleCalendarEvents();
       if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
         setCalendarData(prev => ({
           ...prev,
           currentDate: formatDateTitle(getTodayIso()),
           selectedDate: getTodayIso(),
-          items: reconcileCalendarItems(prev.items, liveGoogleItems)
+          items: liveGoogleItems
         }));
         setSyncStatus('synced');
         setLastSyncTimestamp(Date.now());
@@ -324,6 +325,44 @@ export function App() {
       mounted = false;
     };
   }, [syncWithGoogle]);
+
+  const lastMainScreenFetchRef = useRef(0);
+
+  // Everytime we load or navigate back to the main screen, pull fresh directly from Google Calendar
+  useEffect(() => {
+    if (activeView === 'home' && isGoogleCalendarConnected()) {
+      const now = Date.now();
+      // 2.5s debounce throttle to prevent multi-fetch spamming
+      if (now - lastMainScreenFetchRef.current < 2500) return;
+      lastMainScreenFetchRef.current = now;
+
+      (async () => {
+        try {
+          setIsSyncingGoogle(true);
+          setSyncStatus('syncing');
+          const liveGoogleItems = await fetchGoogleCalendarEvents();
+          if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
+            // Take everything directly from Google Calendar onto this one
+            setCalendarData(prev => ({
+              ...prev,
+              currentDate: formatDateTitle(getTodayIso()),
+              selectedDate: getTodayIso(),
+              items: liveGoogleItems
+            }));
+            setSyncStatus('synced');
+            setLastSyncTimestamp(Date.now());
+          } else {
+            setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+          }
+        } catch (err) {
+          console.warn("Main screen Google Calendar pull notice:", err);
+          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+        } finally {
+          setIsSyncingGoogle(false);
+        }
+      })();
+    }
+  }, [activeView]);
 
   // Relaxed background sync: checks quietly once every 5 minutes ONLY if connected and healthy.
   // Never checks on mobile focus, visibility changes, or screen taps (per user request: doesn't always check).
