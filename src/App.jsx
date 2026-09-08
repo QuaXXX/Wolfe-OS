@@ -137,32 +137,6 @@ export function App() {
     };
   });
 
-  // Handle Google OAuth redirect on startup and initialize cloud sync
-  useEffect(() => {
-    (async () => {
-      try {
-        const justAuthorized = await checkAndHandleOAuthRedirect();
-        if (justAuthorized || isGoogleCalendarConnected()) {
-          // Immediately pull and merge cloud vault for all 6 hubs
-          await syncFullOsWithCloud({ forcePush: false });
-          if (isGoogleCalendarConnected()) {
-            const events = await fetchGoogleCalendarEvents();
-            if (events && Array.isArray(events)) {
-              setCalendarData(prev => ({
-                ...prev,
-                items: reconcileCalendarItems(prev.items, events)
-              }));
-            }
-          }
-          setSyncStatus('synced');
-          setLastSyncTimestamp(Date.now());
-        }
-      } catch (err) {
-        console.warn("Google cloud sync on startup:", err);
-      }
-    })();
-  }, []);
-
   const [schoolData, setSchoolData] = useState(() => {
     const saved = localStorage.getItem('wolfe_school_data');
     if (saved) {
@@ -195,11 +169,15 @@ export function App() {
     return INITIAL_TRADING_DATA;
   });
 
+  // Flag to suppress debounced auto-push when applying incoming cloud sync
+  const isApplyingInboundSyncRef = useRef(false);
+
   // Listen for real-time Cloud Sync updates from other devices
   useEffect(() => {
     const handleSyncApplied = (e) => {
       const vault = e.detail?.vault;
       if (!vault) return;
+      isApplyingInboundSyncRef.current = true;
       if (vault.nutrition) setNutritionData(vault.nutrition);
       if (vault.workouts) setWorkoutData(vault.workouts);
       if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
@@ -208,6 +186,9 @@ export function App() {
       if (vault.settings) setSettings(prev => ({ ...prev, ...vault.settings }));
       setLastSyncTimestamp(Date.now());
       setSyncStatus('synced');
+      setTimeout(() => {
+        isApplyingInboundSyncRef.current = false;
+      }, 1500);
     };
 
     const handleSyncStatus = (e) => {
@@ -229,7 +210,7 @@ export function App() {
     };
   }, []);
 
-  // Save changes to localStorage and debounced auto-push to cloud
+  // Save changes to localStorage and debounced auto-push to cloud (suppressed on inbound sync)
   useEffect(() => {
     localStorage.setItem('wolfe_calendar_data', JSON.stringify(calendarData));
     localStorage.setItem('wolfe_school_data', JSON.stringify(schoolData));
@@ -238,7 +219,9 @@ export function App() {
     localStorage.setItem('wolfe_trading_data', JSON.stringify(tradingData));
     localStorage.setItem('wolfe_settings', JSON.stringify(settings));
 
-    triggerDebouncedCloudPush(2000);
+    if (!isApplyingInboundSyncRef.current && isGoogleCalendarConnected()) {
+      triggerDebouncedCloudPush(2500);
+    }
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
 
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
@@ -302,20 +285,44 @@ export function App() {
     }
   }, [settings.soundEnabled]);
 
-  // Handle OAuth redirect on initial app load (only if returning from redirect or already authenticated)
+  // Handle OAuth redirect on initial app load & one-time sign-in prompt if unauthenticated
   useEffect(() => {
+    let mounted = true;
     (async () => {
       try {
         const redirected = await checkAndHandleOAuthRedirect();
         if (redirected) {
-          syncWithGoogle(true);
-        } else if (isGoogleCalendarConnected()) {
-          syncWithGoogle(false);
+          if (mounted) await syncWithGoogle(true);
+          return;
+        }
+
+        if (isGoogleCalendarConnected()) {
+          if (mounted) await syncWithGoogle(false);
+        } else {
+          // Device is disconnected from Google account
+          if (mounted) setSyncStatus('disconnected');
+          // "If needed, show the popup to manually sign in. Do not show this popup multiple times though, it should be a once then forever synced."
+          const hasPrompted = sessionStorage.getItem('wolfe_signin_modal_shown') || localStorage.getItem('wolfe_signin_modal_dismissed');
+          if (!hasPrompted && mounted) {
+            sessionStorage.setItem('wolfe_signin_modal_shown', 'true');
+            setTimeout(() => {
+              if (mounted && !isGoogleCalendarConnected()) {
+                setIsGCalModalOpen(true);
+              }
+            }, 750);
+          }
         }
       } catch (err) {
-        console.warn("OAuth redirect initialization notice:", err);
+        console.warn("OAuth startup initialization notice:", err);
+        if (mounted) {
+          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+        }
       }
     })();
+
+    return () => {
+      mounted = false;
+    };
   }, [syncWithGoogle]);
 
   // Relaxed background sync: checks quietly once every 5 minutes ONLY if connected and healthy.
@@ -477,9 +484,10 @@ export function App() {
         ...prev,
         items: reconcileCalendarItems(prev.items, newItems)
       }));
-      setSyncStatus('synced');
-      setLastSyncTimestamp(Date.now());
     }
+    setSyncStatus('synced');
+    setLastSyncTimestamp(Date.now());
+    localStorage.removeItem('wolfe_signin_modal_dismissed');
   };
 
   // Calendar Item Operations (Universal 2-Way Sync + Undo Tracking)
@@ -1166,7 +1174,10 @@ export function App() {
       {/* Google Calendar 2-Way Sync Modal */}
       <GoogleCalendarModal 
         isOpen={isGCalModalOpen}
-        onClose={() => setIsGCalModalOpen(false)}
+        onClose={() => {
+          setIsGCalModalOpen(false);
+          localStorage.setItem('wolfe_signin_modal_dismissed', 'true');
+        }}
         onSyncSuccess={handleSyncGoogleCalendarSuccess}
         soundEnabled={settings.soundEnabled}
         syncStatus={syncStatus}

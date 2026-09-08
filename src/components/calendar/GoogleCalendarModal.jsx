@@ -107,6 +107,11 @@ export const GoogleCalendarModal = ({
       }
 
       refreshStatus();
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('wolfe_signin_modal_dismissed');
+        localStorage.setItem('wolfe_device_authenticated', 'true');
+        localStorage.setItem('wolfe_user_signed_in_google', 'true');
+      }
 
       // 2. Immediately trigger 2-way cloud sync across all 6 hubs (Trading, Nutrition, Workouts, Academics, Calendar, Settings)
       const cloudRes = await syncFullOsWithCloud({ forcePush: false });
@@ -194,6 +199,9 @@ export const GoogleCalendarModal = ({
   const handleDisconnect = () => {
     playSound('click', soundEnabled);
     disconnectGoogleCalendar();
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('wolfe_signin_modal_dismissed', 'true');
+    }
     refreshStatus();
     setSyncMessage(null);
     setError(null);

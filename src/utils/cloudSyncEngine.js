@@ -281,11 +281,18 @@ export function mergeOsState(localVault, remoteVault) {
   return merged;
 }
 
+let isApplyingRemoteSync = false;
+
+export function isRemoteSyncApplying() {
+  return isApplyingRemoteSync;
+}
+
 /**
  * Save unified vault into device localStorage and dispatch live state events
  */
 export function importFullOsState(vault) {
   if (!vault || typeof vault !== 'object') return false;
+  isApplyingRemoteSync = true;
 
   // 1. Core modules
   if (vault.nutrition) {
@@ -342,6 +349,11 @@ export function importFullOsState(vault) {
       }
     }));
   }
+
+  // Release remote sync suppression after React renders
+  setTimeout(() => {
+    isApplyingRemoteSync = false;
+  }, 1500);
 
   return true;
 }
@@ -498,6 +510,7 @@ let debouncePushTimer = null;
 
 export function triggerDebouncedCloudPush(delayMs = 2500) {
   if (!isGoogleCalendarConnected()) return;
+  if (isApplyingRemoteSync) return;
   if (typeof window === 'undefined') return;
 
   if (debouncePushTimer) {
@@ -505,6 +518,7 @@ export function triggerDebouncedCloudPush(delayMs = 2500) {
   }
 
   debouncePushTimer = setTimeout(() => {
+    if (isApplyingRemoteSync || !isGoogleCalendarConnected()) return;
     syncFullOsWithCloud({ forcePush: false }).catch(err => {
       console.debug("Debounced cloud push notice:", err.message);
     });

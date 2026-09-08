@@ -103,8 +103,24 @@ export function isGoogleCalendarConnected() {
   const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
   
-  // Must have an actual token or refresh token stored on this device
-  return Boolean((token && token.trim()) || (refreshToken && refreshToken.trim()));
+  // 1. Permanent refresh token present -> permanently connected
+  if (refreshToken && refreshToken.trim()) {
+    return true;
+  }
+
+  // 2. Only access token present -> check if still valid
+  if (token && token.trim()) {
+    const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
+    if (expiry && Date.now() > Number(expiry)) {
+      // Clean stale expired token to prevent recurring 401 loops
+      localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
+      localStorage.removeItem(GOOGLE_EXPIRY_KEY);
+      return false;
+    }
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -116,7 +132,7 @@ export function isGoogleTokenExpired() {
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
   
   // A refresh token means the device connection never expires
-  if (refreshToken) return false;
+  if (refreshToken && refreshToken.trim()) return false;
   if (!token) return true;
 
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
@@ -602,12 +618,13 @@ export async function getValidAccessToken(forceRefresh = false) {
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Return existing stored token as best-effort fallback if not expired
+  // 2. Return existing stored token as best-effort fallback ONLY if not expired
   if (token && expiry && Date.now() < Number(expiry)) {
     return token;
   }
 
-  return token || null;
+  // Token is expired and cannot be refreshed silently - do not return invalid token
+  return null;
 }
 
 /**
@@ -656,6 +673,9 @@ export async function authedGoogleFetch(url, options = {}, retryCount = 1) {
           'Authorization': `Bearer ${freshToken}`
         }
       });
+    } else {
+      // Refresh failed; clear dead access token so application knows re-auth is needed
+      localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
     }
   }
 
