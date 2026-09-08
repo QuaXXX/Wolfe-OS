@@ -209,7 +209,7 @@ export const MealLogModal = ({
                     }`}
                   >
                     <span className="text-sm">{slot.icon}</span>
-                    <span className="text-[10px] font-medium leading-tight truncate w-full px-0.5">{slot.name.split(' ')[0]}</span>
+                    <span className="text-[10px] font-medium leading-tight truncate w-full px-0.5">{(slot.label || slot.name || slot.id || '').split(' ')[0]}</span>
                   </button>
                 );
               })}

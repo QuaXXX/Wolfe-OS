@@ -460,11 +460,11 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
 // 4. MEAL SLOTS
 // ---------------------------------------------------------------------------
 export const MEAL_SLOTS = [
-  { id: "breakfast", label: "Breakfast", icon: "🍳" },
-  { id: "lunch", label: "Lunch", icon: "🥗" },
-  { id: "dinner", label: "Dinner", icon: "🥩" },
-  { id: "post_workout", label: "Post-Workout", icon: "⚡" },
-  { id: "snack", label: "Snacks", icon: "🍎" }
+  { id: "breakfast", label: "Breakfast", name: "Breakfast", icon: "🍳" },
+  { id: "lunch", label: "Lunch", name: "Lunch", icon: "🥗" },
+  { id: "dinner", label: "Dinner", name: "Dinner", icon: "🥩" },
+  { id: "post_workout", label: "Post-Workout", name: "Post-Workout", icon: "⚡" },
+  { id: "snack", label: "Snacks", name: "Snacks", icon: "🍎" }
 ];
 
 // ---------------------------------------------------------------------------
