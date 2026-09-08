@@ -137,6 +137,34 @@ export const HomeView = ({
                     <RotateCw className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
                     <span>Syncing...</span>
                   </span>
+                ) : syncStatus === 'synced' ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playSound('click', soundEnabled);
+                      if (onSyncGoogleCalendar) onSyncGoogleCalendar();
+                    }}
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Google Calendar & Tasks are synced. Tap to refresh."
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Synced</span>
+                  </button>
+                ) : (syncStatus === 'failed' || syncStatus === 'error') ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playSound('click', soundEnabled);
+                      if (onSyncGoogleCalendar) onSyncGoogleCalendar();
+                    }}
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-rose-300 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Sync failed or session expired. Tap to reconnect."
+                  >
+                    <AlertCircle className="w-3 h-3 text-rose-400" />
+                    <span>Sync Failed</span>
+                  </button>
                 ) : (syncStatus === 'out_of_sync' && isGoogleConnected) ? (
                   <button
                     type="button"
@@ -145,11 +173,11 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm animate-pulse"
-                    title="Differences detected or uploading local items. Click to sync now."
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Out of sync. Tap to sync now."
                   >
                     <RotateCw className="w-3 h-3 text-amber-400" />
-                    <span>Auto-Syncing...</span>
+                    <span>Out of Sync</span>
                   </button>
                 ) : isGoogleConnected ? (
                   <button
@@ -159,11 +187,11 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
-                    title="Google Calendar is connected & synced. Click to refresh now."
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Connected. Tap to sync."
                   >
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                    <span>Synced</span>
+                    <RotateCw className="w-3 h-3 text-slate-400" />
+                    <span>Sync Now</span>
                   </button>
                 ) : (
                   <button
@@ -173,11 +201,11 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm animate-pulse"
-                    title="Google Calendar is not synced. Click to connect & sync."
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Connect your Google Calendar."
                   >
-                    <RotateCw className="w-3 h-3 text-amber-400" />
-                    <span>Sync Google</span>
+                    <CalendarDays className="w-3 h-3 text-slate-400" />
+                    <span>Connect Calendar</span>
                   </button>
                 )}
 

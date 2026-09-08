@@ -194,7 +194,7 @@ export function App() {
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
 
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
-  const [syncStatus, setSyncStatus] = useState(() => isGoogleCalendarConnected() ? 'synced' : 'disconnected');
+  const [syncStatus, setSyncStatus] = useState(() => isGoogleCalendarConnected() ? 'connected' : 'disconnected');
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState(0);
   const syncTimeoutRef = useRef(null);
   const calendarItemsRef = useRef(calendarData.items);
@@ -240,12 +240,12 @@ export function App() {
           playSound('success', settings.soundEnabled);
         }
       } else {
-        // If fetch returned null (e.g. auth expired or network issue), mark out of sync
-        setSyncStatus('out_of_sync');
+        // If fetch returned null (e.g. auth expired or session invalid), mark failed
+        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
       }
     } catch (err) {
       console.warn("Auto sync notice:", err);
-      setSyncStatus('out_of_sync');
+      setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
     } finally {
       setIsSyncingGoogle(false);
     }
@@ -1112,6 +1112,9 @@ export function App() {
         onClose={() => setIsGCalModalOpen(false)}
         onSyncSuccess={handleSyncGoogleCalendarSuccess}
         soundEnabled={settings.soundEnabled}
+        syncStatus={syncStatus}
+        lastSyncTimestamp={lastSyncTimestamp}
+        onSyncNow={() => syncWithGoogle(true)}
       />
 
       {/* Reusable Coming Soon Feature Preview Modal */}

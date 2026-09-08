@@ -8,6 +8,8 @@ import {
   Unlink, 
   X, 
   AlertCircle,
+  Clock,
+  RotateCw,
   Copy,
   Check,
   ShieldCheck,
@@ -33,7 +35,10 @@ export const GoogleCalendarModal = ({
   isOpen, 
   onClose, 
   onSyncSuccess,
-  soundEnabled = true 
+  soundEnabled = true,
+  syncStatus = 'connected',
+  lastSyncTimestamp = 0,
+  onSyncNow = null
 }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [syncDetails, setSyncDetails] = useState({ isConnected: false, hasPermanentAccess: false });
@@ -223,53 +228,117 @@ export const GoogleCalendarModal = ({
 
           {/* Connected State Card */}
           {isConnected ? (
-            <div className="p-4.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-3.5">
+            <div className={`p-4.5 rounded-2xl border space-y-3.5 ${
+              (error || syncStatus === 'failed' || syncStatus === 'error')
+                ? 'bg-rose-500/10 border-rose-500/20'
+                : 'bg-emerald-500/10 border-emerald-500/20'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                  <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${
+                    (error || syncStatus === 'failed' || syncStatus === 'error')
+                      ? 'bg-rose-500/20 border-rose-500/30'
+                      : 'bg-emerald-500/20 border-emerald-500/30'
+                  }`}>
                     {account?.picture ? (
                       <img src={account.picture} alt="Google Avatar" className="w-full h-full rounded-full object-cover" />
+                    ) : (error || syncStatus === 'failed' || syncStatus === 'error') ? (
+                      <AlertCircle className="w-4 h-4 text-rose-400" />
                     ) : (
                       <ShieldCheck className="w-4 h-4 text-emerald-400" />
                     )}
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                      <span>{account?.name || 'Device Authenticated'}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">
-                        Permanent
+                    <div className={`text-xs font-bold flex items-center gap-1.5 ${
+                      (error || syncStatus === 'failed' || syncStatus === 'error') ? 'text-rose-300' : 'text-emerald-300'
+                    }`}>
+                      <span>{account?.name || ((error || syncStatus === 'failed' || syncStatus === 'error') ? 'Sync Failed' : 'Device Authenticated')}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
+                        (error || syncStatus === 'failed' || syncStatus === 'error') ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
+                      }`}>
+                        {(error || syncStatus === 'failed' || syncStatus === 'error') ? 'Attention' : 'Connected'}
                       </span>
                     </div>
                     <div className="text-[11px] text-slate-300 font-mono truncate max-w-[240px]">
-                      {account?.email || 'Google Calendar & Tasks Active'}
+                      {account?.email || 'Google Calendar & Tasks'}
                     </div>
                   </div>
                 </div>
 
-                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Sync
+                <span className={`flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border ${
+                  (error || syncStatus === 'failed' || syncStatus === 'error')
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                    : syncStatus === 'synced'
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : isSyncing
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}>
+                  {(error || syncStatus === 'failed' || syncStatus === 'error') ? (
+                    <>
+                      <AlertCircle className="w-3 h-3 text-rose-400" />
+                      <span>Sync Failed</span>
+                    </>
+                  ) : syncStatus === 'synced' ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Live Synced</span>
+                    </>
+                  ) : isSyncing ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 text-sky-400 animate-spin" />
+                      <span>Syncing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="w-3 h-3 text-amber-400" />
+                      <span>Connected</span>
+                    </>
+                  )}
                 </span>
               </div>
 
-              <div className="text-xs text-slate-300/90 leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
-                <div className="flex items-center gap-2 text-emerald-300 font-medium mb-1">
-                  <Lock className="w-3 h-3" />
-                  <span>Permanent Device Access</span>
+              {(error || syncStatus === 'failed' || syncStatus === 'error') ? (
+                <div className="text-xs text-rose-300 bg-rose-500/10 p-3 rounded-xl border border-rose-500/25 space-y-1">
+                  <div className="flex items-center gap-2 font-semibold text-rose-200">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Session Expired or Unauthorized</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-rose-300/90">
+                    Your Google session is no longer valid or calendar access was interrupted. Tap <strong>Reconnect Account</strong> below to re-authorize with 1 click.
+                  </p>
                 </div>
-                You signed in once on this device. Events, classes, and tasks sync automatically in the background with zero popup prompts.
-              </div>
+              ) : (
+                <div className="text-xs text-slate-300/90 leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2 text-emerald-300 font-medium mb-1">
+                    <Lock className="w-3 h-3" />
+                    <span>Permanent Device Access</span>
+                  </div>
+                  You signed in once on this device. Events, classes, and tasks sync automatically in the background with zero popup prompts.
+                </div>
+              )}
 
-              <div className="pt-2 border-t border-emerald-500/20 flex items-center gap-2">
-                <button
-                  onClick={handleSyncNow}
-                  disabled={isSyncing}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
-                  style={{ backgroundColor: 'var(--accent-primary)' }}
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span>{isSyncing ? "Syncing Calendar & Tasks..." : "Sync 2-Way Now"}</span>
-                </button>
+              <div className="pt-2 border-t border-white/10 flex items-center gap-2">
+                {(error || syncStatus === 'failed' || syncStatus === 'error') ? (
+                  <button
+                    onClick={handleGoogleSignIn}
+                    disabled={isSyncing}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer bg-rose-600 hover:bg-rose-500 transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span>{isSyncing ? "Connecting..." : "Reconnect Account"}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSyncNow}
+                    disabled={isSyncing}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span>{isSyncing ? "Syncing Calendar & Tasks..." : "Sync 2-Way Now"}</span>
+                  </button>
+                )}
 
                 <button
                   onClick={handleDisconnect}
@@ -310,7 +379,7 @@ export const GoogleCalendarModal = ({
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                   </svg>
                   <span>
-                    {isSyncing ? (isMobileDevice() ? "Redirecting to Google..." : "Connecting device...") : "Sign in with Google"}
+                    {isSyncing ? "Connecting device..." : "Sign in with Google"}
                   </span>
                 </button>
 
@@ -357,25 +426,46 @@ export const GoogleCalendarModal = ({
                 exit={{ opacity: 0, height: 0 }}
                 className="space-y-3.5 pt-2 pb-1 text-left"
               >
-                {/* Current Origin Info */}
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-1.5">
-                  <div className="text-[11px] font-bold text-white flex items-center justify-between">
-                    <span>Authorized JavaScript Origin:</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyOrigin}
-                      className="text-[10px] flex items-center gap-1 font-mono cursor-pointer transition-opacity hover:opacity-80"
-                      style={{ color: 'var(--accent-primary)' }}
-                    >
-                      {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedOrigin ? "Copied" : "Copy URL"}</span>
-                    </button>
+                {/* Current Origin & Redirect URI Info */}
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2.5">
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-bold text-white flex items-center justify-between">
+                      <span>Authorized JavaScript Origin (for 1-Click Sign-In):</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyOrigin}
+                        className="text-[10px] flex items-center gap-1 font-mono cursor-pointer transition-opacity hover:opacity-80"
+                        style={{ color: 'var(--accent-primary)' }}
+                      >
+                        {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedOrigin ? "Copied" : "Copy URL"}</span>
+                      </button>
+                    </div>
+                    <div className="text-xs font-mono truncate bg-black/40 p-2 rounded-lg border border-white/5" style={{ color: 'var(--accent-primary)' }}>
+                      {currentOrigin}
+                    </div>
                   </div>
-                  <div className="text-xs font-mono truncate bg-black/40 p-2 rounded-lg border border-white/5" style={{ color: 'var(--accent-primary)' }}>
-                    {currentOrigin}
+
+                  <div className="space-y-1 pt-1.5 border-t border-white/5">
+                    <div className="text-[11px] font-bold text-white flex items-center justify-between">
+                      <span>Authorized Redirect URI (for Code / Offline Flow):</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyOrigin}
+                        className="text-[10px] flex items-center gap-1 font-mono cursor-pointer transition-opacity hover:opacity-80"
+                        style={{ color: 'var(--accent-primary)' }}
+                      >
+                        {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedOrigin ? "Copied" : "Copy URI"}</span>
+                      </button>
+                    </div>
+                    <div className="text-xs font-mono truncate bg-black/40 p-2 rounded-lg border border-white/5 text-slate-300">
+                      {currentOrigin}
+                    </div>
                   </div>
-                  <p className="text-[10px] text-slate-400 leading-normal">
-                    In Google Cloud Console &gt; Credentials, ensure <code>{currentOrigin}</code> is registered under <strong>Authorized JavaScript origins</strong>.
+
+                  <p className="text-[10px] text-slate-400 leading-normal pt-1">
+                    In Google Cloud Console &gt; Credentials, register <code>{currentOrigin}</code> under <strong>Authorized JavaScript origins</strong>. If using serverless code exchange, also add it under <strong>Authorized redirect URIs</strong> to prevent Error 400 &quot;Access blocked: app&apos;s request is invalid&quot;.
                   </p>
                 </div>
 

@@ -272,9 +272,38 @@ export async function checkAndHandleOAuthRedirect() {
 }
 
 /**
- * Sign in once with Google Authorization Code Flow for Permanent Device Access
- * On mobile: navigates directly to Google OAuth page (zero popups, zero popup blockers).
- * On desktop: uses GIS initCodeClient (popup mode) or OAuth popup window.
+ * Ensure Google Identity Services (GIS) client script is loaded
+ */
+export async function ensureGoogleGsiLoaded() {
+  if (typeof window === 'undefined') return false;
+  if (window.google?.accounts?.oauth2?.initTokenClient) return true;
+
+  if (!document.querySelector('script[src*="accounts.google.com/gsi/client"]')) {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (window.google?.accounts?.oauth2?.initTokenClient) {
+        clearInterval(interval);
+        resolve(true);
+      } else if (attempts > 35) {
+        clearInterval(interval);
+        resolve(false);
+      }
+    }, 100);
+  });
+}
+
+/**
+ * Sign in once with Google Authorization Code Flow for Permanent Device Access (Offline flow)
+ * Uses GIS initCodeClient (popup mode) or OAuth popup window with custom credentials.
  */
 export function signInWithGoogleCode(clientIdOverride = null) {
   return new Promise((resolve, reject) => {
@@ -288,18 +317,7 @@ export function signInWithGoogleCode(clientIdOverride = null) {
       return reject(new Error("Window is not defined."));
     }
 
-    const redirectUri = window.location.origin;
-    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
-
-    // 1. MOBILE BROWSERS: Direct full-page redirect is the ONLY reliable flow.
-    // Never attempt popups or iframes on mobile as iOS Safari & Chrome block/flash them.
-    if (isMobileDevice()) {
-      window.location.href = authUrl;
-      return;
-    }
-
-    // 2. DESKTOP: Google Identity Services (GIS) Code Client (Official popup flow)
+    // DESKTOP & MODERN BROWSERS: Google Identity Services (GIS) Code Client (Official popup flow)
     if (window.google?.accounts?.oauth2?.initCodeClient) {
       try {
         const client = window.google.accounts.oauth2.initCodeClient({
@@ -332,7 +350,11 @@ export function signInWithGoogleCode(clientIdOverride = null) {
       }
     }
 
-    // 3. DESKTOP FALLBACK: Standard centered popup window
+    const redirectUri = window.location.origin;
+    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+
+    // Popup window fallback
     const width = 500;
     const height = 620;
     const left = window.screenX + (window.outerWidth - width) / 2;
@@ -340,9 +362,7 @@ export function signInWithGoogleCode(clientIdOverride = null) {
     const popup = window.open(authUrl, 'google_signin_popup', `width=${width},height=${height},left=${left},top=${top}`);
 
     if (!popup) {
-      // If popup blocker intervened on desktop, fallback to redirect
-      window.location.href = authUrl;
-      return;
+      return reject(new Error("Popup blocked by browser. Please allow popups for Wolfe OS."));
     }
 
     const pollTimer = setInterval(async () => {
@@ -374,63 +394,60 @@ export function signInWithGoogleCode(clientIdOverride = null) {
 }
 
 /**
- * Master One-Click Google Sign-In
- * Runs mobile direct redirect on handhelds, or desktop popup with clean error handling.
- * Never cascades into secondary flashing popups.
+ * Master One-Click Google Sign-In (Client-side Token Flow)
+ * Uses Google Identity Services initTokenClient for both mobile and desktop.
+ * Does NOT require custom redirect_uri registration (bypasses Error 400 "Access blocked: app's request is invalid").
+ * Reliably requests calendar & tasks permissions without full-page navigation.
  */
 export async function signInWithGooglePopup(clientIdOverride = null) {
-  // On mobile, always invoke the direct full-page navigation code flow
-  if (isMobileDevice()) {
-    return signInWithGoogleCode(clientIdOverride);
+  const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+
+  if (!clientId) {
+    throw new Error("No Google Client ID configured.");
   }
 
-  try {
-    return await signInWithGoogleCode(clientIdOverride);
-  } catch (codeErr) {
-    // If the user deliberately cancelled or closed the window, do not spawn another window
-    if (codeErr.message?.includes('closed') || codeErr.message?.includes('denied')) {
-      throw codeErr;
-    }
+  if (typeof window === 'undefined') {
+    throw new Error("Window is not defined.");
+  }
 
-    // Only if GIS code client completely failed to initialize on desktop, attempt token client fallback
-    return new Promise((resolve, reject) => {
-      const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+  // Ensure GIS library is available
+  await ensureGoogleGsiLoaded();
 
-      if (!clientId) {
-        return reject(new Error("No Google Client ID configured."));
-      }
+  if (!window.google?.accounts?.oauth2?.initTokenClient) {
+    throw new Error("Google Identity Services is initializing. Please try again in a moment.");
+  }
 
-      if (window.google?.accounts?.oauth2?.initTokenClient) {
-        try {
-          const client = window.google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
-            callback: (tokenResponse) => {
-              if (tokenResponse.error) {
-                return reject(new Error(tokenResponse.error_description || tokenResponse.error));
-              }
-              if (tokenResponse.access_token) {
-                saveGoogleToken(tokenResponse.access_token, tokenResponse.expires_in || 3600);
-                fetchGoogleUserProfile(tokenResponse.access_token).catch(() => {});
-                resolve(tokenResponse.access_token);
-              } else {
-                reject(new Error("No access token received from Google."));
-              }
-            },
-            error_callback: (err) => {
-              reject(new Error(err.message || "Google Sign-In was closed."));
-            }
-          });
-          client.requestAccessToken({ prompt: 'consent' });
-          return;
-        } catch (err) {
-          console.warn("Direct token client fallback:", err);
+  return new Promise((resolve, reject) => {
+    try {
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
+        callback: (tokenResponse) => {
+          if (tokenResponse.error) {
+            return reject(new Error(tokenResponse.error_description || tokenResponse.error));
+          }
+          if (tokenResponse.access_token) {
+            const expiresIn = tokenResponse.expires_in || 3600;
+            saveGoogleToken(tokenResponse.access_token, expiresIn);
+            localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
+            fetchGoogleUserProfile(tokenResponse.access_token).catch(() => {});
+            resolve(tokenResponse.access_token);
+          } else {
+            reject(new Error("No access token received from Google."));
+          }
+        },
+        error_callback: (err) => {
+          reject(new Error(err.message || "Google Sign-In was closed or cancelled."));
         }
-      }
+      });
 
-      reject(codeErr);
-    });
-  }
+      // Prompt for consent synchronously on user click/tap
+      client.requestAccessToken({ prompt: 'consent' });
+    } catch (err) {
+      console.warn("GIS initTokenClient error:", err);
+      reject(err);
+    }
+  });
 }
 
 /**
@@ -749,7 +766,17 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
         headers: { 'Accept': 'application/json' }
       });
 
-      if (response.ok) {
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errMsg = errData.error?.message || `Google Calendar API error (${response.status})`;
+        console.warn(`Google Calendar API error for ${calId} (${response.status}):`, errMsg);
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(`Google authorization expired or rejected (${response.status}). Please reconnect calendar.`);
+        }
+        if (calId === 'primary') {
+          throw new Error(`Google Calendar primary sync failed (${response.status}): ${errMsg}`);
+        }
+      } else {
         const data = await response.json();
         const rawItems = data.items || [];
 
@@ -808,6 +835,10 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
       }
     } catch (err) {
       console.warn(`Calendar fetch error for ${calId}:`, err);
+      // Re-throw critical authentication and primary calendar errors
+      if (err.message?.includes('expired') || err.message?.includes('unauthorized') || err.message?.includes('rejected') || err.message?.includes('primary')) {
+        throw err;
+      }
     }
   }
 

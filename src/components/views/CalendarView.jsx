@@ -8,6 +8,7 @@ import {
   Clock, 
   AlertOctagon, 
   CheckCircle2, 
+  AlertCircle,
   Circle, 
   ListTodo, 
   X,
@@ -301,29 +302,49 @@ export const CalendarView = ({
                   if (onSyncGoogle) onSyncGoogle();
                 }}
                 disabled={isSyncingGoogle || syncStatus === 'syncing'}
-                title="Sync 2-way with Google Calendar"
+                title={
+                  syncStatus === 'failed' || syncStatus === 'error'
+                    ? "Google sync failed or session expired. Tap to reconnect."
+                    : syncStatus === 'synced'
+                      ? "Google Calendar & Tasks are synced. Tap to refresh."
+                      : "Sync 2-way with Google Calendar"
+                }
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all shrink-0 cursor-pointer disabled:opacity-60 ${
-                  syncStatus === 'out_of_sync'
-                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                    : 'bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white border-white/10'
+                  syncStatus === 'failed' || syncStatus === 'error'
+                    ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 hover:bg-rose-500/25'
+                    : syncStatus === 'out_of_sync'
+                      ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                      : syncStatus === 'synced'
+                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
+                        : 'bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white border-white/10'
                 }`}
               >
-                <RefreshCw 
-                  className={`w-3.5 h-3.5 ${
-                    isSyncingGoogle || syncStatus === 'syncing' 
-                      ? 'animate-spin text-emerald-400' 
-                      : syncStatus === 'out_of_sync' 
-                        ? 'text-amber-400 animate-pulse' 
-                        : ''
-                  }`} 
-                  style={!isSyncingGoogle && syncStatus === 'synced' ? { color: 'var(--accent-primary)' } : {}} 
-                />
+                {syncStatus === 'failed' || syncStatus === 'error' ? (
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                ) : syncStatus === 'synced' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : (
+                  <RefreshCw 
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isSyncingGoogle || syncStatus === 'syncing' 
+                        ? 'animate-spin text-emerald-400' 
+                        : syncStatus === 'out_of_sync' 
+                          ? 'text-amber-400 animate-pulse' 
+                          : ''
+                    }`} 
+                    style={!isSyncingGoogle && syncStatus === 'synced' ? { color: 'var(--accent-primary)' } : {}} 
+                  />
+                )}
                 <span>
                   {isSyncingGoogle || syncStatus === 'syncing' 
                     ? "Syncing..." 
-                    : syncStatus === 'out_of_sync' 
-                      ? "Auto-Syncing..." 
-                      : "Sync"}
+                    : syncStatus === 'failed' || syncStatus === 'error'
+                      ? "Sync Failed"
+                      : syncStatus === 'out_of_sync' 
+                        ? "Out of Sync" 
+                        : syncStatus === 'synced'
+                          ? "Synced"
+                          : "Sync"}
                 </span>
               </button>
 
