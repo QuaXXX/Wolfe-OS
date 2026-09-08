@@ -2156,3 +2156,190 @@ Return ONLY valid JSON matching this schema:
   };
 }
 
+/**
+ * Scans a Nutrition Facts label, packaging text, or barcode from a food product image using Gemini Vision
+ */
+export async function scanNutritionLabelWithAI({ imageBase64, mimeType = 'image/jpeg', aiConfig = DEFAULT_AI_CONFIG }) {
+  const apiKey = aiConfig?.apiKey || API_KEY;
+  if (!apiKey || !imageBase64) {
+    return {
+      hasLabel: false,
+      errorMessage: "No API key configured or no image provided."
+    };
+  }
+
+  const rawBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+  const visionModels = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite'
+  ];
+
+  const systemInstruction = `You are an OCR nutrition facts label reader and barcode scanner for Wolfe OS.
+Inspect the food label, nutrition facts table, packaging, or barcode in the image.
+Extract exact printed nutrition facts:
+- "productName": Clean name of the product or item (e.g. "Nature Valley Oats & Honey Granola Bar", "Pure Protein Chocolate Peanut Butter Bar", "Chobani Plain Greek Yogurt")
+- "brand": Brand name if visible
+- "servingSize": Printed serving size (e.g. "1 bar (42g)", "2 scoops (64g)", "1 cup (240ml)")
+- "servingsPerContainer": Number or string if visible
+- "calories": Number of calories per serving
+- "protein": Grams of protein per serving (number)
+- "carbs": Grams of total carbohydrates per serving (number)
+- "fats": Grams of total fat per serving (number)
+- "fiber": Grams of dietary fiber per serving (number or null)
+- "sugar": Grams of total sugars per serving (number or null)
+- "barcodeNumber": Numeric barcode (UPC / EAN) digits if visible in image, else null
+- "hasLabel": Set to false ONLY if the image does not contain any readable food label, package, barcode, or nutritional info.
+- "errorMessage": String explanation if hasLabel is false.
+
+Return ONLY valid JSON matching this schema:
+{
+  "hasLabel": true,
+  "productName": "Granola Bar",
+  "brand": "Nature Valley",
+  "servingSize": "1 pouch / 2 bars (42g)",
+  "servingsPerContainer": 1,
+  "calories": 190,
+  "protein": 4,
+  "carbs": 29,
+  "fats": 7,
+  "fiber": 2,
+  "sugar": 11,
+  "barcodeNumber": null,
+  "notes": "Exact values read from Nutrition Facts label"
+}`;
+
+  const prompt = "Read the Nutrition Facts label, product title, and barcode from this food package.";
+
+  for (const model of visionModels) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 14000);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: mimeType || 'image/jpeg',
+                    data: rawBase64
+                  }
+                }
+              ]
+            }
+          ],
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+            maxOutputTokens: 2048
+          }
+        })
+      });
+
+      clearTimeout(timeoutId);
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const textPart = parts.find(p => p.text && !p.thought) || parts[0];
+      const rawText = textPart?.text || '';
+
+      if (rawText) {
+        const parsed = safeParseJson(rawText);
+        if (parsed) {
+          if (parsed.hasLabel === false) {
+            return {
+              hasLabel: false,
+              errorMessage: parsed.errorMessage || "Could not read Nutrition Facts label. Please ensure the label is well-lit and clear."
+            };
+          }
+          return {
+            hasLabel: true,
+            productName: parsed.productName || "Packaged Food Item",
+            brand: parsed.brand || "",
+            servingSize: parsed.servingSize || "1 serving",
+            servingsPerContainer: parsed.servingsPerContainer || 1,
+            calories: Number(parsed.calories) || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats),
+            protein: Number(parsed.protein) || 0,
+            carbs: Number(parsed.carbs) || 0,
+            fats: Number(parsed.fats) || 0,
+            fiber: parsed.fiber != null ? Number(parsed.fiber) : null,
+            sugar: parsed.sugar != null ? Number(parsed.sugar) : null,
+            barcodeNumber: parsed.barcodeNumber || null,
+            notes: parsed.notes || "Read from Nutrition Facts label"
+          };
+        }
+      }
+    } catch (err) {
+      // try next model
+    }
+  }
+
+  return {
+    hasLabel: false,
+    errorMessage: "Could not read label. Please take a clearer, closer photo of the Nutrition Facts panel or barcode."
+  };
+}
+
+/**
+ * Lookup barcode directly from Open Food Facts API
+ */
+export async function lookupBarcodeOpenFoodFacts(barcode) {
+  const cleanBarcode = (barcode || '').replace(/\D/g, '');
+  if (!cleanBarcode || cleanBarcode.length < 8) return null;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${cleanBarcode}.json`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.status !== 1 || !data.product) return null;
+
+    const p = data.product;
+    const nutriments = p.nutriments || {};
+    
+    // Check serving first, else 100g
+    const cals = Math.round(Number(nutriments['energy-kcal_serving'] || nutriments['energy-kcal_100g'] || 0));
+    const protein = Math.round(Number(nutriments['proteins_serving'] || nutriments['proteins_100g'] || 0));
+    const carbs = Math.round(Number(nutriments['carbohydrates_serving'] || nutriments['carbohydrates_100g'] || 0));
+    const fats = Math.round(Number(nutriments['fat_serving'] || nutriments['fat_100g'] || 0));
+    const fiber = nutriments['fiber_serving'] != null ? Math.round(Number(nutriments['fiber_serving'])) : null;
+    const sugar = nutriments['sugars_serving'] != null ? Math.round(Number(nutriments['sugars_serving'])) : null;
+
+    return {
+      hasLabel: true,
+      productName: p.product_name || p.generic_name || `Barcode Item (${cleanBarcode})`,
+      brand: p.brands || '',
+      servingSize: p.serving_size || '1 serving',
+      calories: cals || calculateCaloriesFromMacros(protein, carbs, fats),
+      protein,
+      carbs,
+      fats,
+      fiber,
+      sugar,
+      barcodeNumber: cleanBarcode,
+      notes: "Verified via Open Food Facts database"
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+

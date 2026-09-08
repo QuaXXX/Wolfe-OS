@@ -16,6 +16,7 @@ import {
   AlertCircle,
   BookmarkPlus,
   Edit3,
+  Barcode,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,7 +28,8 @@ import {
   calculateMovingAverageWeight, 
   calculateWeightVelocity, 
   getAdaptiveSurplusRecommendation,
-  createMealEntry 
+  createMealEntry,
+  DEFAULT_HOUSEHOLD_PANTRY 
 } from '../../utils/nutritionEngine.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
@@ -46,6 +48,9 @@ export const NutritionView = ({
   const [isSnapModalOpen, setIsSnapModalOpen] = useState(false);
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [activeQuickSlot, setActiveQuickSlot] = useState('lunch');
+  const [snapModalMode, setSnapModalMode] = useState('plate');
+  const [pantryCategory, setPantryCategory] = useState('common');
+  const [justLoggedToast, setJustLoggedToast] = useState(null);
 
   // Destructure state from nutritionData with safe fallbacks
   const targetCalories = nutritionData.targetCalories || 3250;
@@ -56,7 +61,7 @@ export const NutritionView = ({
   const waterMl = nutritionData.waterMl || 0;
   const meals = nutritionData.meals || [];
   const weightHistory = nutritionData.weightHistory || [];
-  const householdPantry = nutritionData.householdPantry || [];
+  const householdPantry = (nutritionData.householdPantry && nutritionData.householdPantry.length > 0) ? nutritionData.householdPantry : DEFAULT_HOUSEHOLD_PANTRY;
 
   // Target modal form state
   const [customCalories, setCustomCalories] = useState(targetCalories);
@@ -84,6 +89,28 @@ export const NutritionView = ({
   const surplusRecommendation = useMemo(() => {
     return getAdaptiveSurplusRecommendation(weightHistory, targetCalories);
   }, [weightHistory, targetCalories]);
+
+  
+  // Filtered pantry list based on category
+  const filteredPantry = useMemo(() => {
+    if (pantryCategory === 'all') return householdPantry;
+    if (pantryCategory === 'common') {
+      const commonIds = [
+        'staple-eggs-2',
+        'staple-apple',
+        'staple-granola-bar',
+        'staple-protein-bar',
+        'staple-banana',
+        'staple-whey',
+        'staple-greek-yogurt',
+        'staple-chicken',
+        'staple-rice',
+        'staple-pb'
+      ];
+      return householdPantry.filter(s => commonIds.includes(s.id) || s.category === 'Common' || s.category === 'Protein' || s.category === 'Fruit' || s.category === 'Snacks').slice(0, 10);
+    }
+    return householdPantry.filter(s => (s.category || '').toLowerCase() === pantryCategory.toLowerCase());
+  }, [householdPantry, pantryCategory]);
 
   const latestWeightLog = useMemo(() => {
     if (!weightHistory.length) return null;
@@ -132,9 +159,11 @@ export const NutritionView = ({
       protein: staple.protein,
       carbs: staple.carbs,
       fats: staple.fats,
-      items: [staple.portion || staple.name]
+      items: [`${staple.portion || staple.name} (${staple.calories} kcal, ${staple.protein}g P)`]
     });
     handleLogMeal(meal);
+    setJustLoggedToast(`Logged ${staple.name} (+${staple.protein}g Protein, ${staple.calories} kcal)`);
+    setTimeout(() => setJustLoggedToast(null), 3000);
   };
 
   const handleLogWeight = (weightEntry) => {
@@ -250,9 +279,25 @@ export const NutritionView = ({
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Snap Meal Camera */}
+          {/* Scan Label & Barcode */}
           <button
             onClick={() => {
               playSound('click', soundEnabled);
+              setSnapModalMode('label');
+              setIsSnapModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+            title="Scan Nutrition Facts label on packages or barcodes"
+          >
+            <Barcode className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Scan Label / Barcode</span>
+          </button>
+
+          {/* Snap Meal Camera */}
+          <button
+            onClick={() => {
+              playSound('click', soundEnabled);
+              setSnapModalMode('plate');
               setIsSnapModalOpen(true);
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
@@ -566,46 +611,109 @@ export const NutritionView = ({
         </div>
       </div>
 
-      {/* 4. HOUSEHOLD PANTRY STAPLES (1-Tap Fast Logging directly on the page) */}
+      {/* 4. HOUSEHOLD PANTRY STAPLES (1-Tap Fast Logging) */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-base">🏠</span>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-              Kitchen Staples & Pantry (1-Tap Quick Log)
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <span>Kitchen Staples & Quick Add</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                1-Tap Fast Log
+              </span>
             </h2>
           </div>
           
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 hidden sm:inline">Logging into:</span>
-            <select
-              value={activeQuickSlot}
-              onChange={(e) => setActiveQuickSlot(e.target.value)}
-              className="bg-black/60 border border-white/15 rounded-lg px-2.5 py-1 text-xs font-mono text-white outline-none cursor-pointer"
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-400">Slot:</span>
+              <select
+                value={activeQuickSlot}
+                onChange={(e) => setActiveQuickSlot(e.target.value)}
+                className="bg-black/60 border border-white/15 rounded-lg px-2.5 py-1 text-xs font-mono text-white outline-none cursor-pointer"
+              >
+                {MEAL_SLOTS.map(s => (
+                  <option key={s.id} value={s.id}>{s.icon} {s.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={() => {
+                playSound('click', soundEnabled);
+                setSnapModalMode('label');
+                setIsSnapModalOpen(true);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all active:scale-95"
             >
-              {MEAL_SLOTS.map(s => (
-                <option key={s.id} value={s.id}>{s.icon} {s.label}</option>
-              ))}
-            </select>
+              <Barcode className="w-3 h-3 text-emerald-400" />
+              <span>Scan Label</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
-          {householdPantry.map((staple) => (
+        {/* Category Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+          {[
+            { id: 'common', label: '⭐ Quick Staples' },
+            { id: 'all', label: 'All Items' },
+            { id: 'protein', label: '🥩 Protein' },
+            { id: 'carbs', label: '🍚 Carbs' },
+            { id: 'fruit', label: '🍎 Fruit' },
+            { id: 'snacks', label: '🍫 Snacks & Bars' },
+            { id: 'dairy', label: '🥛 Dairy' }
+          ].map(cat => {
+            const active = pantryCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  setPantryCategory(cat.id);
+                }}
+                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  active 
+                    ? 'bg-white text-black font-bold shadow-sm' 
+                    : 'bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Toast Notification */}
+        {justLoggedToast && (
+          <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-medium flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-400" />
+            <span>{justLoggedToast} to {MEAL_SLOTS.find(s => s.id === activeQuickSlot)?.label}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+          {filteredPantry.map((staple) => (
             <button
               key={staple.id}
               onClick={() => handleQuickLogStaple(staple)}
-              className="shrink-0 p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-left transition-all active:scale-95 cursor-pointer w-44 group"
+              className="p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] hover:border-emerald-500/30 border border-white/10 text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between space-y-2 group relative overflow-hidden"
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-lg">{staple.icon || '🍽️'}</span>
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white/5 text-slate-400 group-hover:text-emerald-400 transition-colors">
+              <div className="flex items-center justify-between w-full">
+                <span className="text-xl">{staple.icon || '🍽️'}</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   +{staple.protein}g P
                 </span>
               </div>
-              <div className="text-xs font-bold text-white truncate">{staple.name}</div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                {staple.calories} kcal • {staple.portion}
+              <div>
+                <div className="text-xs font-bold text-white truncate">{staple.name}</div>
+                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  {staple.calories} kcal • {staple.portion}
+                </div>
+              </div>
+              <div className="w-full pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-400 group-hover:text-emerald-300 transition-colors">
+                <span>Tap to Log</span>
+                <Plus className="w-3 h-3 text-slate-400 group-hover:text-emerald-400" />
               </div>
             </button>
           ))}
@@ -826,7 +934,7 @@ export const NutritionView = ({
         householdPantry={householdPantry}
         onAddHouseholdStaple={handleAddHouseholdStaple}
         onDeleteHouseholdStaple={handleDeleteHouseholdStaple}
-        onOpenSnapModal={() => setIsSnapModalOpen(true)}
+        onOpenSnapModal={(mode = 'plate') => { setSnapModalMode(mode); setIsSnapModalOpen(true); }}
         soundEnabled={soundEnabled}
       />
 
@@ -845,6 +953,7 @@ export const NutritionView = ({
         isOpen={isSnapModalOpen}
         onClose={() => setIsSnapModalOpen(false)}
         onLogMeal={handleLogMeal}
+        initialMode={snapModalMode}
         aiConfig={settings?.aiConfig}
         soundEnabled={soundEnabled}
       />

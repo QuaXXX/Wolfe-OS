@@ -116,6 +116,8 @@ export const INGREDIENT_DATABASE = [
     perUnit: {
       white: { calories: 17, protein: 3.6, carbs: 0.2, fats: 0.1 },
       whites: { calories: 17, protein: 3.6, carbs: 0.2, fats: 0.1 },
+      'egg white': { calories: 17, protein: 3.6, carbs: 0.2, fats: 0.1 },
+      'egg whites': { calories: 17, protein: 3.6, carbs: 0.2, fats: 0.1 },
       cup: { calories: 125, protein: 26, carbs: 2, fats: 0.4 },
       cups: { calories: 125, protein: 26, carbs: 2, fats: 0.4 },
       g: { calories: 0.52, protein: 0.11, carbs: 0.01, fats: 0.001 }
@@ -337,6 +339,76 @@ export const INGREDIENT_DATABASE = [
       cups: { calories: 31, protein: 2.6, carbs: 6, fats: 0.3 },
       g: { calories: 0.34, protein: 0.028, carbs: 0.066, fats: 0.003 }
     }
+  },
+  {
+    regex: /\b(?:granola\s+bars?|nature\s+valley|chewy\s+bars?|oats\s+(?:and|&)\s+honey\s+bars?)\b/i,
+    name: "Granola Bar (Oats & Honey)",
+    defaultUnit: "bar",
+    defaultQty: 1,
+    perUnit: {
+      bar: { calories: 190, protein: 4, carbs: 29, fats: 7 },
+      bars: { calories: 190, protein: 4, carbs: 29, fats: 7 },
+      pouch: { calories: 190, protein: 4, carbs: 29, fats: 7 },
+      pouches: { calories: 190, protein: 4, carbs: 29, fats: 7 },
+      pack: { calories: 190, protein: 4, carbs: 29, fats: 7 },
+      packs: { calories: 190, protein: 4, carbs: 29, fats: 7 },
+      g: { calories: 4.52, protein: 0.095, carbs: 0.69, fats: 0.166 }
+    }
+  },
+  {
+    regex: /\b(?:protein\s+bars?|quest\s+bars?|pure\s+protein|kirkland\s+protein\s+bar|barebells)\b/i,
+    name: "Protein Bar (20g Protein)",
+    defaultUnit: "bar",
+    defaultQty: 1,
+    perUnit: {
+      bar: { calories: 200, protein: 20, carbs: 22, fats: 7 },
+      bars: { calories: 200, protein: 20, carbs: 22, fats: 7 },
+      g: { calories: 3.33, protein: 0.33, carbs: 0.36, fats: 0.11 }
+    }
+  },
+  {
+    regex: /\b(?:almonds?|almond)\b/i,
+    name: "Almonds",
+    defaultUnit: "oz",
+    defaultQty: 1,
+    perUnit: {
+      oz: { calories: 164, protein: 6, carbs: 6, fats: 14 },
+      handful: { calories: 164, protein: 6, carbs: 6, fats: 14 },
+      g: { calories: 5.8, protein: 0.21, carbs: 0.21, fats: 0.50 }
+    }
+  },
+  {
+    regex: /\b(?:blueberries|blueberry)\b/i,
+    name: "Blueberries",
+    defaultUnit: "cups",
+    defaultQty: 1,
+    perUnit: {
+      cup: { calories: 84, protein: 1.1, carbs: 21, fats: 0.5 },
+      cups: { calories: 84, protein: 1.1, carbs: 21, fats: 0.5 },
+      g: { calories: 0.57, protein: 0.007, carbs: 0.14, fats: 0.003 }
+    }
+  },
+  {
+    regex: /\b(?:strawberries|strawberry)\b/i,
+    name: "Strawberries",
+    defaultUnit: "cups",
+    defaultQty: 1,
+    perUnit: {
+      cup: { calories: 49, protein: 1, carbs: 12, fats: 0.5 },
+      cups: { calories: 49, protein: 1, carbs: 12, fats: 0.5 },
+      g: { calories: 0.32, protein: 0.007, carbs: 0.077, fats: 0.003 }
+    }
+  },
+  {
+    regex: /\b(?:cottage\s+cheese)\b/i,
+    name: "Cottage Cheese (Low-fat)",
+    defaultUnit: "cups",
+    defaultQty: 1,
+    perUnit: {
+      cup: { calories: 220, protein: 28, carbs: 8, fats: 5 },
+      cups: { calories: 220, protein: 28, carbs: 8, fats: 5 },
+      g: { calories: 0.97, protein: 0.12, carbs: 0.035, fats: 0.022 }
+    }
   }
 ];
 
@@ -344,6 +416,72 @@ export const INGREDIENT_DATABASE = [
 // 3. HOUSEHOLD PANTRY STAPLES (Instant 1-Tap Fast Logging)
 // ---------------------------------------------------------------------------
 export const DEFAULT_HOUSEHOLD_PANTRY = [
+  {
+    id: "staple-eggs-2",
+    name: "2 Whole Eggs",
+    portion: "2 large eggs",
+    calories: 144,
+    protein: 13,
+    carbs: 1,
+    fats: 10,
+    category: "Protein",
+    icon: "🍳"
+  },
+  {
+    id: "staple-eggs",
+    name: "3 Whole Eggs",
+    portion: "3 large eggs",
+    calories: 215,
+    protein: 19,
+    carbs: 1,
+    fats: 15,
+    category: "Protein",
+    icon: "🍳"
+  },
+  {
+    id: "staple-apple",
+    name: "Medium Apple",
+    portion: "1 medium (182g)",
+    calories: 95,
+    protein: 0.5,
+    carbs: 25,
+    fats: 0.3,
+    category: "Fruit",
+    icon: "🍎"
+  },
+  {
+    id: "staple-granola-bar",
+    name: "Granola Bar (Oats & Honey)",
+    portion: "1 bar / pouch (42g)",
+    calories: 190,
+    protein: 4,
+    carbs: 29,
+    fats: 7,
+    category: "Snacks",
+    icon: "🍫"
+  },
+  {
+    id: "staple-protein-bar",
+    name: "Protein Bar (20g Protein)",
+    portion: "1 bar (60g)",
+    calories: 200,
+    protein: 20,
+    carbs: 22,
+    fats: 7,
+    category: "Protein",
+    icon: "🍫"
+  },
+  {
+    id: "staple-banana",
+    name: "Large Banana",
+    portion: "1 large (135g)",
+    calories: 120,
+    protein: 1,
+    carbs: 31,
+    fats: 0,
+    category: "Fruit",
+    icon: "🍌"
+  },
   {
     id: "staple-whey",
     name: "Whey Protein (1 Scoop)",
@@ -356,48 +494,15 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🥛"
   },
   {
-    id: "staple-eggs",
-    name: "3 Whole Eggs",
-    portion: "3 large eggs",
-    calories: 215,
-    protein: 18,
-    carbs: 1,
-    fats: 15,
-    category: "Protein",
-    icon: "🍳"
-  },
-  {
-    id: "staple-milk",
-    name: "Whole Milk (1 Glass)",
-    portion: "250 ml (1 cup)",
-    calories: 150,
-    protein: 8,
-    carbs: 12,
-    fats: 8,
+    id: "staple-greek-yogurt",
+    name: "Greek Yogurt (1 Cup)",
+    portion: "1 cup (227g)",
+    calories: 130,
+    protein: 23,
+    carbs: 9,
+    fats: 0,
     category: "Dairy",
-    icon: "🥛"
-  },
-  {
-    id: "staple-oats",
-    name: "Rolled Oats (1 Cup)",
-    portion: "80g dry (1 cup)",
-    calories: 300,
-    protein: 10,
-    carbs: 54,
-    fats: 5,
-    category: "Carbs",
     icon: "🥣"
-  },
-  {
-    id: "staple-rice",
-    name: "Jasmine White Rice (1.5 Cups)",
-    portion: "1.5 cups cooked",
-    calories: 310,
-    protein: 6,
-    carbs: 68,
-    fats: 1,
-    category: "Carbs",
-    icon: "🍚"
   },
   {
     id: "staple-chicken",
@@ -411,6 +516,17 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🍗"
   },
   {
+    id: "staple-rice",
+    name: "Jasmine White Rice (1.5 Cups)",
+    portion: "1.5 cups cooked",
+    calories: 310,
+    protein: 6,
+    carbs: 68,
+    fats: 1,
+    category: "Carbs",
+    icon: "🍚"
+  },
+  {
     id: "staple-pb",
     name: "Peanut Butter (2 tbsp)",
     portion: "32g (2 tbsp)",
@@ -422,15 +538,15 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🥜"
   },
   {
-    id: "staple-banana",
-    name: "Large Banana",
-    portion: "1 large (135g)",
-    calories: 120,
-    protein: 1,
-    carbs: 31,
-    fats: 0,
+    id: "staple-oats",
+    name: "Rolled Oats (1 Cup)",
+    portion: "80g dry (1 cup)",
+    calories: 300,
+    protein: 10,
+    carbs: 54,
+    fats: 5,
     category: "Carbs",
-    icon: "🍌"
+    icon: "🥣"
   },
   {
     id: "staple-ground-beef",
@@ -444,6 +560,17 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🥩"
   },
   {
+    id: "staple-milk",
+    name: "Whole Milk (1 Glass)",
+    portion: "250 ml (1 cup)",
+    calories: 150,
+    protein: 8,
+    carbs: 12,
+    fats: 8,
+    category: "Dairy",
+    icon: "🥛"
+  },
+  {
     id: "staple-bagel",
     name: "Plain Bagel w/ Butter",
     portion: "1 whole + 1 tbsp",
@@ -453,6 +580,17 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     fats: 11,
     category: "Carbs",
     icon: "🥯"
+  },
+  {
+    id: "staple-almonds",
+    name: "Almonds (1 oz / 28g)",
+    portion: "1 oz (~23 nuts)",
+    calories: 164,
+    protein: 6,
+    carbs: 6,
+    fats: 14,
+    category: "Snacks",
+    icon: "🌰"
   }
 ];
 
@@ -659,7 +797,7 @@ export function parseMealDescription(text) {
   const matchedItems = [];
 
   for (const clause of clauses) {
-    const qtyRegex = /(?:^|\s)(\d+(?:\.\d+)?|\d+\/\d+)\s*(g|grams|oz|ounces|cups?|tbsp|tablespoons?|scoops?|slices?|whites?|eggs?|bananas?|potatoes?|can|cans|glass|glasses)?/i;
+    const qtyRegex = /(?:^|\s)(\d+(?:\.\d+)?|\d+\/\d+)\s*(egg\s+whites?|whole\s+eggs?|bars?|pouches?|packs?|scoops?|slices?|cups?|tbsp|tablespoons?|whites?|eggs?|bananas?|apples?|potatoes?|cans?|glass(?:es)?|oz|ounces|grams?|g\b)?/i;
     const qtyMatch = clause.match(qtyRegex);
 
     let quantity = null;

@@ -16,7 +16,7 @@ import {
   Camera
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
-import { MEAL_SLOTS, calculateCaloriesFromMacros, createMealEntry } from '../../utils/nutritionEngine.js';
+import { MEAL_SLOTS, calculateCaloriesFromMacros, createMealEntry, DEFAULT_HOUSEHOLD_PANTRY } from '../../utils/nutritionEngine.js';
 
 export const MealLogModal = ({
   isOpen,
@@ -30,6 +30,10 @@ export const MealLogModal = ({
 }) => {
   const [activeTab, setActiveTab] = useState('pantry'); // 'pantry' | 'manual' | 'add_staple'
   
+  const displayPantry = (householdPantry && householdPantry.length > 0) 
+    ? householdPantry 
+    : DEFAULT_HOUSEHOLD_PANTRY;
+
   // Manual entry state
   const [mealSlot, setMealSlot] = useState('lunch');
   const [mealName, setMealName] = useState('');
@@ -265,19 +269,34 @@ export const MealLogModal = ({
               <span>New Staple</span>
             </button>
             {onOpenSnapModal && (
-              <button
-                type="button"
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  onClose();
-                  onOpenSnapModal();
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 active:scale-95"
-                title="Scan meal with Camera or Vision AI"
-              >
-                <Camera className="w-3.5 h-3.5 text-purple-400" />
-                <span>📷 Camera Scan</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    onClose();
+                    onOpenSnapModal('label');
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 active:scale-95"
+                  title="Scan Nutrition Facts Label or Barcode"
+                >
+                  <span>🏷️ Label / UPC</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    onClose();
+                    onOpenSnapModal('plate');
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 active:scale-95"
+                  title="Scan meal with Camera or Vision AI"
+                >
+                  <Camera className="w-3.5 h-3.5 text-purple-400" />
+                  <span>📷 Snap</span>
+                </button>
+              </>
             )}
           </div>
 
@@ -286,11 +305,11 @@ export const MealLogModal = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between text-[11px] text-slate-400">
                 <span>Tap any staple to log it instantly to your {MEAL_SLOTS.find(s => s.id === mealSlot)?.name}:</span>
-                <span className="font-mono text-emerald-400">{householdPantry.length} items available</span>
+                <span className="font-mono text-emerald-400">{displayPantry.length} items available</span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
-                {householdPantry.map((staple) => {
+                {displayPantry.map((staple) => {
                   const qty = pantryMultiplier[staple.id] || 1;
                   return (
                     <div
