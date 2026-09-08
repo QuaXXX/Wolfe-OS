@@ -40,6 +40,7 @@ export const SnapMealModal = ({
 
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const streamRef = useRef(null);
   const recognitionRef = useRef(null);
 
@@ -61,6 +62,20 @@ export const SnapMealModal = ({
     setIsListening(false);
   };
 
+  const handleTriggerCamera = async () => {
+    playSound('click', soundEnabled);
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext) {
+      try {
+        await startCamera();
+        return;
+      } catch (err) {
+        console.warn("Direct webcam failed, falling back to native camera capture:", err);
+      }
+    }
+    // Mobile or fallback: trigger native device camera
+    cameraInputRef.current?.click();
+  };
+
   const startCamera = async () => {
     playSound('click', soundEnabled);
     try {
@@ -77,7 +92,7 @@ export const SnapMealModal = ({
     } catch (err) {
       console.warn("Camera access failed:", err);
       setIsCameraActive(false);
-      setAnalysisError("Camera access denied or unavailable. You can upload a photo or type what you are eating.");
+      cameraInputRef.current?.click();
     }
   };
 
@@ -413,24 +428,33 @@ export const SnapMealModal = ({
               </div>
             ) : (
               <div className="p-5 text-center space-y-3">
-                <div className="flex items-center justify-center gap-3">
+                <div className="flex items-center justify-center gap-2.5 flex-wrap">
                   <button
                     type="button"
-                    onClick={startCamera}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs font-semibold border border-white/10 transition-all cursor-pointer"
+                    onClick={handleTriggerCamera}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-xs font-semibold border border-purple-500/30 transition-all active:scale-95 cursor-pointer shadow-sm"
                   >
-                    <Camera className="w-4 h-4 text-indigo-400" />
-                    <span>Open Camera</span>
+                    <Camera className="w-4 h-4 text-purple-400" />
+                    <span>Take Photo with Camera</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs font-semibold border border-white/10 transition-all cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
                   >
                     <UploadCloud className="w-4 h-4 text-sky-400" />
-                    <span>Upload Plate Photo</span>
+                    <span>Upload from Photos</span>
                   </button>
+
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
                   <input
                     ref={fileInputRef}
                     type="file"

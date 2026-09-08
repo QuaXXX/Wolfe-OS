@@ -826,6 +826,7 @@ export const NutritionView = ({
         householdPantry={householdPantry}
         onAddHouseholdStaple={handleAddHouseholdStaple}
         onDeleteHouseholdStaple={handleDeleteHouseholdStaple}
+        onOpenSnapModal={() => setIsSnapModalOpen(true)}
         soundEnabled={soundEnabled}
       />
 

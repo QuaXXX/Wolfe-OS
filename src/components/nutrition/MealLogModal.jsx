@@ -12,7 +12,8 @@ import {
   Layers,
   ChefHat,
   Trash2,
-  BookmarkPlus
+  BookmarkPlus,
+  Camera
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { MEAL_SLOTS, calculateCaloriesFromMacros, createMealEntry } from '../../utils/nutritionEngine.js';
@@ -24,6 +25,7 @@ export const MealLogModal = ({
   onAddHouseholdStaple,
   onDeleteHouseholdStaple,
   householdPantry = [],
+  onOpenSnapModal = null,
   soundEnabled = true
 }) => {
   const [activeTab, setActiveTab] = useState('pantry'); // 'pantry' | 'manual' | 'add_staple'
@@ -262,6 +264,21 @@ export const MealLogModal = ({
               <Plus className="w-3.5 h-3.5" />
               <span>New Staple</span>
             </button>
+            {onOpenSnapModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  onClose();
+                  onOpenSnapModal();
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 active:scale-95"
+                title="Scan meal with Camera or Vision AI"
+              >
+                <Camera className="w-3.5 h-3.5 text-purple-400" />
+                <span>📷 Camera Scan</span>
+              </button>
+            )}
           </div>
 
           {/* TAB 1: HOUSEHOLD PANTRY STAPLES */}
