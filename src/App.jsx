@@ -19,7 +19,14 @@ import {
   syncLocalItemsToGoogle,
   signInWithGooglePopup
 } from './utils/googleCalendarService';
-import { syncFullOsWithCloud, triggerDebouncedCloudPush } from './utils/cloudSyncEngine';
+import { 
+  syncFullOsWithCloud, 
+  triggerDebouncedCloudPush, 
+  triggerImmediateCloudPush,
+  recordDeletion, 
+  recordAdditionOrUpdate, 
+  isLocalMutationRecent 
+} from './utils/cloudSyncEngine';
 
 // Views
 import { HomeView } from './components/views/HomeView';
@@ -177,6 +184,9 @@ export function App() {
     const handleSyncApplied = (e) => {
       const vault = e.detail?.vault;
       if (!vault) return;
+      // If user recently made an explicit local deletion/addition, don't let a stale inbound packet clobber it
+      if (isLocalMutationRecent(3500)) return;
+
       isApplyingInboundSyncRef.current = true;
       if (vault.nutrition) setNutritionData(vault.nutrition);
       if (vault.workouts) setWorkoutData(vault.workouts);
@@ -561,6 +571,7 @@ export function App() {
       ...prev,
       items: [itemToSave, ...prev.items.filter(i => i.id !== itemToSave.id)]
     }));
+    recordAdditionOrUpdate(itemToSave.id);
 
     // Trigger Undo Action Toast
     setUndoAction({
@@ -591,6 +602,7 @@ export function App() {
       ...prev,
       items: [...localItems, ...prev.items.filter(it => !localItems.some(l => l.id === it.id))]
     }));
+    localItems.forEach(it => recordAdditionOrUpdate(it.id));
 
     const isGcalConnected = isGoogleCalendarConnected();
 
@@ -695,6 +707,7 @@ export function App() {
       ...prev,
       items: prev.items.filter(it => !(it.type === 'deadline' && (targetDate === 'ALL' || it.date === targetDate)))
     }));
+    toDelete.forEach(dl => recordDeletion(dl.id));
 
     if (isGoogleCalendarConnected()) {
       for (const dl of toDelete) {
@@ -716,11 +729,12 @@ export function App() {
     const targetItem = calendarData.items.find(it => it.id === id);
     const isGoogleTask = targetItem?.isGoogleTask || targetItem?.type === 'task';
 
-    // Instant optimistic removal from UI
+    // Instant optimistic removal from UI and tombstone registration
     setCalendarData(prev => ({
       ...prev,
       items: prev.items.filter(it => it.id !== id)
     }));
+    recordDeletion(id);
 
     // Insta-delete on Google Calendar and Google Tasks in background
     if (isGoogleCalendarConnected()) {
@@ -758,6 +772,7 @@ export function App() {
         ...prev,
         items: prev.items.filter(it => it.id !== targetItem.id)
       }));
+      recordDeletion(targetItem.id);
       if (isGoogleCalendarConnected()) {
         deleteGoogleCalendarEvent(targetItem.id, isGoogleTask).catch(err => console.warn("Delete error:", err));
       }
@@ -781,6 +796,7 @@ export function App() {
       ...prev,
       items: dateToClear === 'ALL' ? [] : prev.items.filter(it => it.date !== dateToClear)
     }));
+    removedItems.forEach(it => recordDeletion(it.id));
 
     if (isGoogleCalendarConnected()) {
       // Delete each removed item from Google (handles both Calendar events and Tasks)
@@ -861,11 +877,12 @@ export function App() {
     const purgeIds = new Set(itemsToPurge.map(it => it.id));
     const isGcal = isGoogleCalendarConnected();
 
-    // 1. Instantly remove from local calendarData for 0ms visual lag
+    // 1. Instantly remove from local calendarData and record tombstones
     setCalendarData(prev => ({
       ...prev,
       items: prev.items.filter(it => !purgeIds.has(it.id))
     }));
+    itemsToPurge.forEach(it => recordDeletion(it.id));
 
     // 2. Show Live Real-Time Progress Popup
     setUndoAction({

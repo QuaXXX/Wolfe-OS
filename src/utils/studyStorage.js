@@ -12,6 +12,8 @@ const STORAGE_KEY_COURSES = 'wolfe_study_courses';
 // 1. FLASHCARD DECKS
 // ----------------------------------------------------
 
+import { recordDeletion, recordAdditionOrUpdate } from './cloudSyncEngine.js';
+
 export function getSavedDecks() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DECKS);
@@ -38,6 +40,7 @@ export function saveDeckToLibrary(deck) {
     }
 
     localStorage.setItem(STORAGE_KEY_DECKS, JSON.stringify(decks));
+    if (updatedDeck.id) recordAdditionOrUpdate(updatedDeck.id);
     return updatedDeck;
   } catch (err) {
     console.warn("Failed to save deck:", err);
@@ -49,6 +52,7 @@ export function deleteDeckFromLibrary(deckId) {
   try {
     const decks = getSavedDecks().filter(d => d.id !== deckId);
     localStorage.setItem(STORAGE_KEY_DECKS, JSON.stringify(decks));
+    if (deckId) recordDeletion(deckId);
     return true;
   } catch {
     return false;

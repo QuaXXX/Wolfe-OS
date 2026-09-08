@@ -10,6 +10,8 @@ const STORAGE_KEY_JOURNAL = 'wolfe_trading_journal_v1';
 const STORAGE_KEY_WEBHOOK_LOGS = 'wolfe_trading_webhook_logs_v1';
 const STORAGE_KEY_HERMES_BRIEFS = 'wolfe_trading_hermes_briefs_v1';
 
+import { recordDeletion, recordAdditionOrUpdate } from './cloudSyncEngine.js';
+
 // Default Tickers for High-Liquidity Crypto & Small/Mid-Cap Growth Equities & Major Market Indices
 export const DEFAULT_WATCHLIST = [
   { symbol: 'NASDAQ', name: 'Nasdaq Composite', price: 26217.83, change: '+0.45%', isPositive: true, category: 'US Index' },
@@ -158,12 +160,14 @@ export function addWatchlistTicker(tickerObj) {
   }
 
   saveWatchlist(updatedList);
+  recordAdditionOrUpdate(symbol);
   return updatedList;
 }
 
 export function removeWatchlistTicker(symbol) {
   const list = getWatchlist().filter(item => item.symbol !== symbol);
   saveWatchlist(list);
+  if (symbol) recordDeletion(symbol);
   return list;
 }
 
@@ -253,6 +257,7 @@ export function logCompletedTrade(trade) {
 
     journal.unshift(newEntry);
     localStorage.setItem(STORAGE_KEY_JOURNAL, JSON.stringify(journal));
+    if (newEntry.id) recordAdditionOrUpdate(newEntry.id);
     return newEntry;
   } catch (err) {
     console.warn("Failed to log trade:", err);
@@ -264,6 +269,7 @@ export function deleteJournalTrade(tradeId) {
   try {
     const journal = getTradeJournal().filter(t => t.id !== tradeId);
     localStorage.setItem(STORAGE_KEY_JOURNAL, JSON.stringify(journal));
+    if (tradeId) recordDeletion(tradeId);
     return true;
   } catch {
     return false;

@@ -44,7 +44,9 @@ export const SYNC_KEYS = {
   STUDY_WEAK_SPOTS: 'wolfe_study_weak_spots',
   STUDY_COURSES: 'wolfe_study_courses',
   // Cloud Sync Metadata
-  CLOUD_META: 'wolfe_cloud_sync_meta_v1'
+  CLOUD_META: 'wolfe_cloud_sync_meta_v1',
+  // Permanent Deletion Tombstone Ledger
+  TOMBSTONES: 'wolfe_tombstones_v1'
 };
 
 /**
@@ -70,6 +72,57 @@ function writeStorageJson(key, value) {
   } catch (e) {
     console.warn(`Failed to persist ${key} to localStorage:`, e);
   }
+}
+
+/**
+ * Tombstone Ledger Management
+ * Permanently tracks deleted item IDs across all collections to prevent cross-device resurrection.
+ */
+export function getTombstones() {
+  return readStorageJson(SYNC_KEYS.TOMBSTONES, {}) || {};
+}
+
+export function saveTombstones(tombstones) {
+  writeStorageJson(SYNC_KEYS.TOMBSTONES, tombstones);
+}
+
+let lastLocalMutationAt = 0;
+
+export function markLocalMutation() {
+  lastLocalMutationAt = Date.now();
+}
+
+export function isLocalMutationRecent(windowMs = 4000) {
+  return (Date.now() - lastLocalMutationAt) < windowMs;
+}
+
+/**
+ * Permanently record a deletion tombstone and immediately notify cloud
+ */
+export function recordDeletion(id) {
+  if (!id) return;
+  const idStr = String(id);
+  const tombstones = getTombstones();
+  tombstones[idStr] = Date.now();
+  saveTombstones(tombstones);
+  markLocalMutation();
+  triggerImmediateCloudPush();
+  return tombstones;
+}
+
+/**
+ * Record an item creation or update: clears any old tombstone so item can exist cleanly
+ */
+export function recordAdditionOrUpdate(id) {
+  if (!id) return;
+  const idStr = String(id);
+  const tombstones = getTombstones();
+  if (tombstones[idStr]) {
+    delete tombstones[idStr];
+    saveTombstones(tombstones);
+  }
+  markLocalMutation();
+  triggerImmediateCloudPush();
 }
 
 /**
@@ -119,6 +172,7 @@ export function exportFullOsState() {
     lastUpdated: meta.lastUpdated || Date.now(),
     lastDevice: deviceId,
     lastPlatform: platform,
+    _tombstones: getTombstones(),
     googleAccount: account ? { email: account.email, name: account.name, picture: account.picture } : null,
     nutrition,
     workouts,
@@ -146,46 +200,87 @@ export function exportFullOsState() {
 }
 
 /**
- * Intelligent 2-Way Conflict-Free Merger
- * Merges local device state with remote cloud state without loss of user updates.
+ * Intelligent 2-Way Conflict-Free Merger with Tombstone Guarantee
+ * Merges local device state with remote cloud state.
+ * Tombstoned (deleted) items are permanently suppressed and can never be resurrected.
  */
 export function mergeOsState(localVault, remoteVault) {
   if (!remoteVault) return localVault;
   if (!localVault) return remoteVault;
 
+  // 0. Merge Tombstones
+  const localTombstones = localVault._tombstones || {};
+  const remoteTombstones = remoteVault._tombstones || {};
+  const allTombstones = { ...remoteTombstones, ...localTombstones };
+
+  const isTombstoned = (id, updatedAt) => {
+    if (!id) return false;
+    const tombTime = allTombstones[String(id)];
+    if (!tombTime) return false;
+    const itemTime = updatedAt ? (new Date(updatedAt).getTime() || Number(updatedAt) || 0) : 0;
+    return itemTime <= tombTime;
+  };
+
+  const isMutatingLocally = isLocalMutationRecent(4000);
+
   const merged = {
     version: 2,
     lastUpdated: Math.max(localVault.lastUpdated || 0, remoteVault.lastUpdated || 0, Date.now()),
-    googleAccount: remoteVault.googleAccount || localVault.googleAccount
+    googleAccount: remoteVault.googleAccount || localVault.googleAccount,
+    _tombstones: allTombstones
   };
 
   // 1. NUTRITION MERGE
   const localNut = localVault.nutrition || {};
   const remoteNut = remoteVault.nutrition || {};
 
-  // Merge meals by ID
+  // Merge meals by ID (purging tombstoned)
   const mealMap = new Map();
-  (remoteNut.meals || []).forEach(m => mealMap.set(m.id, m));
+  (remoteNut.meals || []).forEach(m => {
+    if (!isTombstoned(m.id, m.updatedAt || m.time)) {
+      mealMap.set(m.id, m);
+    }
+  });
   (localNut.meals || []).forEach(m => {
-    // Local meal wins if it has newer or same ID
-    mealMap.set(m.id, { ...(mealMap.get(m.id) || {}), ...m });
+    if (!isTombstoned(m.id, m.updatedAt || m.time)) {
+      mealMap.set(m.id, { ...(mealMap.get(m.id) || {}), ...m });
+    }
   });
   const mergedMeals = Array.from(mealMap.values()).sort((a, b) => (b.time || 0) - (a.time || 0));
 
-  // Merge weight logs by date/id
+  // Merge weight logs by date/id (purging tombstoned)
   const weightMap = new Map();
-  (remoteNut.weightLogs || []).forEach(w => weightMap.set(w.date || w.id, w));
-  (localNut.weightLogs || []).forEach(w => weightMap.set(w.date || w.id, { ...(weightMap.get(w.date || w.id) || {}), ...w }));
+  (remoteNut.weightLogs || []).forEach(w => {
+    const k = w.id || w.date;
+    if (!isTombstoned(k, w.updatedAt || new Date(w.date).getTime())) {
+      weightMap.set(k, w);
+    }
+  });
+  (localNut.weightLogs || []).forEach(w => {
+    const k = w.id || w.date;
+    if (!isTombstoned(k, w.updatedAt || new Date(w.date).getTime())) {
+      weightMap.set(k, { ...(weightMap.get(k) || {}), ...w });
+    }
+  });
   const mergedWeightLogs = Array.from(weightMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  // Merge household pantry staples by name
+  // Merge household pantry staples by name or ID (purging tombstoned)
   const pantryMap = new Map();
-  (remoteNut.householdPantry || []).forEach(p => pantryMap.set(p.name?.toLowerCase(), p));
-  (localNut.householdPantry || []).forEach(p => pantryMap.set(p.name?.toLowerCase(), { ...(pantryMap.get(p.name?.toLowerCase()) || {}), ...p }));
+  (remoteNut.householdPantry || []).forEach(p => {
+    const k = p.id || p.name?.toLowerCase();
+    if (!isTombstoned(k, p.updatedAt) && !isTombstoned(p.id, p.updatedAt)) {
+      pantryMap.set(k, p);
+    }
+  });
+  (localNut.householdPantry || []).forEach(p => {
+    const k = p.id || p.name?.toLowerCase();
+    if (!isTombstoned(k, p.updatedAt) && !isTombstoned(p.id, p.updatedAt)) {
+      pantryMap.set(k, { ...(pantryMap.get(k) || {}), ...p });
+    }
+  });
   const mergedPantry = Array.from(pantryMap.values());
 
-  // Use the newer overall daily target or deficit
-  const localIsNewerNut = (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
+  const localIsNewerNut = isMutatingLocally || (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
   const baseNut = localIsNewerNut ? localNut : remoteNut;
 
   merged.nutrition = {
@@ -200,10 +295,19 @@ export function mergeOsState(localVault, remoteVault) {
   const remoteWork = remoteVault.workouts || {};
   const baseWork = localIsNewerNut ? localWork : remoteWork;
 
-  // Merge history by ID
   const historyMap = new Map();
-  (remoteWork.history || []).forEach(h => historyMap.set(h.id || `${h.date}_${h.routine}`, h));
-  (localWork.history || []).forEach(h => historyMap.set(h.id || `${h.date}_${h.routine}`, { ...(historyMap.get(h.id || `${h.date}_${h.routine}`) || {}), ...h }));
+  (remoteWork.history || []).forEach(h => {
+    const k = h.id || `${h.date}_${h.routine}`;
+    if (!isTombstoned(k, h.updatedAt || new Date(h.date).getTime())) {
+      historyMap.set(k, h);
+    }
+  });
+  (localWork.history || []).forEach(h => {
+    const k = h.id || `${h.date}_${h.routine}`;
+    if (!isTombstoned(k, h.updatedAt || new Date(h.date).getTime())) {
+      historyMap.set(k, { ...(historyMap.get(k) || {}), ...h });
+    }
+  });
 
   merged.workouts = {
     ...baseWork,
@@ -213,22 +317,43 @@ export function mergeOsState(localVault, remoteVault) {
   // 3. TRADING MERGE
   const localTrade = localVault.trading || {};
   const remoteTrade = remoteVault.trading || {};
-  const localIsNewerTrade = (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
+  const localIsNewerTrade = isMutatingLocally || (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
 
-  // Journal entries merged by ID
   const journalMap = new Map();
-  (remoteTrade.journal || []).forEach(j => journalMap.set(j.id, j));
-  (localTrade.journal || []).forEach(j => journalMap.set(j.id, { ...(journalMap.get(j.id) || {}), ...j }));
+  (remoteTrade.journal || []).forEach(j => {
+    if (!isTombstoned(j.id, j.updatedAt || new Date(j.openedAt || j.closedAt).getTime())) {
+      journalMap.set(j.id, j);
+    }
+  });
+  (localTrade.journal || []).forEach(j => {
+    if (!isTombstoned(j.id, j.updatedAt || new Date(j.openedAt || j.closedAt).getTime())) {
+      journalMap.set(j.id, { ...(journalMap.get(j.id) || {}), ...j });
+    }
+  });
 
-  // Watchlist merged by symbol
   const watchMap = new Map();
-  (remoteTrade.watchlist || []).forEach(w => watchMap.set(w.symbol, w));
-  (localTrade.watchlist || []).forEach(w => watchMap.set(w.symbol, { ...(watchMap.get(w.symbol) || {}), ...w }));
+  (remoteTrade.watchlist || []).forEach(w => {
+    if (!isTombstoned(w.symbol, w.updatedAt)) {
+      watchMap.set(w.symbol, w);
+    }
+  });
+  (localTrade.watchlist || []).forEach(w => {
+    if (!isTombstoned(w.symbol, w.updatedAt)) {
+      watchMap.set(w.symbol, { ...(watchMap.get(w.symbol) || {}), ...w });
+    }
+  });
 
-  // Paper history merged by ID
   const paperHistMap = new Map();
-  (remoteTrade.paperHistory || []).forEach(p => paperHistMap.set(p.id, p));
-  (localTrade.paperHistory || []).forEach(p => paperHistMap.set(p.id, { ...(paperHistMap.get(p.id) || {}), ...p }));
+  (remoteTrade.paperHistory || []).forEach(p => {
+    if (!isTombstoned(p.id, p.updatedAt)) {
+      paperHistMap.set(p.id, p);
+    }
+  });
+  (localTrade.paperHistory || []).forEach(p => {
+    if (!isTombstoned(p.id, p.updatedAt)) {
+      paperHistMap.set(p.id, { ...(paperHistMap.get(p.id) || {}), ...p });
+    }
+  });
 
   merged.trading = {
     dashboard: localIsNewerTrade ? (localTrade.dashboard || {}) : (remoteTrade.dashboard || {}),
@@ -246,15 +371,29 @@ export function mergeOsState(localVault, remoteVault) {
   const localSchool = localVault.school || {};
   const remoteSchool = remoteVault.school || {};
 
-  // Merge flashcard decks
   const decksMap = new Map();
-  (remoteSchool.decks || []).forEach(d => decksMap.set(d.id, d));
-  (localSchool.decks || []).forEach(d => decksMap.set(d.id, { ...(decksMap.get(d.id) || {}), ...d }));
+  (remoteSchool.decks || []).forEach(d => {
+    if (!isTombstoned(d.id, d.updatedAt || new Date(d.lastStudied || 0).getTime())) {
+      decksMap.set(d.id, d);
+    }
+  });
+  (localSchool.decks || []).forEach(d => {
+    if (!isTombstoned(d.id, d.updatedAt || new Date(d.lastStudied || 0).getTime())) {
+      decksMap.set(d.id, { ...(decksMap.get(d.id) || {}), ...d });
+    }
+  });
 
-  // Merge quizzes
   const quizMap = new Map();
-  (remoteSchool.quizzes || []).forEach(q => quizMap.set(q.id, q));
-  (localSchool.quizzes || []).forEach(q => quizMap.set(q.id, { ...(quizMap.get(q.id) || {}), ...q }));
+  (remoteSchool.quizzes || []).forEach(q => {
+    if (!isTombstoned(q.id, q.updatedAt)) {
+      quizMap.set(q.id, q);
+    }
+  });
+  (localSchool.quizzes || []).forEach(q => {
+    if (!isTombstoned(q.id, q.updatedAt)) {
+      quizMap.set(q.id, { ...(quizMap.get(q.id) || {}), ...q });
+    }
+  });
 
   merged.school = {
     dashboard: localIsNewerNut ? (localSchool.dashboard || {}) : (remoteSchool.dashboard || {}),
@@ -265,13 +404,13 @@ export function mergeOsState(localVault, remoteVault) {
   };
 
   // 5. CALENDAR MERGE (Google Calendar is single master when connected)
-  const localCalItems = localVault.calendar?.items || [];
-  const remoteCalItems = remoteVault.calendar?.items || [];
+  const localCalItems = (localVault.calendar?.items || []).filter(it => !isTombstoned(it.id, it.updatedAt));
+  const remoteCalItems = (remoteVault.calendar?.items || []).filter(it => !isTombstoned(it.id, it.updatedAt));
   merged.calendar = {
     ...(localIsNewerNut ? localVault.calendar : remoteVault.calendar),
     items: isGoogleCalendarConnected()
       ? localCalItems
-      : reconcileCalendarItems(localCalItems, remoteCalItems)
+      : reconcileCalendarItems(localCalItems, remoteCalItems).filter(it => !isTombstoned(it.id, it.updatedAt))
   };
 
   // 6. SETTINGS MERGE
@@ -296,23 +435,59 @@ export function importFullOsState(vault) {
   if (!vault || typeof vault !== 'object') return false;
   isApplyingRemoteSync = true;
 
+  // 0. Update Tombstones ledger
+  const activeTombstones = { ...getTombstones(), ...(vault._tombstones || {}) };
+  saveTombstones(activeTombstones);
+
+  const isTomb = (id) => id && activeTombstones[String(id)];
+
+  // Clean incoming vault collections against active tombstones before importing
+  const cleanNutrition = vault.nutrition ? {
+    ...vault.nutrition,
+    meals: (vault.nutrition.meals || []).filter(m => !isTomb(m.id)),
+    weightLogs: (vault.nutrition.weightLogs || []).filter(w => !isTomb(w.id) && !isTomb(w.date)),
+    householdPantry: (vault.nutrition.householdPantry || []).filter(s => !isTomb(s.id) && !isTomb(s.name?.toLowerCase()))
+  } : null;
+
+  const cleanWorkouts = vault.workouts ? {
+    ...vault.workouts,
+    history: (vault.workouts.history || []).filter(h => !isTomb(h.id) && !isTomb(`${h.date}_${h.routine}`))
+  } : null;
+
+  const cleanTrading = vault.trading ? {
+    ...vault.trading,
+    watchlist: (vault.trading.watchlist || []).filter(w => !isTomb(w.symbol)),
+    journal: (vault.trading.journal || []).filter(j => !isTomb(j.id)),
+    paperHistory: (vault.trading.paperHistory || []).filter(p => !isTomb(p.id))
+  } : null;
+
+  const cleanSchool = vault.school ? {
+    ...vault.school,
+    decks: (vault.school.decks || []).filter(d => !isTomb(d.id)),
+    quizzes: (vault.school.quizzes || []).filter(q => !isTomb(q.id))
+  } : null;
+
   // 1. Core modules
-  if (vault.nutrition) {
-    writeStorageJson(SYNC_KEYS.NUTRITION, vault.nutrition);
+  if (cleanNutrition) {
+    writeStorageJson(SYNC_KEYS.NUTRITION, cleanNutrition);
   }
-  if (vault.workouts) {
-    writeStorageJson(SYNC_KEYS.WORKOUTS, vault.workouts);
+  if (cleanWorkouts) {
+    writeStorageJson(SYNC_KEYS.WORKOUTS, cleanWorkouts);
   }
-  if (vault.trading?.dashboard) {
-    writeStorageJson(SYNC_KEYS.TRADING, vault.trading.dashboard);
+  if (cleanTrading?.dashboard) {
+    writeStorageJson(SYNC_KEYS.TRADING, cleanTrading.dashboard);
   }
-  if (vault.school?.dashboard) {
-    writeStorageJson(SYNC_KEYS.SCHOOL, vault.school.dashboard);
+  if (cleanSchool?.dashboard) {
+    writeStorageJson(SYNC_KEYS.SCHOOL, cleanSchool.dashboard);
   }
   // Only apply calendar from vault if Google Calendar is not connected (Google is single master)
   if (vault.calendar && !isGoogleCalendarConnected()) {
-    writeStorageJson(SYNC_KEYS.CALENDAR, vault.calendar);
-    writeStorageJson(SYNC_KEYS.CALENDAR_FALLBACK, vault.calendar);
+    const cleanCalendar = {
+      ...vault.calendar,
+      items: (vault.calendar.items || []).filter(it => !isTomb(it.id))
+    };
+    writeStorageJson(SYNC_KEYS.CALENDAR, cleanCalendar);
+    writeStorageJson(SYNC_KEYS.CALENDAR_FALLBACK, cleanCalendar);
   }
   if (vault.settings) {
     writeStorageJson(SYNC_KEYS.SETTINGS, vault.settings);
@@ -320,20 +495,20 @@ export function importFullOsState(vault) {
   }
 
   // 2. Extended trading
-  if (vault.trading?.config) writeStorageJson(SYNC_KEYS.TRADING_CONFIG, vault.trading.config);
-  if (vault.trading?.watchlist) writeStorageJson(SYNC_KEYS.TRADING_WATCHLIST, vault.trading.watchlist);
-  if (vault.trading?.positions) writeStorageJson(SYNC_KEYS.TRADING_POSITIONS, vault.trading.positions);
-  if (vault.trading?.journal) writeStorageJson(SYNC_KEYS.TRADING_JOURNAL, vault.trading.journal);
-  if (vault.trading?.hermesBriefs) writeStorageJson(SYNC_KEYS.TRADING_HERMES_BRIEFS, vault.trading.hermesBriefs);
-  if (vault.trading?.paperAccount) writeStorageJson(SYNC_KEYS.PAPER_ACCOUNT, vault.trading.paperAccount);
-  if (vault.trading?.paperPositions) writeStorageJson(SYNC_KEYS.PAPER_POSITIONS, vault.trading.paperPositions);
-  if (vault.trading?.paperHistory) writeStorageJson(SYNC_KEYS.PAPER_HISTORY, vault.trading.paperHistory);
+  if (cleanTrading?.config) writeStorageJson(SYNC_KEYS.TRADING_CONFIG, cleanTrading.config);
+  if (cleanTrading?.watchlist) writeStorageJson(SYNC_KEYS.TRADING_WATCHLIST, cleanTrading.watchlist);
+  if (cleanTrading?.positions) writeStorageJson(SYNC_KEYS.TRADING_POSITIONS, cleanTrading.positions);
+  if (cleanTrading?.journal) writeStorageJson(SYNC_KEYS.TRADING_JOURNAL, cleanTrading.journal);
+  if (cleanTrading?.hermesBriefs) writeStorageJson(SYNC_KEYS.TRADING_HERMES_BRIEFS, cleanTrading.hermesBriefs);
+  if (cleanTrading?.paperAccount) writeStorageJson(SYNC_KEYS.PAPER_ACCOUNT, cleanTrading.paperAccount);
+  if (cleanTrading?.paperPositions) writeStorageJson(SYNC_KEYS.PAPER_POSITIONS, cleanTrading.paperPositions);
+  if (cleanTrading?.paperHistory) writeStorageJson(SYNC_KEYS.PAPER_HISTORY, cleanTrading.paperHistory);
 
   // 3. Extended study
-  if (vault.school?.decks) writeStorageJson(SYNC_KEYS.STUDY_DECKS, vault.school.decks);
-  if (vault.school?.quizzes) writeStorageJson(SYNC_KEYS.STUDY_QUIZZES, vault.school.quizzes);
-  if (vault.school?.weakSpots) writeStorageJson(SYNC_KEYS.STUDY_WEAK_SPOTS, vault.school.weakSpots);
-  if (vault.school?.courses) writeStorageJson(SYNC_KEYS.STUDY_COURSES, vault.school.courses);
+  if (cleanSchool?.decks) writeStorageJson(SYNC_KEYS.STUDY_DECKS, cleanSchool.decks);
+  if (cleanSchool?.quizzes) writeStorageJson(SYNC_KEYS.STUDY_QUIZZES, cleanSchool.quizzes);
+  if (cleanSchool?.weakSpots) writeStorageJson(SYNC_KEYS.STUDY_WEAK_SPOTS, cleanSchool.weakSpots);
+  if (cleanSchool?.courses) writeStorageJson(SYNC_KEYS.STUDY_COURSES, cleanSchool.courses);
 
   // 4. Update cloud sync metadata
   writeStorageJson(SYNC_KEYS.CLOUD_META, {
@@ -343,11 +518,20 @@ export function importFullOsState(vault) {
     deviceId: getOrCreateDeviceId()
   });
 
+  const sanitizedVault = {
+    ...vault,
+    _tombstones: activeTombstones,
+    nutrition: cleanNutrition || vault.nutrition,
+    workouts: cleanWorkouts || vault.workouts,
+    trading: cleanTrading || vault.trading,
+    school: cleanSchool || vault.school
+  };
+
   // 5. Dispatch live window event so React state updates without page reload
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-applied', {
       detail: {
-        vault,
+        vault: sanitizedVault,
         timestamp: Date.now()
       }
     }));
@@ -421,12 +605,18 @@ async function saveVaultToServerless(userKey, vault) {
  */
 let activeSyncPromise = null;
 
-export async function syncFullOsWithCloud({ forcePush = false, forcePull = false } = {}) {
+export async function syncFullOsWithCloud(options = {}) {
+  const { forcePush = false, forcePull = false } = options;
+
   if (activeSyncPromise) {
     return activeSyncPromise;
   }
 
   activeSyncPromise = (async () => {
+    if (!isGoogleCalendarConnected()) {
+      return { success: false, reason: 'google_account_not_connected' };
+    }
+
     // Notify starting sync
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
@@ -435,9 +625,7 @@ export async function syncFullOsWithCloud({ forcePush = false, forcePull = false
     }
 
     try {
-      const isConnected = isGoogleCalendarConnected();
       const userKey = getCloudUserKey();
-
       const localVault = exportFullOsState();
 
       // 1. Force Push: Upload local state directly
@@ -460,7 +648,7 @@ export async function syncFullOsWithCloud({ forcePush = false, forcePull = false
       // 4. Standard 2-Way Sync
       let finalVault;
       if (remoteVault) {
-        // Both exist: merge intelligently
+        // Both exist: merge intelligently with tombstone guarantees
         finalVault = mergeOsState(localVault, remoteVault);
       } else {
         // First device initial seed: push local up
@@ -524,6 +712,32 @@ export function triggerDebouncedCloudPush(delayMs = 2500) {
     if (isApplyingRemoteSync || !isGoogleCalendarConnected()) return;
     syncFullOsWithCloud({ forcePush: false }).catch(err => {
       console.debug("Debounced cloud push notice:", err.message);
+    });
+  }, delayMs);
+}
+
+/**
+ * Immediate Cloud Push: Sends immediate signal on item additions/deletions
+ * Confirms change on cloud serverless vault with low latency (150ms)
+ */
+let immediatePushTimer = null;
+
+export function triggerImmediateCloudPush(delayMs = 150) {
+  if (!isGoogleCalendarConnected()) return;
+  if (typeof window === 'undefined') return;
+
+  if (debouncePushTimer) {
+    clearTimeout(debouncePushTimer);
+    debouncePushTimer = null;
+  }
+  if (immediatePushTimer) {
+    clearTimeout(immediatePushTimer);
+  }
+
+  immediatePushTimer = setTimeout(() => {
+    if (!isGoogleCalendarConnected()) return;
+    syncFullOsWithCloud({ forcePush: false }).catch(err => {
+      console.debug("Immediate cloud push notice:", err.message);
     });
   }, delayMs);
 }

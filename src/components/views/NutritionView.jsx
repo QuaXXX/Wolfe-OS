@@ -34,6 +34,7 @@ import {
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { SnapMealModal } from '../nutrition/SnapMealModal';
+import { recordDeletion, recordAdditionOrUpdate } from '../../utils/cloudSyncEngine.js';
 
 export const NutritionView = ({ 
   nutritionData, 
@@ -120,6 +121,7 @@ export const NutritionView = ({
   // Handlers for logging
   const handleLogMeal = (mealEntry) => {
     playSound('success', soundEnabled);
+    if (mealEntry?.id) recordAdditionOrUpdate(mealEntry.id);
     setNutritionData(prev => {
       const nextMeals = [mealEntry, ...(prev.meals || [])];
       const newTotals = aggregateDailyNutrition(nextMeals);
@@ -136,6 +138,7 @@ export const NutritionView = ({
 
   const handleDeleteMeal = (mealId) => {
     playSound('click', soundEnabled);
+    recordDeletion(mealId);
     setNutritionData(prev => {
       const nextMeals = (prev.meals || []).filter(m => m.id !== mealId);
       const newTotals = aggregateDailyNutrition(nextMeals);
@@ -167,6 +170,7 @@ export const NutritionView = ({
   };
 
   const handleLogWeight = (weightEntry) => {
+    if (weightEntry?.id || weightEntry?.date) recordAdditionOrUpdate(weightEntry.id || weightEntry.date);
     setNutritionData(prev => {
       const existing = (prev.weightHistory || []).filter(w => w.date !== weightEntry.date);
       return {
@@ -177,6 +181,7 @@ export const NutritionView = ({
   };
 
   const handleDeleteWeightLog = (idOrDate) => {
+    recordDeletion(idOrDate);
     setNutritionData(prev => ({
       ...prev,
       weightHistory: (prev.weightHistory || []).filter(w => w.id !== idOrDate && w.date !== idOrDate)
@@ -230,6 +235,7 @@ export const NutritionView = ({
   };
 
   const handleAddHouseholdStaple = (staple) => {
+    if (staple?.id) recordAdditionOrUpdate(staple.id);
     setNutritionData(prev => ({
       ...prev,
       householdPantry: [staple, ...(prev.householdPantry || [])]
@@ -237,6 +243,7 @@ export const NutritionView = ({
   };
 
   const handleDeleteHouseholdStaple = (stapleId) => {
+    recordDeletion(stapleId);
     setNutritionData(prev => ({
       ...prev,
       householdPantry: (prev.householdPantry || []).filter(s => s.id !== stapleId)
@@ -265,7 +272,7 @@ export const NutritionView = ({
           <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>
             <UtensilsCrossed className="w-4 h-4" />
             <span>Performance Nutrition & Fuel</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
               {targetProtein}g Protein • High Carb
             </span>
           </div>
@@ -278,7 +285,6 @@ export const NutritionView = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Snap Meal Camera */}
           {/* Scan Label & Barcode */}
           <button
             onClick={() => {
@@ -286,11 +292,11 @@ export const NutritionView = ({
               setSnapModalMode('label');
               setIsSnapModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-200 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
             title="Scan Nutrition Facts label on packages or barcodes"
           >
-            <Barcode className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Scan Label / Barcode</span>
+            <Barcode className="w-3.5 h-3.5 text-slate-400" />
+            <span>Scan Label</span>
           </button>
 
           {/* Snap Meal Camera */}
@@ -300,9 +306,9 @@ export const NutritionView = ({
               setSnapModalMode('plate');
               setIsSnapModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-200 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
           >
-            <Camera className="w-3.5 h-3.5 text-purple-400" />
+            <Camera className="w-3.5 h-3.5 text-slate-400" />
             <span>Snap Meal</span>
           </button>
 
@@ -312,9 +318,9 @@ export const NutritionView = ({
               playSound('click', soundEnabled);
               setIsWeightModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
           >
-            <Scale className="w-3.5 h-3.5 text-sky-400" />
+            <Scale className="w-3.5 h-3.5 text-slate-400" />
             <span>Morning Weight</span>
           </button>
 
@@ -418,7 +424,7 @@ export const NutritionView = ({
             <button 
               type="button"
               onClick={() => handleAdjustTargetCalories(250)}
-              className="px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[11px] font-mono font-semibold border border-emerald-500/30 transition-all active:scale-95 cursor-pointer"
+              className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
               title="Increase daily target by 250 kcal"
             >
               +250
@@ -426,7 +432,7 @@ export const NutritionView = ({
             <button 
               type="button"
               onClick={() => handleAdjustTargetCalories(500)}
-              className="px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[11px] font-mono font-semibold border border-emerald-500/30 transition-all active:scale-95 cursor-pointer"
+              className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
               title="Increase daily target by 500 kcal"
             >
               +500
@@ -441,9 +447,9 @@ export const NutritionView = ({
                 setCustomFats(targetFats);
                 setIsTargetModalOpen(true);
               }}
-              className="ml-auto px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold border border-white/15 transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+              className="ml-auto px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-[11px] font-semibold border border-white/10 transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
             >
-              <Edit3 className="w-3 h-3 text-slate-300" />
+              <Edit3 className="w-3 h-3 text-slate-400" />
               <span>Edit Target</span>
             </button>
           </div>
@@ -475,13 +481,13 @@ export const NutritionView = ({
             </div>
 
             {/* Macro Bars */}
-            <div className="sm:col-span-3 space-y-3">
+            <div className="sm:col-span-3 space-y-2.5">
               {/* Protein: 180g Target */}
-              <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 space-y-1.5">
+              <div className="p-2.5 sm:p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-indigo-200 font-bold flex items-center gap-1.5">
+                  <span className="text-slate-200 font-semibold flex items-center gap-1.5">
                     <span>🥩 Protein</span>
-                    <span className="text-[10px] text-indigo-400/80 font-mono font-normal">(4 kcal/g)</span>
+                    <span className="text-[10px] text-slate-400 font-mono font-normal">(4 kcal/g)</span>
                   </span>
                   <span className="font-mono text-white font-bold">
                     {dailyTotals.protein}g <span className="text-slate-400 font-normal">/ {targetProtein}g</span>
@@ -489,18 +495,18 @@ export const NutritionView = ({
                 </div>
                 <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-indigo-500 rounded-full transition-all duration-500" 
+                    className="h-full bg-slate-300 rounded-full transition-all duration-500" 
                     style={{ width: `${Math.min(100, (dailyTotals.protein / targetProtein) * 100)}%` }}
                   />
                 </div>
               </div>
 
               {/* Carbs: 450g Target */}
-              <div className="p-3 rounded-2xl bg-sky-500/10 border border-sky-500/20 space-y-1.5">
+              <div className="p-2.5 sm:p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-sky-200 font-bold flex items-center gap-1.5">
+                  <span className="text-slate-200 font-semibold flex items-center gap-1.5">
                     <span>🍚 Carbohydrates</span>
-                    <span className="text-[10px] text-sky-400/80 font-mono font-normal">(4 kcal/g)</span>
+                    <span className="text-[10px] text-slate-400 font-mono font-normal">(4 kcal/g)</span>
                   </span>
                   <span className="font-mono text-white font-bold">
                     {dailyTotals.carbs}g <span className="text-slate-400 font-normal">/ {targetCarbs}g</span>
@@ -508,18 +514,18 @@ export const NutritionView = ({
                 </div>
                 <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-sky-400 rounded-full transition-all duration-500" 
+                    className="h-full bg-slate-400 rounded-full transition-all duration-500" 
                     style={{ width: `${Math.min(100, (dailyTotals.carbs / targetCarbs) * 100)}%` }}
                   />
                 </div>
               </div>
 
               {/* Fats: 80g Target */}
-              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
+              <div className="p-2.5 sm:p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-amber-200 font-bold flex items-center gap-1.5">
+                  <span className="text-slate-200 font-semibold flex items-center gap-1.5">
                     <span>🥑 Healthy Fats</span>
-                    <span className="text-[10px] text-amber-400/80 font-mono font-normal">(9 kcal/g)</span>
+                    <span className="text-[10px] text-slate-400 font-mono font-normal">(9 kcal/g)</span>
                   </span>
                   <span className="font-mono text-white font-bold">
                     {dailyTotals.fats}g <span className="text-slate-400 font-normal">/ {targetFats}g</span>
@@ -527,7 +533,7 @@ export const NutritionView = ({
                 </div>
                 <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-amber-400 rounded-full transition-all duration-500" 
+                    className="h-full bg-slate-500 rounded-full transition-all duration-500" 
                     style={{ width: `${Math.min(100, (dailyTotals.fats / targetFats) * 100)}%` }}
                   />
                 </div>
@@ -602,7 +608,7 @@ export const NutritionView = ({
               </button>
               <button
                 onClick={() => addWater(750)}
-                className="py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-[11px] font-mono text-sky-300 active:scale-95 transition-all cursor-pointer text-center"
+                className="py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-slate-200 active:scale-95 transition-all cursor-pointer text-center"
               >
                 +750ml (Shaker)
               </button>
@@ -618,7 +624,7 @@ export const NutritionView = ({
             <span className="text-base">🏠</span>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
               <span>Kitchen Staples & Quick Add</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-400 border border-white/10">
                 1-Tap Fast Log
               </span>
             </h2>
@@ -644,9 +650,9 @@ export const NutritionView = ({
                 setSnapModalMode('label');
                 setIsSnapModalOpen(true);
               }}
-              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/10 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all active:scale-95"
             >
-              <Barcode className="w-3 h-3 text-emerald-400" />
+              <Barcode className="w-3 h-3 text-slate-400" />
               <span>Scan Label</span>
             </button>
           </div>
@@ -686,7 +692,7 @@ export const NutritionView = ({
 
         {/* Toast Notification */}
         {justLoggedToast && (
-          <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-medium flex items-center gap-2">
+          <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-slate-200 text-xs font-mono font-medium flex items-center gap-2">
             <Check className="w-4 h-4 text-emerald-400" />
             <span>{justLoggedToast} to {MEAL_SLOTS.find(s => s.id === activeQuickSlot)?.label}</span>
           </div>
@@ -697,11 +703,11 @@ export const NutritionView = ({
             <button
               key={staple.id}
               onClick={() => handleQuickLogStaple(staple)}
-              className="p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] hover:border-emerald-500/30 border border-white/10 text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between space-y-2 group relative overflow-hidden"
+              className="p-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] hover:border-white/20 border border-white/10 text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between space-y-2 group relative overflow-hidden"
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-xl">{staple.icon || '🍽️'}</span>
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-300 border border-white/10">
                   +{staple.protein}g P
                 </span>
               </div>
@@ -711,9 +717,9 @@ export const NutritionView = ({
                   {staple.calories} kcal • {staple.portion}
                 </div>
               </div>
-              <div className="w-full pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-400 group-hover:text-emerald-300 transition-colors">
+              <div className="w-full pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-400 group-hover:text-white transition-colors">
                 <span>Tap to Log</span>
-                <Plus className="w-3 h-3 text-slate-400 group-hover:text-emerald-400" />
+                <Plus className="w-3 h-3 text-slate-500 group-hover:text-white" />
               </div>
             </button>
           ))}
@@ -732,7 +738,8 @@ export const NutritionView = ({
 
           <button
             onClick={() => setIsMealModalOpen(true)}
-            className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer flex items-center gap-1"
+            className="text-xs font-semibold cursor-pointer flex items-center gap-1 hover:brightness-110 transition-all"
+            style={{ color: 'var(--accent-primary)' }}
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Meal</span>

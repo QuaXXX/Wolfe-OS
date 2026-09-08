@@ -499,7 +499,7 @@ export const SnapMealModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>{scanMode === 'label' ? 'Label & Barcode Scanner' : 'AI Meal & Plate Scanner'}</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
                     {scanMode === 'label' ? 'Nutrition Facts OCR' : 'Multimodal Vision'}
                   </span>
                 </h3>
@@ -537,7 +537,7 @@ export const SnapMealModal = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <UtensilsCrossed className="w-3.5 h-3.5 text-purple-400" />
+              <UtensilsCrossed className="w-3.5 h-3.5 text-slate-400" />
               <span>🍽️ Plate & Meal Vision</span>
             </button>
 
@@ -554,7 +554,7 @@ export const SnapMealModal = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Barcode className="w-3.5 h-3.5 text-emerald-400" />
+              <Barcode className="w-3.5 h-3.5 text-slate-400" />
               <span>🏷️ Nutrition Label & Barcode</span>
             </button>
           </div>
@@ -572,17 +572,15 @@ export const SnapMealModal = ({
                 />
 
                 {/* Reticle Overlay */}
-                <div className={`absolute inset-0 pointer-events-none border-2 border-dashed ${
-                  scanMode === 'label' ? 'border-emerald-400/40 m-8 sm:m-12' : 'border-white/20 m-6'
-                } rounded-2xl flex flex-col items-center justify-center`}>
-                  <div className={`w-8 h-8 border-t-2 border-l-2 ${scanMode === 'label' ? 'border-emerald-400' : 'border-white/40'} absolute top-0 left-0 rounded-tl-xl`} />
-                  <div className={`w-8 h-8 border-t-2 border-r-2 ${scanMode === 'label' ? 'border-emerald-400' : 'border-white/40'} absolute top-0 right-0 rounded-tr-xl`} />
-                  <div className={`w-8 h-8 border-b-2 border-l-2 ${scanMode === 'label' ? 'border-emerald-400' : 'border-white/40'} absolute bottom-0 left-0 rounded-bl-xl`} />
-                  <div className={`w-8 h-8 border-b-2 border-r-2 ${scanMode === 'label' ? 'border-emerald-400' : 'border-white/40'} absolute bottom-0 right-0 rounded-br-xl`} />
+                <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-white/20 m-6 sm:m-10 rounded-2xl flex flex-col items-center justify-center">
+                  <div className="w-8 h-8 border-t-2 border-l-2 border-white/40 absolute top-0 left-0 rounded-tl-xl" />
+                  <div className="w-8 h-8 border-t-2 border-r-2 border-white/40 absolute top-0 right-0 rounded-tr-xl" />
+                  <div className="w-8 h-8 border-b-2 border-l-2 border-white/40 absolute bottom-0 left-0 rounded-bl-xl" />
+                  <div className="w-8 h-8 border-b-2 border-r-2 border-white/40 absolute bottom-0 right-0 rounded-br-xl" />
 
                   {scanMode === 'label' && (
-                    <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-emerald-500/30 text-[10px] font-mono text-emerald-300 flex items-center gap-1.5 shadow-lg">
-                      <ScanLine className="w-3 h-3 animate-pulse text-emerald-400" />
+                    <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-slate-300 flex items-center gap-1.5 shadow-lg">
+                      <ScanLine className="w-3 h-3 animate-pulse text-slate-400" />
                       <span>Align Nutrition Facts or Barcode</span>
                     </div>
                   )}
@@ -628,9 +626,9 @@ export const SnapMealModal = ({
                   <button
                     type="button"
                     onClick={handleTriggerCamera}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-xs font-semibold border border-purple-500/30 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
                   >
-                    <Camera className="w-4 h-4 text-purple-400" />
+                    <Camera className="w-4 h-4 text-slate-400" />
                     <span>{scanMode === 'label' ? 'Scan Label with Camera' : 'Take Photo with Camera'}</span>
                   </button>
 
@@ -639,7 +637,7 @@ export const SnapMealModal = ({
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
                   >
-                    <UploadCloud className="w-4 h-4 text-sky-400" />
+                    <UploadCloud className="w-4 h-4 text-slate-400" />
                     <span>Upload from Photos</span>
                   </button>
 
@@ -684,7 +682,7 @@ export const SnapMealModal = ({
               <button
                 type="submit"
                 disabled={isLookingUpBarcode || !barcodeInput.trim()}
-                className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] text-white border border-white/15 text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {isLookingUpBarcode ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
                 <span>Lookup</span>

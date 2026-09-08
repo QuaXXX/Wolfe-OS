@@ -122,14 +122,13 @@ export const HomeView = ({
         >
           <div>
             <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-2' : 'mb-3'}`}>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <div 
-                  className={`rounded-lg flex items-center justify-center ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                  style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}
+                  className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
                 >
                   <CalendarDays className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
                 </div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Schedule & Tasks
                 </h3>
               </div>
@@ -138,14 +137,9 @@ export const HomeView = ({
               <div className="flex items-center gap-2">
                 {(isSyncingGoogle || syncStatus === 'syncing') ? (
                   <span 
-                    className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm"
-                    style={{
-                      backgroundColor: 'var(--accent-subtle)',
-                      color: 'var(--accent-primary)',
-                      border: '1px solid var(--accent-border)'
-                    }}
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 bg-white/[0.03] text-slate-300 border border-white/10"
                   >
-                    <RotateCw className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
+                    <RotateCw className="w-3 h-3 animate-spin text-slate-400" />
                     <span>Syncing...</span>
                   </span>
                 ) : syncStatus === 'synced' ? (
@@ -156,7 +150,7 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                     title="Google Calendar & Tasks are synced. Tap to refresh."
                   >
                     <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -170,7 +164,7 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-rose-300 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                     title="Sync failed or session expired. Tap to reconnect."
                   >
                     <AlertCircle className="w-3 h-3 text-rose-400" />
@@ -184,7 +178,7 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                     title="Out of sync. Tap to sync now."
                   >
                     <RotateCw className="w-3 h-3 text-amber-400" />
@@ -198,7 +192,7 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-slate-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                     title="Connected. Tap to sync."
                   >
                     <RotateCw className="w-3 h-3 text-slate-400" />
@@ -212,7 +206,7 @@ export const HomeView = ({
                       playSound('click', soundEnabled);
                       if (onSyncGoogleCalendar) onSyncGoogleCalendar();
                     }}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium text-slate-400 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium text-slate-400 bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                     title="Google Calendar is disconnected. Tap to connect."
                   >
                     <CalendarDays className="w-3 h-3 text-slate-400" />
@@ -353,20 +347,19 @@ export const HomeView = ({
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <div 
-                    className={`rounded-lg flex items-center justify-center ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                    style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}
+                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
                   >
                     <TrendingUp className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
                   </div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     Day Trading
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
                   {isCompact && (
-                    <span className="text-xs font-mono font-bold text-white">
+                    <span className={`text-xs font-mono font-bold ${(tradingData.dayPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       ${(tradingData.dayPnl || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                   )}
@@ -378,22 +371,22 @@ export const HomeView = ({
                 <>
                   <div className="my-2 flex items-baseline justify-between">
                     <div>
-                      <div className="text-2xl font-mono font-bold text-white">
+                      <div className={`text-2xl font-mono font-bold tracking-tight ${(tradingData.dayPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         ${(tradingData.dayPnl || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </div>
-                      <div className="text-xs font-mono mt-0.5" style={{ color: 'var(--accent-primary)' }}>
-                        +{tradingData.dayPnlPercent || 0}% • {tradingData.todayTrades?.length || 0} Executed Trades
+                      <div className="text-xs text-slate-400 mt-0.5 font-mono">
+                        {(tradingData.dayPnl || 0) >= 0 ? '+' : ''}{tradingData.dayPnlPercent || 0}% • {tradingData.todayTrades?.length || 0} Trades
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-slate-300 border border-white/10">
-                      Win Rate: {tradingData.winRate || '—'}
+                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-white/[0.03] text-slate-300 border border-white/[0.06]">
+                      Win: {tradingData.winRate || '—'}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-white/[0.04]">
                     {tradingData.watchlist?.length > 0 ? (
                       tradingData.watchlist.slice(0, 3).map(w => (
-                        <span key={w.symbol}>{w.symbol} <strong className="font-normal" style={{ color: 'var(--accent-primary)' }}>{w.change}</strong></span>
+                        <span key={w.symbol}>{w.symbol} <strong className={`font-normal ${w.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{w.change}</strong></span>
                       ))
                     ) : (
                       <span>No active watchlist tickers</span>
@@ -401,9 +394,11 @@ export const HomeView = ({
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/5">
-                  <span style={{ color: 'var(--accent-primary)' }}>+{tradingData.dayPnlPercent || 0}% P&L</span>
-                  <span>Win Rate: {tradingData.winRate || '—'}</span>
+                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04]">
+                  <span className={(tradingData.dayPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                    {(tradingData.dayPnl || 0) >= 0 ? '+' : ''}{tradingData.dayPnlPercent || 0}% P&L
+                  </span>
+                  <span>Win: {tradingData.winRate || '—'}</span>
                 </div>
               )}
             </div>
@@ -421,14 +416,13 @@ export const HomeView = ({
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <div 
-                    className={`rounded-lg flex items-center justify-center ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                    style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}
+                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
                   >
                     <GraduationCap className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
                   </div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     School & Academics
                   </h3>
                 </div>
@@ -446,7 +440,7 @@ export const HomeView = ({
                 <>
                   <div className="my-2 flex items-baseline justify-between">
                     <div>
-                      <div className="text-2xl font-mono font-bold text-white">
+                      <div className="text-2xl font-mono font-bold text-white tracking-tight">
                         {schoolData.gpa} <span className="text-xs font-normal text-slate-500">GPA</span>
                       </div>
                       <div className="text-xs text-slate-400 mt-0.5">
@@ -454,28 +448,28 @@ export const HomeView = ({
                       </div>
                     </div>
                     {schoolData.gpa !== '—' && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-slate-300 border border-white/10">
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.03] text-slate-300 border border-white/[0.06]">
                         Active Term
                       </span>
                     )}
                   </div>
 
                   {nextAssignment && (
-                    <div className="flex items-center gap-2 text-xs bg-white/[0.03] border border-white/10 text-slate-300 p-2.5 rounded-xl truncate">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent-primary)' }} />
+                    <div className="flex items-center gap-2 text-xs bg-white/[0.02] border border-white/[0.06] text-slate-300 p-2 rounded-xl truncate">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                       <span className="truncate">
-                        <strong className="text-white">Upcoming:</strong> {nextAssignment.course} {nextAssignment.title}
+                        <strong className="text-white">Due:</strong> {nextAssignment.course} {nextAssignment.title}
                       </span>
                     </div>
                   )}
                 </>
               ) : nextAssignment ? (
-                <div className="flex items-center gap-2 text-[11px] text-slate-300 mt-1 pt-1.5 border-t border-white/5 truncate">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent-primary)' }} />
+                <div className="flex items-center gap-2 text-[11px] text-slate-300 mt-1 pt-1.5 border-t border-white/[0.04] truncate">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                   <span className="truncate">Due: {nextAssignment.course} {nextAssignment.title}</span>
                 </div>
               ) : (
-                <div className="text-[11px] text-slate-400 mt-1 pt-1.5 border-t border-white/5 font-mono">
+                <div className="text-[11px] text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
                   {schoolData.courses.length} Active Courses
                 </div>
               )}
@@ -498,14 +492,13 @@ export const HomeView = ({
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <div 
-                    className={`rounded-lg flex items-center justify-center ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                    style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}
+                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
                   >
                     <Dumbbell className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
                   </div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     Workouts
                   </h3>
                 </div>
@@ -528,18 +521,18 @@ export const HomeView = ({
                     Target: {workoutData.completedDaysThisWeek || 0} of {workoutData.targetDaysThisWeek || 5} sessions complete
                   </div>
                   
-                  <div className="w-full h-1 bg-white/10 rounded-full mt-2.5 overflow-hidden">
+                  <div className="w-full h-1.5 bg-white/[0.06] rounded-full mt-2.5 overflow-hidden">
                     <div 
-                      className="h-full rounded-full" 
+                      className="h-full rounded-full transition-all duration-300" 
                       style={{ 
-                        width: `${((workoutData.completedDaysThisWeek || 0) / (workoutData.targetDaysThisWeek || 5)) * 100}%`,
+                        width: `${Math.min(100, ((workoutData.completedDaysThisWeek || 0) / (workoutData.targetDaysThisWeek || 5)) * 100)}%`,
                         backgroundColor: 'var(--accent-primary)'
                       }}
                     />
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1.5 border-t border-white/5 font-mono">
+                <div className="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
                   <span>Week: {workoutData.completedDaysThisWeek || 0}/{workoutData.targetDaysThisWeek || 5} Complete</span>
                   <span>Vol: {workoutData.weeklyVolumeLbs || '0 lbs'}</span>
                 </div>
@@ -559,14 +552,13 @@ export const HomeView = ({
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <div 
-                    className={`rounded-lg flex items-center justify-center ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                    style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--accent-border)' }}
+                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
                   >
                     <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
                   </div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     Nutrition
                   </h3>
                 </div>
@@ -584,23 +576,23 @@ export const HomeView = ({
                 <>
                   <div className="my-2">
                     <div className="flex items-baseline justify-between">
-                      <div className="text-2xl font-mono font-bold text-white">
+                      <div className="text-2xl font-mono font-bold text-white tracking-tight">
                         {nutritionData?.consumedCalories || 0} <span className="text-xs font-normal text-slate-500">/ {nutritionData?.targetCalories || 3250} kcal</span>
                       </div>
                       {latestWeight && (
-                        <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                        <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
                           ⚖️ {latestWeight} lbs {weightChangeStr ? `(${weightChangeStr})` : ''}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
-                      <span>Protein: <span className="font-mono text-emerald-400 font-semibold">{nutritionData?.protein?.current || 0}g / {nutritionData?.protein?.target || 180}g</span></span>
+                      <span>Protein: <span className="font-mono text-slate-200 font-semibold">{nutritionData?.protein?.current || 0}g / {nutritionData?.protein?.target || 180}g</span></span>
                       <span className="font-mono text-slate-400">Carbs: {nutritionData?.carbs?.current || 0}g / {nutritionData?.carbs?.target || 450}g</span>
                     </div>
                   </div>
 
                   {/* Progress bar */}
-                  <div className="w-full h-1.5 bg-white/10 rounded-full my-2 overflow-hidden">
+                  <div className="w-full h-1.5 bg-white/[0.06] rounded-full my-2 overflow-hidden">
                     <div 
                       className="h-full rounded-full transition-all duration-500" 
                       style={{ 
@@ -610,15 +602,15 @@ export const HomeView = ({
                     />
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-white/5 font-mono">
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-white/[0.04] font-mono">
                     <span>Water: {Math.round((nutritionData?.waterMl || 0) / 1000 * 10) / 10}L / 3.5L</span>
-                    <span style={{ color: 'var(--accent-primary)' }}>{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} kcal left</span>
+                    <span className="text-slate-300">{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} kcal left</span>
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/5">
+                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04]">
                   <span>P: {nutritionData?.protein?.current || 0}/{nutritionData?.protein?.target || 180}g</span>
-                  <span style={{ color: 'var(--accent-primary)' }}>{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} left</span>
+                  <span className="text-slate-300">{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} left</span>
                 </div>
               )}
             </div>

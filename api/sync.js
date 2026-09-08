@@ -168,8 +168,55 @@ export default async function handler(req, res) {
     }
 
     const targetUserId = sanitizeUserId(body?.userId || verifiedUserId || 'primary_user');
+    
+    // Existing vault in memory or dev file
+    const existingVault = memoryStore.get(targetUserId) || loadDevVaults()[targetUserId] || null;
+    const mergedTombstones = {
+      ...(existingVault?._tombstones || {}),
+      ...(payloadVault._tombstones || {})
+    };
+
+    const isTomb = (id) => id && mergedTombstones[String(id)];
+
+    // Purge tombstoned items from the incoming payload
+    const sanitizedNutrition = payloadVault.nutrition ? {
+      ...payloadVault.nutrition,
+      meals: (payloadVault.nutrition.meals || []).filter(m => !isTomb(m.id)),
+      weightLogs: (payloadVault.nutrition.weightLogs || []).filter(w => !isTomb(w.id) && !isTomb(w.date)),
+      householdPantry: (payloadVault.nutrition.householdPantry || []).filter(s => !isTomb(s.id) && !isTomb(s.name?.toLowerCase()))
+    } : payloadVault.nutrition;
+
+    const sanitizedWorkouts = payloadVault.workouts ? {
+      ...payloadVault.workouts,
+      history: (payloadVault.workouts.history || []).filter(h => !isTomb(h.id) && !isTomb(`${h.date}_${h.routine}`))
+    } : payloadVault.workouts;
+
+    const sanitizedTrading = payloadVault.trading ? {
+      ...payloadVault.trading,
+      watchlist: (payloadVault.trading.watchlist || []).filter(w => !isTomb(w.symbol)),
+      journal: (payloadVault.trading.journal || []).filter(j => !isTomb(j.id)),
+      paperHistory: (payloadVault.trading.paperHistory || []).filter(p => !isTomb(p.id))
+    } : payloadVault.trading;
+
+    const sanitizedSchool = payloadVault.school ? {
+      ...payloadVault.school,
+      decks: (payloadVault.school.decks || []).filter(d => !isTomb(d.id)),
+      quizzes: (payloadVault.school.quizzes || []).filter(q => !isTomb(q.id))
+    } : payloadVault.school;
+
+    const sanitizedCalendar = payloadVault.calendar ? {
+      ...payloadVault.calendar,
+      items: (payloadVault.calendar.items || []).filter(it => !isTomb(it.id))
+    } : payloadVault.calendar;
+
     const enrichedVault = {
       ...payloadVault,
+      _tombstones: mergedTombstones,
+      nutrition: sanitizedNutrition,
+      workouts: sanitizedWorkouts,
+      trading: sanitizedTrading,
+      school: sanitizedSchool,
+      calendar: sanitizedCalendar,
       lastUpdated: Date.now(),
       serverSyncedAt: new Date().toISOString()
     };

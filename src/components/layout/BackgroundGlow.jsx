@@ -3,19 +3,19 @@ import React from 'react';
 export const BackgroundGlow = ({ hue = 255 }) => {
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 select-none bg-[#06070d]">
-      {/* Dark Royal Blue-Purple Ambient Halo (Center/Top) */}
+      {/* Clean Subtle Ambient Aura (Center/Top) */}
       <div 
-        className="absolute top-[5%] left-1/2 -translate-x-1/2 w-[65vw] h-[65vw] max-w-[850px] max-h-[850px] rounded-full opacity-25 blur-[160px] transition-all duration-300"
+        className="absolute top-[2%] left-1/2 -translate-x-1/2 w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] rounded-full opacity-20 blur-[180px] transition-all duration-500"
         style={{ 
-          background: `radial-gradient(circle, hsla(${hue}, 80%, 45%, 0.4) 0%, hsla(${hue + 30}, 85%, 25%, 0.15) 50%, transparent 80%)` 
+          background: `radial-gradient(circle, hsla(${hue}, 70%, 48%, 0.25) 0%, transparent 65%)` 
         }}
       />
       
-      {/* Deep Midnight Blue/Purple Ambient Fill (Bottom) */}
+      {/* Subtle Bottom Ambient Depth */}
       <div 
-        className="absolute bottom-[-10%] right-[10%] w-[45vw] h-[45vw] max-w-[600px] max-h-[600px] rounded-full opacity-15 blur-[160px] transition-all duration-300"
+        className="absolute bottom-[-10%] right-[15%] w-[40vw] h-[40vw] max-w-[500px] max-h-[500px] rounded-full opacity-10 blur-[180px] transition-all duration-500"
         style={{ 
-          background: `radial-gradient(circle, hsla(${hue - 35}, 85%, 35%, 0.3) 0%, transparent 70%)` 
+          background: `radial-gradient(circle, hsla(${hue}, 60%, 40%, 0.18) 0%, transparent 65%)` 
         }}
       />
 

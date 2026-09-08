@@ -173,7 +173,7 @@ export const MealLogModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Log Food & Fuel</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
                     Daily Tracker
                   </span>
                 </h3>
@@ -277,7 +277,7 @@ export const MealLogModal = ({
                     onClose();
                     onOpenSnapModal('label');
                   }}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 active:scale-95"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 active:scale-95"
                   title="Scan Nutrition Facts Label or Barcode"
                 >
                   <span>🏷️ Label / UPC</span>
@@ -290,10 +290,10 @@ export const MealLogModal = ({
                     onClose();
                     onOpenSnapModal('plate');
                   }}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 active:scale-95"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 active:scale-95"
                   title="Scan meal with Camera or Vision AI"
                 >
-                  <Camera className="w-3.5 h-3.5 text-purple-400" />
+                  <Camera className="w-3.5 h-3.5 text-slate-400" />
                   <span>📷 Snap</span>
                 </button>
               </>
@@ -305,7 +305,7 @@ export const MealLogModal = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between text-[11px] text-slate-400">
                 <span>Tap any staple to log it instantly to your {MEAL_SLOTS.find(s => s.id === mealSlot)?.name}:</span>
-                <span className="font-mono text-emerald-400">{displayPantry.length} items available</span>
+                <span className="font-mono text-slate-300">{displayPantry.length} items available</span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
