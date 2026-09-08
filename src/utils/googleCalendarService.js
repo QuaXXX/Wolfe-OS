@@ -225,6 +225,7 @@ export async function exchangeCodeForTokens(code, redirectUri = 'postmessage', c
     saveGoogleAccount(data.user);
   }
   localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
+  localStorage.setItem('wolfe_user_signed_in_google', 'true');
 
   return data;
 }
@@ -305,19 +306,22 @@ export async function ensureGoogleGsiLoaded() {
  * Sign in once with Google Authorization Code Flow for Permanent Device Access (Offline flow)
  * Uses GIS initCodeClient (popup mode) or OAuth popup window with custom credentials.
  */
-export function signInWithGoogleCode(clientIdOverride = null) {
+export async function signInWithGoogleCode(clientIdOverride = null) {
+  const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+
+  if (!clientId) {
+    throw new Error("No Google Client ID configured.");
+  }
+
+  if (typeof window === 'undefined') {
+    throw new Error("Window is not defined.");
+  }
+
+  // Guarantee Google Identity Services client script is loaded
+  await ensureGoogleGsiLoaded();
+
   return new Promise((resolve, reject) => {
-    const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
-
-    if (!clientId) {
-      return reject(new Error("No Google Client ID configured."));
-    }
-
-    if (typeof window === 'undefined') {
-      return reject(new Error("Window is not defined."));
-    }
-
-    // DESKTOP & MODERN BROWSERS: Google Identity Services (GIS) Code Client (Official popup flow)
+    // DESKTOP & MOBILE BROWSERS: Google Identity Services (GIS) Code Client (Official popup flow)
     if (window.google?.accounts?.oauth2?.initCodeClient) {
       try {
         const client = window.google.accounts.oauth2.initCodeClient({
@@ -456,8 +460,8 @@ export async function signInWithGooglePopup(clientIdOverride = null) {
  */
 export async function refreshAccessToken() {
   if (typeof localStorage === 'undefined') return null;
-  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY) || DEFAULT_REFRESH_TOKEN;
-  if (!refreshToken) return null;
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  if (!refreshToken || !refreshToken.trim()) return null;
 
   const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
   const clientSecret = localStorage.getItem(GOOGLE_CLIENT_SECRET_KEY) || DEFAULT_CLIENT_SECRET;
@@ -468,7 +472,7 @@ export async function refreshAccessToken() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        refresh_token: refreshToken,
+        refresh_token: refreshToken.trim(),
         client_id: clientId,
         client_secret: clientSecret
       })
@@ -477,7 +481,7 @@ export async function refreshAccessToken() {
     if (res.ok) {
       const data = await res.json();
       if (data.access_token) {
-        saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken);
+        saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken.trim());
         return data.access_token;
       }
     }
@@ -494,7 +498,7 @@ export async function refreshAccessToken() {
         body: new URLSearchParams({
           client_id: clientId,
           client_secret: clientSecret,
-          refresh_token: refreshToken,
+          refresh_token: refreshToken.trim(),
           grant_type: 'refresh_token'
         })
       });
@@ -502,7 +506,7 @@ export async function refreshAccessToken() {
       if (res.ok) {
         const data = await res.json();
         if (data.access_token) {
-          saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken);
+          saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken.trim());
           return data.access_token;
         }
       }
@@ -587,8 +591,8 @@ export async function getValidAccessToken(forceRefresh = false) {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
 
-  // If token exists and hasn't expired (and not forced), return immediately
-  if (!forceRefresh && token && expiry && Date.now() < Number(expiry)) {
+  // If token exists and hasn't expired (with 90s buffer), return immediately
+  if (!forceRefresh && token && expiry && Date.now() < (Number(expiry) - 90000)) {
     return token;
   }
 
@@ -598,12 +602,26 @@ export async function getValidAccessToken(forceRefresh = false) {
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Return existing stored token as best-effort fallback
-  if (token) {
+  // 2. Return existing stored token as best-effort fallback if not expired
+  if (token && expiry && Date.now() < Number(expiry)) {
     return token;
   }
 
-  return DEFAULT_ACCESS_TOKEN || null;
+  return token || null;
+}
+
+/**
+ * Get verified Google User identity
+ */
+export function getGoogleUserIdentity() {
+  const account = getGoogleAccount();
+  if (!account) return null;
+  return {
+    email: account.email || null,
+    name: account.name || null,
+    picture: account.picture || null,
+    id: account.id || null
+  };
 }
 
 /**

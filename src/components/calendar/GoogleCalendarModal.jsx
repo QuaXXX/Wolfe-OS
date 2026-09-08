@@ -17,7 +17,14 @@ import {
   ChevronDown,
   ChevronUp,
   Settings2,
-  Sparkles
+  Sparkles,
+  Cloud,
+  Smartphone,
+  Laptop,
+  Dumbbell,
+  UtensilsCrossed,
+  TrendingUp,
+  GraduationCap
 } from 'lucide-react';
 import { 
   isGoogleCalendarConnected, 
@@ -25,10 +32,12 @@ import {
   disconnectGoogleCalendar, 
   fetchGoogleCalendarEvents,
   signInWithGooglePopup,
+  signInWithGoogleCode,
   getDeviceSyncDetails,
   getGoogleAccount,
   isMobileDevice
 } from '../../utils/googleCalendarService';
+import { syncFullOsWithCloud } from '../../utils/cloudSyncEngine';
 import { playSound } from '../../utils/soundFX';
 
 export const GoogleCalendarModal = ({ 
@@ -89,9 +98,25 @@ export const GoogleCalendarModal = ({
     setIsSyncing(true);
 
     try {
-      await signInWithGooglePopup();
+      // 1. Prioritize permanent authorization code flow (offline refresh_token)
+      try {
+        await signInWithGoogleCode();
+      } catch (codeErr) {
+        console.warn("GIS code flow fallback to token client:", codeErr);
+        await signInWithGooglePopup();
+      }
+
       refreshStatus();
+
+      // 2. Immediately trigger 2-way cloud sync across all 6 hubs (Trading, Nutrition, Workouts, Academics, Calendar, Settings)
+      const cloudRes = await syncFullOsWithCloud({ forcePush: false });
+
+      // 3. Immediately sync Google Calendar & Google Tasks
       await handleSyncNow();
+
+      if (cloudRes?.success) {
+        setSyncMessage("All 6 command hubs synchronized across phone & computer!");
+      }
     } catch (err) {
       console.warn("Google sign-in notice:", err);
       setError(err.message || "Google Sign-In was cancelled or interrupted.");
@@ -100,36 +125,42 @@ export const GoogleCalendarModal = ({
     }
   };
 
-  const handleSaveCustomCreds = (e) => {
-    e.preventDefault();
-    if (typeof localStorage === 'undefined') return;
+  const handleForcePushCloud = async () => {
     playSound('click', soundEnabled);
-
-    if (customClientId.trim()) {
-      localStorage.setItem('wolfe_gcal_client_id', customClientId.trim());
-    } else {
-      localStorage.removeItem('wolfe_gcal_client_id');
+    setIsSyncing(true);
+    setError(null);
+    try {
+      const res = await syncFullOsWithCloud({ forcePush: true });
+      if (res.success) {
+        playSound('success', soundEnabled);
+        setSyncMessage("Successfully pushed this device's state to cloud master!");
+      } else {
+        setError(res.error || "Failed to push to cloud.");
+      }
+    } catch (e) {
+      setError(e.message || "Force push failed.");
+    } finally {
+      setIsSyncing(false);
     }
-
-    if (customClientSecret.trim()) {
-      localStorage.setItem('wolfe_gcal_client_secret', customClientSecret.trim());
-    } else {
-      localStorage.removeItem('wolfe_gcal_client_secret');
-    }
-
-    setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 2500);
   };
 
-  const handleManualTokenSubmit = async (e) => {
-    e.preventDefault();
-    if (!manualToken.trim()) return;
-
+  const handleForcePullCloud = async () => {
     playSound('click', soundEnabled);
+    setIsSyncing(true);
     setError(null);
-    saveGoogleToken(manualToken.trim());
-    refreshStatus();
-    await handleSyncNow();
+    try {
+      const res = await syncFullOsWithCloud({ forcePull: true });
+      if (res.success) {
+        playSound('success', soundEnabled);
+        setSyncMessage("Successfully downloaded latest cloud master to this device!");
+      } else {
+        setError(res.error || "Failed to pull from cloud.");
+      }
+    } catch (e) {
+      setError(e.message || "Force pull failed.");
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleSyncNow = async () => {
@@ -138,15 +169,19 @@ export const GoogleCalendarModal = ({
     setSyncMessage(null);
 
     try {
+      // 1. Sync full OS state with cloud
+      await syncFullOsWithCloud({ forcePush: false });
+
+      // 2. Sync Google Calendar & Tasks
       const events = await fetchGoogleCalendarEvents(true);
       playSound('success', soundEnabled);
       refreshStatus();
-      setSyncMessage(`Successfully synced ${events.length} item(s) across all Google Calendars & Tasks!`);
+      setSyncMessage(`Synced ${events ? events.length : 0} calendar items & all 6 OS hubs across devices!`);
       if (onSyncSuccess) {
         onSyncSuccess(events);
       }
     } catch (err) {
-      setError(err.message || "Failed to fetch events from Google Calendar.");
+      setError(err.message || "Failed to sync with Google.");
       if (err.message?.includes('expired') || err.message?.includes('401')) {
         disconnectGoogleCalendar();
         refreshStatus();
@@ -202,16 +237,16 @@ export const GoogleCalendarModal = ({
                 className="w-10 h-10 rounded-2xl flex items-center justify-center bg-white/[0.04]"
                 style={{ border: '1px solid var(--accent-border)' }}
               >
-                <Calendar className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
+                <Cloud className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Google Calendar & Tasks</span>
-                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-300">
-                    2-Way Sync
+                  <span>Google Account & Cross-Device Sync</span>
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                    6 Hubs Live
                   </span>
                 </h3>
-                <p className="text-xs text-slate-400">Persistent device authentication with background auto-sync</p>
+                <p className="text-xs text-slate-400">Persistent authorization • Sync phone & computer automatically</p>
               </div>
             </div>
 
@@ -260,7 +295,7 @@ export const GoogleCalendarModal = ({
                       </span>
                     </div>
                     <div className="text-[11px] text-slate-300 font-mono truncate max-w-[240px]">
-                      {account?.email || 'Google Calendar & Tasks'}
+                      {account?.email || 'Google Account Active'}
                     </div>
                   </div>
                 </div>
@@ -282,7 +317,7 @@ export const GoogleCalendarModal = ({
                   ) : syncStatus === 'synced' ? (
                     <>
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>Live Synced</span>
+                      <span>All Hubs Synced</span>
                     </>
                   ) : isSyncing ? (
                     <>
@@ -298,6 +333,40 @@ export const GoogleCalendarModal = ({
                 </span>
               </div>
 
+              {/* 6 Hubs Sync Grid */}
+              <div className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-300 font-medium">Cross-Device Synchronized Modules</span>
+                  <span className="text-[10px] font-mono text-emerald-400">Phone ⇄ Computer</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
+                    <UtensilsCrossed className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span className="truncate">Nutrition</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
+                    <Dumbbell className="w-3 h-3 text-cyan-400 shrink-0" />
+                    <span className="truncate">Workouts</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
+                    <TrendingUp className="w-3 h-3 text-blue-400 shrink-0" />
+                    <span className="truncate">Trading</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
+                    <GraduationCap className="w-3 h-3 text-purple-400 shrink-0" />
+                    <span className="truncate">Academics</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
+                    <Calendar className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span className="truncate">Calendar</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
+                    <Settings2 className="w-3 h-3 text-rose-400 shrink-0" />
+                    <span className="truncate">Settings</span>
+                  </div>
+                </div>
+              </div>
+
               {(error || syncStatus === 'failed' || syncStatus === 'error') ? (
                 <div className="text-xs text-rose-300 bg-rose-500/10 p-3 rounded-xl border border-rose-500/25 space-y-1">
                   <div className="flex items-center gap-2 font-semibold text-rose-200">
@@ -305,25 +374,26 @@ export const GoogleCalendarModal = ({
                     <span>Session Expired or Unauthorized</span>
                   </div>
                   <p className="text-[11px] leading-relaxed text-rose-300/90">
-                    Your Google session is no longer valid or calendar access was interrupted. Tap <strong>Reconnect Account</strong> below to re-authorize with 1 click.
+                    Your Google session is no longer valid. Tap <strong>Reconnect Account</strong> below to re-authorize permanently.
                   </p>
                 </div>
               ) : (
-                <div className="text-xs text-slate-300/90 leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
-                  <div className="flex items-center gap-2 text-emerald-300 font-medium mb-1">
-                    <Lock className="w-3 h-3" />
-                    <span>Permanent Device Access</span>
+                <div className="text-xs text-slate-300/90 leading-relaxed bg-black/20 p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-300 font-medium">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Permanent Offline Access</span>
                   </div>
-                  You signed in once on this device. Events, classes, and tasks sync automatically in the background with zero popup prompts.
+                  <span className="text-[10px] text-slate-400 font-mono">0 logins needed</span>
                 </div>
               )}
 
-              <div className="pt-2 border-t border-white/10 flex items-center gap-2">
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1 border-t border-white/10">
                 {(error || syncStatus === 'failed' || syncStatus === 'error') ? (
                   <button
                     onClick={handleGoogleSignIn}
                     disabled={isSyncing}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer bg-rose-600 hover:bg-rose-500 transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer bg-rose-600 hover:bg-rose-500 transition-colors"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                     <span>{isSyncing ? "Connecting..." : "Reconnect Account"}</span>
@@ -332,22 +402,40 @@ export const GoogleCalendarModal = ({
                   <button
                     onClick={handleSyncNow}
                     disabled={isSyncing}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-semibold shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
                     style={{ backgroundColor: 'var(--accent-primary)' }}
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing ? "Syncing Calendar & Tasks..." : "Sync 2-Way Now"}</span>
+                    <span>{isSyncing ? "Syncing All 6 Hubs..." : "Sync All Hubs Now"}</span>
                   </button>
                 )}
 
-                <button
-                  onClick={handleDisconnect}
-                  className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
-                  title="Disconnect Device"
-                >
-                  <Unlink className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Disconnect</span>
-                </button>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={handleForcePushCloud}
+                    disabled={isSyncing}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white text-[11px] font-medium border border-white/10 transition-colors cursor-pointer"
+                    title="Upload this device's current data as cloud master"
+                  >
+                    Force Push
+                  </button>
+                  <button
+                    onClick={handleForcePullCloud}
+                    disabled={isSyncing}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white text-[11px] font-medium border border-white/10 transition-colors cursor-pointer"
+                    title="Download cloud master to overwrite this device"
+                  >
+                    Force Pull
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    className="py-1.5 px-3 rounded-xl bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 text-[11px] font-medium border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
+                    title="Disconnect Device"
+                  >
+                    <Unlink className="w-3 h-3" />
+                    <span>Disconnect</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -357,11 +445,11 @@ export const GoogleCalendarModal = ({
                 <div className="space-y-1.5 text-center">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-medium mb-1">
                     <Sparkles className="w-3 h-3 text-indigo-400" />
-                    <span>Sign in once • Stay connected on this device</span>
+                    <span>Sign in once • Synchronize phone & computer</span>
                   </div>
                   <h4 className="text-sm font-bold text-white tracking-tight">Connect Your Google Account</h4>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                    Sync calendar events, exams, assignments, and Google Tasks seamlessly across your phone, laptop, and Wolfe OS.
+                    Access your trading, nutrition, workouts, and calendar as one unified system across all devices with permanent authentication.
                   </p>
                 </div>
 

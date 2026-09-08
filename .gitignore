@@ -34,5 +34,6 @@ pnpm-debug.log*
 
 # Scratch & Temporary
 scratch/
+data/
 .system_generated/
 .gemini/

@@ -5,6 +5,7 @@ import historicalCandlesHandler from './api/historical-candles.js'
 import marketNewsHandler from './api/market-news.js'
 import webhookHandler from './api/webhook/tradingview.js'
 import googleAuthHandler from './api/auth/google-auth.js'
+import syncHandler from './api/sync.js'
 
 function apiHandlerMiddleware(handler) {
   return async (req, res) => {
@@ -52,6 +53,7 @@ export default defineConfig({
         server.middlewares.use('/api/market-news', apiHandlerMiddleware(marketNewsHandler));
         server.middlewares.use('/api/webhook/tradingview', apiHandlerMiddleware(webhookHandler));
         server.middlewares.use('/api/auth/google-auth', apiHandlerMiddleware(googleAuthHandler));
+        server.middlewares.use('/api/sync', apiHandlerMiddleware(syncHandler));
       }
     }
   ],

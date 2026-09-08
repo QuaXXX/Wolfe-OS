@@ -31,7 +31,8 @@ import {
   Zap,
   Sparkles,
   Eye,
-  EyeOff
+  EyeOff,
+  Cloud
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { 
@@ -41,6 +42,7 @@ import {
   getGoogleAccount,
   getDeviceSyncDetails
 } from '../../utils/googleCalendarService';
+import { syncFullOsWithCloud } from '../../utils/cloudSyncEngine';
 import { 
   getVaultMetadata, 
   clearVaultHandle,
@@ -257,13 +259,14 @@ export const SettingsModal = ({
     setIsSyncingGCal(true);
     setGcalMsg(null);
     try {
+      await syncFullOsWithCloud({ forcePush: false });
       if (onSyncNow) {
         await onSyncNow();
-        setGcalMsg("Calendar synced successfully!");
+        setGcalMsg("All 6 OS hubs & Google Calendar synchronized!");
       } else {
         const events = await fetchGoogleCalendarEvents(true);
         playSound('success', soundEnabled);
-        setGcalMsg(`Synced ${events ? events.length : 0} event(s)!`);
+        setGcalMsg(`Synced ${events ? events.length : 0} event(s) & all 6 OS hubs!`);
         if (onSyncGoogleCalendarSuccess && events) {
           onSyncGoogleCalendarSuccess(events);
         }
@@ -685,13 +688,13 @@ export const SettingsModal = ({
               </div>
             </div>
 
-            {/* SECTION 4: GOOGLE CALENDAR INTEGRATION (NEAR BOTTOM) */}
+            {/* SECTION 4: GOOGLE ACCOUNT & CROSS-DEVICE CLOUD SYNC (NEAR BOTTOM) */}
             <div className="mb-5 p-4 rounded-2xl bg-[#101322] border border-white/10 space-y-3 shadow-sm">
               <div className="flex items-center justify-between pb-2 border-b border-white/5">
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-slate-300" />
+                  <Cloud className="w-4 h-4 text-emerald-400" />
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    Google Calendar Integration
+                    Google Account & Cross-Device Sync
                   </span>
                 </div>
                 <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
@@ -704,7 +707,7 @@ export const SettingsModal = ({
                   {!isGCalConnected ? 'Disconnected' :
                    syncStatus === 'failed' || syncStatus === 'error' ? 'Sync Failed' :
                    syncStatus === 'out_of_sync' ? 'Out of Sync' :
-                   syncStatus === 'synced' ? 'Live Synced' :
+                   syncStatus === 'synced' ? '6 Hubs Live' :
                    'Connected'}
                 </span>
               </div>
@@ -721,7 +724,7 @@ export const SettingsModal = ({
                         ) : (
                           <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         )}
-                        <span>{getGoogleAccount()?.email || 'Google Calendar & Tasks Connected'}</span>
+                        <span>{getGoogleAccount()?.email || 'Google Account Connected'}</span>
                       </span>
                       <span className={`text-[10px] pl-5 flex items-center gap-1 ${
                         syncStatus === 'failed' || syncStatus === 'error' ? 'text-rose-400/90' :
@@ -729,13 +732,13 @@ export const SettingsModal = ({
                         'text-slate-400'
                       }`}>
                         <span>
-                          {syncStatus === 'failed' || syncStatus === 'error' ? 'Sync Failed — Reconnect Calendar' :
-                           syncStatus === 'synced' ? 'Device Authenticated & Synced' :
+                          {syncStatus === 'failed' || syncStatus === 'error' ? 'Sync Failed — Reconnect Account' :
+                           syncStatus === 'synced' ? 'Phone ⇄ Computer Synced • Permanent Device Auth' :
                            'Device Connected — Pending Initial Sync'}
                         </span>
                         {lastSyncTimestamp > 0 && syncStatus === 'synced' && (
                           <span className="text-slate-400">
-                            • Auto-synced {Math.max(1, Math.round((Date.now() - lastSyncTimestamp) / 1000))}s ago
+                            • {Math.max(1, Math.round((Date.now() - lastSyncTimestamp) / 1000))}s ago
                           </span>
                         )}
                       </span>
@@ -748,6 +751,11 @@ export const SettingsModal = ({
                       <RefreshCw className={`w-3 h-3 ${isSyncingGCal ? 'animate-spin' : ''}`} />
                       <span>{isSyncingGCal ? 'Syncing...' : 'Sync Now'}</span>
                     </button>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-black/20 border border-white/5 text-[11px] text-slate-300 flex items-center justify-between">
+                    <span>Syncs: Nutrition, Workouts, Trading, Academics, Calendar & Settings</span>
+                    <span className="text-[10px] font-mono text-emerald-400">Auto</span>
                   </div>
 
                   {gcalMsg && (
@@ -764,7 +772,7 @@ export const SettingsModal = ({
                       }}
                       className="text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer"
                     >
-                      Manage Connection & Credentials
+                      Cloud Vault & Sync Details
                     </button>
 
                     <button
@@ -779,18 +787,18 @@ export const SettingsModal = ({
               ) : (
                 <div className="space-y-2.5 pt-1">
                   <p className="text-xs text-slate-400">
-                    Connect your Google account to sync schedule blocks and enable voice event creation.
+                    Sign in once with your Google account to keep all your data (trading, nutrition, workouts, academics, and calendar) automatically synchronized between your phone and computer.
                   </p>
                   <button
                     onClick={() => {
                       playSound('click', soundEnabled);
                       if (onOpenGoogleCalendarModal) onOpenGoogleCalendarModal();
                     }}
-                    className="w-full py-2 rounded-xl text-white text-xs font-bold shadow-sm active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-2.5 rounded-xl text-white text-xs font-bold shadow-sm active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                     style={{ backgroundColor: 'var(--accent-primary)' }}
                   >
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Connect Google Calendar</span>
+                    <Cloud className="w-3.5 h-3.5" />
+                    <span>Connect Google Account (Sync Phone & PC)</span>
                   </button>
                 </div>
               )}

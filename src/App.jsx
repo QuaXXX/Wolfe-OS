@@ -19,6 +19,7 @@ import {
   syncLocalItemsToGoogle,
   signInWithGooglePopup
 } from './utils/googleCalendarService';
+import { syncFullOsWithCloud, triggerDebouncedCloudPush } from './utils/cloudSyncEngine';
 
 // Views
 import { HomeView } from './components/views/HomeView';
@@ -136,31 +137,30 @@ export function App() {
     };
   });
 
-  // Clean out any legacy tokens and handle Google OAuth redirect
+  // Handle Google OAuth redirect on startup and initialize cloud sync
   useEffect(() => {
-    // 1. Check if returning from Google OAuth redirect (mobile Safari/Chrome)
-    const justAuthorized = checkAndHandleOAuthRedirect();
-
-    try {
-      if (!justAuthorized && typeof localStorage !== 'undefined' && !localStorage.getItem('wolfe_user_signed_in_google')) {
-        localStorage.removeItem('wolfe_gcal_token');
-        localStorage.removeItem('wolfe_gcal_refresh_token');
-        localStorage.removeItem('wolfe_gcal_expiry');
-      }
-    } catch {}
-
-    if (isGoogleCalendarConnected()) {
-      fetchGoogleCalendarEvents()
-        .then(events => {
-          if (events && Array.isArray(events)) {
-            setCalendarData(prev => ({
-              ...prev,
-              items: reconcileCalendarItems(prev.items, events)
-            }));
+    (async () => {
+      try {
+        const justAuthorized = await checkAndHandleOAuthRedirect();
+        if (justAuthorized || isGoogleCalendarConnected()) {
+          // Immediately pull and merge cloud vault for all 6 hubs
+          await syncFullOsWithCloud({ forcePush: false });
+          if (isGoogleCalendarConnected()) {
+            const events = await fetchGoogleCalendarEvents();
+            if (events && Array.isArray(events)) {
+              setCalendarData(prev => ({
+                ...prev,
+                items: reconcileCalendarItems(prev.items, events)
+              }));
+            }
           }
-        })
-        .catch(err => console.warn("Google sync on startup:", err));
-    }
+          setSyncStatus('synced');
+          setLastSyncTimestamp(Date.now());
+        }
+      } catch (err) {
+        console.warn("Google cloud sync on startup:", err);
+      }
+    })();
   }, []);
 
   const [schoolData, setSchoolData] = useState(() => {
@@ -195,7 +195,41 @@ export function App() {
     return INITIAL_TRADING_DATA;
   });
 
-  // Save changes to localStorage
+  // Listen for real-time Cloud Sync updates from other devices
+  useEffect(() => {
+    const handleSyncApplied = (e) => {
+      const vault = e.detail?.vault;
+      if (!vault) return;
+      if (vault.nutrition) setNutritionData(vault.nutrition);
+      if (vault.workouts) setWorkoutData(vault.workouts);
+      if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
+      if (vault.school?.dashboard) setSchoolData(vault.school.dashboard);
+      if (vault.calendar) setCalendarData(vault.calendar);
+      if (vault.settings) setSettings(prev => ({ ...prev, ...vault.settings }));
+      setLastSyncTimestamp(Date.now());
+      setSyncStatus('synced');
+    };
+
+    const handleSyncStatus = (e) => {
+      if (e.detail?.status === 'synced') {
+        setSyncStatus('synced');
+        setLastSyncTimestamp(Date.now());
+      } else if (e.detail?.status === 'syncing') {
+        setSyncStatus('syncing');
+      } else if (e.detail?.status === 'failed') {
+        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+      }
+    };
+
+    window.addEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
+    window.addEventListener('wolfe-cloud-sync-status', handleSyncStatus);
+    return () => {
+      window.removeEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
+      window.removeEventListener('wolfe-cloud-sync-status', handleSyncStatus);
+    };
+  }, []);
+
+  // Save changes to localStorage and debounced auto-push to cloud
   useEffect(() => {
     localStorage.setItem('wolfe_calendar_data', JSON.stringify(calendarData));
     localStorage.setItem('wolfe_school_data', JSON.stringify(schoolData));
@@ -203,6 +237,8 @@ export function App() {
     localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
     localStorage.setItem('wolfe_trading_data', JSON.stringify(tradingData));
     localStorage.setItem('wolfe_settings', JSON.stringify(settings));
+
+    triggerDebouncedCloudPush(2000);
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
 
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
@@ -215,7 +251,7 @@ export function App() {
     calendarItemsRef.current = calendarData.items;
   }, [calendarData.items]);
 
-  // Automatic Real-Time 2-Way Sync with Google Calendar & Google Tasks
+  // Automatic Real-Time 2-Way Sync with Cloud Vault (all 6 hubs) & Google Calendar/Tasks
   const syncWithGoogle = useCallback(async (showFeedback = false) => {
     if (!isGoogleCalendarConnected()) {
       setSyncStatus('disconnected');
@@ -225,7 +261,10 @@ export function App() {
     setSyncStatus('syncing');
 
     try {
-      // 1. Auto-upload any local items created in Wolfe OS to Google
+      // 1. Sync full OS state across devices (Trading, Nutrition, Workouts, Academics, Calendar, Settings)
+      await syncFullOsWithCloud({ forcePush: false });
+
+      // 2. Auto-upload any local items created in Wolfe OS to Google
       let currentItems = calendarItemsRef.current || [];
       const hasUnsynced = currentItems.some(it => !it.isGoogle);
       if (hasUnsynced) {
@@ -237,7 +276,7 @@ export function App() {
         }));
       }
 
-      // 2. Fetch fresh remote events & tasks from Google
+      // 3. Fetch fresh remote events & tasks from Google
       const liveGoogleItems = await fetchGoogleCalendarEvents();
       if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
         setCalendarData(prev => ({
@@ -1049,6 +1088,10 @@ export function App() {
         soundEnabled={settings.soundEnabled}
         onToggleSound={() => setSettings(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
         aiConfig={settings.aiConfig}
+        isGoogleConnected={isGoogleCalendarConnected()}
+        syncStatus={syncStatus}
+        onOpenGoogleModal={() => setIsGCalModalOpen(true)}
+        onSyncNow={handleSyncGoogleCalendar}
         osData={{
           schoolData,
           workoutData,

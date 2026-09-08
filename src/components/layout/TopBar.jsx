@@ -11,13 +11,15 @@ import {
   ArrowUpRight,
   Square,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Cloud
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { WolfLogo } from '../common/WolfLogo';
 import { playSound } from '../../utils/soundFX';
 import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
 import { sendQueryToAI } from '../../utils/aiService';
+import { getGoogleAccount } from '../../utils/googleCalendarService';
 
 export const TopBar = ({ 
   soundEnabled, 
@@ -30,7 +32,11 @@ export const TopBar = ({
   onEventCreated,
   onClearCalendar,
   onDeleteSpecificItem,
-  onPurgeItems
+  onPurgeItems,
+  isGoogleConnected = false,
+  syncStatus = 'disconnected',
+  onOpenGoogleModal = null,
+  onSyncNow = null
 }) => {
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -392,6 +398,53 @@ export const TopBar = ({
               <Minimize2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
             ) : (
               <Maximize2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+            )}
+          </button>
+
+          {/* Cloud Sync & Google Account Indicator */}
+          <button
+            onClick={() => {
+              playSound('click', soundEnabled);
+              if (isGoogleConnected) {
+                if (onSyncNow) onSyncNow();
+              } else {
+                if (onOpenGoogleModal) onOpenGoogleModal();
+              }
+            }}
+            title={
+              isGoogleConnected 
+                ? `Google Account & Cloud Synced: ${getGoogleAccount()?.email || 'Active'}. Click to Sync All Hubs.`
+                : "Connect Google Account to sync Phone & Computer"
+            }
+            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shrink-0 ${
+              !isGoogleConnected
+                ? 'bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 hover:text-white border-white/10'
+                : syncStatus === 'failed' || syncStatus === 'error'
+                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/25 hover:bg-rose-500/20'
+                  : syncStatus === 'syncing'
+                    ? 'bg-sky-500/10 text-sky-300 border-sky-500/25 hover:bg-sky-500/20'
+                    : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
+            }`}
+          >
+            {getGoogleAccount()?.picture ? (
+              <img 
+                src={getGoogleAccount().picture} 
+                alt="Avatar" 
+                className="w-4 h-4 rounded-full object-cover shrink-0 border border-white/20" 
+              />
+            ) : (
+              <Cloud 
+                className={`w-3.5 h-3.5 shrink-0 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`}
+                style={{ color: isGoogleConnected ? (syncStatus === 'failed' ? '#f43f5e' : '#10b981') : 'var(--accent-primary)' }}
+              />
+            )}
+            <span className="hidden sm:inline text-[11px]">
+              {!isGoogleConnected ? "Sync PC/Phone" : syncStatus === 'syncing' ? "Syncing..." : "Synced"}
+            </span>
+            {isGoogleConnected && (
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                syncStatus === 'failed' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'
+              }`} />
             )}
           </button>
 
