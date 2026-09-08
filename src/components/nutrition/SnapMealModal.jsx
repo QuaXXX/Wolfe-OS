@@ -53,6 +53,7 @@ export const SnapMealModal = ({
   const [servingMultiplier, setServingMultiplier] = useState(1);
   const [selectedSlot, setSelectedSlot] = useState('lunch');
   const [isListening, setIsListening] = useState(false);
+  const [cameraPermissionStatus, setCameraPermissionStatus] = useState('prompt'); // 'prompt' | 'granted' | 'denied'
 
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -60,11 +61,21 @@ export const SnapMealModal = ({
   const streamRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Sync mode and cleanup on open/close
+  // Sync mode, permission status, and cleanup on open/close
   useEffect(() => {
     if (isOpen) {
       setScanMode(initialMode || 'plate');
       setAnalysisError(null);
+      if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'camera' })
+          .then(res => {
+            setCameraPermissionStatus(res.state);
+            res.onchange = () => {
+              setCameraPermissionStatus(res.state);
+            };
+          })
+          .catch(() => {});
+      }
     } else {
       stopCamera();
       resetState();
@@ -147,8 +158,19 @@ export const SnapMealModal = ({
     handleBarcodeDetected(barcodeInput.trim());
   };
 
+  const handleNativeCameraClick = () => {
+    playSound('click', soundEnabled);
+    cameraInputRef.current?.click();
+  };
+
   const handleTriggerCamera = async () => {
     playSound('click', soundEnabled);
+    // If browser camera permission is already blocked, launch native phone camera directly from user click stack
+    if (cameraPermissionStatus === 'denied') {
+      cameraInputRef.current?.click();
+      return;
+    }
+
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext) {
       try {
         await startCamera();
@@ -163,12 +185,13 @@ export const SnapMealModal = ({
   const startCamera = async () => {
     playSound('click', soundEnabled);
     try {
-      setIsCameraActive(true);
       setAnalysisError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
       });
       streamRef.current = stream;
+      setIsCameraActive(true);
+      setCameraPermissionStatus('granted');
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
@@ -176,7 +199,12 @@ export const SnapMealModal = ({
     } catch (err) {
       console.warn("Camera access failed:", err);
       setIsCameraActive(false);
-      cameraInputRef.current?.click();
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraPermissionStatus('denied');
+        setAnalysisError('PERMISSION_DENIED');
+      } else {
+        setAnalysisError("Camera access failed or device is busy. You can use the Phone Camera (Direct) button below.");
+      }
     }
   };
 
@@ -629,7 +657,17 @@ export const SnapMealModal = ({
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
                   >
                     <Camera className="w-4 h-4 text-slate-400" />
-                    <span>{scanMode === 'label' ? 'Scan Label with Camera' : 'Take Photo with Camera'}</span>
+                    <span>{scanMode === 'label' ? 'Scan Label (Live Scanner)' : 'Take Photo (Live)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleNativeCameraClick}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
+                    title="Opens native phone camera directly (bypasses browser WebRTC permissions)"
+                  >
+                    <Camera className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                    <span>Phone Camera (Direct)</span>
                   </button>
 
                   <button
@@ -747,8 +785,75 @@ export const SnapMealModal = ({
             </button>
           </div>
 
-          {/* Error / Notice Banner */}
-          {analysisError && (
+          {/* CAMERA PERMISSION BLOCKED NOTICE & ONE-TAP RECOVERY */}
+          {(cameraPermissionStatus === 'denied' || analysisError === 'PERMISSION_DENIED') && (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-bold text-amber-200">
+                    Camera Access Blocked in Browser ("Never Allow" was chosen)
+                  </div>
+                  <p className="text-[11px] text-amber-200/80 leading-relaxed mt-0.5">
+                    Browser security prevents websites from asking automatically once blocked. Here are the two quickest ways forward:
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 1: Instant bypass fix */}
+              <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2 text-[11px] text-slate-300">
+                <div className="font-semibold text-white flex items-center justify-between">
+                  <span>⚡ Instant Fix (No settings required)</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">1-Tap</span>
+                </div>
+                <p className="text-slate-400 leading-normal text-[11px]">
+                  Use <strong>Phone Camera (Direct)</strong>. It launches your phone's native camera app directly and bypasses browser WebRTC permissions completely!
+                </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={handleNativeCameraClick}
+                    className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Launch Phone Camera Now</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 2: Browser address bar unblock steps */}
+              <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2 text-[11px] text-slate-300">
+                <div className="font-semibold text-white flex items-center gap-1.5">
+                  <span>🔄 How to Reset Browser Permission:</span>
+                </div>
+                <div className="space-y-1 text-slate-400 text-[11px] leading-relaxed">
+                  <div>• <strong>Android (Chrome)</strong>: Tap the 🔒 or ⚙️ icon on the left of the URL address bar ➔ <strong>Permissions</strong> (or Site settings) ➔ <strong>Camera</strong> ➔ tap <strong>Reset</strong> or <strong>Allow</strong>.</div>
+                  <div>• <strong>iPhone (Safari)</strong>: Tap the <strong>aA</strong> icon on the left of the address bar ➔ <strong>Website Settings</strong> ➔ <strong>Camera</strong> ➔ select <strong>Allow</strong> or <strong>Ask</strong>.</div>
+                </div>
+                <div className="pt-1 flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold border border-white/10 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Test & Re-Prompt Camera</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs border border-white/5 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Reload Page</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Standard Error / Notice Banner */}
+          {analysisError && analysisError !== 'PERMISSION_DENIED' && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 flex items-start gap-2 text-xs">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div>

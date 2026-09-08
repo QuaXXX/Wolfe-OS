@@ -32,7 +32,8 @@ import {
   Sparkles,
   Eye,
   EyeOff,
-  Cloud
+  Cloud,
+  Camera
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { 
@@ -685,6 +686,17 @@ export const SettingsModal = ({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Mobile Camera Permission Helper */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1 text-[11px] text-slate-400">
+                <div className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Camera Permissions on Mobile</span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  If camera was clicked "Never Allow": tap the 🔒 or ⚙️ icon in your browser URL address bar ➔ <strong>Permissions</strong> ➔ <strong>Camera</strong> ➔ tap <strong>Reset</strong> or <strong>Allow</strong>.
+                </p>
               </div>
             </div>
 
