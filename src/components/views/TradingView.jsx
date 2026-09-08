@@ -358,26 +358,10 @@ export const TradingView = ({
     if (hermesBrief?.highConvictionPlays && hermesBrief.highConvictionPlays.length > 0) {
       sourcePlays = hermesBrief.highConvictionPlays.map(bp => {
         const dp = poolMap.get(bp.ticker);
-        if (dp) {
-          return {
-            ...bp,
-            ...dp,
-            whyChosen: bp.whyChosen || dp.whyChosen,
-            catalystDossier: bp.catalystDossier || dp.catalystDossier,
-            institutionalFlow: bp.institutionalFlow || dp.institutionalFlow,
-            technicalStructure: bp.technicalStructure || dp.technicalStructure,
-            thesis: bp.thesis || dp.thesis,
-            convictionGrade: dp.convictionGrade || bp.convictionGrade,
-            confluenceScore: dp.confluenceScore || bp.confluenceScore,
-            tierLabel: dp.tierLabel || bp.tierLabel,
-            tierBadgeColor: dp.tierBadgeColor || bp.tierBadgeColor,
-            factorScores: dp.factorScores || bp.factorScores,
-            optimalWindow: bp.optimalWindow || dp.optimalWindow,
-            expectedDuration: bp.expectedDuration || dp.expectedDuration,
-            chronosBacktest: dp.chronosBacktest || bp.chronosBacktest
-          };
-        }
-        return bp;
+        return {
+          ...(dp || {}),
+          ...bp
+        };
       });
     }
 
