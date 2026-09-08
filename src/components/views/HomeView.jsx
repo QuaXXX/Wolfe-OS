@@ -53,6 +53,17 @@ export const HomeView = ({
   const isCompact = !!settings.compactMode;
   const todayIso = getTodayIso();
 
+  const latestWeight = nutritionData?.weightHistory?.length > 0
+    ? nutritionData.weightHistory[nutritionData.weightHistory.length - 1]?.weightLbs
+    : null;
+  const firstWeight = nutritionData?.weightHistory?.length > 1
+    ? nutritionData.weightHistory[0]?.weightLbs
+    : null;
+  const weightDiff = (latestWeight && firstWeight) ? (latestWeight - firstWeight).toFixed(1) : null;
+  const weightChangeStr = weightDiff !== null
+    ? (Number(weightDiff) >= 0 ? `+${weightDiff}` : `${weightDiff}`)
+    : null;
+
   const osData = {
     schoolData,
     workoutData,
@@ -556,13 +567,13 @@ export const HomeView = ({
                     <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
                   </div>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                    Nutrition
+                    Bulking Nutrition
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
                   {isCompact && (
                     <span className="text-xs font-mono font-bold text-white">
-                      {nutritionData.consumedCalories} / {nutritionData.targetCalories} kcal
+                      {nutritionData?.consumedCalories || 0} / {nutritionData?.targetCalories || 3250} kcal
                     </span>
                   )}
                   <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
@@ -572,23 +583,42 @@ export const HomeView = ({
               {!isCompact ? (
                 <>
                   <div className="my-2">
-                    <div className="text-2xl font-mono font-bold text-white">
-                      {nutritionData.consumedCalories} <span className="text-xs font-normal text-slate-500">/ {nutritionData.targetCalories} kcal</span>
+                    <div className="flex items-baseline justify-between">
+                      <div className="text-2xl font-mono font-bold text-white">
+                        {nutritionData?.consumedCalories || 0} <span className="text-xs font-normal text-slate-500">/ {nutritionData?.targetCalories || 3250} kcal</span>
+                      </div>
+                      {latestWeight && (
+                        <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          ⚖️ {latestWeight} lbs {weightChangeStr ? `(${weightChangeStr})` : ''}
+                        </span>
+                      )}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      Protein: <span className="font-mono text-slate-200">{nutritionData.protein.current}g / {nutritionData.protein.target}g</span>
+                    <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
+                      <span>Protein: <span className="font-mono text-emerald-400 font-semibold">{nutritionData?.protein?.current || 0}g / {nutritionData?.protein?.target || 180}g</span></span>
+                      <span className="font-mono text-slate-400">Carbs: {nutritionData?.carbs?.current || 0}g / {nutritionData?.carbs?.target || 450}g</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-white/5">
-                    <span>Water: {nutritionData.waterGlasses}/{nutritionData.targetGlasses || 8} glasses</span>
-                    <span style={{ color: 'var(--accent-primary)' }}>{Math.max(0, nutritionData.targetCalories - nutritionData.consumedCalories)} kcal left</span>
+                  {/* Progress bar */}
+                  <div className="w-full h-1.5 bg-white/10 rounded-full my-2 overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-500" 
+                      style={{ 
+                        width: `${Math.min(100, Math.round(((nutritionData?.consumedCalories || 0) / (nutritionData?.targetCalories || 3250)) * 100))}%`,
+                        backgroundColor: 'var(--accent-primary)'
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-white/5 font-mono">
+                    <span>Water: {Math.round((nutritionData?.waterMl || 0) / 1000 * 10) / 10}L / 3.5L</span>
+                    <span style={{ color: 'var(--accent-primary)' }}>{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} kcal left</span>
                   </div>
                 </>
               ) : (
                 <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/5">
-                  <span>Protein: {nutritionData.protein.current}g / {nutritionData.protein.target}g</span>
-                  <span style={{ color: 'var(--accent-primary)' }}>{Math.max(0, nutritionData.targetCalories - nutritionData.consumedCalories)} kcal left</span>
+                  <span>P: {nutritionData?.protein?.current || 0}/{nutritionData?.protein?.target || 180}g</span>
+                  <span style={{ color: 'var(--accent-primary)' }}>{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} left</span>
                 </div>
               )}
             </div>
