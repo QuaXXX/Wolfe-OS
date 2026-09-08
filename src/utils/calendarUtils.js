@@ -149,3 +149,73 @@ export function getMonthGrid(yearOrIso, month) {
 
   return grid;
 }
+
+/**
+ * Smart 2-Way Calendar Reconciliation
+ * Merges fresh remote items from Google with local items, preserving unsynced local creations
+ * and reflecting remote additions, modifications, and deletions.
+ */
+export function reconcileCalendarItems(localItems = [], remoteGoogleItems = []) {
+  if (!Array.isArray(localItems)) localItems = [];
+  if (!Array.isArray(remoteGoogleItems)) remoteGoogleItems = [];
+
+  const remoteMap = new Map();
+  for (const r of remoteGoogleItems) {
+    if (r.id) remoteMap.set(String(r.id), r);
+  }
+
+  // 1. Keep local items that are NOT from Google (unsynced local additions, syllabus imports, etc.)
+  // These must NOT be deleted just because they don't exist on Google yet!
+  const localNonGoogleItems = localItems.filter(it => !it.isGoogle);
+
+  // 2. For items that originated from Google:
+  // If still in remoteMap: take the latest remote item (updates time, title, date, etc.)
+  // If no longer in remoteMap: it was deleted remotely on Google Calendar -> remove it locally!
+  const matchedGoogleItems = [];
+  const processedRemoteIds = new Set();
+
+  for (const localItem of localItems) {
+    if (localItem.isGoogle && localItem.id) {
+      const idStr = String(localItem.id);
+      if (remoteMap.has(idStr)) {
+        const remoteItem = remoteMap.get(idStr);
+        matchedGoogleItems.push({
+          ...remoteItem,
+          // Preserve local task completion if remote doesn't specify
+          completed: localItem.completed !== undefined ? localItem.completed : remoteItem.completed
+        });
+        processedRemoteIds.add(idStr);
+      }
+      // If not in remoteMap, localItem is omitted (deleted remotely on Google)
+    }
+  }
+
+  // 3. New remote items that did not exist locally yet (created on phone, web Google Calendar, etc.)
+  const newRemoteItems = [];
+  for (const remoteItem of remoteGoogleItems) {
+    const idStr = String(remoteItem.id);
+    if (idStr && !processedRemoteIds.has(idStr)) {
+      newRemoteItems.push(remoteItem);
+      processedRemoteIds.add(idStr);
+    }
+  }
+
+  return [...localNonGoogleItems, ...matchedGoogleItems, ...newRemoteItems];
+}
+
+/**
+ * Check if the current local calendar is out of sync with Google
+ */
+export function isCalendarOutOfSync(localItems = [], lastSyncTimestamp = 0) {
+  if (!Array.isArray(localItems)) return false;
+  // If there are unsynced local items (e.g. newly created locally), we are out of sync
+  const hasUnsyncedLocal = localItems.some(it => !it.isGoogle);
+  if (hasUnsyncedLocal) return true;
+
+  // If more than 45 seconds have passed since last successful sync, check again
+  if (Date.now() - (lastSyncTimestamp || 0) > 45000) {
+    return true;
+  }
+
+  return false;
+}

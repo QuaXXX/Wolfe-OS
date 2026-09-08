@@ -36,6 +36,8 @@ export const CalendarView = ({
   onOpenGoogleCalendar,
   onSyncGoogle,
   isSyncingGoogle = false,
+  syncStatus = 'synced',
+  lastSyncTimestamp = 0,
   soundEnabled = true 
 }) => {
   const todayIso = getTodayIso();
@@ -298,12 +300,31 @@ export const CalendarView = ({
                   playSound('click', soundEnabled);
                   if (onSyncGoogle) onSyncGoogle();
                 }}
-                disabled={isSyncingGoogle}
+                disabled={isSyncingGoogle || syncStatus === 'syncing'}
                 title="Sync 2-way with Google Calendar"
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all shrink-0 cursor-pointer disabled:opacity-60 ${
+                  syncStatus === 'out_of_sync'
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white border-white/10'
+                }`}
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingGoogle ? 'animate-spin text-emerald-400' : ''}`} style={!isSyncingGoogle ? { color: 'var(--accent-primary)' } : {}} />
-                <span>{isSyncingGoogle ? "Syncing..." : "Sync"}</span>
+                <RefreshCw 
+                  className={`w-3.5 h-3.5 ${
+                    isSyncingGoogle || syncStatus === 'syncing' 
+                      ? 'animate-spin text-emerald-400' 
+                      : syncStatus === 'out_of_sync' 
+                        ? 'text-amber-400 animate-pulse' 
+                        : ''
+                  }`} 
+                  style={!isSyncingGoogle && syncStatus === 'synced' ? { color: 'var(--accent-primary)' } : {}} 
+                />
+                <span>
+                  {isSyncingGoogle || syncStatus === 'syncing' 
+                    ? "Syncing..." 
+                    : syncStatus === 'out_of_sync' 
+                      ? "Auto-Syncing..." 
+                      : "Sync"}
+                </span>
               </button>
 
               <button

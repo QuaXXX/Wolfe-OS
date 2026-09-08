@@ -44,6 +44,8 @@ export const HomeView = ({
   isSyncingGoogle = false,
   isGoogleConnected = false,
   onSyncGoogleCalendar,
+  syncStatus = 'synced',
+  lastSyncTimestamp = 0,
   soundEnabled = true 
 }) => {
   const nextAssignment = schoolData?.assignments?.find(a => !a.completed);
@@ -123,7 +125,7 @@ export const HomeView = ({
 
               {/* Sync Status & Action Button */}
               <div className="flex items-center gap-2">
-                {isSyncingGoogle ? (
+                {(isSyncingGoogle || syncStatus === 'syncing') ? (
                   <span 
                     className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm"
                     style={{
@@ -135,6 +137,20 @@ export const HomeView = ({
                     <RotateCw className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
                     <span>Syncing...</span>
                   </span>
+                ) : (syncStatus === 'out_of_sync' && isGoogleConnected) ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playSound('click', soundEnabled);
+                      if (onSyncGoogleCalendar) onSyncGoogleCalendar();
+                    }}
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-medium text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm animate-pulse"
+                    title="Differences detected or uploading local items. Click to sync now."
+                  >
+                    <RotateCw className="w-3 h-3 text-amber-400" />
+                    <span>Auto-Syncing...</span>
+                  </button>
                 ) : isGoogleConnected ? (
                   <button
                     type="button"

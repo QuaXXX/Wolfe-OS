@@ -53,7 +53,7 @@ export function isGoogleTokenExpired() {
 /**
  * Save tokens to localStorage with long persistence
  */
-export function saveGoogleToken(token, expiresInSeconds = 2592000, refreshToken = null) {
+export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = null) {
   if (!token || typeof localStorage === 'undefined') return;
   const clean = token.trim();
   localStorage.setItem('wolfe_user_signed_in_google', 'true');
@@ -62,8 +62,9 @@ export function saveGoogleToken(token, expiresInSeconds = 2592000, refreshToken 
     localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, clean);
   } else {
     localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, clean);
-    // Persist for at least 30 days locally unless refreshed
-    const expiryTime = Date.now() + Math.max(2592000, Number(expiresInSeconds) || 2592000) * 1000;
+    // Real expiration calculation with 120-second proactive refresh buffer
+    const duration = Math.max(300, Number(expiresInSeconds) || 3600);
+    const expiryTime = Date.now() + (duration - 120) * 1000;
     localStorage.setItem(GOOGLE_EXPIRY_KEY, String(expiryTime));
   }
   if (refreshToken) {
@@ -231,70 +232,142 @@ export async function refreshAccessToken() {
   return null;
 }
 
+let activeGisRefreshPromise = null;
+
 /**
- * Attempt silent token renewal via Google Identity Services without showing any popup
+ * Attempt silent token renewal via Google Identity Services without showing any popup.
+ * Uses prompt: 'none' via hidden iframe.
+ * Never opens a popup or modal window.
  */
 export function silentRefreshGISToken() {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !window.google?.accounts?.oauth2) {
+  if (activeGisRefreshPromise) {
+    return activeGisRefreshPromise;
+  }
+
+  activeGisRefreshPromise = new Promise((resolve) => {
+    if (typeof window === 'undefined') {
       return resolve(null);
     }
-    const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
-    try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
-        callback: (tokenResponse) => {
-          if (tokenResponse?.access_token) {
-            saveGoogleToken(tokenResponse.access_token, 2592000);
-            resolve(tokenResponse.access_token);
-          } else {
+
+    const runInit = () => {
+      if (!window.google?.accounts?.oauth2) {
+        return resolve(null);
+      }
+      const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks',
+          callback: (tokenResponse) => {
+            if (tokenResponse?.access_token) {
+              saveGoogleToken(tokenResponse.access_token, tokenResponse.expires_in || 3600);
+              resolve(tokenResponse.access_token);
+            } else {
+              resolve(null);
+            }
+          },
+          error_callback: (err) => {
+            console.debug("Silent GIS token renewal notice:", err);
             resolve(null);
           }
-        },
-        error_callback: () => resolve(null)
-      });
-      // prompt: 'none' strictly instructs Google Identity Services to NEVER open a popup window
-      client.requestAccessToken({ prompt: 'none' });
-    } catch (e) {
-      resolve(null);
+        });
+        // prompt: 'none' instructs Google Identity Services to run silently via iframe without any popup window
+        client.requestAccessToken({ prompt: 'none' });
+      } catch (e) {
+        resolve(null);
+      }
+    };
+
+    if (window.google?.accounts?.oauth2) {
+      runInit();
+    } else {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (window.google?.accounts?.oauth2) {
+          clearInterval(interval);
+          runInit();
+        } else if (attempts >= 10) {
+          clearInterval(interval);
+          resolve(null);
+        }
+      }, 100);
     }
+  }).finally(() => {
+    activeGisRefreshPromise = null;
   });
+
+  return activeGisRefreshPromise;
 }
 
 /**
  * Get valid access token or refresh
- * @param {boolean} interactive - Set to true ONLY when user explicitly clicked a sign-in or sync button
+ * Automatically attempts silent background renewal if expired.
  */
-export async function getValidAccessToken(interactive = false) {
+export async function getValidAccessToken(forceRefresh = false) {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
 
-  // If token exists and hasn't expired according to 30-day persistence, return immediately
-  if (token && expiry && Date.now() < Number(expiry)) {
+  // If token exists and hasn't expired (and not forced), return immediately
+  if (!forceRefresh && token && expiry && Date.now() < Number(expiry)) {
     return token;
   }
 
-  // 1. Attempt background refresh if refresh token is available (100% background, zero popup)
+  // 1. Attempt background refresh via refresh_token if configured
   try {
     const freshToken = await refreshAccessToken();
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Direct fallback to existing stored token so API operations succeed silently
-  if (token) {
-    return token;
-  }
-
-  // 3. ONLY if interactive === true (user explicitly clicked), attempt silent GIS renewal
-  if (interactive && typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_signed_in_google') === 'true') {
+  // 2. Attempt silent GIS renewal in the background (zero popup)
+  if (typeof window !== 'undefined' && (token || localStorage.getItem('wolfe_user_signed_in_google') === 'true')) {
     try {
       const silentToken = await silentRefreshGISToken();
       if (silentToken) return silentToken;
     } catch (e) {}
   }
 
+  // 3. Fallback to existing stored token so operations make best effort
+  if (token) {
+    return token;
+  }
+
   return DEFAULT_ACCESS_TOKEN || null;
+}
+
+/**
+ * Authenticated Google Fetch with automatic 401 token refresh & transparent retry
+ */
+export async function authedGoogleFetch(url, options = {}, retryCount = 1) {
+  let token = await getValidAccessToken();
+  if (!token) {
+    throw new Error("No active Google session");
+  }
+
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  if (res.status === 401 && retryCount > 0) {
+    console.log("🔄 Google access token expired (401). Attempting background renewal...");
+    localStorage.removeItem(GOOGLE_EXPIRY_KEY);
+    const freshToken = await silentRefreshGISToken();
+    if (freshToken) {
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${freshToken}`
+        }
+      });
+    }
+  }
+
+  return res;
 }
 
 /**
@@ -330,26 +403,11 @@ function formatLocalRFC3339(dateStr, timeStr) {
  * Fetch tasks from Google Tasks API
  */
 async function fetchGoogleTasks() {
-  let token = await getValidAccessToken();
-  if (!token) return [];
-
   try {
     const url = 'https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=true&showHidden=true&maxResults=100';
-    let response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
+    let response = await authedGoogleFetch(url, {
+      headers: { 'Accept': 'application/json' }
     });
-
-    if (response.status === 401) {
-      token = await refreshAccessToken();
-      if (token) {
-        response = await fetch(url, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-        });
-      }
-    }
 
     if (!response.ok) return [];
     const data = await response.json();
@@ -379,12 +437,10 @@ async function fetchGoogleTasks() {
 /**
  * Fetch all calendars on user's account to ensure complete 2-way sync
  */
-async function getUserCalendarIds(token) {
+async function getUserCalendarIds() {
   const calIds = ['primary'];
   try {
-    const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const res = await authedGoogleFetch('https://www.googleapis.com/calendar/v3/users/me/calendarList');
     if (res.ok) {
       const data = await res.json();
       const items = data.items || [];
@@ -406,10 +462,9 @@ async function getUserCalendarIds(token) {
  * @param {boolean} interactive - Whether initiated by direct user button click
  */
 export async function fetchGoogleCalendarEvents(interactive = false) {
-  let token = await getValidAccessToken(interactive);
+  let token = await getValidAccessToken();
   if (!token) {
-    // If running in background, return empty array gracefully rather than throwing an alert
-    if (!interactive) return [];
+    if (!interactive) return null;
     throw new Error("Google Calendar is not connected or session expired.");
   }
 
@@ -422,7 +477,7 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
   endRange.setHours(23, 59, 59, 999);
 
   let allEvents = [];
-  const calendarIds = await getUserCalendarIds(token);
+  const calendarIds = await getUserCalendarIds();
 
   for (const calId of calendarIds) {
     try {
@@ -433,24 +488,9 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
       url.searchParams.append('orderBy', 'startTime');
       url.searchParams.append('maxResults', '500');
 
-      let response = await fetch(url.toString(), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
+      let response = await authedGoogleFetch(url.toString(), {
+        headers: { 'Accept': 'application/json' }
       });
-
-      if (response.status === 401) {
-        token = await refreshAccessToken();
-        if (token) {
-          response = await fetch(url.toString(), {
-            headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-          });
-        } else {
-          console.warn("Google Calendar session expired during background sync.");
-          break;
-        }
-      }
 
       if (response.ok) {
         const data = await response.json();
@@ -536,7 +576,7 @@ let cachedDeadlinesCalId = null;
 /**
  * Locate the 'Deadlines' calendar ID if available, otherwise return primary
  */
-export async function getDeadlinesCalendarId(token) {
+export async function getDeadlinesCalendarId() {
   if (cachedDeadlinesCalId) return cachedDeadlinesCalId;
   const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('wolfe_gcal_deadlines_id') : null;
   if (stored) {
@@ -545,9 +585,7 @@ export async function getDeadlinesCalendarId(token) {
   }
 
   try {
-    const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const res = await authedGoogleFetch('https://www.googleapis.com/calendar/v3/users/me/calendarList');
     if (res.ok) {
       const data = await res.json();
       const items = data.items || [];
@@ -576,11 +614,6 @@ export async function getDeadlinesCalendarId(token) {
  * Create a new item (Deadline in Red, Timed Event, Task, Reminder) on Google Calendar & Tasks
  */
 export async function createGoogleCalendarEvent(itemData) {
-  let token = await getValidAccessToken();
-  if (!token) {
-    throw new Error("Google Calendar is not connected or session expired.");
-  }
-
   const { type, title, startTime, endTime, dateStr, isAllDay } = itemData;
   const targetDate = dateStr || getTodayIso();
 
@@ -588,10 +621,9 @@ export async function createGoogleCalendarEvent(itemData) {
   if (type === 'task') {
     try {
       const dueDateTime = new Date(`${targetDate}T12:00:00.000Z`).toISOString();
-      const taskRes = await fetch('https://tasks.googleapis.com/tasks/v1/lists/@default/tasks', {
+      const taskRes = await authedGoogleFetch('https://tasks.googleapis.com/tasks/v1/lists/@default/tasks', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -627,7 +659,7 @@ export async function createGoogleCalendarEvent(itemData) {
   let colorId = "9"; // Blue (default for events)
 
   if (type === 'deadline') {
-    targetCalendarId = await getDeadlinesCalendarId(token);
+    targetCalendarId = await getDeadlinesCalendarId();
     colorId = "11"; // Google Red (Tomato)
   } else if (type === 'task') {
     colorId = "8"; // Graphite
@@ -658,30 +690,13 @@ export async function createGoogleCalendarEvent(itemData) {
 
   const targetUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`;
 
-  let response = await fetch(targetUrl, {
+  let response = await authedGoogleFetch(targetUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body)
   });
-
-  if (response.status === 401) {
-    token = await refreshAccessToken();
-    if (token) {
-      response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body)
-      });
-    } else {
-      throw new Error("Google Calendar authentication expired. Please reconnect.");
-    }
-  }
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -726,18 +741,16 @@ function addOneHour(timeStr) {
  * Update task status on Google Tasks API and Google Calendar
  */
 export async function updateGoogleTaskStatus(taskId, completed) {
-  let token = await getValidAccessToken();
-  if (!token || !taskId) return;
+  if (!taskId) return;
 
   try {
     const taskBody = completed
       ? { status: 'completed', completed: new Date().toISOString() }
       : { status: 'needsAction', completed: null };
 
-    await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${taskId}`, {
+    await authedGoogleFetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${taskId}`, {
       method: 'PATCH',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(taskBody)
@@ -745,18 +758,15 @@ export async function updateGoogleTaskStatus(taskId, completed) {
   } catch (e) {}
 
   try {
-    const getRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${taskId}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const getRes = await authedGoogleFetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${taskId}`);
     if (getRes.ok) {
       const event = await getRes.json();
       const cleanSummary = (event.summary || '').replace(/^[✅☑️✔️❌]\s*/, '');
       const newSummary = completed ? `✅ ${cleanSummary}` : cleanSummary;
 
-      await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${taskId}`, {
+      await authedGoogleFetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${taskId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ summary: newSummary })
@@ -769,13 +779,9 @@ export async function updateGoogleTaskStatus(taskId, completed) {
  * Clear all completed tasks on Google Tasks
  */
 export async function clearCompletedGoogleTasks() {
-  let token = await getValidAccessToken();
-  if (!token) return;
-
   try {
-    await fetch('https://tasks.googleapis.com/tasks/v1/lists/@default/clear', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
+    await authedGoogleFetch('https://tasks.googleapis.com/tasks/v1/lists/@default/clear', {
+      method: 'POST'
     });
   } catch (err) {
     console.warn("Clear completed Google Tasks notice:", err);
@@ -788,8 +794,7 @@ export const clearGoogleTasks = clearCompletedGoogleTasks;
  * Clear events for a specific date from Google Calendar
  */
 export async function clearGoogleCalendarEventsForDate(dateStr) {
-  let token = await getValidAccessToken();
-  if (!token || !dateStr) return;
+  if (!dateStr) return;
 
   try {
     const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
@@ -797,10 +802,7 @@ export async function clearGoogleCalendarEventsForDate(dateStr) {
     url.searchParams.append('timeMax', `${dateStr}T23:59:59Z`);
     url.searchParams.append('singleEvents', 'true');
 
-    const res = await fetch(url.toString(), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
+    const res = await authedGoogleFetch(url.toString());
     if (res.ok) {
       const data = await res.json();
       const items = data.items || [];
@@ -817,23 +819,20 @@ export async function clearGoogleCalendarEventsForDate(dateStr) {
  * Delete an event directly from Google Calendar or Tasks
  */
 export async function deleteGoogleCalendarEvent(eventId, isGoogleTask = false) {
-  let token = await getValidAccessToken();
-  if (!token || !eventId) return;
+  if (!eventId) return;
 
   if (isGoogleTask) {
     try {
-      let taskRes = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${eventId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      let taskRes = await authedGoogleFetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${eventId}`, {
+        method: 'DELETE'
       });
       if (taskRes.ok || taskRes.status === 204) return;
     } catch (e) {}
   }
 
   try {
-    let calRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
+    let calRes = await authedGoogleFetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+      method: 'DELETE'
     });
     if (calRes.ok || calRes.status === 204) return;
   } catch (err) {}
@@ -841,9 +840,8 @@ export async function deleteGoogleCalendarEvent(eventId, isGoogleTask = false) {
   const deadlinesId = typeof localStorage !== 'undefined' ? localStorage.getItem('wolfe_gcal_deadlines_id') : null;
   if (deadlinesId && deadlinesId !== 'primary') {
     try {
-      let calRes2 = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(deadlinesId)}/events/${eventId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      let calRes2 = await authedGoogleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(deadlinesId)}/events/${eventId}`, {
+        method: 'DELETE'
       });
       if (calRes2.ok || calRes2.status === 204) return;
     } catch (e) {}
@@ -851,10 +849,55 @@ export async function deleteGoogleCalendarEvent(eventId, isGoogleTask = false) {
 
   if (!isGoogleTask) {
     try {
-      await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${eventId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      await authedGoogleFetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${eventId}`, {
+        method: 'DELETE'
       });
     } catch (e) {}
   }
+}
+
+/**
+ * Automatically upload any local items (created in Wolfe OS) to Google Calendar
+ * and update their IDs with the official Google ID.
+ */
+export async function syncLocalItemsToGoogle(currentItems) {
+  if (!Array.isArray(currentItems) || !isGoogleCalendarConnected()) {
+    return currentItems;
+  }
+
+  const unsyncedItems = currentItems.filter(it => !it.isGoogle);
+  if (unsyncedItems.length === 0) {
+    return currentItems;
+  }
+
+  console.log(`📤 Auto-uploading ${unsyncedItems.length} unsynced local item(s) to Google Calendar...`);
+  let updatedItems = [...currentItems];
+
+  for (const item of unsyncedItems) {
+    try {
+      const created = await createGoogleCalendarEvent({
+        type: item.type,
+        title: item.title,
+        startTime: item.isAllDay ? 'All Day' : (item.time?.split(' - ')[0] || '02:00 PM'),
+        endTime: item.isAllDay ? 'All Day' : (item.time?.split(' - ')[1] || '03:00 PM'),
+        dateStr: item.date,
+        isAllDay: item.isAllDay,
+        category: item.category
+      });
+
+      if (created?.id) {
+        updatedItems = updatedItems.map(it => it.id === item.id ? {
+          ...it,
+          id: created.id,
+          isGoogle: true,
+          isGoogleTask: item.type === 'task',
+          htmlLink: created.htmlLink
+        } : it);
+      }
+    } catch (err) {
+      console.warn(`Auto-upload item failed for "${item.title}":`, err);
+    }
+  }
+
+  return updatedItems;
 }

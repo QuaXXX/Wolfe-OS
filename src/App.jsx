@@ -8,14 +8,16 @@ import { GoogleCalendarModal } from './components/calendar/GoogleCalendarModal';
 import { ComingSoonModal } from './components/common/ComingSoonModal';
 import { UndoActionPopup } from './components/common/UndoActionPopup';
 import { playSound } from './utils/soundFX';
-import { getTodayIso, formatDateTitle, addDays } from './utils/calendarUtils';
+import { getTodayIso, formatDateTitle, addDays, reconcileCalendarItems, isCalendarOutOfSync } from './utils/calendarUtils';
 import { 
   isGoogleCalendarConnected, 
   fetchGoogleCalendarEvents,
   createGoogleCalendarEvent, 
   deleteGoogleCalendarEvent,
   updateGoogleTaskStatus,
-  checkAndHandleOAuthRedirect
+  checkAndHandleOAuthRedirect,
+  syncLocalItemsToGoogle,
+  signInWithGooglePopup
 } from './utils/googleCalendarService';
 
 // Views
@@ -138,8 +140,11 @@ export function App() {
     if (isGoogleCalendarConnected()) {
       fetchGoogleCalendarEvents()
         .then(events => {
-          if (events && events.length > 0) {
-            setCalendarData(prev => ({ ...prev, items: events }));
+          if (events && Array.isArray(events)) {
+            setCalendarData(prev => ({
+              ...prev,
+              items: reconcileCalendarItems(prev.items, events)
+            }));
           }
         })
         .catch(err => console.warn("Google sync on startup:", err));
@@ -189,26 +194,58 @@ export function App() {
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
 
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(() => isGoogleCalendarConnected() ? 'synced' : 'disconnected');
+  const [lastSyncTimestamp, setLastSyncTimestamp] = useState(0);
+  const syncTimeoutRef = useRef(null);
+  const calendarItemsRef = useRef(calendarData.items);
+
+  useEffect(() => {
+    calendarItemsRef.current = calendarData.items;
+  }, [calendarData.items]);
 
   // Automatic Real-Time 2-Way Sync with Google Calendar & Google Tasks
   const syncWithGoogle = useCallback(async (showFeedback = false) => {
-    if (!isGoogleCalendarConnected()) return;
+    if (!isGoogleCalendarConnected()) {
+      setSyncStatus('disconnected');
+      return;
+    }
     setIsSyncingGoogle(true);
+    setSyncStatus('syncing');
+
     try {
+      // 1. Auto-upload any local items created in Wolfe OS to Google
+      let currentItems = calendarItemsRef.current || [];
+      const hasUnsynced = currentItems.some(it => !it.isGoogle);
+      if (hasUnsynced) {
+        const uploadedItems = await syncLocalItemsToGoogle(currentItems);
+        currentItems = uploadedItems;
+        setCalendarData(prev => ({
+          ...prev,
+          items: uploadedItems
+        }));
+      }
+
+      // 2. Fetch fresh remote events & tasks from Google
       const liveGoogleItems = await fetchGoogleCalendarEvents();
       if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
         setCalendarData(prev => ({
           ...prev,
           currentDate: formatDateTitle(getTodayIso()),
           selectedDate: getTodayIso(),
-          items: liveGoogleItems
+          items: reconcileCalendarItems(prev.items, liveGoogleItems)
         }));
+        setSyncStatus('synced');
+        setLastSyncTimestamp(Date.now());
         if (showFeedback) {
           playSound('success', settings.soundEnabled);
         }
+      } else {
+        // If fetch returned null (e.g. auth expired or network issue), mark out of sync
+        setSyncStatus('out_of_sync');
       }
     } catch (err) {
       console.warn("Auto sync notice:", err);
+      setSyncStatus('out_of_sync');
     } finally {
       setIsSyncingGoogle(false);
     }
@@ -220,25 +257,57 @@ export function App() {
     syncWithGoogle(false);
   }, [syncWithGoogle]);
 
-  // Periodic Auto-Sync every 60 seconds (keeps sync constantly fresh in background)
+  // Periodic Auto-Sync every 30 seconds (keeps sync constantly fresh in background)
   useEffect(() => {
     if (!isGoogleCalendarConnected()) return;
     const interval = setInterval(() => {
       syncWithGoogle(false);
-    }, 60000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [syncWithGoogle]);
 
-  // Real-Time Auto Sync when tab gains focus (e.g. returning from phone/Google Calendar edits)
+  // Real-Time Auto Sync on Tab Visibility, Window Focus, and Network Reconnect
   useEffect(() => {
-    const handleFocus = () => {
-      if (isGoogleCalendarConnected()) {
+    const handleFocusOrVisibility = () => {
+      if (isGoogleCalendarConnected() && document.visibilityState === 'visible') {
         syncWithGoogle(false);
       }
     };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    window.addEventListener('focus', handleFocusOrVisibility);
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+    window.addEventListener('online', handleFocusOrVisibility);
+
+    return () => {
+      window.removeEventListener('focus', handleFocusOrVisibility);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
+      window.removeEventListener('online', handleFocusOrVisibility);
+    };
   }, [syncWithGoogle]);
+
+  // Auto Sync on View Navigation to Calendar or Home if out of sync or >15s since last sync
+  useEffect(() => {
+    if (isGoogleCalendarConnected() && (activeView === 'calendar' || activeView === 'home')) {
+      if (Date.now() - lastSyncTimestamp > 15000 || syncStatus === 'out_of_sync') {
+        syncWithGoogle(false);
+      }
+    }
+  }, [activeView, lastSyncTimestamp, syncStatus, syncWithGoogle]);
+
+  // Auto-Sync Debounce Trigger: Automatically pushes whenever local items have unsynced changes
+  useEffect(() => {
+    if (!isGoogleCalendarConnected()) return;
+    const hasUnsynced = calendarData.items.some(it => !it.isGoogle);
+    if (hasUnsynced) {
+      setSyncStatus('out_of_sync');
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = setTimeout(() => {
+        syncWithGoogle(false);
+      }, 1200);
+    }
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
+  }, [calendarData.items, syncWithGoogle]);
 
   // 1-Click Sync Trigger for User
   const handleSyncGoogleCalendar = useCallback(async () => {
@@ -391,8 +460,10 @@ export function App() {
     if (newItems && Array.isArray(newItems)) {
       setCalendarData(prev => ({
         ...prev,
-        items: newItems
+        items: reconcileCalendarItems(prev.items, newItems)
       }));
+      setSyncStatus('synced');
+      setLastSyncTimestamp(Date.now());
     }
   };
 
@@ -877,7 +948,9 @@ export function App() {
       soundEnabled: settings.soundEnabled,
       isSyncingGoogle: isSyncingGoogle,
       isGoogleConnected: isGoogleCalendarConnected(),
-      onSyncGoogleCalendar: handleSyncGoogleCalendar
+      onSyncGoogleCalendar: handleSyncGoogleCalendar,
+      syncStatus: syncStatus,
+      lastSyncTimestamp: lastSyncTimestamp
     };
 
     switch (activeView) {
@@ -1063,6 +1136,9 @@ export function App() {
         onResetSettings={handleResetSettings}
         onOpenGoogleCalendarModal={() => setIsGCalModalOpen(true)}
         onSyncGoogleCalendarSuccess={handleSyncGoogleCalendarSuccess}
+        onSyncNow={() => syncWithGoogle(true)}
+        syncStatus={syncStatus}
+        lastSyncTimestamp={lastSyncTimestamp}
         soundEnabled={settings.soundEnabled}
       />
 

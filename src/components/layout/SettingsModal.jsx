@@ -56,6 +56,9 @@ export const SettingsModal = ({
   onResetSettings,
   onOpenGoogleCalendarModal,
   onSyncGoogleCalendarSuccess,
+  onSyncNow,
+  syncStatus = 'synced',
+  lastSyncTimestamp = 0,
   soundEnabled = true
 }) => {
   const [isGCalConnected, setIsGCalConnected] = useState(isGoogleCalendarConnected());
@@ -192,11 +195,16 @@ export const SettingsModal = ({
     setIsSyncingGCal(true);
     setGcalMsg(null);
     try {
-      const events = await fetchGoogleCalendarEvents(true);
-      playSound('success', soundEnabled);
-      setGcalMsg(`Synced ${events.length} event(s)!`);
-      if (onSyncGoogleCalendarSuccess) {
-        onSyncGoogleCalendarSuccess(events);
+      if (onSyncNow) {
+        await onSyncNow();
+        setGcalMsg("Calendar synced successfully!");
+      } else {
+        const events = await fetchGoogleCalendarEvents(true);
+        playSound('success', soundEnabled);
+        setGcalMsg(`Synced ${events ? events.length : 0} event(s)!`);
+        if (onSyncGoogleCalendarSuccess && events) {
+          onSyncGoogleCalendarSuccess(events);
+        }
       }
     } catch (err) {
       setGcalMsg("Sync failed. Please reconnect.");
@@ -496,19 +504,30 @@ export const SettingsModal = ({
                   </span>
                 </div>
                 <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                  isGCalConnected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-500'
+                  !isGCalConnected ? 'bg-white/5 text-slate-500' :
+                  syncStatus === 'out_of_sync' ? 'bg-amber-500/20 text-amber-300' :
+                  'bg-emerald-500/20 text-emerald-400'
                 }`}>
-                  {isGCalConnected ? 'Live Sync Active' : 'Disconnected'}
+                  {!isGCalConnected ? 'Disconnected' :
+                   syncStatus === 'out_of_sync' ? 'Auto-Syncing...' :
+                   'Live Sync Active'}
                 </span>
               </div>
 
               {isGCalConnected ? (
                 <div className="space-y-2.5 pt-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-300 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Primary Google Calendar Connected</span>
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-slate-300 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Primary Google Calendar Connected</span>
+                      </span>
+                      {lastSyncTimestamp > 0 && (
+                        <span className="text-[10px] text-slate-400 pl-5">
+                          Auto-synced {Math.max(1, Math.round((Date.now() - lastSyncTimestamp) / 1000))}s ago
+                        </span>
+                      )}
+                    </div>
                     <button
                       onClick={handleSyncGCalNow}
                       disabled={isSyncingGCal}
