@@ -17,6 +17,7 @@ import {
   getOpenPositions 
 } from './tradingStorage.js';
 import { getPaperPositions } from './hermesPaperTrader.js';
+import { parseMealDescription, calculateCaloriesFromMacros } from './nutritionEngine.js';
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
 
@@ -2001,3 +2002,155 @@ Return ONLY valid JSON matching this schema:
     ]
   };
 }
+
+/**
+ * Analyze a meal from photo (via Gemini Vision) and/or natural language description.
+ * If photo contains no food, returns hasFood: false with clear warning.
+ */
+export async function analyzeMealWithAI({ imageBase64, mimeType = 'image/jpeg', description = '', aiConfig = DEFAULT_AI_CONFIG }) {
+  const apiKey = aiConfig?.apiKey || API_KEY;
+  const cleanDesc = (description || '').trim();
+
+  // 1. If we have an API key and image, call Gemini Vision
+  if (apiKey && imageBase64) {
+    const rawBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+    const visionModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro'
+    ];
+
+    const systemInstruction = `You are a clinical sports dietitian and precise food vision intelligence engine for Wolfe OS.
+CRITICAL ACCURACY & INTEGRITY INSTRUCTIONS:
+1. FIRST, inspect the image to determine if edible food or beverage is actually present.
+2. If the image shows a person (face, body, selfie, hands without food), an empty room, furniture, an empty desk/plate, pets, electronics, or no recognizable food, you MUST NEVER GUESS OR FABRICATE FOOD. In that case, return strictly:
+   { "hasFood": false, "errorMessage": "No food detected in image. Please take a clear photo of your meal or describe what you are eating." }
+3. If edible food IS present, or if the user provided a meal description:
+   Break down every visible/described component on the plate:
+   - "name": Clean item name (e.g. "Grilled Chicken Breast", "Jasmine Rice", "Steamed Broccoli")
+   - "portion": Realistic estimated portion (e.g. "200g", "1.5 cups", "1 cup")
+   - "calories": Estimated calories for this item
+   - "protein": Protein in grams
+   - "carbs": Carbs in grams
+   - "fats": Fats in grams
+4. Calculate total calories, protein, carbs, and fats as the sum of items.
+Return ONLY valid JSON matching this schema:
+{
+  "hasFood": true,
+  "name": "Concise Meal Title",
+  "items": [
+    { "name": "Item Name", "portion": "Portion", "calories": 300, "protein": 30, "carbs": 40, "fats": 5 }
+  ],
+  "calories": 300,
+  "protein": 30,
+  "carbs": 40,
+  "fats": 5,
+  "notes": "Brief nutritional observation"
+}`;
+
+    const prompt = cleanDesc 
+      ? `Analyze this meal photo. The user notes: "${cleanDesc}". Identify every ingredient, estimate accurate portions, and calculate macro breakdown.`
+      : `Analyze this meal photo. Identify every visible edible ingredient, estimate accurate portions, and calculate macro breakdown. If no food is present, set hasFood to false.`;
+
+    for (const model of visionModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 14000);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      mimeType: mimeType || 'image/jpeg',
+                      data: rawBase64
+                    }
+                  }
+                ]
+              }
+            ],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.1,
+              maxOutputTokens: 2048,
+            }
+          })
+        });
+
+        clearTimeout(timeoutId);
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const textPart = parts.find(p => p.text && !p.thought) || parts[0];
+        const rawText = textPart?.text || '';
+
+        if (rawText) {
+          const parsed = safeParseJson(rawText);
+          if (parsed) {
+            if (parsed.hasFood === false) {
+              return {
+                hasFood: false,
+                errorMessage: parsed.errorMessage || "No food detected in image. Please take a clear photo of your meal or describe what you are eating."
+              };
+            }
+            if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+              return {
+                hasFood: true,
+                name: parsed.name || "Analyzed Meal",
+                items: parsed.items,
+                calories: parsed.calories || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats),
+                protein: parsed.protein || 0,
+                carbs: parsed.carbs || 0,
+                fats: parsed.fats || 0,
+                notes: parsed.notes || ""
+              };
+            }
+          }
+        }
+      } catch (err) {
+        // continue to next vision model
+      }
+    }
+  }
+
+  // 2. Fallback / Description-based Engine:
+  // If description is provided, parse it accurately with parseMealDescription
+  if (cleanDesc) {
+    const parsed = parseMealDescription(cleanDesc);
+    if (parsed && parsed.items && parsed.items.length > 0) {
+      return {
+        hasFood: true,
+        name: parsed.name,
+        items: parsed.items,
+        calories: parsed.calories,
+        protein: parsed.protein,
+        carbs: parsed.carbs,
+        fats: parsed.fats,
+        notes: "Calculated from verified sports nutrition ingredient database"
+      };
+    }
+    return {
+      hasFood: false,
+      errorMessage: "Could not identify foods in your description. Try specifying items like '200g chicken breast, 1.5 cups white rice, 2 eggs'."
+    };
+  }
+
+  // 3. If only an image was submitted without description and no vision API could process it:
+  return {
+    hasFood: false,
+    errorMessage: "Please describe what is on your plate (e.g. '8 oz chicken with rice') so we can calculate exact macros."
+  };
+}
+

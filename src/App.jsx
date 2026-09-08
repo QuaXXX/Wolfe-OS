@@ -966,6 +966,7 @@ export function App() {
           <NutritionView 
             nutritionData={nutritionData}
             setNutritionData={setNutritionData}
+            settings={settings}
             {...commonProps}
           />
         );

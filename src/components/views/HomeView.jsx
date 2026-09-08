@@ -567,7 +567,7 @@ export const HomeView = ({
                     <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
                   </div>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                    Bulking Nutrition
+                    Nutrition
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">

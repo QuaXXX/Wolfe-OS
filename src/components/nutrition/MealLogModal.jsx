@@ -168,7 +168,7 @@ export const MealLogModal = ({
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Log Food & Fuel</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    Bulking Mode
+                    Daily Tracker
                   </span>
                 </h3>
                 <p className="text-xs text-slate-400">1-Tap household staples or custom manual entry</p>
@@ -504,7 +504,7 @@ export const MealLogModal = ({
                   <span>Permanent Household Staple</span>
                 </div>
                 <p className="text-[11px] text-slate-300/90 leading-relaxed">
-                  Add food items you keep stocked in your house (e.g. Fairlife Milk, specific protein bars, bulk rice cooker portions) for 1-tap logging.
+                  Add food items you keep stocked in your house (e.g. Fairlife Milk, specific protein bars, batch rice cooker portions) for 1-tap logging.
                 </p>
               </div>
 
