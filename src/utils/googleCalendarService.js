@@ -84,17 +84,27 @@ export function getDeviceSyncDetails() {
 }
 
 /**
- * Check if user has an active or refreshable Google Calendar connection on this device
+ * Check if running on a mobile browser / handheld device
+ */
+export function isMobileDevice() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.innerWidth < 768 || 
+    /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  );
+}
+
+/**
+ * Check if user has an active or refreshable Google Calendar connection on this device.
+ * Strictly requires an actual access token or permanent refresh token.
  */
 export function isGoogleCalendarConnected() {
   if (typeof localStorage === 'undefined') return false;
   const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
-  const wasSignedIn = localStorage.getItem('wolfe_user_signed_in_google') === 'true';
-  const deviceAuth = localStorage.getItem(GOOGLE_DEVICE_AUTH_KEY) === 'true';
   
-  if (refreshToken || token || wasSignedIn || deviceAuth) return true;
-  return false;
+  // Must have an actual token or refresh token stored on this device
+  return Boolean((token && token.trim()) || (refreshToken && refreshToken.trim()));
 }
 
 /**
@@ -263,8 +273,8 @@ export async function checkAndHandleOAuthRedirect() {
 
 /**
  * Sign in once with Google Authorization Code Flow for Permanent Device Access
- * Uses GIS initCodeClient (ux_mode: popup) to obtain offline code,
- * then exchanges it via /api/auth/google-auth for a permanent refresh_token + access_token.
+ * On mobile: navigates directly to Google OAuth page (zero popups, zero popup blockers).
+ * On desktop: uses GIS initCodeClient (popup mode) or OAuth popup window.
  */
 export function signInWithGoogleCode(clientIdOverride = null) {
   return new Promise((resolve, reject) => {
@@ -278,7 +288,18 @@ export function signInWithGoogleCode(clientIdOverride = null) {
       return reject(new Error("Window is not defined."));
     }
 
-    // 1. Google Identity Services (GIS) Code Client (Official flow for permanent offline access)
+    const redirectUri = window.location.origin;
+    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+
+    // 1. MOBILE BROWSERS: Direct full-page redirect is the ONLY reliable flow.
+    // Never attempt popups or iframes on mobile as iOS Safari & Chrome block/flash them.
+    if (isMobileDevice()) {
+      window.location.href = authUrl;
+      return;
+    }
+
+    // 2. DESKTOP: Google Identity Services (GIS) Code Client (Official popup flow)
     if (window.google?.accounts?.oauth2?.initCodeClient) {
       try {
         const client = window.google.accounts.oauth2.initCodeClient({
@@ -301,7 +322,7 @@ export function signInWithGoogleCode(clientIdOverride = null) {
             }
           },
           error_callback: (err) => {
-            reject(new Error(err.message || "Google Sign-In was closed or interrupted."));
+            reject(new Error(err.message || "Google Sign-In window was closed."));
           }
         });
         client.requestCode();
@@ -311,17 +332,7 @@ export function signInWithGoogleCode(clientIdOverride = null) {
       }
     }
 
-    // 2. Mobile/Popup Fallback OAuth 2.0 Authorization Code Flow
-    const redirectUri = window.location.origin;
-    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
-
-    const isMobile = window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      window.location.href = authUrl;
-      return;
-    }
-
+    // 3. DESKTOP FALLBACK: Standard centered popup window
     const width = 500;
     const height = 620;
     const left = window.screenX + (window.outerWidth - width) / 2;
@@ -329,6 +340,7 @@ export function signInWithGoogleCode(clientIdOverride = null) {
     const popup = window.open(authUrl, 'google_signin_popup', `width=${width},height=${height},left=${left},top=${top}`);
 
     if (!popup) {
+      // If popup blocker intervened on desktop, fallback to redirect
       window.location.href = authUrl;
       return;
     }
@@ -355,7 +367,7 @@ export function signInWithGoogleCode(clientIdOverride = null) {
           }
         }
       } catch (e) {
-        // Cross-origin before redirect - ignore
+        // Cross-origin restriction before redirect - ignore
       }
     }, 500);
   });
@@ -363,15 +375,24 @@ export function signInWithGoogleCode(clientIdOverride = null) {
 
 /**
  * Master One-Click Google Sign-In
- * Attempts permanent Authorization Code flow first.
- * If code exchange requires custom credentials, falls back gracefully to GIS Token Client.
+ * Runs mobile direct redirect on handhelds, or desktop popup with clean error handling.
+ * Never cascades into secondary flashing popups.
  */
 export async function signInWithGooglePopup(clientIdOverride = null) {
+  // On mobile, always invoke the direct full-page navigation code flow
+  if (isMobileDevice()) {
+    return signInWithGoogleCode(clientIdOverride);
+  }
+
   try {
     return await signInWithGoogleCode(clientIdOverride);
   } catch (codeErr) {
-    console.warn("Permanent code flow notice, trying GIS direct client fallback:", codeErr);
+    // If the user deliberately cancelled or closed the window, do not spawn another window
+    if (codeErr.message?.includes('closed') || codeErr.message?.includes('denied')) {
+      throw codeErr;
+    }
 
+    // Only if GIS code client completely failed to initialize on desktop, attempt token client fallback
     return new Promise((resolve, reject) => {
       const clientId = clientIdOverride || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
 
@@ -397,7 +418,7 @@ export async function signInWithGooglePopup(clientIdOverride = null) {
               }
             },
             error_callback: (err) => {
-              reject(new Error(err.message || "Google Sign-In was closed or interrupted."));
+              reject(new Error(err.message || "Google Sign-In was closed."));
             }
           });
           client.requestAccessToken({ prompt: 'consent' });
@@ -543,7 +564,7 @@ export function silentRefreshGISToken() {
 
 /**
  * Get valid access token or refresh in background
- * Automatically refreshes in background without popups.
+ * Strictly silent background refresh via permanent refresh_token (0 popups, 0 iframes).
  */
 export async function getValidAccessToken(forceRefresh = false) {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
@@ -554,21 +575,13 @@ export async function getValidAccessToken(forceRefresh = false) {
     return token;
   }
 
-  // 1. Primary: Serverless background refresh via permanent refresh_token
+  // 1. Silent serverless background refresh via permanent refresh_token
   try {
     const freshToken = await refreshAccessToken();
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Secondary: GIS silent background renewal
-  if (typeof window !== 'undefined' && (token || localStorage.getItem('wolfe_user_signed_in_google') === 'true')) {
-    try {
-      const silentToken = await silentRefreshGISToken();
-      if (silentToken) return silentToken;
-    } catch (e) {}
-  }
-
-  // 3. Fallback to existing stored token so operations make best effort
+  // 2. Return existing stored token as best-effort fallback
   if (token) {
     return token;
   }
@@ -578,6 +591,7 @@ export async function getValidAccessToken(forceRefresh = false) {
 
 /**
  * Authenticated Google Fetch with automatic 401 token refresh & transparent retry
+ * Never triggers popups, modals, or interactive sign-in prompts.
  */
 export async function authedGoogleFetch(url, options = {}, retryCount = 1) {
   let token = await getValidAccessToken();
@@ -597,13 +611,8 @@ export async function authedGoogleFetch(url, options = {}, retryCount = 1) {
     console.log("🔄 Google access token expired (401). Performing automatic background refresh...");
     localStorage.removeItem(GOOGLE_EXPIRY_KEY);
     
-    // 1. Try serverless refresh token first
-    let freshToken = await refreshAccessToken();
-    // 2. Fallback to silent GIS token
-    if (!freshToken) {
-      freshToken = await silentRefreshGISToken();
-    }
-
+    // Refresh via serverless endpoint using permanent refresh_token
+    const freshToken = await refreshAccessToken();
     if (freshToken) {
       return fetch(url, {
         ...options,

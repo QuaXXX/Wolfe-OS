@@ -251,74 +251,38 @@ export function App() {
     }
   }, [settings.soundEnabled]);
 
-  // Sync from Google on initial app load
+  // Handle OAuth redirect on initial app load (only if returning from redirect or already authenticated)
   useEffect(() => {
-    checkAndHandleOAuthRedirect();
-    syncWithGoogle(false);
+    (async () => {
+      try {
+        const redirected = await checkAndHandleOAuthRedirect();
+        if (redirected) {
+          syncWithGoogle(true);
+        } else if (isGoogleCalendarConnected()) {
+          syncWithGoogle(false);
+        }
+      } catch (err) {
+        console.warn("OAuth redirect initialization notice:", err);
+      }
+    })();
   }, [syncWithGoogle]);
 
-  // Periodic Auto-Sync every 30 seconds (keeps sync constantly fresh in background)
+  // Relaxed background sync: checks quietly once every 5 minutes ONLY if connected and healthy.
+  // Never checks on mobile focus, visibility changes, or screen taps (per user request: doesn't always check).
   useEffect(() => {
     if (!isGoogleCalendarConnected()) return;
     const interval = setInterval(() => {
-      syncWithGoogle(false);
-    }, 30000);
+      if (isGoogleCalendarConnected() && syncStatus === 'synced') {
+        syncWithGoogle(false);
+      }
+    }, 300000);
     return () => clearInterval(interval);
-  }, [syncWithGoogle]);
-
-  // Real-Time Auto Sync on Tab Visibility, Window Focus, and Network Reconnect
-  useEffect(() => {
-    const handleFocusOrVisibility = () => {
-      if (isGoogleCalendarConnected() && document.visibilityState === 'visible') {
-        syncWithGoogle(false);
-      }
-    };
-    window.addEventListener('focus', handleFocusOrVisibility);
-    document.addEventListener('visibilitychange', handleFocusOrVisibility);
-    window.addEventListener('online', handleFocusOrVisibility);
-
-    return () => {
-      window.removeEventListener('focus', handleFocusOrVisibility);
-      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
-      window.removeEventListener('online', handleFocusOrVisibility);
-    };
-  }, [syncWithGoogle]);
-
-  // Auto Sync on View Navigation to Calendar or Home if out of sync or >15s since last sync
-  useEffect(() => {
-    if (isGoogleCalendarConnected() && (activeView === 'calendar' || activeView === 'home')) {
-      if (Date.now() - lastSyncTimestamp > 15000 || syncStatus === 'out_of_sync') {
-        syncWithGoogle(false);
-      }
-    }
-  }, [activeView, lastSyncTimestamp, syncStatus, syncWithGoogle]);
-
-  // Auto-Sync Debounce Trigger: Automatically pushes whenever local items have unsynced changes
-  useEffect(() => {
-    if (!isGoogleCalendarConnected()) return;
-    const hasUnsynced = calendarData.items.some(it => !it.isGoogle);
-    if (hasUnsynced) {
-      setSyncStatus('out_of_sync');
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-      syncTimeoutRef.current = setTimeout(() => {
-        syncWithGoogle(false);
-      }, 1200);
-    }
-    return () => {
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    };
-  }, [calendarData.items, syncWithGoogle]);
+  }, [syncStatus, syncWithGoogle]);
 
   // 1-Click Sync Trigger for User
   const handleSyncGoogleCalendar = useCallback(async () => {
     if (!isGoogleCalendarConnected()) {
-      try {
-        await signInWithGooglePopup();
-        await syncWithGoogle(true);
-      } catch (err) {
-        console.warn("Google Sign-In notice:", err);
-        setIsGCalModalOpen(true);
-      }
+      setIsGCalModalOpen(true);
     } else {
       await syncWithGoogle(true);
     }
