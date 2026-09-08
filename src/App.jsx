@@ -86,7 +86,7 @@ const DEFAULT_SETTINGS = {
   aiConfig: {
     provider: 'gemini',
     apiKey: import.meta.env?.VITE_GEMINI_API_KEY || '',
-    model: 'gemini-3.5-flash',
+    model: 'gemini-3.5-flash-lite',
     voiceResponse: false,
   }
 };
@@ -99,11 +99,23 @@ export function App() {
   const [comingSoonData, setComingSoonData] = useState(null);
   const [undoAction, setUndoAction] = useState(null);
 
-  // Settings State with LocalStorage Persistence
+  // Settings State with LocalStorage Persistence & Env Fallback
   const [settings, setSettings] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      if (!saved) return DEFAULT_SETTINGS;
+      const parsed = JSON.parse(saved);
+      const envApiKey = import.meta.env?.VITE_GEMINI_API_KEY || '';
+      const storedApiKey = parsed?.aiConfig?.apiKey?.trim();
+      return {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        aiConfig: {
+          ...DEFAULT_SETTINGS.aiConfig,
+          ...(parsed.aiConfig || {}),
+          apiKey: storedApiKey || envApiKey || ''
+        }
+      };
     } catch {
       return DEFAULT_SETTINGS;
     }

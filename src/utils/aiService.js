@@ -24,7 +24,7 @@ const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
 export const DEFAULT_AI_CONFIG = {
   provider: 'gemini',
   apiKey: API_KEY,
-  model: 'gemini-3.5-flash',
+  model: 'gemini-3.5-flash-lite',
   voiceResponse: false,
 };
 
@@ -2015,11 +2015,13 @@ export async function analyzeMealWithAI({ imageBase64, mimeType = 'image/jpeg', 
   if (apiKey && imageBase64) {
     const rawBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
     const visionModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-lite-latest',
       'gemini-2.5-flash',
       'gemini-2.5-flash-lite',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-pro'
+      'gemini-1.5-flash'
     ];
 
     const systemInstruction = `You are a clinical sports dietitian and precise food vision intelligence engine for Wolfe OS.

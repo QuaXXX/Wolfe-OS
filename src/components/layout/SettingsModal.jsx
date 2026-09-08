@@ -28,7 +28,10 @@ import {
   Copy,
   Check,
   Key,
-  Zap
+  Zap,
+  Sparkles,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { 
@@ -73,6 +76,15 @@ export const SettingsModal = ({
   const [tradingConfig, setTradingConfig] = useState(getTradingConfig());
   const [copiedWhUrl, setCopiedWhUrl] = useState(false);
   const [copiedWhToken, setCopiedWhToken] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(settings?.aiConfig?.apiKey || '');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isTestingAi, setIsTestingAi] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState(null);
+
+  useEffect(() => {
+    setApiKeyInput(settings?.aiConfig?.apiKey || '');
+    setAiTestResult(null);
+  }, [isOpen, settings?.aiConfig?.apiKey]);
 
   useEffect(() => {
     setIsGCalConnected(isGoogleCalendarConnected());
@@ -157,6 +169,52 @@ export const SettingsModal = ({
         ...updates
       }
     });
+  };
+
+  const handleSaveApiKey = () => {
+    playSound('success', soundEnabled);
+    handleAiUpdate({ apiKey: apiKeyInput.trim() });
+    setAiTestResult({ success: true, message: 'API Key saved securely to local settings.' });
+  };
+
+  const handleTestAiConnection = async () => {
+    playSound('click', soundEnabled);
+    const keyToTest = apiKeyInput.trim() || settings?.aiConfig?.apiKey || '';
+    if (!keyToTest) {
+      setAiTestResult({ success: false, message: 'Please enter a Gemini API key first.' });
+      return;
+    }
+    setIsTestingAi(true);
+    setAiTestResult(null);
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${keyToTest}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Respond with: OK' }] }]
+        })
+      });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      if (res.ok && data?.candidates?.[0]) {
+        playSound('success', soundEnabled);
+        setAiTestResult({ success: true, message: 'Verified! Gemini 3.5 & Vision is active.' });
+        if (keyToTest !== settings?.aiConfig?.apiKey) {
+          handleAiUpdate({ apiKey: keyToTest });
+        }
+      } else {
+        const errorMsg = data?.error?.message || `API returned status ${res.status}`;
+        setAiTestResult({ success: false, message: errorMsg });
+      }
+    } catch (err) {
+      setAiTestResult({ success: false, message: err.message || 'Connection timed out' });
+    } finally {
+      setIsTestingAi(false);
+    }
   };
 
   const toggleModule = (key) => {
@@ -495,6 +553,135 @@ export const SettingsModal = ({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* SECTION: GOOGLE GEMINI AI & VISION ENGINE */}
+            <div className="mb-5 p-4 rounded-2xl bg-[#101322] border border-white/10 space-y-3.5 shadow-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Google Gemini AI & Vision Engine
+                  </span>
+                </div>
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                  (settings?.aiConfig?.apiKey || '').trim()
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}>
+                  {(settings?.aiConfig?.apiKey || '').trim() ? 'AI Active' : 'Key Missing'}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Powers camera meal scanning & macro breakdown, Hermes voice intelligence assistant, and academic tutor.
+              </p>
+
+              {/* API Key Input */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] uppercase font-mono text-slate-400">
+                  <span>Gemini API Key (Local Device Storage)</span>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+                  >
+                    <span>Get Free Key</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={apiKeyInput}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      onBlur={() => {
+                        if (apiKeyInput.trim() !== (settings?.aiConfig?.apiKey || '')) {
+                          handleAiUpdate({ apiKey: apiKeyInput.trim() });
+                        }
+                      }}
+                      placeholder="AIzaSy..."
+                      className="w-full pl-3 pr-9 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-xs outline-none focus:border-emerald-500/50 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      title={showApiKey ? "Hide key" : "Show key"}
+                    >
+                      {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveApiKey}
+                    className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTestAiConnection}
+                    disabled={isTestingAi}
+                    className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingAi ? 'animate-spin' : ''}`} />
+                    <span>{isTestingAi ? 'Testing...' : 'Test'}</span>
+                  </button>
+                </div>
+
+                {/* Test Feedback Message */}
+                {aiTestResult && (
+                  <div className={`text-[11px] p-2 rounded-lg border flex items-center gap-2 ${
+                    aiTestResult.success 
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' 
+                      : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                  }`}>
+                    {aiTestResult.success ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                    )}
+                    <span className="truncate">{aiTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Model Selector */}
+              <div className="pt-2 border-t border-white/5 space-y-1.5">
+                <div className="text-[10px] uppercase font-mono text-slate-400">Default Vision & Chat Model</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'gemini-3.5-flash-lite', label: '3.5 Flash Lite', badge: 'Fastest' },
+                    { id: 'gemini-3.6-flash', label: '3.6 Flash', badge: 'Balanced' },
+                  ].map((m) => {
+                    const isSelected = (aiConfig.model || 'gemini-3.5-flash-lite') === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleAiUpdate({ model: m.id })}
+                        className={`p-2 rounded-xl text-left border transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-white text-black border-white font-bold shadow-sm'
+                            : 'bg-white/[0.03] border-white/10 text-slate-300 hover:text-white hover:bg-white/[0.06]'
+                        }`}
+                      >
+                        <span className="text-xs font-mono">{m.label}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
+                          isSelected ? 'bg-black/10 text-black' : 'bg-white/10 text-slate-400'
+                        }`}>{m.badge}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
