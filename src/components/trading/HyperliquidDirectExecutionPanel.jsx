@@ -336,8 +336,8 @@ export const HyperliquidDirectExecutionPanel = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-white tracking-wide">Hyperliquid Desk</h3>
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-xl text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400 animate-pulse" />
                 L1 Live
               </span>
             </div>
@@ -743,8 +743,8 @@ export const HyperliquidDirectExecutionPanel = ({
         <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-sm bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-sm h-2 w-2 bg-emerald-500"></span>
             </span>
             <span className="font-bold text-white uppercase tracking-wider text-[11px]">
               Active Hyperliquid Positions ({openL1Positions.length})

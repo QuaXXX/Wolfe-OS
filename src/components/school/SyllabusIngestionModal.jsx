@@ -535,7 +535,7 @@ export const SyllabusIngestionModal = ({
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${isDeadline ? 'bg-rose-500' : 'bg-slate-400'}`} />
+                            <span className={`w-2 h-2 rounded-sm shrink-0 ${isDeadline ? 'bg-rose-500' : 'bg-slate-400'}`} />
 
                             <span className="font-semibold text-xs text-slate-100 truncate">
                               {item.title}

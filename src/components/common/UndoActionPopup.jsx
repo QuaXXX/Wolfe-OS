@@ -59,9 +59,9 @@ export const UndoActionPopup = ({
 
             {/* Mini Progress Bar for Background Uploads */}
             {sync?.inProgress && (
-              <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden mt-1.5">
+              <div className="w-full bg-white/10 h-1 rounded-md overflow-hidden mt-1.5">
                 <motion.div 
-                  className="h-full bg-emerald-400 rounded-full"
+                  className="h-full bg-emerald-400 rounded-md"
                   initial={{ width: 0 }}
                   animate={{ width: `${percent}%` }}
                   transition={{ duration: 0.2 }}

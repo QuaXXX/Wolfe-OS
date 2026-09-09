@@ -395,7 +395,7 @@ export const KitchenCalibrationModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Kitchen Hardware Calibration</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-300 border border-white/10">
                     Vision Scale Ground Truth
                   </span>
                 </h3>
@@ -431,9 +431,9 @@ export const KitchenCalibrationModal = ({
             </div>
 
             {/* Progress Track */}
-            <div className="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="w-full h-2 rounded-lg bg-white/[0.06] overflow-hidden">
               <div 
-                className="h-full rounded-full transition-all duration-500 ease-out"
+                className="h-full rounded-lg transition-all duration-500 ease-out"
                 style={{ 
                   width: `${progress.percentage}%`,
                   backgroundColor: progress.isAllCompleted ? '#10b981' : 'var(--accent-primary)'

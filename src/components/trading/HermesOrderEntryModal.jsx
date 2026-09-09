@@ -260,7 +260,7 @@ export const HermesOrderEntryModal = ({
                   </div>
                   <span className="text-xs font-bold text-white">Buy at Live Market Price (${currentPrice})</span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-slate-300 border border-white/10 font-semibold">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.05] text-slate-300 border border-white/10 font-semibold">
                   Instant Fill
                 </span>
               </div>
@@ -282,7 +282,7 @@ export const HermesOrderEntryModal = ({
                   </div>
                   <span className="text-xs font-bold text-white">Wait for Planned Entry Trigger (${plannedLimitPrice})</span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-slate-300 border border-white/10 font-semibold">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.05] text-slate-300 border border-white/10 font-semibold">
                   Resting Limit
                 </span>
               </div>

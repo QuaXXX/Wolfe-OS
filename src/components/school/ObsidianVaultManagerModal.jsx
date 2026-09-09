@@ -240,7 +240,7 @@ export const ObsidianVaultManagerModal = ({
           <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${vaultMeta.connected ? 'bg-emerald-400 animate-pulse' : 'bg-purple-400'}`} />
+                <span className={`w-2.5 h-2.5 rounded-sm ${vaultMeta.connected ? 'bg-emerald-400 animate-pulse' : 'bg-purple-400'}`} />
                 <span className="text-xs font-bold text-white">
                   {vaultMeta.connected ? `Vault Connected: "${vaultMeta.folderName}"` : "Sample Vault Active (Connect Your Folder)"}
                 </span>

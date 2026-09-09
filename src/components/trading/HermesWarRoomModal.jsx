@@ -148,7 +148,7 @@ export const HermesWarRoomModal = ({
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white tracking-tight">Hermes Autonomous Council</h3>
                   <span 
-                    className="text-[10px] font-mono px-2 py-0.5 rounded-full border flex items-center gap-1 font-semibold"
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-xl border flex items-center gap-1 font-semibold"
                     style={{ 
                       backgroundColor: 'var(--accent-subtle)',
                       borderColor: 'var(--accent-border)',
@@ -329,12 +329,12 @@ export const HermesWarRoomModal = ({
                             {isAlreadyTracking ? (
                               <div className="flex items-center gap-1.5">
                                 {isPending ? (
-                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
                                     <Clock className="w-3 h-3 text-slate-400" />
                                     <span>Waiting for Fill</span>
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-300 border border-white/10 flex items-center gap-1 font-semibold">
                                     <Check className="w-3 h-3 text-slate-400" />
                                     <span>Active</span>
                                   </span>

@@ -318,7 +318,7 @@ export const CompactVoiceWidget = forwardRef(({
                     duration: 0.65 + (i * 0.08),
                     ease: "easeInOut"
                   }}
-                  className="w-0.5 bg-white rounded-full"
+                  className="w-0.5 bg-white rounded-sm"
                 />
               ))}
             </div>
@@ -432,7 +432,7 @@ export const CompactVoiceWidget = forwardRef(({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 shrink-0">
                 <span 
-                  className="w-2 h-2 rounded-full shrink-0" 
+                  className="w-2 h-2 rounded-sm shrink-0" 
                   style={{ backgroundColor: 'var(--accent-primary)' }}
                 />
                 <span className="font-semibold text-white truncate max-w-[200px]">

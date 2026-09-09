@@ -382,10 +382,10 @@ export const SettingsModal = ({
                       </div>
 
                       {/* Switch Toggle */}
-                      <div className={`relative w-11 h-6 rounded-full transition-colors p-0.5 ${
+                      <div className={`relative w-11 h-6 rounded-xl transition-colors p-0.5 ${
                         isVisible ? 'bg-emerald-600' : 'bg-zinc-800'
                       }`}>
-                        <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                        <div className={`w-5 h-5 rounded-lg bg-white transition-transform ${
                           isVisible ? 'translate-x-5' : 'translate-x-0'
                         }`} />
                       </div>
@@ -437,10 +437,10 @@ export const SettingsModal = ({
                   )}
                   <span>Tactile Synthesizer Audio</span>
                 </div>
-                <div className={`relative w-11 h-6 rounded-full transition-colors p-0.5 ${
+                <div className={`relative w-11 h-6 rounded-xl transition-colors p-0.5 ${
                   settings.soundEnabled ? 'bg-emerald-600' : 'bg-zinc-800'
                 }`}>
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  <div className={`w-5 h-5 rounded-lg bg-white transition-transform ${
                     settings.soundEnabled ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </div>
@@ -452,10 +452,10 @@ export const SettingsModal = ({
                 className="flex items-center justify-between pt-2 border-t border-white/5 cursor-pointer text-xs"
               >
                 <span className="text-slate-300">Voice Audio Responses (TTS)</span>
-                <div className={`relative w-11 h-6 rounded-full transition-colors p-0.5 ${
+                <div className={`relative w-11 h-6 rounded-xl transition-colors p-0.5 ${
                   aiConfig.voiceResponse ? 'bg-emerald-600' : 'bg-zinc-800'
                 }`}>
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  <div className={`w-5 h-5 rounded-lg bg-white transition-transform ${
                     aiConfig.voiceResponse ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </div>
@@ -467,10 +467,10 @@ export const SettingsModal = ({
                 className="flex items-center justify-between pt-2 border-t border-white/5 cursor-pointer"
               >
                 <span className="text-xs text-slate-300">Compact Dashboard Density</span>
-                <div className={`relative w-11 h-6 rounded-full transition-colors p-0.5 ${
+                <div className={`relative w-11 h-6 rounded-xl transition-colors p-0.5 ${
                   settings.compactMode ? 'bg-emerald-600' : 'bg-zinc-800'
                 }`}>
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  <div className={`w-5 h-5 rounded-lg bg-white transition-transform ${
                     settings.compactMode ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </div>
@@ -485,10 +485,10 @@ export const SettingsModal = ({
                   <div className="text-slate-200 font-medium">Immersive Fullscreen Mode</div>
                   <div className="text-[10px] text-slate-400">Hides Android top status bar & bottom navigation bar</div>
                 </div>
-                <div className={`relative w-11 h-6 rounded-full transition-colors p-0.5 shrink-0 ${
+                <div className={`relative w-11 h-6 rounded-xl transition-colors p-0.5 shrink-0 ${
                   isFullscreen ? 'bg-emerald-600' : 'bg-zinc-800'
                 }`}>
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  <div className={`w-5 h-5 rounded-lg bg-white transition-transform ${
                     isFullscreen ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </div>
@@ -550,7 +550,7 @@ export const SettingsModal = ({
                       }`}
                     >
                       <span 
-                        className="w-2.5 h-2.5 rounded-full shrink-0" 
+                        className="w-2.5 h-2.5 rounded-sm shrink-0" 
                         style={{ background: `hsl(${preset.hue}, 85%, 55%)` }}
                       />
                       <span className="truncate text-[11px]">{preset.name}</span>

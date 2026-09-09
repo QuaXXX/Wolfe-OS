@@ -844,7 +844,7 @@ export const MealLogModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Log Food</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-300 border border-white/10">
                     Daily Meals
                   </span>
                 </h3>
@@ -935,7 +935,7 @@ export const MealLogModal = ({
 
                     {/* Reticle */}
                     <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-white/20 m-6 sm:m-10 rounded-2xl flex flex-col items-center justify-center">
-                      <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-slate-300 flex items-center gap-1.5 shadow-lg">
+                      <div className="px-3 py-1 rounded-xl bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-slate-300 flex items-center gap-1.5 shadow-lg">
                         <ScanLine className="w-3 h-3 animate-pulse text-slate-400" />
                         <span>Food Plate or Nutrition Facts Label</span>
                       </div>
@@ -945,7 +945,7 @@ export const MealLogModal = ({
                       <button
                         type="button"
                         onClick={handleSnapPhoto}
-                        className="px-5 py-2.5 rounded-full text-white font-bold text-xs shadow-lg transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                        className="px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
                         style={{ backgroundColor: 'var(--accent-primary)' }}
                       >
                         <Camera className="w-4 h-4" />
@@ -955,7 +955,7 @@ export const MealLogModal = ({
                       <button
                         type="button"
                         onClick={toggleFacingMode}
-                        className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+                        className="p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
                         title="Switch Camera"
                       >
                         <RefreshCw className="w-4 h-4" />
@@ -964,7 +964,7 @@ export const MealLogModal = ({
                       <button
                         type="button"
                         onClick={stopCamera}
-                        className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-slate-300 border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+                        className="p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-slate-300 border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -1312,7 +1312,7 @@ export const MealLogModal = ({
                     {analyzedMeal.items?.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 text-xs">
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-primary)' }} />
+                          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: 'var(--accent-primary)' }} />
                           <span className="font-semibold text-white">{item.name}</span>
                           <span className="text-[11px] font-mono text-slate-400">({item.portion})</span>
                         </div>
@@ -1366,13 +1366,13 @@ export const MealLogModal = ({
                     <motion.div
                       animate={{ scale: [1, 1.35, 1], opacity: [0.6, 0.1, 0.6] }}
                       transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                      className="absolute inset-0 rounded-full bg-rose-500/30 blur-md"
+                      className="absolute inset-0 rounded-3xl bg-rose-500/30 blur-md"
                     />
                   )}
                   <button
                     type="button"
                     onClick={toggleVoiceListening}
-                    className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95 cursor-pointer ${
+                    className={`relative w-20 h-20 rounded-3xl flex items-center justify-center shadow-xl transition-all active:scale-95 cursor-pointer ${
                       isVoiceListening 
                         ? 'bg-rose-600 text-white shadow-rose-600/50' 
                         : 'bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/15'
@@ -1654,7 +1654,7 @@ export const MealLogModal = ({
                       <span className="text-base">{staple.icon || '🍽️'}</span>
                       <span>{staple.name}</span>
                       <div 
-                        className="w-5 h-5 rounded-full flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
+                        className="w-5 h-5 rounded-lg flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
                         style={{ backgroundColor: 'var(--accent-primary)' }}
                       >
                         <Plus className="w-3 h-3 text-white" strokeWidth={3} />

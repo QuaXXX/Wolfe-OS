@@ -565,9 +565,9 @@ export const PracticeQuizModal = ({
                   <span>Question {isFinished ? questions.length : currentIndex + 1} of {questions.length}</span>
                   <span className="text-white font-semibold">Score: {score}/{currentIndex + (isAnswerSubmitted ? 1 : 0)}</span>
                 </div>
-                <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
+                <div className="w-full bg-white/10 h-1 rounded-md overflow-hidden">
                   <motion.div 
-                    className="h-full rounded-full"
+                    className="h-full rounded-md"
                     style={{ backgroundColor: 'var(--accent-primary)' }}
                     animate={{ width: `${progressPercent}%` }}
                     transition={{ duration: 0.3 }}

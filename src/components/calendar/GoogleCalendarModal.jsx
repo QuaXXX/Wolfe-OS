@@ -250,7 +250,7 @@ export const GoogleCalendarModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Google Account & Cross-Device Sync</span>
-                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
                     6 Hubs Live
                   </span>
                 </h3>
@@ -278,13 +278,13 @@ export const GoogleCalendarModal = ({
             }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${
+                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${
                     (error || syncStatus === 'failed' || syncStatus === 'error')
                       ? 'bg-rose-500/20 border-rose-500/30'
                       : 'bg-emerald-500/20 border-emerald-500/30'
                   }`}>
                     {account?.picture ? (
-                      <img src={account.picture} alt="Google Avatar" className="w-full h-full rounded-full object-cover" />
+                      <img src={account.picture} alt="Google Avatar" className="w-full h-full rounded-xl object-cover" />
                     ) : (error || syncStatus === 'failed' || syncStatus === 'error') ? (
                       <AlertCircle className="w-4 h-4 text-rose-400" />
                     ) : (
@@ -308,7 +308,7 @@ export const GoogleCalendarModal = ({
                   </div>
                 </div>
 
-                <span className={`flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border ${
+                <span className={`flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-xl border ${
                   (error || syncStatus === 'failed' || syncStatus === 'error')
                     ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
                     : syncStatus === 'synced'
@@ -324,7 +324,7 @@ export const GoogleCalendarModal = ({
                     </>
                   ) : syncStatus === 'synced' ? (
                     <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400 animate-pulse" />
                       <span>All Hubs Synced</span>
                     </>
                   ) : isSyncing ? (
@@ -451,7 +451,7 @@ export const GoogleCalendarModal = ({
               {/* Primary 1-Click Sign-In Hero Card */}
               <div className="p-5 rounded-2xl bg-[#131728] border border-white/10 space-y-4 text-center">
                 <div className="space-y-1.5 text-center">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-medium mb-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-medium mb-1">
                     <Sparkles className="w-3 h-3 text-indigo-400" />
                     <span>Sign in once • Synchronize phone & computer</span>
                   </div>

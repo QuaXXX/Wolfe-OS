@@ -563,7 +563,7 @@ export const NutritionView = ({
           <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>
             <UtensilsCrossed className="w-4 h-4" />
             <span>Performance Nutrition & Fuel</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-300 border border-white/10">
               {targetProtein}g Protein • High Carb
             </span>
           </div>
@@ -582,7 +582,7 @@ export const NutritionView = ({
               playSound('click', soundEnabled);
               setIsHistoryExpanded(prev => !prev);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
               isHistoryExpanded 
                 ? 'bg-white/15 text-white border-white/20 shadow-sm'
                 : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
@@ -755,7 +755,7 @@ export const NutritionView = ({
 
       {/* MULTI-WEEK CONSISTENCY & HISTORY LOOKBACK CARD (Expandable) */}
       {isHistoryExpanded && (
-        <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-4">
+        <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-4 hidden sm:block">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
             <div className="flex items-center gap-2">
               <History className="w-4 h-4 text-sky-400" />
@@ -902,11 +902,11 @@ export const NutritionView = ({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white">{h.dateTitle}</span>
                     {h.hitCalories ? (
-                      <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold flex items-center gap-1">
                         <CheckCheck className="w-3 h-3" /> Hit Goal
                       </span>
                     ) : h.calories > 0 ? (
-                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-mono font-bold">
+                      <span className="px-1.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 text-[9px] font-mono font-bold">
                         {h.pctCalories}%
                       </span>
                     ) : (
@@ -921,9 +921,9 @@ export const NutritionView = ({
                         {h.calories} / {h.targetCalories}
                       </span>
                     </div>
-                    <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-black/40 rounded-md overflow-hidden">
                       <div 
-                        className={`h-full rounded-full transition-all ${h.hitCalories ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                        className={`h-full rounded-md transition-all ${h.hitCalories ? 'bg-emerald-400' : 'bg-amber-400'}`}
                         style={{ width: `${h.pctCalories}%` }}
                       />
                     </div>
@@ -1051,7 +1051,7 @@ export const NutritionView = ({
           </div>
 
           {/* Quick Calorie Target Adjuster Controls */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <div className="hidden sm:flex items-center gap-1.5 flex-wrap pt-1">
             <span className="text-[10px] text-slate-400 font-mono uppercase mr-1">Adjust Target:</span>
             <button 
               type="button"
@@ -1111,20 +1111,31 @@ export const NutritionView = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 items-center">
-            {/* Concentric Calorie Progress Gauge */}
+            {/* Cyber Squircle Calorie Progress Gauge */}
             <div className="relative flex flex-col items-center justify-center p-2">
               <div className="relative w-32 h-32 flex items-center justify-center">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="40" fill="transparent" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="7" />
-                  <circle 
-                    cx="50" 
-                    cy="50" 
-                    r="40" 
+                  <rect 
+                    x="8" 
+                    y="8" 
+                    width="84" 
+                    height="84" 
+                    rx="22" 
+                    fill="transparent" 
+                    stroke="rgba(255, 255, 255, 0.08)" 
+                    strokeWidth="7" 
+                  />
+                  <rect 
+                    x="8" 
+                    y="8" 
+                    width="84" 
+                    height="84" 
+                    rx="22" 
                     fill="transparent" 
                     stroke="var(--accent-primary)" 
                     strokeWidth="7"
-                    strokeDasharray={251.2}
-                    strokeDashoffset={251.2 * (1 - Math.min(1, calPercent / 100))}
+                    strokeDasharray={301.7}
+                    strokeDashoffset={301.7 * (1 - Math.min(1, calPercent / 100))}
                     strokeLinecap="round"
                     className="transition-all duration-500"
                   />
@@ -1132,6 +1143,9 @@ export const NutritionView = ({
                 <div className="absolute flex flex-col items-center text-center">
                   <span className="text-xl font-bold font-mono text-white">{dailyTotals.calories}</span>
                   <span className="text-[9px] text-slate-400 uppercase font-mono">of {targetCalories} kcal</span>
+                  <span className="text-[10px] font-mono font-bold mt-0.5" style={{ color: 'var(--accent-primary)' }}>
+                    {Math.round(calPercent)}%
+                  </span>
                 </div>
               </div>
             </div>
@@ -1149,9 +1163,9 @@ export const NutritionView = ({
                     {dailyTotals.protein}g <span className="text-slate-400 font-normal">/ {targetProtein}g</span>
                   </span>
                 </div>
-                <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-black/40 rounded-lg overflow-hidden">
                   <div 
-                    className="h-full bg-slate-300 rounded-full transition-all duration-500" 
+                    className="h-full bg-slate-300 rounded-lg transition-all duration-500" 
                     style={{ width: `${Math.min(100, (dailyTotals.protein / targetProtein) * 100)}%` }}
                   />
                 </div>
@@ -1168,9 +1182,9 @@ export const NutritionView = ({
                     {dailyTotals.carbs}g <span className="text-slate-400 font-normal">/ {targetCarbs}g</span>
                   </span>
                 </div>
-                <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-black/40 rounded-lg overflow-hidden">
                   <div 
-                    className="h-full bg-slate-400 rounded-full transition-all duration-500" 
+                    className="h-full bg-slate-400 rounded-lg transition-all duration-500" 
                     style={{ width: `${Math.min(100, (dailyTotals.carbs / targetCarbs) * 100)}%` }}
                   />
                 </div>
@@ -1187,9 +1201,9 @@ export const NutritionView = ({
                     {dailyTotals.fats}g <span className="text-slate-400 font-normal">/ {targetFats}g</span>
                   </span>
                 </div>
-                <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-black/40 rounded-lg overflow-hidden">
                   <div 
-                    className="h-full bg-slate-500 rounded-full transition-all duration-500" 
+                    className="h-full bg-slate-500 rounded-lg transition-all duration-500" 
                     style={{ width: `${Math.min(100, (dailyTotals.fats / targetFats) * 100)}%` }}
                   />
                 </div>
@@ -1280,7 +1294,7 @@ export const NutritionView = ({
             <span className="text-base">🏠</span>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
               <span>Quick Staples</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-400 border border-white/10">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-400 border border-white/10">
                 1-Tap Fast Add
               </span>
             </h2>
@@ -1312,7 +1326,7 @@ export const NutritionView = ({
                   playSound('click', soundEnabled);
                   setPantryCategory(cat.id);
                 }}
-                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+                className={`px-3 py-1 rounded-xl text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer ${
                   active 
                     ? 'bg-white text-black font-bold shadow-sm' 
                     : 'bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
@@ -1345,7 +1359,7 @@ export const NutritionView = ({
               <span className="text-base">{staple.icon || '🍽️'}</span>
               <span>{staple.name}</span>
               <div 
-                className="w-5 h-5 rounded-full flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
+                className="w-5 h-5 rounded-lg flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
                 style={{ backgroundColor: 'var(--accent-primary)' }}
               >
                 <Plus className="w-3 h-3 text-white" strokeWidth={3} />
@@ -1360,7 +1374,7 @@ export const NutritionView = ({
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
             <span>{selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-slate-400">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/5 text-slate-400">
               {selectedDateMeals.length} {selectedDateMeals.length === 1 ? 'Meal' : 'Meals'}
             </span>
           </h2>

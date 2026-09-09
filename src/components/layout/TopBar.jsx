@@ -289,25 +289,11 @@ export const TopBar = ({
           </div>
 
           {activeView !== 'home' && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  onNavigate('home');
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold cursor-pointer transition-all active:scale-95 shadow-sm"
-                title="Return to Home Dashboard"
-              >
-                <X className="w-3.5 h-3.5 text-slate-400" />
-                <span className="hidden sm:inline">Home</span>
-              </button>
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 pl-1 border-l border-white/10">
-                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-                <span className="capitalize font-semibold" style={{ color: 'var(--accent-primary)' }}>
-                  {activeView}
-                </span>
-              </div>
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 pl-2 border-l border-white/10">
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+              <span className="capitalize font-semibold" style={{ color: 'var(--accent-primary)' }}>
+                {activeView}
+              </span>
             </div>
           )}
         </div>
@@ -318,7 +304,7 @@ export const TopBar = ({
             {!isListening && !isProcessing ? (
               <button
                 onClick={toggleTopBarListening}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
                 style={{ border: '1px solid var(--accent-border)' }}
                 title="Speak a command from this view"
               >
@@ -327,7 +313,7 @@ export const TopBar = ({
               </button>
             ) : isListening ? (
               <div 
-                className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium animate-pulse"
+                className="flex items-center gap-2 px-3 py-1 rounded-xl text-xs font-medium animate-pulse"
                 style={{ 
                   backgroundColor: 'var(--accent-subtle)', 
                   border: '1px solid var(--accent-border)',
@@ -345,7 +331,7 @@ export const TopBar = ({
                         duration: 0.6 + (i * 0.08),
                         ease: "easeInOut"
                       }}
-                      className="w-0.5 rounded-full"
+                      className="w-0.5 rounded-sm"
                       style={{ backgroundColor: 'var(--accent-primary)' }}
                     />
                   ))}
@@ -363,7 +349,7 @@ export const TopBar = ({
               </div>
             ) : (
               <div 
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono"
                 style={{
                   backgroundColor: 'var(--accent-subtle)',
                   border: '1px solid var(--accent-border)',
@@ -444,7 +430,7 @@ export const TopBar = ({
               <img 
                 src={getGoogleAccount().picture} 
                 alt="Avatar" 
-                className="w-4 h-4 rounded-full object-cover shrink-0 border border-white/20" 
+                className="w-4 h-4 rounded-md object-cover shrink-0 border border-white/20" 
               />
             ) : (
               <Cloud 
@@ -461,7 +447,7 @@ export const TopBar = ({
                     ? "Syncing..."
                     : "Synced"}
             </span>
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+            <span className={`w-1.5 h-1.5 rounded-sm shrink-0 ${
               !isGoogleConnected || syncStatus === 'disconnected'
                 ? 'bg-slate-500'
                 : syncStatus === 'failed' || syncStatus === 'error'
@@ -499,7 +485,7 @@ export const TopBar = ({
           >
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <span 
-                className="w-2 h-2 rounded-full shrink-0" 
+                className="w-2 h-2 rounded-sm shrink-0" 
                 style={{ backgroundColor: 'var(--accent-primary)' }}
               />
               <div className="min-w-0">

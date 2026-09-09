@@ -155,7 +155,7 @@ export const HermesPaperTraderCard = ({
                 <h3 className="text-xs font-bold text-white tracking-wide">
                   Forward Test Desk
                 </h3>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
                   Live Simulation
                 </span>
               </div>
@@ -283,13 +283,13 @@ export const HermesPaperTraderCard = ({
                         )}
 
                         {isPending ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 font-sans">
+                          <span className="text-[10px] px-2 py-0.5 rounded-xl flex items-center gap-1 font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 font-sans">
                             <Hourglass className="w-3 h-3 text-amber-400" />
                             <span>Pending Entry</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 font-semibold font-sans">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span className="text-[10px] px-2 py-0.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 font-semibold font-sans">
+                            <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />
                             <span>Active</span>
                           </span>
                         )}
@@ -352,14 +352,14 @@ export const HermesPaperTraderCard = ({
                           <div className="flex justify-between text-[10px] text-slate-400">
                             <span className="text-rose-400 font-semibold">SL: ${pos.stopLoss}</span>
                             <span className="text-white font-bold flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-primary)' }} />
+                              <span className="w-1.5 h-1.5 rounded-sm animate-pulse" style={{ backgroundColor: 'var(--accent-primary)' }} />
                               <span>Price: <strong style={{ color: 'var(--accent-primary)' }}>${curPrice}</strong></span>
                             </span>
                             <span className="text-emerald-400 font-semibold">TP: ${pos.takeProfit}</span>
                           </div>
 
                           <div className="relative pt-1 pb-1">
-                            <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden flex relative border border-white/10 shadow-inner">
+                            <div className="w-full h-2 rounded-lg bg-slate-950 overflow-hidden flex relative border border-white/10 shadow-inner">
                               <div 
                                 className="h-full bg-gradient-to-r from-rose-600/70 to-rose-500/40 border-r border-white/40" 
                                 style={{ width: `${entryDividerPct}%` }} 
@@ -375,7 +375,7 @@ export const HermesPaperTraderCard = ({
                               className="absolute top-0 bottom-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none z-10"
                               style={{ left: `${entryDividerPct}%` }}
                             >
-                              <div className="w-1 h-3.5 bg-white rounded-full shadow-md" />
+                              <div className="w-1 h-3.5 bg-white rounded-sm shadow-md" />
                             </div>
 
                             {/* Live Market Price Dot */}
@@ -385,13 +385,13 @@ export const HermesPaperTraderCard = ({
                               title={`Live Price: $${curPrice}`}
                             >
                               <div 
-                                className="w-3 h-3 rounded-full ring-2 ring-white shadow-lg flex items-center justify-center"
+                                className="w-3 h-3 rounded-md ring-2 ring-white shadow-lg flex items-center justify-center"
                                 style={{
                                   backgroundColor: 'var(--accent-primary)',
                                   boxShadow: '0 0 8px var(--accent-glow)'
                                 }}
                               >
-                                <div className="w-1 h-1 rounded-full bg-black/60" />
+                                <div className="w-1 h-1 rounded-sm bg-black/60" />
                               </div>
                             </div>
                           </div>

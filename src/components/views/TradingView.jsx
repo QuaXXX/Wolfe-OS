@@ -588,7 +588,7 @@ export const TradingView = ({
                   <span>{item.label}</span>
                   {item.count > 0 && (
                     <span 
-                      className="text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold"
+                      className="text-[9px] font-mono px-1.5 py-0.5 rounded-md font-bold"
                       style={isSelected ? {
                         backgroundColor: 'var(--accent-primary)',
                         color: '#ffffff'
@@ -627,12 +627,12 @@ export const TradingView = ({
             )}
             <span className="font-bold">{currentTabObj.label}</span>
             {isScanning && (activeTab === 'overview' || activeTab === 'council') ? (
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 Scanning...
               </span>
             ) : currentTabObj.count > 0 ? (
               <span 
-                className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold"
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded-md font-bold"
                 style={{ 
                   backgroundColor: 'var(--accent-primary)',
                   color: '#ffffff'
@@ -749,8 +749,8 @@ export const TradingView = ({
                   Atlas is analyzing macro liquidity, Poseidon is scanning dark pools, Artemis is verifying confirmed earnings/reports, and The Skeptic is red-teaming setups.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono text-slate-400 bg-black/40 border border-white/5">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl text-[11px] font-mono text-slate-400 bg-black/40 border border-white/5">
+                <span className="w-2 h-2 rounded-sm bg-amber-400 animate-ping" />
                 <span>Live Prices & Other Desk Sections Fully Operational</span>
               </div>
             </GlassCard>
@@ -832,7 +832,7 @@ export const TradingView = ({
                     <div className="flex items-center gap-2">
                       <Compass className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
                       <span className="text-xs font-bold text-white tracking-wide">{hermesBrief.macroRegime}</span>
-                      <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
                         Skeptic Approved
                       </span>
                     </div>
@@ -1250,7 +1250,7 @@ export const TradingView = ({
                                 className={`text-[10px] font-mono px-2 py-0.5 rounded-lg font-bold border flex items-center gap-1 ${badgeStyle}`}
                                 title={play.tierLabel ? `${play.tierLabel} (${play.confluenceScore || 75} pts)` : `Grade ${grade}`}
                               >
-                                {grade === 'A+' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+                                {grade === 'A+' && <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400 animate-ping" />}
                                 <span>Grade</span>
                                 <strong className="font-extrabold">{grade}</strong>
                                 {play.confluenceScore && <span className="text-[9px] opacity-75 font-normal">({play.confluenceScore})</span>}
@@ -1391,7 +1391,7 @@ export const TradingView = ({
                             SL: <strong className="text-rose-300">{stopFormatted}</strong>
                           </span>
                           <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-primary)' }} />
+                            <span className="w-2 h-2 rounded-sm animate-pulse" style={{ backgroundColor: 'var(--accent-primary)' }} />
                             <span>Price: <strong style={{ color: 'var(--accent-primary)' }}>{liveFormatted}</strong></span>
                           </span>
                           <span className="text-[11px] text-emerald-400 font-semibold">
@@ -1401,7 +1401,7 @@ export const TradingView = ({
 
                         {/* Proportional Level Track (Red = Risk proportion, Green = Reward proportion) */}
                         <div className="relative pt-2 pb-1.5">
-                          <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden flex relative border border-white/10 shadow-inner">
+                          <div className="h-2 w-full bg-slate-950 rounded-lg overflow-hidden flex relative border border-white/10 shadow-inner">
                             {/* Red Section (Risk distance, size adjusted) */}
                             <div 
                               className="h-full bg-gradient-to-r from-rose-600/70 to-rose-500/40 border-r border-white/40" 
@@ -1419,7 +1419,7 @@ export const TradingView = ({
                             className="absolute top-0 bottom-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none z-10"
                             style={{ left: `${entryDividerPct}%` }}
                           >
-                            <div className="w-1 h-3.5 bg-white rounded-full shadow-md" />
+                            <div className="w-1 h-3.5 bg-white rounded-sm shadow-md" />
                           </div>
 
                           {/* Current Live Price Dot (Dynamically matches user's theme color) */}
@@ -1429,13 +1429,13 @@ export const TradingView = ({
                             title={`Current Market Price: ${liveFormatted}`}
                           >
                             <div 
-                              className="w-3.5 h-3.5 rounded-full ring-2 ring-white shadow-lg flex items-center justify-center"
+                              className="w-3.5 h-3.5 rounded-md ring-2 ring-white shadow-lg flex items-center justify-center"
                               style={{ 
                                 backgroundColor: 'var(--accent-primary)',
                                 boxShadow: '0 0 10px var(--accent-glow)'
                               }}
                             >
-                              <div className="w-1.5 h-1.5 rounded-full bg-black/60" />
+                              <div className="w-1.5 h-1.5 rounded-sm bg-black/60" />
                             </div>
                           </div>
                         </div>
@@ -1754,7 +1754,7 @@ export const TradingView = ({
                                 : 'text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/10'
                             }`}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />
                             <span>A+ Elite ({countAPlus})</span>
                           </button>
 
@@ -2033,7 +2033,7 @@ export const TradingView = ({
                       </div>
                       <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
                         {msg.stage && (
-                          <span className="px-2 py-0.5 rounded-full bg-black/40 border border-white/5 text-slate-300">
+                          <span className="px-2 py-0.5 rounded-xl bg-black/40 border border-white/5 text-slate-300">
                             {msg.stage}
                           </span>
                         )}
@@ -2192,9 +2192,9 @@ export const TradingView = ({
       {/* 7. TAB 5: TRADE JOURNAL */}
       {activeTab === 'journal' && (
         <div className="space-y-3 font-sans">
-          {/* Strategy Expectancy & Edge Breakdown Table */}
+          {/* Strategy Expectancy & Edge Breakdown Table (Desktop Optimized) */}
           {stats.strategyBreakdown && stats.strategyBreakdown.length > 0 && (
-            <GlassCard hoverEffect={false} className="p-3.5 space-y-2.5 border-white/10">
+            <GlassCard hoverEffect={false} className="p-3.5 space-y-2.5 border-white/10 hidden sm:block">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -2455,8 +2455,8 @@ export const TradingView = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-sm bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-sm h-2 w-2 bg-emerald-500"></span>
             </span>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
               Live Market Watchlist ({watchlist.length})

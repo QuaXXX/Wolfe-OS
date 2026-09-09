@@ -363,7 +363,7 @@ export const NotebookLMStudyHubModal = ({
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Study Brain</span>
                   <span 
-                    className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full font-bold"
+                    className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-md font-bold"
                     style={{
                       backgroundColor: 'var(--accent-subtle)',
                       color: 'var(--accent-primary)',
@@ -436,7 +436,7 @@ export const NotebookLMStudyHubModal = ({
                   <GraduationCap className="w-3.5 h-3.5" />
                   <span>{course}</span>
                   {count > 0 && (
-                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md ${
                       isSelected ? 'bg-black/15 text-black' : 'bg-white/10 text-slate-400'
                     }`}>
                       {count}
@@ -674,7 +674,7 @@ export const NotebookLMStudyHubModal = ({
                 {(currentBriefing.highYieldConcepts || []).map((concept, idx) => (
                   <div key={idx} className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-2 hover:border-amber-500/30 transition-all">
                     <div className="text-xs font-bold text-white flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="w-2 h-2 rounded-sm bg-amber-400" />
                       <span>{concept.topic}</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed font-sans">{concept.summary}</p>
@@ -875,7 +875,7 @@ export const NotebookLMStudyHubModal = ({
         {/* FOOTER: Action Bar */}
         <div className="p-3 sm:p-4 border-t border-white/10 bg-white/[0.01] flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-sm bg-emerald-400 animate-pulse" />
             <span>{selectedCourse} Active in NotebookLM</span>
           </div>
 

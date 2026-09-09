@@ -113,7 +113,7 @@ export const WeightTrackerModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Morning Weight Tracker & Weekly Velocity</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     Daily Progress
                   </span>
                 </h3>
@@ -222,11 +222,13 @@ export const WeightTrackerModal = ({
                     const x = (idx / (chartPoints.length - 1)) * 300;
                     const y = 80 - ((p.weightLbs - minWeight) / weightRange) * 70;
                     return (
-                      <circle
+                      <rect
                         key={idx}
-                        cx={x}
-                        cy={y}
-                        r="3.5"
+                        x={x - 3}
+                        y={y - 3}
+                        width="6"
+                        height="6"
+                        rx="1.5"
                         fill="#fff"
                         stroke="var(--accent-primary)"
                         strokeWidth="2"

@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Circle,
+  Check,
   ListTodo,
   Bell,
   RotateCw
@@ -137,7 +138,7 @@ export const HomeView = ({
               <div className="flex items-center gap-2">
                 {(isSyncingGoogle || syncStatus === 'syncing') ? (
                   <span 
-                    className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 bg-white/[0.03] text-slate-300 border border-white/10"
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-xl flex items-center gap-1.5 bg-white/[0.03] text-slate-300 border border-white/10"
                   >
                     <RotateCw className="w-3 h-3 animate-spin text-slate-400" />
                     <span>Syncing...</span>
@@ -229,7 +230,7 @@ export const HomeView = ({
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                      <span className="w-2 h-2 rounded-sm bg-rose-500 shrink-0" />
                       <span className="font-bold text-rose-100 truncate">{dl.title}</span>
                     </div>
                     {dl.category && (
@@ -289,9 +290,11 @@ export const HomeView = ({
                     >
                       <button className="shrink-0">
                         {t.completed ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <div className="w-3.5 h-3.5 rounded-md bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-emerald-400" strokeWidth={3} />
+                          </div>
                         ) : (
-                          <Circle className="w-3.5 h-3.5 text-slate-500" />
+                          <div className="w-3.5 h-3.5 rounded-md border border-slate-600 bg-black/20 hover:border-slate-400 transition-colors" />
                         )}
                       </button>
                       <span className="truncate font-medium">{t.title}</span>
@@ -521,9 +524,9 @@ export const HomeView = ({
                     Target: {workoutData.completedDaysThisWeek || 0} of {workoutData.targetDaysThisWeek || 5} sessions complete
                   </div>
                   
-                  <div className="w-full h-1.5 bg-white/[0.06] rounded-full mt-2.5 overflow-hidden">
+                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg mt-2.5 overflow-hidden">
                     <div 
-                      className="h-full rounded-full transition-all duration-300" 
+                      className="h-full rounded-lg transition-all duration-300" 
                       style={{ 
                         width: `${Math.min(100, ((workoutData.completedDaysThisWeek || 0) / (workoutData.targetDaysThisWeek || 5)) * 100)}%`,
                         backgroundColor: 'var(--accent-primary)'
@@ -592,9 +595,9 @@ export const HomeView = ({
                   </div>
 
                   {/* Progress bar */}
-                  <div className="w-full h-1.5 bg-white/[0.06] rounded-full my-2 overflow-hidden">
+                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg my-2 overflow-hidden">
                     <div 
-                      className="h-full rounded-full transition-all duration-500" 
+                      className="h-full rounded-lg transition-all duration-500" 
                       style={{ 
                         width: `${Math.min(100, Math.round(((nutritionData?.consumedCalories || 0) / (nutritionData?.targetCalories || 3250)) * 100))}%`,
                         backgroundColor: 'var(--accent-primary)'

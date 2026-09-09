@@ -298,12 +298,12 @@ export const CalendarView = ({
                 playSound('switch', soundEnabled);
                 setViewMode('month');
               }}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`hidden sm:inline-flex px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                 viewMode === 'month' 
                   ? 'bg-white/10 text-white shadow-sm' 
                   : 'text-slate-400 hover:text-white'
               }`}
-            >
+                            >
               Month<span className="hidden sm:inline"> View</span>
             </button>
           </div>
@@ -485,16 +485,16 @@ export const CalendarView = ({
                     {/* Activity Indicator Dots */}
                     <div className="flex items-center gap-1 h-1.5 mt-0.5">
                       {dayDeadlines.length > 0 && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-sm" title={`${dayDeadlines.length} Deadlines`} />
+                        <span className="w-1.5 h-1.5 rounded-sm bg-rose-500 shadow-sm" title={`${dayDeadlines.length} Deadlines`} />
                       )}
                       {dayEvents.length > 0 && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shadow-sm" title={`${dayEvents.length} Events`} />
+                        <span className="w-1.5 h-1.5 rounded-sm bg-sky-400 shadow-sm" title={`${dayEvents.length} Events`} />
                       )}
                       {dayTasks.length > 0 && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm" title={`${dayTasks.length} Tasks`} />
+                        <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400 shadow-sm" title={`${dayTasks.length} Tasks`} />
                       )}
                       {!dayDeadlines.length && !dayEvents.length && !dayTasks.length && (
-                        <span className="w-1 h-1 rounded-full bg-transparent" />
+                        <span className="w-1 h-1 rounded-sm bg-transparent" />
                       )}
                     </div>
                   </button>
@@ -530,7 +530,7 @@ export const CalendarView = ({
                         className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-200 text-xs shadow-sm hover:border-rose-500/45 transition-all group"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                          <span className="w-2 h-2 rounded-sm bg-rose-500 shrink-0" />
                           <span className="font-semibold text-rose-100 truncate">{dl.title}</span>
                           {dl.category && (
                             <span className="text-[10px] text-rose-300/80 font-mono px-1.5 py-0.5 rounded bg-black/30 shrink-0">
@@ -768,7 +768,7 @@ export const CalendarView = ({
                     <div className="flex items-center justify-between">
                       <span className={`text-xs font-mono font-bold ${
                         cell.isToday 
-                          ? 'px-1.5 py-0.5 rounded-full text-white' 
+                          ? 'px-1.5 py-0.5 rounded-md text-white' 
                           : 'text-slate-300'
                       }`}
                       style={cell.isToday ? { backgroundColor: 'var(--accent-primary)' } : {}}
@@ -778,7 +778,7 @@ export const CalendarView = ({
 
                       {/* Red Deadline Indicator */}
                       {dayDeadlines.length > 0 && (
-                        <span className="w-2 h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-500/80 animate-pulse" title={`${dayDeadlines.length} Deadline(s)`} />
+                        <span className="w-2 h-2 rounded-sm bg-rose-500 shadow-sm shadow-rose-500/80 animate-pulse" title={`${dayDeadlines.length} Deadline(s)`} />
                       )}
                     </div>
 
@@ -787,7 +787,7 @@ export const CalendarView = ({
                       {/* Red Deadlines */}
                       {dayDeadlines.slice(0, 1).map(dl => (
                         <div key={dl.id} className="px-1.5 py-0.5 rounded bg-rose-500/25 border border-rose-500/40 text-[9px] text-rose-200 font-semibold truncate flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-sm bg-rose-400 shrink-0" />
                           <span className="truncate">{dl.title}</span>
                         </div>
                       ))}

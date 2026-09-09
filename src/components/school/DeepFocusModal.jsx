@@ -385,9 +385,9 @@ pause
             </div>
 
             {/* Progress Bar */}
-            <div className="w-48 sm:w-64 bg-white/10 h-1.5 rounded-full overflow-hidden mx-auto mt-4">
+            <div className="w-48 sm:w-64 bg-white/10 h-1.5 rounded-md overflow-hidden mx-auto mt-4">
               <motion.div 
-                className="h-full bg-purple-500 rounded-full"
+                className="h-full bg-purple-500 rounded-md"
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 0.3 }}
               />
