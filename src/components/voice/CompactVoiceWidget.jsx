@@ -17,6 +17,7 @@ import confetti from 'canvas-confetti';
 import { playSound } from '../../utils/soundFX';
 import { sendQueryToAI } from '../../utils/aiService';
 import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
+import { FormattedAiText } from '../common/FormattedAiText';
 
 export const CompactVoiceWidget = forwardRef(({ 
   onNavigate, 
@@ -512,7 +513,7 @@ export const CompactVoiceWidget = forwardRef(({
                   : 'text-slate-300 truncate cursor-pointer hover:text-white'
               }`}
             >
-              <p className="whitespace-pre-wrap">{aiResponse.message}</p>
+              <FormattedAiText text={aiResponse.message} inline={!isExpanded} />
             </div>
           </motion.div>
         )}

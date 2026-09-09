@@ -42,6 +42,7 @@ import {
   deleteCheatSheetFromLibrary
 } from '../../utils/studyStorage';
 import { playSound } from '../../utils/soundFX';
+import { FormattedAiText } from '../common/FormattedAiText';
 
 export function resolveCourseInstructor(courseCode) {
   const code = (courseCode || '').toUpperCase().trim();
@@ -665,8 +666,12 @@ export const SchoolView = ({
                       <span>{msg.role === 'user' ? 'You' : `AI (${msg.course || activeCourse.code})`}</span>
                       {msg.isStreaming && <span className="w-1.5 h-1.5 rounded-sm animate-pulse" style={{ backgroundColor: 'var(--accent-primary)' }} />}
                     </div>
-                    <div className="whitespace-pre-wrap leading-relaxed font-sans text-slate-200">
-                      {msg.text || (msg.isStreaming ? 'Thinking...' : '')}
+                    <div className="leading-relaxed font-sans text-slate-200">
+                      {msg.isStreaming && !msg.text ? (
+                        <span className="text-slate-400 italic">Thinking...</span>
+                      ) : (
+                        <FormattedAiText text={msg.text} />
+                      )}
                     </div>
 
                     {msg.matchedFiles && msg.matchedFiles.length > 0 && (

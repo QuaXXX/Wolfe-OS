@@ -20,6 +20,7 @@ import { playSound } from '../../utils/soundFX';
 import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
 import { sendQueryToAI } from '../../utils/aiService';
 import { getGoogleAccount } from '../../utils/googleCalendarService';
+import { FormattedAiText } from '../common/FormattedAiText';
 
 export const TopBar = ({ 
   soundEnabled, 
@@ -488,9 +489,9 @@ export const TopBar = ({
                 className="w-2 h-2 rounded-sm shrink-0" 
                 style={{ backgroundColor: 'var(--accent-primary)' }}
               />
-              <div className="min-w-0">
-                <span className="font-bold text-white mr-1.5">{voiceResponse.title || "Wolfe AI"}:</span>
-                <span className="text-slate-300 leading-snug">{voiceResponse.message}</span>
+              <div className="min-w-0 flex items-baseline gap-1.5 flex-wrap">
+                <span className="font-bold text-white shrink-0">{voiceResponse.title || "Wolfe AI"}:</span>
+                <FormattedAiText text={voiceResponse.message} inline className="text-slate-300 leading-snug" />
               </div>
             </div>
 

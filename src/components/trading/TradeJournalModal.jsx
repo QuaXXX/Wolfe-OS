@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { logCompletedTrade } from '../../utils/tradingStorage';
 import { callGemini, DEFAULT_AI_CONFIG } from '../../utils/aiService';
+import { FormattedAiText } from '../common/FormattedAiText';
 import { playSound } from '../../utils/soundFX';
 
 export const TradeJournalModal = ({ 
@@ -284,9 +285,9 @@ Provide a concise, razor-sharp 2-3 sentence psychological & technical post-morte
               </div>
 
               {aiAnalysis ? (
-                <p className="text-xs text-slate-300 leading-relaxed italic bg-black/30 p-2.5 rounded-xl border border-white/5">
-                  "{aiAnalysis}"
-                </p>
+                <div className="text-xs text-slate-300 leading-relaxed bg-black/30 p-3 rounded-xl border border-white/5">
+                  <FormattedAiText text={aiAnalysis} />
+                </div>
               ) : (
                 <div className="text-[11px] text-slate-500">
                   Click "Generate Review" to have the AI evaluate your execution psychology and risk management.

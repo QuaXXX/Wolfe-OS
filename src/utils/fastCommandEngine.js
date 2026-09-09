@@ -38,9 +38,12 @@ const THEME_COLOR_MAP = {
 function cleanSpeechBuffer(text) {
   if (!text) return '';
   return text
+    .trim()
+    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
     .toLowerCase()
     .replace(/^(hey|hi|yo|ok|okay|please|can you|could you|i want to|just|quick|wolfe|assistant)\s+/gi, '')
     .replace(/\s+(please|thanks|thank you)\s*$/gi, '')
+    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
     .trim();
 }
 
@@ -337,7 +340,8 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   // Complete Specific Task by Name
   const completeTaskMatch = text.match(/\b(?:complete|check\s*off|finish|done\s+with)\s+(?:the\s+)?(?:task\s+)?(.+)/i);
   if (completeTaskMatch && !text.includes('workout') && !text.includes('all') && !text.includes('gym')) {
-    const titleQuery = completeTaskMatch[1].trim().toLowerCase();
+    const rawTitle = completeTaskMatch[1].trim().replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '');
+    const titleQuery = rawTitle.toLowerCase();
     if (setCalendarData) {
       setCalendarData(prev => {
         const target = prev.items.find(it => (it.type === 'task' || it.type === 'reminder') && it.title.toLowerCase().includes(titleQuery));
@@ -356,7 +360,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     return {
       handled: true,
       title: "✅ Task Completed",
-      message: `Marked "${completeTaskMatch[1].trim()}" as completed.`,
+      message: `Marked "${rawTitle}" as completed.`,
       targetView: "calendar"
     };
   }
@@ -364,7 +368,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   // Fast Delete Specific Item by Name
   const deleteMatch = text.match(/^(?:delete|remove|cancel|drop)\s+(?:the\s+)?(?:task|event|item|deadline|reminder)?\s*(.+)$/i);
   if (deleteMatch && !text.includes('calendar') && !text.includes('all')) {
-    const itemTitle = deleteMatch[1].trim();
+    const itemTitle = deleteMatch[1].trim().replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '');
     if (itemTitle && itemTitle.length > 1) {
       if (onDeleteSpecificItem) {
         onDeleteSpecificItem(itemTitle, 'ANY');

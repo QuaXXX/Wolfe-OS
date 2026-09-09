@@ -155,6 +155,7 @@ SYSTEM INTERACTION DIRECTIVES:
 - You have 100% full situational awareness of Zach's entire operational cockpit across all 5 hubs.
 - When Zach asks about his trades, his schedule, his schoolwork, or his workouts, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
 - When creating or modifying schedule items, extract clean titles without conversational filler.
+- FORMATTING MANDATE: Present responses with executive polish. Never output escaped or doubled quote artifacts (avoid \"\" or \"\"\"). Never wrap your whole message in outer quotes. Use clean bullet points and bold headers (**Heading:**) for multi-point answers.
 
 ACTIONS:
 1. "CREATE_CALENDAR_ITEM": For adding a single deadline (red all-day), timed event, task, or reminder.
@@ -195,17 +196,50 @@ RESPOND ONLY IN VALID JSON:
       "weight": "30%" (optional)
     }
   ]
-}`;
+}
+`;
 };
+
+/**
+ * Normalizes AI output text to remove duplicate quotes, escaped quotes, and empty artifacts
+ */
+export function cleanAiMessage(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let text = raw.trim();
+
+  // 1. Strip outermost redundant surrounding quotes if balanced
+  if ((text.startsWith('"') && text.endsWith('"') && text.length > 2) ||
+      (text.startsWith("'") && text.endsWith("'") && text.length > 2)) {
+    const innerQuotes = (text.slice(1, -1).match(/"/g) || []).length;
+    if (innerQuotes % 2 === 0) {
+      text = text.slice(1, -1).trim();
+    }
+  }
+
+  // 2. Fix duplicated/nested quotes: ""Text"" -> "Text", \"\" -> "
+  text = text.replace(/""([^"]+?)""/g, '"$1"');
+  text = text.replace(/\\"+/g, '"');
+  text = text.replace(/""+/g, '"');
+
+  // 3. Fix empty quotes artifact: e.g. 'at "" for today' or 'purge ""'
+  text = text.replace(/\s*""\s*/g, ' ');
+
+  // 4. Fix accidental quotes before/after punctuation: e.g. " ," -> ","
+  text = text.replace(/"\s+([,.?!])/g, '$1');
+
+  return text.trim();
+}
 
 function cleanTitleString(raw) {
   if (!raw) return "New Item";
-  let str = raw
+  let str = raw.trim()
+    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
     .replace(/^(add|schedule|create|put|set|book|log|delete|remove|cancel|clear)\s+/i, '')
     .replace(/^(a|an|the|my)\s+/i, '')
     .replace(/^(deadline|task|reminder|event|meeting|workout|calendar)\s+(that|for|to)?\s*/i, '')
     .replace(/^(that\s+i\s+have\s+(a|an)?|that\s+i\s+need\s+to|to\s+do\s+my|to\s+study\s+for)\s*/i, '')
     .replace(/\s+(today|tomorrow|at\s+\d{1,2}(:\d{2})?\s*(am|pm)?|on\s+[a-z]+)\s*$/i, '')
+    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
     .trim();
 
   if (str.length === 0) return "New Item";
@@ -471,11 +505,12 @@ export async function callGemini(prompt, systemInstruction, config, timeoutMs = 
       if (rawText) {
         const parsed = safeParseJson(rawText);
         if (parsed) {
+          if (parsed.message) parsed.message = cleanAiMessage(parsed.message);
           return parsed;
         }
         return {
           title: "Wolfe Assistant",
-          message: rawText,
+          message: cleanAiMessage(rawText),
           targetView: "home",
           actionLabel: "View"
         };
@@ -997,6 +1032,10 @@ export async function processVoiceOrTextCommand(
     if (onEventCreated) {
       onEventCreated(newItem);
     }
+  }
+
+  if (response && response.message) {
+    response.message = cleanAiMessage(response.message);
   }
 
   return response;
@@ -1793,7 +1832,7 @@ Return ONLY valid JSON matching this schema:
     const res = await callGemini(prompt, systemInstruction, fastConfig, 18000);
     if (res && (res.answer || res.message)) {
       return {
-        answer: res.answer || res.message,
+        answer: cleanAiMessage(res.answer || res.message),
         matchedFiles: res.matchedFiles || filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
       };
     }
@@ -1919,7 +1958,7 @@ Guidelines for Response:
 
       if (accumulatedText.trim()) {
         return {
-          answer: accumulatedText.trim(),
+          answer: cleanAiMessage(accumulatedText.trim()),
           matchedFiles: filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
         };
       }

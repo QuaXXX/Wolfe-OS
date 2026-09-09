@@ -31,6 +31,7 @@ import {
   generateCourseBriefingWithAI, 
   searchVaultWithAI 
 } from '../../utils/aiService';
+import { FormattedAiText } from '../common/FormattedAiText';
 import { playSound } from '../../utils/soundFX';
 
 export const NotebookLMStudyHubModal = ({ 
@@ -761,8 +762,8 @@ export const NotebookLMStudyHubModal = ({
                       <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
                         <span>{msg.role === 'user' ? 'Zach Wolfe' : `NotebookLM (${selectedCourse})`}</span>
                       </div>
-                      <div className="whitespace-pre-wrap leading-relaxed font-sans">
-                        {msg.text}
+                      <div className="leading-relaxed font-sans">
+                        <FormattedAiText text={msg.text} />
                       </div>
 
                       {msg.matchedFiles && msg.matchedFiles.length > 0 && (

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { searchVaultWithAI } from '../../utils/aiService';
 import { readVaultFileContent } from '../../utils/obsidianService';
+import { FormattedAiText } from '../common/FormattedAiText';
 import { playSound } from '../../utils/soundFX';
 
 export const VaultSearchModal = ({ 
@@ -242,9 +243,9 @@ export const VaultSearchModal = ({
                       <BookOpen className="w-3.5 h-3.5" />
                       <span>Answer:</span>
                     </div>
-                    <p className="text-xs text-slate-100 leading-relaxed font-sans whitespace-pre-wrap">
-                      {result.answer}
-                    </p>
+                    <div className="text-xs text-slate-100 leading-relaxed font-sans">
+                      <FormattedAiText text={result.answer} />
+                    </div>
                   </div>
 
                   {/* Matched Files Citation */}
