@@ -65,8 +65,8 @@ export const buildSystemPrompt = (osData) => {
   const carbsConsumed = osData?.nutritionData?.consumedCarbs || 0;
   const carbsTarget = osData?.nutritionData?.targetCarbs || 300;
   const fatConsumed = osData?.nutritionData?.consumedFat || 0;
-  const fatTarget = osData?.nutritionData?.targetFat || 75;
-  const loggedMeals = osData?.nutritionData?.meals || [];
+  const todayIsoBrief = getTodayIso();
+  const loggedMeals = (osData?.nutritionData?.meals || []).filter(m => m?.date === todayIsoBrief);
 
   // 5. Day Trading & Quantitative War Room Snapshot
   let latestBrief = null;

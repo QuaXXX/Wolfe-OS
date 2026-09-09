@@ -4,7 +4,7 @@
  * natural language ingredient breakdown parsing, adaptive surplus adjustments, and pantry presets.
  */
 
-import { getTodayIso } from './calendarUtils.js';
+import { getTodayIso, addDays } from './calendarUtils.js';
 
 // ---------------------------------------------------------------------------
 // 1. DEFAULT NUTRITION TARGETS (High Carb, 180g Protein, 3,000-3,500 kcal)
@@ -982,6 +982,8 @@ export function createMealEntry({
   return {
     id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     date: date || getTodayIso(),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     slot: slot || "meal",
     name: (name || "Logged Meal").trim(),
     time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1133,33 +1135,32 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
 
 
 /**
- * Filter meals for a specific date (legacy entries without date default to today)
+ * Filter meals for a specific date strictly by dateIso (no dynamic fallback to today)
  */
 export function filterMealsByDate(meals = [], dateIso = null) {
   if (!Array.isArray(meals)) return [];
   const targetIso = dateIso || getTodayIso();
-  const todayIso = getTodayIso();
-  return meals.filter(m => (m?.date || todayIso) === targetIso);
+  return meals.filter(m => m?.date === targetIso);
 }
 
 /**
- * Generates an N-day history of nutrition targets hit vs missed
+ * Generates an N-day history of nutrition targets hit vs missed without timezone skew
  */
 export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targetProtein = 180, daysCount = 7) {
   if (!Array.isArray(meals)) meals = [];
-  const today = new Date();
   const history = [];
+  const todayIso = getTodayIso();
 
   for (let i = daysCount - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const dateIso = d.toISOString().split('T')[0];
+    const dateIso = addDays(todayIso, -i);
     const dayMeals = filterMealsByDate(meals, dateIso);
     const totals = aggregateDailyNutrition(dayMeals);
 
     const isToday = i === 0;
-    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-    const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const [y, m, d] = dateIso.split('-').map(Number);
+    const dObj = new Date(y, m - 1, d);
+    const dayName = dObj.toLocaleDateString('en-US', { weekday: 'short' });
+    const monthDay = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     
     const hitCalories = totals.calories >= targetCalories;
     const hitProtein = totals.protein >= targetProtein;
@@ -1185,6 +1186,143 @@ export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targ
   }
 
   return history;
+}
+
+/**
+ * Synchronizes nutrition data across day boundaries, repairs legacy/misdated meals,
+ * moves yesterday's 3,173 kcal back to yesterday, and guarantees a new day begins at 0 consumed calories.
+ */
+export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
+  if (!nutritionData || typeof nutritionData !== 'object') {
+    nutritionData = {};
+  }
+
+  const todayIso = activeDateIso || getTodayIso();
+  const yesterdayIso = addDays(todayIso, -1);
+  let meals = Array.isArray(nutritionData.meals) ? [...nutritionData.meals] : [];
+  let wasModified = false;
+
+  // 1. One-time specific migration: Move the 3,173 kcal recorded yesterday back to yesterday (2026-09-08)
+  const migrationKey = 'wolfe_nutrition_migrate_3173_to_yesterday_v5';
+  let migrationApplied = nutritionData._migration3173Applied === true;
+  if (!migrationApplied && typeof localStorage !== 'undefined') {
+    try {
+      migrationApplied = localStorage.getItem(migrationKey) === 'true';
+    } catch (e) {}
+  }
+
+  if (!migrationApplied) {
+    // Mark migration applied on data and in storage so it never runs again
+    nutritionData._migration3173Applied = true;
+    wasModified = true;
+
+    // Check if suspect meals exist (meals dated todayIso or lacking date, or created prior to this run)
+    const suspectMeals = meals.filter(m => !m.date || m.date === todayIso);
+    
+    if (suspectMeals.length > 0) {
+      meals = meals.map(m => {
+        if (!m.date || m.date === todayIso) {
+          return {
+            ...m,
+            date: yesterdayIso,
+            updatedAt: Date.now()
+          };
+        }
+        return m;
+      });
+    } else if (nutritionData.consumedCalories === 3173 || (nutritionData.consumedCalories > 0 && meals.length === 0)) {
+      // If meals array was empty or lost but consumedCalories was 3,173 from yesterday, synthesize yesterday's record
+      const syntheticMeal = {
+        id: `meal-${Date.now()}-yesterday-3173`,
+        date: yesterdayIso,
+        name: "Logged Daily Meals (Yesterday)",
+        calories: nutritionData.consumedCalories || 3173,
+        protein: nutritionData.protein?.current || 180,
+        carbs: nutritionData.carbs?.current || 450,
+        fats: nutritionData.fats?.current || 80,
+        time: "8:00 PM",
+        items: ["Daily Meal Log (3,173 kcal)"],
+        createdAt: Date.now()
+      };
+      meals = [syntheticMeal];
+    }
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(migrationKey, 'true');
+      }
+    } catch (e) {}
+  }
+
+  // 2. Permanent Invariant: Ensure every single meal has an explicit, non-null date string
+  meals = meals.map(m => {
+    if (!m.date) {
+      wasModified = true;
+      let derivedDate = null;
+      if (m.id && typeof m.id === 'string' && m.id.startsWith('meal-')) {
+        const parts = m.id.split('-');
+        const ts = parseInt(parts[1], 10);
+        if (!isNaN(ts) && ts > 1600000000000) {
+          const d = new Date(ts);
+          const y = d.getFullYear();
+          const mo = String(d.getMonth() + 1).padStart(2, '0');
+          const dy = String(d.getDate()).padStart(2, '0');
+          derivedDate = `${y}-${mo}-${dy}`;
+        }
+      }
+      return {
+        ...m,
+        date: derivedDate || yesterdayIso
+      };
+    }
+    return m;
+  });
+
+  // 3. Calculate consumption strictly from meals logged for TODAY (todayIso)
+  const todayMeals = meals.filter(m => m.date === todayIso);
+  const todayTotals = aggregateDailyNutrition(todayMeals);
+
+  // 4. Daily Water Reset: Reset water on new day
+  const lastWaterDate = nutritionData.waterDate || nutritionData.currentDate;
+  const isNewDayForWater = lastWaterDate && lastWaterDate !== todayIso;
+  const waterMl = isNewDayForWater ? 0 : (nutritionData.waterMl || 0);
+  const waterGlasses = isNewDayForWater ? 0 : (nutritionData.waterGlasses || 0);
+
+  // Check if state needs updating
+  const needsUpdate = 
+    wasModified ||
+    nutritionData.consumedCalories !== todayTotals.calories ||
+    nutritionData.protein?.current !== todayTotals.protein ||
+    nutritionData.carbs?.current !== todayTotals.carbs ||
+    nutritionData.fats?.current !== todayTotals.fats ||
+    nutritionData.currentDate !== todayIso ||
+    nutritionData.waterMl !== waterMl;
+
+  if (needsUpdate) {
+    return {
+      ...nutritionData,
+      currentDate: todayIso,
+      waterDate: todayIso,
+      consumedCalories: todayTotals.calories,
+      protein: {
+        ...(nutritionData.protein || { target: 180, unit: "g", color: "#6366f1" }),
+        current: todayTotals.protein
+      },
+      carbs: {
+        ...(nutritionData.carbs || { target: 450, unit: "g", color: "#06b6d4" }),
+        current: todayTotals.carbs
+      },
+      fats: {
+        ...(nutritionData.fats || { target: 80, unit: "g", color: "#f59e0b" }),
+        current: todayTotals.fats
+      },
+      waterMl,
+      waterGlasses,
+      meals
+    };
+  }
+
+  return nutritionData;
 }
 
 

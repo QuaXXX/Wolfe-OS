@@ -17,7 +17,8 @@ import {
   getOrCreateDeviceId,
   isMobileDevice
 } from './googleCalendarService.js';
-import { reconcileCalendarItems } from './calendarUtils.js';
+import { reconcileCalendarItems, getTodayIso } from './calendarUtils.js';
+import { aggregateDailyNutrition } from './nutritionEngine.js';
 
 // LocalStorage Keys for all Wolfe OS modules
 export const SYNC_KEYS = {
@@ -365,12 +366,27 @@ export function mergeOsState(localVault, remoteVault) {
     ? (localNut.fats || remoteNut.fats)
     : (remoteNut.fats || localNut.fats);
 
+  const todayIso = getTodayIso();
+  const todayMeals = mergedMeals.filter(m => m.date === todayIso);
+  const todayTotals = aggregateDailyNutrition(todayMeals);
+
   merged.nutrition = {
     ...baseNut,
+    currentDate: todayIso,
+    consumedCalories: todayTotals.calories,
+    protein: {
+      ...(protein || { target: 180, unit: "g", color: "#6366f1" }),
+      current: todayTotals.protein
+    },
+    carbs: {
+      ...(carbs || { target: 450, unit: "g", color: "#06b6d4" }),
+      current: todayTotals.carbs
+    },
+    fats: {
+      ...(fats || { target: 80, unit: "g", color: "#f59e0b" }),
+      current: todayTotals.fats
+    },
     targetCalories,
-    protein,
-    carbs,
-    fats,
     updatedAt: Math.max(localNutUpdated, remoteNutUpdated, Date.now()),
     meals: mergedMeals,
     weightLogs: mergedWeightLogs,

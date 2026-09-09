@@ -41,9 +41,10 @@ import {
   getCalibrationProgress,
   filterMealsByDate,
   getDailyNutritionHistory,
-  calculateWeightTrend
+  calculateWeightTrend,
+  synchronizeNutritionData
 } from '../../utils/nutritionEngine.js';
-import { getTodayIso, formatDateTitle } from '../../utils/calendarUtils.js';
+import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
@@ -139,18 +140,36 @@ export const NutritionView = ({
     }
   }, [selectedDate]);
 
+  // Synchronize nutrition on mount and date rollover to guarantee proper day boundaries
+  useEffect(() => {
+    const synced = synchronizeNutritionData(nutritionData, currentTodayIso);
+    if (
+      synced.currentDate !== nutritionData.currentDate ||
+      synced.consumedCalories !== nutritionData.consumedCalories ||
+      synced.meals !== nutritionData.meals
+    ) {
+      setNutritionData(synced);
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(synced));
+      } catch (e) {}
+      if (synced.meals !== nutritionData.meals) {
+        synced.meals.forEach(m => {
+          if (m?.id) recordAdditionOrUpdate(m.id);
+        });
+        markLocalMutation();
+        triggerImmediateCloudPush(80);
+      }
+    }
+  }, [currentTodayIso]);
+
   const handlePrevDay = () => {
     playSound('switch', soundEnabled);
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(curr => addDays(curr, -1));
   };
 
   const handleNextDay = () => {
     playSound('switch', soundEnabled);
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(curr => addDays(curr, 1));
   };
 
   const handleTodayJump = () => {
@@ -185,10 +204,10 @@ export const NutritionView = ({
     setCustomFats(targetFats);
   }, [targetCalories, targetProtein, targetCarbs, targetFats, isTargetModalOpen]);
 
-  // Filter meals strictly for the selected date (legacy meals without date attribute default to todayIso)
+  // Filter meals strictly for the selected date
   const selectedDateMeals = useMemo(() => {
-    return (meals || []).filter(m => (m?.date || todayIso) === selectedDate);
-  }, [meals, selectedDate, todayIso]);
+    return (meals || []).filter(m => m.date === selectedDate);
+  }, [meals, selectedDate]);
 
   // Aggregate selected date nutrition totals
   const dailyTotals = useMemo(() => {
@@ -255,25 +274,30 @@ export const NutritionView = ({
   // Handlers for logging
   const handleLogMeal = (mealEntry) => {
     playSound('success', soundEnabled);
+    const mealDate = mealEntry?.date || selectedDate || currentTodayIso;
     const stampedMeal = {
       ...mealEntry,
-      date: mealEntry?.date || selectedDate || todayIso
+      date: mealDate,
+      createdAt: mealEntry?.createdAt || Date.now(),
+      updatedAt: Date.now()
     };
     if (stampedMeal?.id) recordAdditionOrUpdate(stampedMeal.id);
     markLocalMutation();
 
     setNutritionData(prev => {
-      const nextMeals = [stampedMeal, ...(prev.meals || [])];
-      // Today's total (for Home Dashboard consistency)
-      const todayMeals = nextMeals.filter(m => (m.date || todayIso) === todayIso);
+      const existingMeals = (prev.meals || []).filter(m => m.id !== stampedMeal.id);
+      const nextMeals = [stampedMeal, ...existingMeals];
+      // Today's total strictly from meals logged for currentTodayIso
+      const todayMeals = nextMeals.filter(m => m.date === currentTodayIso);
       const todayTotals = aggregateDailyNutrition(todayMeals);
 
       const nextData = {
         ...prev,
+        currentDate: currentTodayIso,
         consumedCalories: todayTotals.calories,
-        protein: { ...prev.protein, current: todayTotals.protein },
-        carbs: { ...prev.carbs, current: todayTotals.carbs },
-        fats: { ...prev.fats, current: todayTotals.fats },
+        protein: { ...(prev.protein || {}), current: todayTotals.protein },
+        carbs: { ...(prev.carbs || {}), current: todayTotals.carbs },
+        fats: { ...(prev.fats || {}), current: todayTotals.fats },
         meals: nextMeals
       };
       try {
@@ -292,15 +316,15 @@ export const NutritionView = ({
 
     setNutritionData(prev => {
       const nextMeals = (prev.meals || []).filter(m => m.id !== mealId);
-      const todayMeals = nextMeals.filter(m => (m.date || todayIso) === todayIso);
+      const todayMeals = nextMeals.filter(m => m.date === currentTodayIso);
       const todayTotals = aggregateDailyNutrition(todayMeals);
 
       const nextData = {
         ...prev,
         consumedCalories: todayTotals.calories,
-        protein: { ...prev.protein, current: todayTotals.protein },
-        carbs: { ...prev.carbs, current: todayTotals.carbs },
-        fats: { ...prev.fats, current: todayTotals.fats },
+        protein: { ...(prev.protein || {}), current: todayTotals.protein },
+        carbs: { ...(prev.carbs || {}), current: todayTotals.carbs },
+        fats: { ...(prev.fats || {}), current: todayTotals.fats },
         meals: nextMeals
       };
       try {
@@ -605,7 +629,8 @@ export const NutritionView = ({
     setNutritionData(prev => ({
       ...prev,
       waterMl: nextMl,
-      waterGlasses: glasses
+      waterGlasses: glasses,
+      waterDate: currentTodayIso
     }));
     if (nextMl >= targetWaterMl && waterMl < targetWaterMl) {
       playSound('success', soundEnabled);
@@ -757,7 +782,7 @@ export const NutritionView = ({
           {dayWindow.map((day) => {
             const isSelected = day.dateIso === selectedDate;
             const isToday = day.dateIso === todayIso;
-            const dayMeals = (meals || []).filter(m => (m?.date || todayIso) === day.dateIso);
+            const dayMeals = (meals || []).filter(m => m.date === day.dateIso);
             const dayTotals = aggregateDailyNutrition(dayMeals);
             const hitGoal = dayTotals.calories >= targetCalories;
 

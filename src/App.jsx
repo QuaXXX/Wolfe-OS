@@ -10,6 +10,7 @@ import { ComingSoonModal } from './components/common/ComingSoonModal';
 import { UndoActionPopup } from './components/common/UndoActionPopup';
 import { playSound } from './utils/soundFX';
 import { getTodayIso, formatDateTitle, addDays, reconcileCalendarItems, isCalendarOutOfSync } from './utils/calendarUtils';
+import { synchronizeNutritionData } from './utils/nutritionEngine.js';
 import { 
   isGoogleCalendarConnected, 
   fetchGoogleCalendarEvents,
@@ -164,9 +165,12 @@ export function App() {
   const [nutritionData, setNutritionData] = useState(() => {
     const saved = localStorage.getItem('wolfe_nutrition_data');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try { 
+        const parsed = JSON.parse(saved);
+        return synchronizeNutritionData(parsed);
+      } catch (e) {}
     }
-    return INITIAL_NUTRITION_DATA;
+    return synchronizeNutritionData(INITIAL_NUTRITION_DATA);
   });
 
   const [tradingData, setTradingData] = useState(() => {
@@ -180,6 +184,41 @@ export function App() {
   // Flag to suppress debounced auto-push when applying incoming cloud sync
   const isApplyingInboundSyncRef = useRef(false);
 
+  // Auto-detect day rollover across midnight, window focus, visibility change for nutrition & date
+  useEffect(() => {
+    const checkDayRollover = () => {
+      const freshToday = getTodayIso();
+      setNutritionData(prev => {
+        if (!prev) return prev;
+        const synced = synchronizeNutritionData(prev, freshToday);
+        if (
+          synced.currentDate !== prev.currentDate ||
+          synced.consumedCalories !== prev.consumedCalories ||
+          synced.meals !== prev.meals
+        ) {
+          try {
+            localStorage.setItem('wolfe_nutrition_data', JSON.stringify(synced));
+          } catch (e) {}
+          return synced;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('focus', checkDayRollover);
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') checkDayRollover();
+    };
+    document.addEventListener('visibilitychange', handleVis);
+    const interval = setInterval(checkDayRollover, 30000);
+
+    return () => {
+      window.removeEventListener('focus', checkDayRollover);
+      document.removeEventListener('visibilitychange', handleVis);
+      clearInterval(interval);
+    };
+  }, []);
+
   // Listen for real-time Cloud Sync updates from other devices
   useEffect(() => {
     const handleSyncApplied = (e) => {
@@ -189,7 +228,7 @@ export function App() {
       if (isLocalMutationRecent(6000)) return;
 
       isApplyingInboundSyncRef.current = true;
-      if (vault.nutrition) setNutritionData(vault.nutrition);
+      if (vault.nutrition) setNutritionData(synchronizeNutritionData(vault.nutrition));
       if (vault.workouts) setWorkoutData(vault.workouts);
       if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
       if (vault.school?.dashboard) setSchoolData(vault.school.dashboard);

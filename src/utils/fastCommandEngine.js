@@ -447,7 +447,9 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     if (!rawFoodPhrase.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock|water)\b/i)) {
       const parsedMeal = parseMealDescription(rawFoodPhrase);
       if (parsedMeal && parsedMeal.items && parsedMeal.items.length > 0) {
+        const todayIso = getTodayIso();
         const mealEntry = createMealEntry({
+          date: todayIso,
           name: parsedMeal.name,
           slot: text.includes('breakfast') ? 'breakfast' : text.includes('dinner') ? 'dinner' : text.includes('snack') ? 'snack' : 'lunch',
           calories: parsedMeal.calories,
@@ -462,13 +464,15 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
         if (setNutritionData) {
           setNutritionData(prev => {
             const nextMeals = [mealEntry, ...(prev?.meals || [])];
-            const totals = aggregateDailyNutrition(nextMeals);
+            const todayMeals = nextMeals.filter(m => m.date === todayIso);
+            const totals = aggregateDailyNutrition(todayMeals);
             return {
               ...prev,
+              currentDate: todayIso,
               consumedCalories: totals.calories,
-              protein: { ...prev?.protein, current: totals.protein },
-              carbs: { ...prev?.carbs, current: totals.carbs },
-              fats: { ...prev?.fats, current: totals.fats },
+              protein: { ...(prev?.protein || {}), current: totals.protein },
+              carbs: { ...(prev?.carbs || {}), current: totals.carbs },
+              fats: { ...(prev?.fats || {}), current: totals.fats },
               meals: nextMeals
             };
           });
@@ -489,7 +493,9 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   if (!text.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock|water|theme|color|accent|mode|screen|view|brief|position)\b/i)) {
     const directMeal = parseMealDescription(text);
     if (directMeal && directMeal.items && directMeal.items.length > 0 && directMeal.source === "ingredient_engine") {
+      const todayIso = getTodayIso();
       const mealEntry = createMealEntry({
+        date: todayIso,
         name: directMeal.name,
         slot: 'lunch',
         calories: directMeal.calories,
@@ -504,13 +510,15 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       if (setNutritionData) {
         setNutritionData(prev => {
           const nextMeals = [mealEntry, ...(prev?.meals || [])];
-          const totals = aggregateDailyNutrition(nextMeals);
+          const todayMeals = nextMeals.filter(m => m.date === todayIso);
+          const totals = aggregateDailyNutrition(todayMeals);
           return {
             ...prev,
+            currentDate: todayIso,
             consumedCalories: totals.calories,
-            protein: { ...prev?.protein, current: totals.protein },
-            carbs: { ...prev?.carbs, current: totals.carbs },
-            fats: { ...prev?.fats, current: totals.fats },
+            protein: { ...(prev?.protein || {}), current: totals.protein },
+            carbs: { ...(prev?.carbs || {}), current: totals.carbs },
+            fats: { ...(prev?.fats || {}), current: totals.fats },
             meals: nextMeals
           };
         });
