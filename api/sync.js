@@ -77,14 +77,21 @@ export default async function handler(req, res) {
   const authHeader = headers['authorization'] || headers['Authorization'] || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-  if (token && !verifiedUserId) {
+  let tokenEmail = null;
+  let tokenId = null;
+
+  if (token) {
     try {
       const gRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (gRes.ok) {
         const uData = await gRes.json();
-        verifiedUserId = uData.id || uData.email;
+        tokenEmail = uData.email;
+        tokenId = uData.id;
+        if (!verifiedUserId || verifiedUserId === 'primary_user') {
+          verifiedUserId = tokenEmail || tokenId;
+        }
       }
     } catch (err) {
       // Best-effort
@@ -92,19 +99,47 @@ export default async function handler(req, res) {
   }
 
   const userKey = sanitizeUserId(verifiedUserId || 'primary_user');
+  const candidateKeys = [
+    userKey,
+    tokenEmail ? sanitizeUserId(`user_${tokenEmail}`) : null,
+    tokenId ? sanitizeUserId(`user_${tokenId}`) : null,
+    'primary_user'
+  ].filter(Boolean);
 
   // -------------------------------------------------------------------------
   // 1. GET: RETRIEVE CLOUD VAULT
   // -------------------------------------------------------------------------
   if (req.method === 'GET') {
+    let vault = null;
+
+    // Helper to find vault across all candidate keys
+    const findVault = (sourceMapOrObj) => {
+      for (const k of candidateKeys) {
+        if (!k) continue;
+        const val = sourceMapOrObj instanceof Map ? sourceMapOrObj.get(k) : sourceMapOrObj[k];
+        if (val) return val;
+      }
+      return null;
+    };
+
     // 1. Check in-memory store
-    let vault = memoryStore.get(userKey);
+    vault = findVault(memoryStore);
 
     // 2. Check local dev storage
     if (!vault) {
       const fileVaults = loadDevVaults();
-      if (fileVaults[userKey]) {
-        vault = fileVaults[userKey];
+      vault = findVault(fileVaults);
+      if (!vault && queryUserId && fileVaults[queryUserId]) {
+        vault = fileVaults[queryUserId];
+      }
+      // If still no vault and only 1 vault exists in dev storage, return that vault
+      if (!vault) {
+        const keys = Object.keys(fileVaults);
+        if (keys.length === 1) {
+          vault = fileVaults[keys[0]];
+        }
+      }
+      if (vault) {
         memoryStore.set(userKey, vault);
       }
     }
@@ -114,19 +149,23 @@ export default async function handler(req, res) {
     const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
     if (!vault && kvUrl && kvToken) {
-      try {
-        const kvRes = await fetch(`${kvUrl}/get/wolfe_vault_${encodeURIComponent(userKey)}`, {
-          headers: { Authorization: `Bearer ${kvToken}` }
-        });
-        if (kvRes.ok) {
-          const kvData = await kvRes.json();
-          if (kvData && kvData.result) {
-            vault = typeof kvData.result === 'string' ? JSON.parse(kvData.result) : kvData.result;
-            memoryStore.set(userKey, vault);
+      for (const k of candidateKeys) {
+        if (!k) continue;
+        try {
+          const kvRes = await fetch(`${kvUrl}/get/wolfe_vault_${encodeURIComponent(k)}`, {
+            headers: { Authorization: `Bearer ${kvToken}` }
+          });
+          if (kvRes.ok) {
+            const kvData = await kvRes.json();
+            if (kvData && kvData.result) {
+              vault = typeof kvData.result === 'string' ? JSON.parse(kvData.result) : kvData.result;
+              memoryStore.set(userKey, vault);
+              break;
+            }
           }
+        } catch (kvErr) {
+          console.warn("KV fetch notice:", kvErr.message);
         }
-      } catch (kvErr) {
-        console.warn("KV fetch notice:", kvErr.message);
       }
     }
 
@@ -221,12 +260,13 @@ export default async function handler(req, res) {
       serverSyncedAt: new Date().toISOString()
     };
 
-    // 1. Update in-memory store
-    memoryStore.set(targetUserId, enrichedVault);
+    // 1. Update in-memory store across all candidate keys
+    const writeKeys = Array.from(new Set([targetUserId, ...candidateKeys].filter(Boolean)));
+    writeKeys.forEach(k => memoryStore.set(k, enrichedVault));
 
-    // 2. Update local dev storage file
+    // 2. Update local dev storage file across keys
     const fileVaults = loadDevVaults();
-    fileVaults[targetUserId] = enrichedVault;
+    writeKeys.forEach(k => { fileVaults[k] = enrichedVault; });
     saveDevVaults(fileVaults);
 
     // 3. Update Vercel KV / Upstash Redis if configured
@@ -234,17 +274,19 @@ export default async function handler(req, res) {
     const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
     if (kvUrl && kvToken) {
-      try {
-        await fetch(`${kvUrl}/set/wolfe_vault_${encodeURIComponent(targetUserId)}`, {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${kvToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(enrichedVault)
-        });
-      } catch (kvErr) {
-        console.warn("KV save notice:", kvErr.message);
+      for (const k of writeKeys) {
+        try {
+          await fetch(`${kvUrl}/set/wolfe_vault_${encodeURIComponent(k)}`, {
+            method: 'POST',
+            headers: { 
+              'Authorization': `Bearer ${kvToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(enrichedVault)
+          });
+        } catch (kvErr) {
+          console.warn("KV save notice:", kvErr.message);
+        }
       }
     }
 

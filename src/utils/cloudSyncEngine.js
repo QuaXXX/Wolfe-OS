@@ -131,8 +131,11 @@ export function recordAdditionOrUpdate(id) {
  */
 export function getCloudUserKey() {
   const account = getGoogleAccount();
+  const email = account?.email || (typeof localStorage !== 'undefined' ? (localStorage.getItem('wolfe_user_email') || localStorage.getItem('user_email')) : null);
+  if (email && typeof email === 'string' && email.trim()) {
+    return `user_${email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')}`;
+  }
   if (account?.id) return `user_${account.id}`;
-  if (account?.email) return `user_${account.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
   return 'primary_user';
 }
 
@@ -238,16 +241,28 @@ export function mergeOsState(localVault, remoteVault) {
   // Merge meals by ID (purging tombstoned)
   const mealMap = new Map();
   (remoteNut.meals || []).forEach(m => {
-    if (!isTombstoned(m.id, m.updatedAt || m.time)) {
+    if (!m || !m.id) return;
+    if (!isTombstoned(m.id, m.updatedAt || m.createdAt || m.time)) {
       mealMap.set(m.id, m);
     }
   });
   (localNut.meals || []).forEach(m => {
-    if (!isTombstoned(m.id, m.updatedAt || m.time)) {
+    if (!m || !m.id) return;
+    if (!isTombstoned(m.id, m.updatedAt || m.createdAt || m.time)) {
       mealMap.set(m.id, { ...(mealMap.get(m.id) || {}), ...m });
     }
   });
-  const mergedMeals = Array.from(mealMap.values()).sort((a, b) => (b.time || 0) - (a.time || 0));
+  const getMealSortTime = (m) => {
+    if (m?.createdAt && typeof m.createdAt === 'number') return m.createdAt;
+    if (m?.updatedAt && typeof m.updatedAt === 'number') return m.updatedAt;
+    if (m?.id && typeof m.id === 'string') {
+      const parts = m.id.split('-');
+      const ts = parseInt(parts[1], 10);
+      if (!isNaN(ts) && ts > 1000000) return ts;
+    }
+    return 0;
+  };
+  const mergedMeals = Array.from(mealMap.values()).sort((a, b) => getMealSortTime(b) - getMealSortTime(a));
 
   // Merge weight logs by date/id (purging tombstoned)
   const weightMap = new Map();
@@ -372,6 +387,7 @@ export function mergeOsState(localVault, remoteVault) {
 
   merged.nutrition = {
     ...baseNut,
+    _migration3173Applied: true,
     currentDate: todayIso,
     consumedCalories: todayTotals.calories,
     protein: {
@@ -708,8 +724,130 @@ async function saveVaultToServerless(userKey, vault) {
   return false;
 }
 
+const GCAL_VAULT_SUMMARY = '[Wolfe OS Cloud Vault - Do Not Delete]';
+const GCAL_VAULT_EVENT_ID_KEY = 'wolfe_gcal_vault_event_id';
+
 /**
- * Primary Master Sync: Executes 2-way sync across Phone and Desktop
+ * Fetch backup vault directly from Google Calendar system event
+ */
+export async function fetchVaultFromGoogleCalendar() {
+  if (!isGoogleCalendarConnected()) return null;
+  try {
+    const cachedEventId = typeof localStorage !== 'undefined' ? localStorage.getItem(GCAL_VAULT_EVENT_ID_KEY) : null;
+    
+    // 1. Try fetching directly by cached event ID
+    if (cachedEventId) {
+      const res = await authedGoogleFetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(cachedEventId)}`);
+      if (res.ok) {
+        const item = await res.json();
+        if (item && item.description && item.summary === GCAL_VAULT_SUMMARY) {
+          return JSON.parse(item.description);
+        }
+      }
+    }
+
+    // 2. Search for the system event on primary calendar
+    const searchUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    searchUrl.searchParams.append('q', '[Wolfe OS Cloud Vault - Do Not Delete]');
+    searchUrl.searchParams.append('maxResults', '5');
+
+    const searchRes = await authedGoogleFetch(searchUrl.toString());
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      const items = data.items || [];
+      const vaultEvent = items.find(it => it.summary === GCAL_VAULT_SUMMARY);
+      if (vaultEvent) {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(GCAL_VAULT_EVENT_ID_KEY, vaultEvent.id);
+        }
+        if (vaultEvent.description) {
+          return JSON.parse(vaultEvent.description);
+        }
+      }
+    }
+  } catch (err) {
+    console.debug("Google Calendar vault fetch notice:", err.message);
+  }
+  return null;
+}
+
+/**
+ * Save backup vault directly to Google Calendar system event
+ */
+export async function saveVaultToGoogleCalendar(vault) {
+  if (!isGoogleCalendarConnected() || !vault) return false;
+  try {
+    const cachedEventId = typeof localStorage !== 'undefined' ? localStorage.getItem(GCAL_VAULT_EVENT_ID_KEY) : null;
+    const bodyPayload = {
+      summary: GCAL_VAULT_SUMMARY,
+      description: JSON.stringify(vault),
+      start: { dateTime: '2000-01-01T00:00:00Z' },
+      end: { dateTime: '2000-01-01T00:05:00Z' },
+      transparency: 'transparent',
+      visibility: 'private'
+    };
+
+    if (cachedEventId) {
+      const patchRes = await authedGoogleFetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(cachedEventId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyPayload)
+        }
+      );
+      if (patchRes.ok) return true;
+    }
+
+    // Search or create
+    const searchUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    searchUrl.searchParams.append('q', '[Wolfe OS Cloud Vault - Do Not Delete]');
+    searchUrl.searchParams.append('maxResults', '5');
+
+    const searchRes = await authedGoogleFetch(searchUrl.toString());
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      const existing = (data.items || []).find(it => it.summary === GCAL_VAULT_SUMMARY);
+      if (existing) {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(GCAL_VAULT_EVENT_ID_KEY, existing.id);
+        }
+        const patchRes = await authedGoogleFetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(existing.id)}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyPayload)
+          }
+        );
+        if (patchRes.ok) return true;
+      }
+    }
+
+    // Create new event
+    const createRes = await authedGoogleFetch(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload)
+      }
+    );
+    if (createRes.ok) {
+      const created = await createRes.json();
+      if (created?.id && typeof localStorage !== 'undefined') {
+        localStorage.setItem(GCAL_VAULT_EVENT_ID_KEY, created.id);
+      }
+      return true;
+    }
+  } catch (err) {
+    console.debug("Google Calendar vault save notice:", err.message);
+  }
+  return false;
+}
+
+/**
+ * Primary Master Sync: Executes 2-Way sync across Phone and Desktop with Dual-Layer Persistence
  */
 let activeSyncPromise = null;
 
@@ -740,12 +878,24 @@ export async function syncFullOsWithCloud(options = {}) {
       if (forcePush) {
         const enrichedLocal = { ...localVault, lastUpdated: Date.now() };
         await saveVaultToServerless(userKey, enrichedLocal);
+        saveVaultToGoogleCalendar(enrichedLocal).catch(() => {});
         importFullOsState(enrichedLocal);
         return { success: true, mode: 'pushed', vault: enrichedLocal };
       }
 
-      // 2. Fetch Remote Cloud Vault
-      const remoteVault = await fetchVaultFromServerless(userKey);
+      // 2. Fetch Remote Cloud Vault (Serverless + Google Calendar Fallback)
+      let remoteVault = await fetchVaultFromServerless(userKey);
+      if (!remoteVault) {
+        remoteVault = await fetchVaultFromGoogleCalendar();
+      } else {
+        // If serverless returned a vault, check if Google Calendar has a newer version in the background
+        fetchVaultFromGoogleCalendar().then(gVault => {
+          if (gVault && (gVault.lastUpdated || 0) > (remoteVault.lastUpdated || 0)) {
+            const updated = mergeOsState(exportFullOsState(), gVault);
+            importFullOsState(updated);
+          }
+        }).catch(() => {});
+      }
 
       // 3. Force Pull: Replace local with remote if remote exists
       if (forcePull && remoteVault) {
@@ -766,8 +916,9 @@ export async function syncFullOsWithCloud(options = {}) {
       // Apply merged vault locally
       importFullOsState(finalVault);
 
-      // Save merged master vault back to cloud
+      // Save merged master vault back to cloud (both serverless and Google Calendar)
       await saveVaultToServerless(userKey, finalVault);
+      saveVaultToGoogleCalendar(finalVault).catch(() => {});
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {

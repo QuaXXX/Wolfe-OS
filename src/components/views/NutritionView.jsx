@@ -25,6 +25,7 @@ import {
   MicOff,
   Ruler,
   CheckCircle2,
+  RefreshCw,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -49,7 +50,7 @@ import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
-import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush } from '../../utils/cloudSyncEngine.js';
+import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush, syncFullOsWithCloud } from '../../utils/cloudSyncEngine.js';
 
 export const NutritionView = ({ 
   nutritionData, 
@@ -148,21 +149,32 @@ export const NutritionView = ({
     if (
       synced.currentDate !== nutritionData.currentDate ||
       synced.consumedCalories !== nutritionData.consumedCalories ||
-      synced.meals !== nutritionData.meals
+      (synced.meals || []).length !== (nutritionData.meals || []).length
     ) {
       setNutritionData(synced);
       try {
         localStorage.setItem('wolfe_nutrition_data', JSON.stringify(synced));
       } catch (e) {}
-      if (synced.meals !== nutritionData.meals) {
-        synced.meals.forEach(m => {
-          if (m?.id) recordAdditionOrUpdate(m.id);
-        });
-        markLocalMutation();
-        triggerImmediateCloudPush(80);
-      }
     }
   }, [currentTodayIso]);
+
+  // Proactively pull fresh meals from cloud on NutritionView mount
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  useEffect(() => {
+    syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+  }, []);
+
+  const handleTriggerCloudSync = async () => {
+    playSound('click', soundEnabled);
+    setIsSyncingCloud(true);
+    try {
+      await syncFullOsWithCloud({ forcePush: false });
+    } catch (e) {
+      console.debug("Manual nutrition cloud sync notice:", e);
+    } finally {
+      setTimeout(() => setIsSyncingCloud(false), 700);
+    }
+  };
 
   const handlePrevDay = () => {
     playSound('switch', soundEnabled);
@@ -707,6 +719,19 @@ export const NutritionView = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* 1-Click Cloud Sync Button */}
+          <button
+            onClick={handleTriggerCloudSync}
+            disabled={isSyncingCloud}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10 ${
+              isSyncingCloud ? 'opacity-70 ring-1 ring-sky-400/30' : ''
+            }`}
+            title="Sync nutrition data across your phone and computer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+            <span>{isSyncingCloud ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
+
           {/* Consistency Lookback Toggle Button */}
           <button
             onClick={() => {

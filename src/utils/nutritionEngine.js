@@ -1940,56 +1940,25 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
   let meals = Array.isArray(nutritionData.meals) ? [...nutritionData.meals] : [];
   let wasModified = false;
 
-  // 1. One-time specific migration: Move the 3,173 kcal recorded yesterday back to yesterday (2026-09-08)
-  const migrationKey = 'wolfe_nutrition_migrate_3173_to_yesterday_v5';
-  let migrationApplied = nutritionData._migration3173Applied === true;
-  if (!migrationApplied && typeof localStorage !== 'undefined') {
-    try {
-      migrationApplied = localStorage.getItem(migrationKey) === 'true';
-    } catch (e) {}
-  }
+  // 1. One-time legacy flag preservation (ensure migration is marked completed so it never touches data)
+  nutritionData._migration3173Applied = true;
 
-  if (!migrationApplied) {
-    // Mark migration applied on data and in storage so it never runs again
-    nutritionData._migration3173Applied = true;
+  // If meals array was completely empty but legacy consumedCalories was stuck at 3,173 from 2026-09-08, synthesize it for 2026-09-08
+  if (nutritionData.consumedCalories === 3173 && meals.length === 0) {
+    const syntheticMeal = {
+      id: `meal-1788900000000-yesterday-3173`,
+      date: "2026-09-08",
+      name: "Logged Daily Meals (Historical)",
+      calories: 3173,
+      protein: nutritionData.protein?.current || 180,
+      carbs: nutritionData.carbs?.current || 450,
+      fats: nutritionData.fats?.current || 80,
+      time: "8:00 PM",
+      items: ["Daily Meal Log (3,173 kcal)"],
+      createdAt: 1788900000000
+    };
+    meals = [syntheticMeal];
     wasModified = true;
-
-    // Check if suspect meals exist (meals dated todayIso or lacking date, or created prior to this run)
-    const suspectMeals = meals.filter(m => !m.date || m.date === todayIso);
-    
-    if (suspectMeals.length > 0) {
-      meals = meals.map(m => {
-        if (!m.date || m.date === todayIso) {
-          return {
-            ...m,
-            date: yesterdayIso,
-            updatedAt: Date.now()
-          };
-        }
-        return m;
-      });
-    } else if (nutritionData.consumedCalories === 3173 || (nutritionData.consumedCalories > 0 && meals.length === 0)) {
-      // If meals array was empty or lost but consumedCalories was 3,173 from yesterday, synthesize yesterday's record
-      const syntheticMeal = {
-        id: `meal-${Date.now()}-yesterday-3173`,
-        date: yesterdayIso,
-        name: "Logged Daily Meals (Yesterday)",
-        calories: nutritionData.consumedCalories || 3173,
-        protein: nutritionData.protein?.current || 180,
-        carbs: nutritionData.carbs?.current || 450,
-        fats: nutritionData.fats?.current || 80,
-        time: "8:00 PM",
-        items: ["Daily Meal Log (3,173 kcal)"],
-        createdAt: Date.now()
-      };
-      meals = [syntheticMeal];
-    }
-
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(migrationKey, 'true');
-      }
-    } catch (e) {}
   }
 
   // 2. Permanent Invariant: Ensure every single meal has an explicit, non-null date string

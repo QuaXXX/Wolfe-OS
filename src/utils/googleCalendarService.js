@@ -102,13 +102,25 @@ export function isGoogleCalendarConnected() {
   if (typeof localStorage === 'undefined') return false;
   const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  const isAuthDevice = localStorage.getItem(GOOGLE_DEVICE_AUTH_KEY) === 'true' || localStorage.getItem('wolfe_user_signed_in_google') === 'true';
   
   // 1. Permanent refresh token present -> permanently connected
   if (refreshToken && refreshToken.trim()) {
     return true;
   }
 
-  // 2. Only access token present -> check if still valid
+  // 2. Device was authenticated previously -> keep connected state and allow background refresh
+  if (isAuthDevice) {
+    if (token && token.trim()) {
+      const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
+      if (!expiry || Date.now() <= Number(expiry)) {
+        return true;
+      }
+    }
+    return true;
+  }
+
+  // 3. Only access token present -> check if still valid
   if (token && token.trim()) {
     const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
     if (expiry && Date.now() > Number(expiry)) {
@@ -618,7 +630,13 @@ export async function getValidAccessToken(forceRefresh = false) {
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Return existing stored token as best-effort fallback ONLY if not expired
+  // 2. Silent GIS background refresh (zero popups, iframe/cookie token renewal)
+  try {
+    const gisToken = await silentRefreshGISToken();
+    if (gisToken) return gisToken;
+  } catch (e) {}
+
+  // 3. Return existing stored token as best-effort fallback ONLY if not expired
   if (token && expiry && Date.now() < Number(expiry)) {
     return token;
   }

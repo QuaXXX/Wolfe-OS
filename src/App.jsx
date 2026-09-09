@@ -239,6 +239,7 @@ export function App() {
   const isApplyingInboundSyncRef = useRef(false);
 
   // Auto-detect day rollover across midnight, window focus, visibility change for nutrition & date
+  const lastFocusCloudPullRef = useRef(0);
   useEffect(() => {
     const checkDayRollover = () => {
       const freshToday = getTodayIso();
@@ -257,6 +258,15 @@ export function App() {
         }
         return prev;
       });
+
+      // Proactively pull cloud sync on desktop tab return/focus (throttled by 10s)
+      const now = Date.now();
+      if (now - lastFocusCloudPullRef.current > 10000 && isGoogleCalendarConnected()) {
+        lastFocusCloudPullRef.current = now;
+        syncFullOsWithCloud({ forcePush: false }).catch(err => {
+          console.debug("Focus cloud sync pull notice:", err.message);
+        });
+      }
     };
 
     window.addEventListener('focus', checkDayRollover);
@@ -465,20 +475,26 @@ export function App() {
           setIsSyncingGoogle(false);
         }
       })();
+    } else if (activeView === 'nutrition' && isGoogleCalendarConnected()) {
+      // Fast proactive cloud vault pull when user navigates into nutrition
+      const now = Date.now();
+      if (now - lastMainScreenFetchRef.current >= 4000) {
+        lastMainScreenFetchRef.current = now;
+        syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+      }
     }
   }, [activeView]);
 
-  // Relaxed background sync: checks quietly once every 5 minutes ONLY if connected and healthy.
-  // Never checks on mobile focus, visibility changes, or screen taps (per user request: doesn't always check).
+  // Relaxed background sync: checks quietly once every 5 minutes ONLY if connected
   useEffect(() => {
     if (!isGoogleCalendarConnected()) return;
     const interval = setInterval(() => {
-      if (isGoogleCalendarConnected() && syncStatus === 'synced') {
+      if (isGoogleCalendarConnected()) {
         syncWithGoogle(false);
       }
     }, 300000);
     return () => clearInterval(interval);
-  }, [syncStatus, syncWithGoogle]);
+  }, [syncWithGoogle]);
 
   // 1-Click Sync Trigger for User
   const handleSyncGoogleCalendar = useCallback(async () => {
