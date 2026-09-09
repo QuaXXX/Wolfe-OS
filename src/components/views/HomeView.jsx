@@ -65,6 +65,10 @@ export const HomeView = ({
     ? (Number(weightDiff) >= 0 ? `+${weightDiff}` : `${weightDiff}`)
     : null;
 
+  const todayTargetCals = nutritionData?.dailyTargets?.[todayIso]?.calories || nutritionData?.targetCalories || 3250;
+  const todayTargetProtein = nutritionData?.dailyTargets?.[todayIso]?.protein || nutritionData?.protein?.target || 180;
+  const todayTargetCarbs = nutritionData?.dailyTargets?.[todayIso]?.carbs || nutritionData?.carbs?.target || 450;
+
   const osData = {
     schoolData,
     workoutData,
@@ -568,7 +572,7 @@ export const HomeView = ({
                 <div className="flex items-center gap-2">
                   {isCompact && (
                     <span className="text-xs font-mono font-bold text-white">
-                      {nutritionData?.consumedCalories || 0} / {nutritionData?.targetCalories || 3250} kcal
+                      {nutritionData?.consumedCalories || 0} / {todayTargetCals} kcal
                     </span>
                   )}
                   <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
@@ -580,7 +584,7 @@ export const HomeView = ({
                   <div className="my-2">
                     <div className="flex items-baseline justify-between">
                       <div className="text-2xl font-mono font-bold text-white tracking-tight">
-                        {nutritionData?.consumedCalories || 0} <span className="text-xs font-normal text-slate-500">/ {nutritionData?.targetCalories || 3250} kcal</span>
+                        {nutritionData?.consumedCalories || 0} <span className="text-xs font-normal text-slate-500">/ {todayTargetCals} kcal</span>
                       </div>
                       {latestWeight && (
                         <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
@@ -589,8 +593,8 @@ export const HomeView = ({
                       )}
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
-                      <span>Protein: <span className="font-mono text-slate-200 font-semibold">{nutritionData?.protein?.current || 0}g / {nutritionData?.protein?.target || 180}g</span></span>
-                      <span className="font-mono text-slate-400">Carbs: {nutritionData?.carbs?.current || 0}g / {nutritionData?.carbs?.target || 450}g</span>
+                      <span>Protein: <span className="font-mono text-slate-200 font-semibold">{nutritionData?.protein?.current || 0}g / {todayTargetProtein}g</span></span>
+                      <span className="font-mono text-slate-400">Carbs: {nutritionData?.carbs?.current || 0}g / {todayTargetCarbs}g</span>
                     </div>
                   </div>
 
@@ -599,7 +603,7 @@ export const HomeView = ({
                     <div 
                       className="h-full rounded-lg transition-all duration-500" 
                       style={{ 
-                        width: `${Math.min(100, Math.round(((nutritionData?.consumedCalories || 0) / (nutritionData?.targetCalories || 3250)) * 100))}%`,
+                        width: `${Math.min(100, Math.round(((nutritionData?.consumedCalories || 0) / (todayTargetCals || 1)) * 100))}%`,
                         backgroundColor: 'var(--accent-primary)'
                       }}
                     />
@@ -607,13 +611,13 @@ export const HomeView = ({
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-white/[0.04] font-mono">
                     <span>Water: {Math.round((nutritionData?.waterMl || 0) / 1000 * 10) / 10}L / 3.5L</span>
-                    <span className="text-slate-300">{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} kcal left</span>
+                    <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} kcal left</span>
                   </div>
                 </>
               ) : (
                 <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04]">
-                  <span>P: {nutritionData?.protein?.current || 0}/{nutritionData?.protein?.target || 180}g</span>
-                  <span className="text-slate-300">{Math.max(0, (nutritionData?.targetCalories || 3250) - (nutritionData?.consumedCalories || 0))} left</span>
+                  <span>P: {nutritionData?.protein?.current || 0}/{todayTargetProtein}g</span>
+                  <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} left</span>
                 </div>
               )}
             </div>

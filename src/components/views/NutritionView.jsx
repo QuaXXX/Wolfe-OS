@@ -42,6 +42,7 @@ import {
   getCalibrationProgress,
   filterMealsByDate,
   getDailyNutritionHistory,
+  getTargetForDate,
   calculateWeightTrend,
   synchronizeNutritionData
 } from '../../utils/nutritionEngine.js';
@@ -204,19 +205,31 @@ export const NutritionView = ({
   const weightHistory = nutritionData.weightHistory || [];
   const householdPantry = (nutritionData.householdPantry && nutritionData.householdPantry.length > 0) ? nutritionData.householdPantry : DEFAULT_HOUSEHOLD_PANTRY;
 
-  // Target modal form state
-  const [customCalories, setCustomCalories] = useState(targetCalories);
-  const [customProtein, setCustomProtein] = useState(targetProtein);
-  const [customCarbs, setCustomCarbs] = useState(targetCarbs);
-  const [customFats, setCustomFats] = useState(targetFats);
+  // Active targets for the selected date (reads date-specific override from dailyTargets or defaults)
+  const activeDayTarget = useMemo(() => {
+    return getTargetForDate(nutritionData, selectedDate);
+  }, [nutritionData, selectedDate]);
 
-  // Synchronize custom target fields with nutritionData targets
+  const activeTargetCalories = activeDayTarget.calories;
+  const activeTargetProtein = activeDayTarget.protein;
+  const activeTargetCarbs = activeDayTarget.carbs;
+  const activeTargetFats = activeDayTarget.fats;
+
+  // Target modal form state
+  const [customCalories, setCustomCalories] = useState(activeTargetCalories);
+  const [customProtein, setCustomProtein] = useState(activeTargetProtein);
+  const [customCarbs, setCustomCarbs] = useState(activeTargetCarbs);
+  const [customFats, setCustomFats] = useState(activeTargetFats);
+  const [applyAsDefault, setApplyAsDefault] = useState(true);
+
+  // Synchronize custom target fields with active targets whenever selectedDate or modal opens
   useEffect(() => {
-    setCustomCalories(targetCalories);
-    setCustomProtein(targetProtein);
-    setCustomCarbs(targetCarbs);
-    setCustomFats(targetFats);
-  }, [targetCalories, targetProtein, targetCarbs, targetFats, isTargetModalOpen]);
+    setCustomCalories(activeTargetCalories);
+    setCustomProtein(activeTargetProtein);
+    setCustomCarbs(activeTargetCarbs);
+    setCustomFats(activeTargetFats);
+    setApplyAsDefault(selectedDate >= currentTodayIso);
+  }, [activeTargetCalories, activeTargetProtein, activeTargetCarbs, activeTargetFats, isTargetModalOpen, selectedDate, currentTodayIso]);
 
   // Filter meals strictly for the selected date
   const selectedDateMeals = useMemo(() => {
@@ -228,17 +241,19 @@ export const NutritionView = ({
     return aggregateDailyNutrition(selectedDateMeals);
   }, [selectedDateMeals]);
 
-  // Multi-day consistency and lookback history (7, 14, or 30 days)
+  // Multi-day consistency and lookback history (7, 14, or 30 days) with per-date target protection
   const nutritionHistory = useMemo(() => {
-    return getDailyNutritionHistory(meals, targetCalories, targetProtein, calorieHistoryRange);
-  }, [meals, targetCalories, targetProtein, calorieHistoryRange]);
+    return getDailyNutritionHistory(meals, targetCalories, targetProtein, calorieHistoryRange, nutritionData.dailyTargets);
+  }, [meals, targetCalories, targetProtein, calorieHistoryRange, nutritionData.dailyTargets]);
 
   const weightTrend14 = useMemo(() => {
     return calculateWeightTrend(weightHistory, 14);
   }, [weightHistory]);
 
-  const remainingCals = targetCalories - dailyTotals.calories;
-  const calPercent = Math.min(100, Math.round((dailyTotals.calories / targetCalories) * 100));
+  const remainingCals = activeTargetCalories - dailyTotals.calories;
+  const calPercent = activeTargetCalories > 0
+    ? Math.min(100, Math.round((dailyTotals.calories / activeTargetCalories) * 100))
+    : 0;
 
   // Weight statistics
   const movingAvgWeight = useMemo(() => {
@@ -250,8 +265,8 @@ export const NutritionView = ({
   }, [weightHistory]);
 
   const surplusRecommendation = useMemo(() => {
-    return getAdaptiveSurplusRecommendation(weightHistory, targetCalories);
-  }, [weightHistory, targetCalories]);
+    return getAdaptiveSurplusRecommendation(weightHistory, activeTargetCalories);
+  }, [weightHistory, activeTargetCalories]);
 
   // Kitchen Hardware Calibration Progress
   const calibrationProgress = useMemo(() => {
@@ -548,36 +563,67 @@ export const NutritionView = ({
   // Quick calorie target adjuster: adjusts draft value in edit modal
   const handleAdjustTargetCalories = (delta) => {
     playSound('click', soundEnabled);
-    const current = parseInt(customCalories, 10) || targetCalories;
+    const current = parseInt(customCalories, 10) || activeTargetCalories;
     const nextVal = Math.max(1500, Math.min(6500, current + delta));
     setCustomCalories(nextVal);
   };
 
   const handleApplySurplus = (newTarget) => {
     playSound('success', soundEnabled);
-    setNutritionData(prev => ({
-      ...prev,
-      targetCalories: newTarget
-    }));
+    markLocalMutation();
+    setNutritionData(prev => {
+      const nextData = {
+        ...prev,
+        targetCalories: newTarget,
+        dailyTargets: {
+          ...(prev.dailyTargets || {}),
+          [selectedDate]: {
+            ...getTargetForDate(prev, selectedDate),
+            calories: newTarget
+          }
+        },
+        updatedAt: Date.now()
+      };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      return nextData;
+    });
+    triggerImmediateCloudPush(80);
   };
 
   // Save custom targets from modal
   const handleSaveCustomTargets = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     playSound('success', soundEnabled);
-    const newTargetCals = parseInt(customCalories, 10) || targetCalories;
-    const newProtein = parseInt(customProtein, 10) || targetProtein;
-    const newCarbs = parseInt(customCarbs, 10) || targetCarbs;
-    const newFats = parseInt(customFats, 10) || targetFats;
+    const newTargetCals = parseInt(customCalories, 10) || activeTargetCalories;
+    const newProtein = parseInt(customProtein, 10) || activeTargetProtein;
+    const newCarbs = parseInt(customCarbs, 10) || activeTargetCarbs;
+    const newFats = parseInt(customFats, 10) || activeTargetFats;
 
     markLocalMutation();
     setNutritionData(prev => {
+      const updatedDailyTargets = {
+        ...(prev.dailyTargets || {}),
+        [selectedDate]: {
+          calories: newTargetCals,
+          protein: newProtein,
+          carbs: newCarbs,
+          fats: newFats
+        }
+      };
+
+      const shouldApplyAsDefault = applyAsDefault || selectedDate === currentTodayIso;
+
       const nextData = {
         ...prev,
-        targetCalories: newTargetCals,
-        protein: { ...(prev.protein || {}), target: newProtein },
-        carbs: { ...(prev.carbs || {}), target: newCarbs },
-        fats: { ...(prev.fats || {}), target: newFats },
+        dailyTargets: updatedDailyTargets,
+        ...(shouldApplyAsDefault ? {
+          targetCalories: newTargetCals,
+          protein: { ...(prev.protein || {}), target: newProtein },
+          carbs: { ...(prev.carbs || {}), target: newCarbs },
+          fats: { ...(prev.fats || {}), target: newFats }
+        } : {}),
         updatedAt: Date.now()
       };
       try {
@@ -591,7 +637,7 @@ export const NutritionView = ({
   };
 
   const handleAutoRebalanceMacros = () => {
-    const cals = parseInt(customCalories, 10) || targetCalories;
+    const cals = parseInt(customCalories, 10) || activeTargetCalories;
     const p = 180; // Standard 180g protein base
     const pCals = p * 4; // 720 kcal
     const fCals = Math.round(cals * 0.22); // 22% fats
@@ -707,13 +753,13 @@ export const NutritionView = ({
             <UtensilsCrossed className="w-4 h-4" />
             <span>Performance Nutrition & Fuel</span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-300 border border-white/10">
-              {targetProtein}g Protein • High Carb
+              {activeTargetProtein}g Protein • High Carb
             </span>
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight mt-0.5 flex items-center gap-2">
             <span>Nutrition & Macro Tracker</span>
             <span className="text-xs font-mono font-normal text-slate-400">
-              ({targetCalories} kcal Target)
+              ({activeTargetCalories} kcal Target)
             </span>
           </h1>
         </div>
@@ -858,7 +904,8 @@ export const NutritionView = ({
             const isToday = day.dateIso === todayIso;
             const dayMeals = (meals || []).filter(m => m.date === day.dateIso);
             const dayTotals = aggregateDailyNutrition(dayMeals);
-            const hitGoal = dayTotals.calories >= targetCalories;
+            const dayTargetCal = nutritionData.dailyTargets?.[day.dateIso]?.calories || targetCalories;
+            const hitGoal = dayTotals.calories >= dayTargetCal;
 
             return (
               <button
@@ -1200,16 +1247,16 @@ export const NutritionView = ({
               <span className="text-[10px] font-mono font-semibold uppercase text-slate-400">Daily Target</span>
               <div className="flex items-center gap-2 mt-0.5">
                 <h3 className="text-lg font-bold text-white font-mono">
-                  {targetCalories} kcal
+                  {activeTargetCalories} kcal
                 </h3>
                 <button
                   type="button"
                   onClick={() => {
                     playSound('click', soundEnabled);
-                    setCustomCalories(targetCalories);
-                    setCustomProtein(targetProtein);
-                    setCustomCarbs(targetCarbs);
-                    setCustomFats(targetFats);
+                    setCustomCalories(activeTargetCalories);
+                    setCustomProtein(activeTargetProtein);
+                    setCustomCarbs(activeTargetCarbs);
+                    setCustomFats(activeTargetFats);
                     setIsTargetModalOpen(true);
                   }}
                   className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
@@ -1249,7 +1296,7 @@ export const NutritionView = ({
                     r="40" 
                     fill="transparent" 
                     stroke="var(--accent-primary)" 
-                    strokeWidth="7"
+                    strokeWidth="7" 
                     strokeDasharray={251.2}
                     strokeDashoffset={251.2 * (1 - Math.min(1, calPercent / 100))}
                     strokeLinecap="round"
@@ -1258,7 +1305,7 @@ export const NutritionView = ({
                 </svg>
                 <div className="absolute flex flex-col items-center text-center">
                   <span className="text-xl font-bold font-mono text-white">{dailyTotals.calories}</span>
-                  <span className="text-[9px] text-slate-400 uppercase font-mono">of {targetCalories} kcal</span>
+                  <span className="text-[9px] text-slate-400 uppercase font-mono">of {activeTargetCalories} kcal</span>
                   <span className="text-[10px] font-mono font-bold mt-0.5" style={{ color: 'var(--accent-primary)' }}>
                     {Math.round(calPercent)}%
                   </span>
@@ -1268,7 +1315,7 @@ export const NutritionView = ({
 
             {/* Macro Bars */}
             <div className="sm:col-span-3 space-y-2.5">
-              {/* Protein: 180g Target */}
+              {/* Protein Target */}
               <div className="p-2.5 sm:p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-200 font-semibold flex items-center gap-1.5">
@@ -1276,18 +1323,18 @@ export const NutritionView = ({
                     <span className="text-[10px] text-slate-400 font-mono font-normal">(4 kcal/g)</span>
                   </span>
                   <span className="font-mono text-white font-bold">
-                    {dailyTotals.protein}g <span className="text-slate-400 font-normal">/ {targetProtein}g</span>
+                    {dailyTotals.protein}g <span className="text-slate-400 font-normal">/ {activeTargetProtein}g</span>
                   </span>
                 </div>
                 <div className="w-full h-2 bg-black/40 rounded-lg overflow-hidden">
                   <div 
                     className="h-full bg-slate-300 rounded-lg transition-all duration-500" 
-                    style={{ width: `${Math.min(100, (dailyTotals.protein / targetProtein) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (dailyTotals.protein / (activeTargetProtein || 1)) * 100)}%` }}
                   />
                 </div>
               </div>
 
-              {/* Carbs: 450g Target */}
+              {/* Carbs Target */}
               <div className="p-2.5 sm:p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-200 font-semibold flex items-center gap-1.5">
@@ -1295,18 +1342,18 @@ export const NutritionView = ({
                     <span className="text-[10px] text-slate-400 font-mono font-normal">(4 kcal/g)</span>
                   </span>
                   <span className="font-mono text-white font-bold">
-                    {dailyTotals.carbs}g <span className="text-slate-400 font-normal">/ {targetCarbs}g</span>
+                    {dailyTotals.carbs}g <span className="text-slate-400 font-normal">/ {activeTargetCarbs}g</span>
                   </span>
                 </div>
                 <div className="w-full h-2 bg-black/40 rounded-lg overflow-hidden">
                   <div 
                     className="h-full bg-slate-400 rounded-lg transition-all duration-500" 
-                    style={{ width: `${Math.min(100, (dailyTotals.carbs / targetCarbs) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (dailyTotals.carbs / (activeTargetCarbs || 1)) * 100)}%` }}
                   />
                 </div>
               </div>
 
-              {/* Fats: 80g Target */}
+              {/* Fats Target */}
               <div className="p-2.5 sm:p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-200 font-semibold flex items-center gap-1.5">
@@ -1314,13 +1361,13 @@ export const NutritionView = ({
                     <span className="text-[10px] text-slate-400 font-mono font-normal">(9 kcal/g)</span>
                   </span>
                   <span className="font-mono text-white font-bold">
-                    {dailyTotals.fats}g <span className="text-slate-400 font-normal">/ {targetFats}g</span>
+                    {dailyTotals.fats}g <span className="text-slate-400 font-normal">/ {activeTargetFats}g</span>
                   </span>
                 </div>
                 <div className="w-full h-2 bg-black/40 rounded-lg overflow-hidden">
                   <div 
                     className="h-full bg-slate-500 rounded-lg transition-all duration-500" 
-                    style={{ width: `${Math.min(100, (dailyTotals.fats / targetFats) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (dailyTotals.fats / (activeTargetFats || 1)) * 100)}%` }}
                   />
                 </div>
               </div>
@@ -1597,7 +1644,7 @@ export const NutritionView = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">Adjust Daily Targets</h3>
-                    <p className="text-[11px] text-slate-400">Fine-tune your daily calorie surplus and macros</p>
+                    <p className="text-[11px] text-slate-400">Target for {selectedDate === todayIso ? 'Today' : formatDateTitle(selectedDate)}</p>
                   </div>
                 </div>
 
@@ -1681,6 +1728,24 @@ export const NutritionView = ({
                   ⚡ Auto-Calculate Macros from Calories (180g P Baseline)
                 </button>
 
+                {/* Apply as default baseline for future days toggle */}
+                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
+                  <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-200 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={applyAsDefault}
+                      onChange={(e) => setApplyAsDefault(e.target.checked)}
+                      className="rounded border-white/20 bg-white/10 text-amber-500 focus:ring-0 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Apply as default for future days</span>
+                  </label>
+                  <p className="text-[10px] text-slate-400 pl-6.5">
+                    {applyAsDefault 
+                      ? 'Sets future baseline goal without altering past days\' status.' 
+                      : `Applies only to ${selectedDate === todayIso ? 'today' : formatDateTitle(selectedDate)}. Past and future targets remain untouched.`}
+                  </p>
+                </div>
+
                 <div className="pt-2 flex items-center gap-2">
                   <button
                     type="submit"
@@ -1721,7 +1786,7 @@ export const NutritionView = ({
         isOpen={isWeightModalOpen}
         onClose={() => setIsWeightModalOpen(false)}
         weightHistory={weightHistory}
-        currentCalorieTarget={targetCalories}
+        currentCalorieTarget={activeTargetCalories}
         onLogWeight={handleLogWeight}
         onDeleteWeightLog={handleDeleteWeightLog}
         onApplySurplus={handleApplySurplus}

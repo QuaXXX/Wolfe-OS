@@ -309,19 +309,108 @@ export const MealLogModal = ({
     if (isCameraActive) startCamera(nextMode);
   };
 
+  /**
+   * Downsamples and compresses image files to prevent mobile Out-Of-Memory (OOM) crashes.
+   * Converts 12-50MP camera photos (15-35MB) down to max 1280px at 0.82 quality (~120-200KB).
+   * Frees object URLs and canvas bitmap buffers immediately.
+   */
+  const compressAndResizeImage = (file, maxDimension = 1280, quality = 0.82) => {
+    return new Promise((resolve, reject) => {
+      if (!file) return reject(new Error('No file provided'));
+      if (file.type && !file.type.startsWith('image/')) {
+        return reject(new Error('File is not an image'));
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = () => {
+        try {
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
+          if (!width || !height) {
+            URL.revokeObjectURL(objectUrl);
+            return reject(new Error('Invalid image dimensions'));
+          }
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(objectUrl);
+            return reject(new Error('Canvas context unavailable'));
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL('image/jpeg', quality);
+
+          // Immediate memory cleanup: zeroing dimensions releases GPU/bitmap backing buffer
+          canvas.width = 0;
+          canvas.height = 0;
+          URL.revokeObjectURL(objectUrl);
+
+          resolve({
+            base64,
+            mimeType: 'image/jpeg'
+          });
+        } catch (err) {
+          URL.revokeObjectURL(objectUrl);
+          reject(err);
+        }
+      };
+
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(err || new Error('Failed to load image'));
+      };
+
+      img.src = objectUrl;
+    });
+  };
+
   const handleSnapPhoto = () => {
     if (!videoRef.current) return;
     playSound('click', soundEnabled);
 
     try {
       const video = videoRef.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      let width = video.videoWidth || 1280;
+      let height = video.videoHeight || 720;
+      const maxDim = 1280;
 
-      const base64 = canvas.toDataURL('image/jpeg', 0.88);
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, width, height);
+
+      const base64 = canvas.toDataURL('image/jpeg', 0.82);
+      // Immediately release canvas memory buffer
+      canvas.width = 0;
+      canvas.height = 0;
+
       setImageBase64(base64);
       setImageMimeType('image/jpeg');
       stopCamera();
@@ -331,20 +420,24 @@ export const MealLogModal = ({
     }
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     playSound('click', soundEnabled);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setImageBase64(event.target.result);
-      setImageMimeType(file.type || 'image/jpeg');
+    try {
+      const compressed = await compressAndResizeImage(file, 1280, 0.82);
+      setImageBase64(compressed.base64);
+      setImageMimeType(compressed.mimeType);
       stopCamera();
       setImageAnalysisError(null);
       playSound('success', soundEnabled);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Image compression error:', err);
+      setImageAnalysisError("Could not process this image. Please try another photo.");
+    } finally {
+      if (e.target) e.target.value = '';
+    }
   };
 
   // ---------------------------------------------------------------------------

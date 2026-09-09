@@ -62,6 +62,7 @@ export const INITIAL_NUTRITION_DATA = {
   kitchenCalibration: {
     tasks: DEFAULT_CALIBRATION_TASKS
   },
+  dailyTargets: {},
   meals: []
 };
 

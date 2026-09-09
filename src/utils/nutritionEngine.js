@@ -1883,8 +1883,9 @@ export function filterMealsByDate(meals = [], dateIso = null) {
 
 /**
  * Generates an N-day history of nutrition targets hit vs missed without timezone skew
+ * Respects per-date historical targets from dailyTargets to prevent retroactive alterations.
  */
-export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targetProtein = 180, daysCount = 7) {
+export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 3250, defaultTargetProtein = 180, daysCount = 7, dailyTargets = {}) {
   if (!Array.isArray(meals)) meals = [];
   const history = [];
   const todayIso = getTodayIso();
@@ -1893,6 +1894,13 @@ export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targ
     const dateIso = addDays(todayIso, -i);
     const dayMeals = filterMealsByDate(meals, dateIso);
     const totals = aggregateDailyNutrition(dayMeals);
+
+    // Look up historical target for this specific day, falling back to default target
+    const dayTarget = dailyTargets?.[dateIso] || {};
+    const targetCalories = Number(dayTarget.calories) || Number(defaultTargetCalories) || 3250;
+    const targetProtein = Number(dayTarget.protein) || Number(defaultTargetProtein) || 180;
+    const targetCarbs = Number(dayTarget.carbs) || 450;
+    const targetFats = Number(dayTarget.fats) || 80;
 
     const isToday = i === 0;
     const [y, m, d] = dateIso.split('-').map(Number);
@@ -1917,6 +1925,8 @@ export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targ
       mealCount: totals.mealCount,
       targetCalories,
       targetProtein,
+      targetCarbs,
+      targetFats,
       hitCalories,
       hitProtein,
       pctCalories
@@ -1924,6 +1934,20 @@ export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targ
   }
 
   return history;
+}
+
+/**
+ * Get target macros for a specific date (date-specific target if set, else fallback to global target)
+ */
+export function getTargetForDate(nutritionData, dateIso) {
+  const targetIso = dateIso || getTodayIso();
+  const specific = nutritionData?.dailyTargets?.[targetIso];
+  return {
+    calories: Number(specific?.calories) || Number(nutritionData?.targetCalories) || 3250,
+    protein: Number(specific?.protein) || Number(nutritionData?.protein?.target) || 180,
+    carbs: Number(specific?.carbs) || Number(nutritionData?.carbs?.target) || 450,
+    fats: Number(specific?.fats) || Number(nutritionData?.fats?.target) || 80
+  };
 }
 
 /**

@@ -96,7 +96,24 @@ function safeSetItem(key, val) {
   try {
     if (typeof localStorage === 'undefined') return;
     localStorage.setItem(key, val);
-  } catch (e) {}
+  } catch (e) {
+    // QuotaExceededError recovery: prune transient debug logs/caches and retry
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('debug_') || k.startsWith('temp_') || k.includes('cache') || k.includes('transcript'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(k => {
+        try { localStorage.removeItem(k); } catch (err) {}
+      });
+      localStorage.setItem(key, val);
+    } catch (retryErr) {
+      console.warn('Storage quota full, unable to persist:', key);
+    }
+  }
 }
 
 function safeSessionGet(key) {

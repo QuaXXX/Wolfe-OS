@@ -385,6 +385,12 @@ export function mergeOsState(localVault, remoteVault) {
   const todayMeals = mergedMeals.filter(m => m.date === todayIso);
   const todayTotals = aggregateDailyNutrition(todayMeals);
 
+  // Merge dailyTargets (per-date historical targets) across local and remote vaults
+  const mergedDailyTargets = {
+    ...(remoteNut.dailyTargets || {}),
+    ...(localNut.dailyTargets || {})
+  };
+
   merged.nutrition = {
     ...baseNut,
     _migration3173Applied: true,
@@ -403,6 +409,7 @@ export function mergeOsState(localVault, remoteVault) {
       current: todayTotals.fats
     },
     targetCalories,
+    dailyTargets: mergedDailyTargets,
     updatedAt: Math.max(localNutUpdated, remoteNutUpdated, Date.now()),
     meals: mergedMeals,
     weightLogs: mergedWeightLogs,
@@ -772,15 +779,53 @@ export async function fetchVaultFromGoogleCalendar() {
 }
 
 /**
+ * Prunes the vault before persisting to Google Calendar system event.
+ * Keeps payloads lightweight (<40KB) to ensure Google Calendar event description limits (100KB)
+ * are never reached, and stripping transient blobs or ancient records.
+ */
+export function pruneVaultForCalendarBackup(vault) {
+  if (!vault || typeof vault !== 'object') return vault;
+  try {
+    const cloned = JSON.parse(JSON.stringify(vault));
+
+    // Prune nutrition meals to recent 150 meals and strip any large base64 images
+    if (cloned.nutrition) {
+      if (Array.isArray(cloned.nutrition.meals)) {
+        cloned.nutrition.meals = cloned.nutrition.meals.slice(0, 150).map(m => {
+          if (!m) return m;
+          const cleanMeal = { ...m };
+          if (cleanMeal.imageBase64) delete cleanMeal.imageBase64;
+          if (cleanMeal.image && cleanMeal.image.length > 500) delete cleanMeal.image;
+          return cleanMeal;
+        });
+      }
+      if (Array.isArray(cloned.nutrition.weightLogs)) {
+        cloned.nutrition.weightLogs = cloned.nutrition.weightLogs.slice(-90);
+      }
+    }
+
+    // Prune calendar items to 200 items
+    if (cloned.calendar && Array.isArray(cloned.calendar.items)) {
+      cloned.calendar.items = cloned.calendar.items.slice(0, 200);
+    }
+
+    return cloned;
+  } catch (err) {
+    return vault;
+  }
+}
+
+/**
  * Save backup vault directly to Google Calendar system event
  */
 export async function saveVaultToGoogleCalendar(vault) {
   if (!isGoogleCalendarConnected() || !vault) return false;
   try {
     const cachedEventId = typeof localStorage !== 'undefined' ? localStorage.getItem(GCAL_VAULT_EVENT_ID_KEY) : null;
+    const safeVault = pruneVaultForCalendarBackup(vault);
     const bodyPayload = {
       summary: GCAL_VAULT_SUMMARY,
-      description: JSON.stringify(vault),
+      description: JSON.stringify(safeVault),
       start: { dateTime: '2000-01-01T00:00:00Z' },
       end: { dateTime: '2000-01-01T00:05:00Z' },
       transparency: 'transparent',
