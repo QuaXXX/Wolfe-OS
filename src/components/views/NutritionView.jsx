@@ -1087,31 +1087,27 @@ export const NutritionView = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 items-center">
-            {/* Cyber Squircle Calorie Progress Gauge */}
+            {/* Calorie Progress Ring */}
             <div className="relative flex flex-col items-center justify-center p-2">
               <div className="relative w-32 h-32 flex items-center justify-center">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <rect 
-                    x="8" 
-                    y="8" 
-                    width="84" 
-                    height="84" 
-                    rx="22" 
+                  <circle 
+                    cx="50" 
+                    cy="50" 
+                    r="40" 
                     fill="transparent" 
                     stroke="rgba(255, 255, 255, 0.08)" 
                     strokeWidth="7" 
                   />
-                  <rect 
-                    x="8" 
-                    y="8" 
-                    width="84" 
-                    height="84" 
-                    rx="22" 
+                  <circle 
+                    cx="50" 
+                    cy="50" 
+                    r="40" 
                     fill="transparent" 
                     stroke="var(--accent-primary)" 
                     strokeWidth="7"
-                    strokeDasharray={301.7}
-                    strokeDashoffset={301.7 * (1 - Math.min(1, calPercent / 100))}
+                    strokeDasharray={251.2}
+                    strokeDashoffset={251.2 * (1 - Math.min(1, calPercent / 100))}
                     strokeLinecap="round"
                     className="transition-all duration-500"
                   />
