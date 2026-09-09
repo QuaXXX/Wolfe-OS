@@ -882,6 +882,7 @@ export function getAdaptiveSurplusRecommendation(weightHistory = [], currentCalo
 // ---------------------------------------------------------------------------
 
 function getFoodPerGramRates(food) {
+  if (!food) return null;
   if (food.perUnit && food.perUnit.g) {
     return food.perUnit.g;
   }
@@ -905,10 +906,12 @@ export function parseMealDescription(text, options = {}) {
     ? options.householdPantry
     : DEFAULT_HOUSEHOLD_PANTRY;
 
-  const bowlTare = dishware.bowl.tareWeightG || 420;
-  const plateTare = dishware.plate.tareWeightG || 550;
+  const matchedVessel = dishware.findVessel(cleanText);
+  const isPlate = matchedVessel ? matchedVessel.type === 'plate' : /plate/i.test(cleanText);
+  const isBowl = matchedVessel ? matchedVessel.type === 'bowl' : /bowl/i.test(cleanText);
+  const activeVessel = matchedVessel || (isPlate ? dishware.plate : isBowl ? dishware.bowl : null);
 
-  // Direct macro check: '650 cals, 45g p, 60g c, 15g f'
+  // 1. Direct macro check
   const calMatch = cleanText.match(/(\d+)\s*(?:cals?|calories|kcal)\b/i);
   const protMatch = cleanText.match(/(\d+)\s*g?\s*(?:protein|p)\b/i);
   const carbMatch = cleanText.match(/(\d+)\s*g?\s*(?:carbs?|c)\b/i);
@@ -926,33 +929,39 @@ export function parseMealDescription(text, options = {}) {
     };
   }
 
-  // 1. Detect tare / scale gross readings:
-  // e.g. "scale says 670g in primary bowl with oats", "scale reads 670g with bowl", "670g on scale in bowl"
+  // 2. Tare & Scale Gross Deduction
   let tareAdjustedWeightG = null;
-  let tareVesselName = 'Primary Bowl';
-  const scaleGrossMatch = cleanText.match(/(?:scale\s+(?:reads?|says?)?|weighs?|total\s+weight\s+is?|gross)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+)?(bowl|plate)/i);
+  let tareVessel = activeVessel || dishware.bowl;
+  const scaleGrossMatch = cleanText.match(/(?:scale\s+(?:reads?|says?)?|weighs?|weighing|total\s+weight\s+is?|gross)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+|main\s+|dinner\s+)?(bowl|plate)/i)
+    || cleanText.match(/(?:my\s+|the\s+)?(?:primary\s+|large\s+|main\s+|dinner\s+)?(bowl|plate)\s*(?:with|on|at)?\s*(?:scale\s+(?:reads?|says?)?)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)/i);
+
   if (scaleGrossMatch) {
-    const grossG = parseFloat(scaleGrossMatch[1]);
-    const vessel = scaleGrossMatch[2].toLowerCase();
-    const tare = vessel.includes('plate') ? plateTare : bowlTare;
-    tareVesselName = vessel.includes('plate') ? dishware.plate.name : dishware.bowl.name;
-    if (grossG > tare) {
-      tareAdjustedWeightG = Math.round(grossG - tare);
+    let grossG = 0;
+    let vesselWord = '';
+    if (!isNaN(parseFloat(scaleGrossMatch[1]))) {
+      grossG = parseFloat(scaleGrossMatch[1]);
+      vesselWord = (scaleGrossMatch[2] || '').toLowerCase();
+    } else {
+      vesselWord = (scaleGrossMatch[1] || '').toLowerCase();
+      grossG = parseFloat(scaleGrossMatch[2]);
+    }
+    tareVessel = vesselWord.includes('plate') ? dishware.plate : dishware.bowl;
+    const tareG = tareVessel.tareWeightG;
+    if (grossG > tareG) {
+      tareAdjustedWeightG = Math.round(grossG - tareG);
     } else {
       tareAdjustedWeightG = Math.round(grossG);
     }
   }
 
-  // 2. Prepare text for clause splitting
+  // 3. Clause extraction
   let stripped = cleanText
     .replace(/^(?:i\s+)?(?:had|ate|eating|logged?|drank|consumed)\s+/i, '')
     .replace(/\s+(?:for\s+(?:breakfast|lunch|dinner|snack|post-workout|meal))\b/i, '')
-    // Remove standalone scale reading preamble if captured
-    .replace(/(?:scale\s+(?:reads?|says?)?|weighs?|total\s+weight\s+is?|gross)?\s*\d+(?:\.\d+)?\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+)?(?:bowl|plate)\s*(?:with|and|of)?/i, '')
+    .replace(/(?:scale\s+(?:reads?|says?)?|weighs?|total\s+weight\s+is?|gross)?\s*\d+(?:\.\d+)?\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+|main\s+|dinner\s+)?(?:bowl|plate)\s*(?:with|and|of)?/i, '')
     .trim();
 
-  // Check composite total meal weight across multiple items:
-  // e.g. "400g chicken and rice in bowl" or "bowl of chicken and rice, 400g"
+  // Composite meal weight (e.g. "400g chicken and rice in bowl")
   let compositeMealTotalWeightG = tareAdjustedWeightG;
   const compositeWeightMatch = stripped.match(/^(\d+(?:\.\d+)?)\s*(?:g|grams?)\s+(?:of\s+)?(.+?\s+(?:and|&)\s+.+)/i)
     || stripped.match(/(.+?\s+(?:and|&)\s+.+?)[,\s]+(?:total\s+(?:weight\s+)?|weighing\s+|net\s+)?(\d+(?:\.\d+)?)\s*(?:g|grams?)\b/i);
@@ -974,13 +983,12 @@ export function parseMealDescription(text, options = {}) {
     .replace(/(?<=[a-zA-Z])\s+(?=\d+(?:\.\d+)?|\d+\/\d+)/g, ', ')
     .split(/[,+;\n]|\band\b|\bplus\b|\bwith\b|\bw\//i)
     .map(c => c.trim())
-    .filter(c => c && !c.match(/^(?:my|the)?\s*(?:primary\s+|large\s+)?(?:bowl|plate)$/i));
+    .filter(c => c && !c.match(/^(?:my|the)?\s*(?:primary\s+|large\s+|main\s+|dinner\s+)?(?:bowl|plate)$/i));
 
   const matchedItems = [];
-  const isOverallBowl = /\bbowl\b/i.test(cleanText);
 
   for (const clause of rawClauses) {
-    // A. Check user custom protein shake / smoothie
+    // Custom smoothie
     if (/\b(?:protein\s+(?:shake|smoothie)|smoothie|my\s+shake|canadian\s+protein\s+shake)\b/i.test(clause)) {
       let mult = 1;
       const qm = clause.match(/(\d+(?:\.\d+)?|\d+\/\d+|half|two|three|four|2|3|4)\s*(?:shakes?|smoothies?)?/i);
@@ -1003,7 +1011,6 @@ export function parseMealDescription(text, options = {}) {
       continue;
     }
 
-    // Parse quantity and unit
     let qty = null;
     let unit = null;
 
@@ -1024,25 +1031,22 @@ export function parseMealDescription(text, options = {}) {
       unit = (qm[2] || '').toLowerCase().trim();
     }
 
-    // Direct gram match within the clause: "250g chicken", "200g white rice"
     const directGramMatch = clause.match(/(\d+(?:\.\d+)?)\s*(?:g|grams?)\b/i);
     if (directGramMatch) {
       qty = parseFloat(directGramMatch[1]);
       unit = 'g';
     }
 
-    // Direct oz match: "8 oz steak"
     const directOzMatch = clause.match(/(\d+(?:\.\d+)?)\s*(?:oz|ounces?)\b/i);
     if (directOzMatch) {
       qty = parseFloat(directOzMatch[1]);
       unit = 'oz';
     }
 
-    // If clause specifically mentions bowl
-    const clauseHasBowl = /\bbowls?\b/i.test(clause);
-    if (clauseHasBowl && !unit) unit = 'bowl';
+    if (/\bbowls?\b/i.test(clause) && !unit) unit = 'bowl';
+    if (/\bplates?\b/i.test(clause) && !unit) unit = 'plate';
 
-    // B. Check user calibrated milk
+    // User calibrated milk
     if (/\b(?:milk|glass\s+of\s+milk|cup\s+of\s+milk)\b/i.test(clause) && !/\b(?:fairlife|soy|almond|oat\s+milk)\b/i.test(clause)) {
       const usedQty = (qty !== null && !isNaN(qty)) ? qty : 1;
       matchedItems.push({
@@ -1056,7 +1060,7 @@ export function parseMealDescription(text, options = {}) {
       continue;
     }
 
-    // C. Check custom user pantry staples (only when not specifying gram/oz weights, so ingredient DB can compute exact weight)
+    // Custom pantry staples
     let matchedPantryItem = null;
     if (unit !== 'g' && unit !== 'oz') {
       for (const staple of pantry) {
@@ -1085,7 +1089,7 @@ export function parseMealDescription(text, options = {}) {
       continue;
     }
 
-    // D. Match against INGREDIENT_DATABASE
+    // INGREDIENT_DATABASE
     let matchedFood = null;
     for (const food of INGREDIENT_DATABASE) {
       if (food.regex.test(clause)) {
@@ -1106,31 +1110,53 @@ export function parseMealDescription(text, options = {}) {
 
       const perGramRates = getFoodPerGramRates(matchedFood);
 
-      if (usedUnit === 'bowl' || usedUnit === 'bowls') {
-        const bowlFactor = dishware.bowl.servingFactor || 2.0;
-        const bowlVol = dishware.bowl.volumeMl || 750;
-        portionLabel = `${usedQty === 1 ? '1' : usedQty} Primary Bowl (${bowlVol}ml capacity)`;
+      // If food is in a calibrated vessel (Bowl or Plate)
+      if (usedUnit === 'bowl' || usedUnit === 'bowls' || (isBowl && !unit)) {
+        const vBowl = activeVessel?.type === 'bowl' ? activeVessel : dishware.bowl;
+        const bowlVol = vBowl.volumeMl || 750;
+        const volScale = bowlVol / 750;
+        portionLabel = `${usedQty === 1 ? '1' : usedQty} ${vBowl.name} (${bowlVol}ml capacity)`;
 
-        if (matchedFood.perUnit && matchedFood.perUnit.bowl) {
+        if (matchedFood.name === 'Cereal') {
+          // A full bowl of cereal incorporates 2 cups cereal + 1 cup calibrated milk
+          itemCals = Math.round(350 * usedQty * volScale);
+          itemP = Math.round(14 * usedQty * volScale);
+          itemC = Math.round(60 * usedQty * volScale);
+          itemF = Math.round(7 * usedQty * volScale);
+          portionLabel = `${usedQty === 1 ? '1' : usedQty} ${vBowl.name} (Cereal + Calibrated Milk)`;
+        } else if (matchedFood.perUnit && matchedFood.perUnit.bowl) {
           const r = matchedFood.perUnit.bowl;
-          const volScale = bowlVol / 750; // scaled to calibrated bowl volume
           itemCals = Math.round(r.calories * usedQty * volScale);
           itemP = Math.round(r.protein * usedQty * volScale);
           itemC = Math.round(r.carbs * usedQty * volScale);
           itemF = Math.round(r.fats * usedQty * volScale);
         } else if (perGramRates) {
-          // Standard full bowl holds ~300g cooked food
-          const netG = 300 * (bowlVol / 750) * usedQty;
+          const netG = 300 * volScale * usedQty;
           itemCals = Math.round(perGramRates.calories * netG);
           itemP = Math.round(perGramRates.protein * netG);
           itemC = Math.round(perGramRates.carbs * netG);
           itemF = Math.round(perGramRates.fats * netG);
+        }
+      } else if (usedUnit === 'plate' || usedUnit === 'plates' || (isPlate && !unit)) {
+        const vPlate = activeVessel?.type === 'plate' ? activeVessel : dishware.plate;
+        const plateScale = vPlate.servingFactor || 1.0;
+        portionLabel = `Plated portion on ${vPlate.name} (${vPlate.innerWellInches}" well)`;
+
+        if (matchedFood.per100g) {
+          // Plate main portion: protein ~220g, carbs ~250g
+          const isMeat = /chicken|beef|steak|turkey|salmon|tuna/i.test(matchedFood.name);
+          const platedGrams = isMeat ? 220 * plateScale : 250 * plateScale;
+          itemCals = Math.round(perGramRates.calories * platedGrams);
+          itemP = Math.round(perGramRates.protein * platedGrams);
+          itemC = Math.round(perGramRates.carbs * platedGrams);
+          itemF = Math.round(perGramRates.fats * platedGrams);
+          portionLabel = `${Math.round(platedGrams)}g on ${vPlate.name}`;
         } else if (matchedFood.perUnit && matchedFood.perUnit[matchedFood.defaultUnit]) {
           const r = matchedFood.perUnit[matchedFood.defaultUnit];
-          itemCals = Math.round(r.calories * usedQty * bowlFactor);
-          itemP = Math.round(r.protein * usedQty * bowlFactor);
-          itemC = Math.round(r.carbs * usedQty * bowlFactor);
-          itemF = Math.round(r.fats * usedQty * bowlFactor);
+          itemCals = Math.round(r.calories * usedQty * plateScale);
+          itemP = Math.round(r.protein * usedQty * plateScale);
+          itemC = Math.round(r.carbs * usedQty * plateScale);
+          itemF = Math.round(r.fats * usedQty * plateScale);
         }
       } else if ((usedUnit === 'g' || usedUnit === 'grams') && perGramRates) {
         itemCals = Math.round(perGramRates.calories * usedQty);
@@ -1165,22 +1191,21 @@ export function parseMealDescription(text, options = {}) {
 
   if (matchedItems.length === 0) return null;
 
-  // 3. Tare-adjusted scale deduction application:
-  // If user provided a scale reading with bowl/plate, and we have 1 food item:
+  // 4. Tare Deduction Application
   if (tareAdjustedWeightG && matchedItems.length === 1) {
     const it = matchedItems[0];
-    const dbFood = INGREDIENT_DATABASE.find(f => f.name === it.name);
+    const dbFood = INGREDIENT_DATABASE.find(f => f.name.toLowerCase().includes(it.name.toLowerCase()) || it.name.toLowerCase().includes(f.name.toLowerCase().replace(/\s*\(.*\)/, '')));
     const perGram = dbFood ? getFoodPerGramRates(dbFood) : null;
     if (perGram) {
       const netG = tareAdjustedWeightG;
+      it.name = dbFood.name;
       it.calories = Math.round(perGram.calories * netG);
       it.protein = Math.round(perGram.protein * netG);
       it.carbs = Math.round(perGram.carbs * netG);
       it.fats = Math.round(perGram.fats * netG);
-      it.portion = `${netG}g in ${tareVesselName} (net from scale: ${tareAdjustedWeightG + (tareVesselName.toLowerCase().includes('plate') ? plateTare : bowlTare)}g - ${tareVesselName.toLowerCase().includes('plate') ? plateTare : bowlTare}g tare)`;
+      it.portion = `${netG}g on ${tareVessel.name} (net from scale: ${tareAdjustedWeightG + tareVessel.tareWeightG}g - ${tareVessel.tareWeightG}g tare)`;
     }
   } else if (compositeMealTotalWeightG && matchedItems.length > 1 && isCompositeSplit) {
-    // If meal has a combined composite weight (e.g. 400g chicken and rice in bowl):
     const splitGrams = Math.round(compositeMealTotalWeightG / matchedItems.length);
     for (const it of matchedItems) {
       const dbFood = INGREDIENT_DATABASE.find(f => f.name === it.name);
@@ -1190,7 +1215,7 @@ export function parseMealDescription(text, options = {}) {
         it.protein = Math.round(perGram.protein * splitGrams);
         it.carbs = Math.round(perGram.carbs * splitGrams);
         it.fats = Math.round(perGram.fats * splitGrams);
-        it.portion = `${splitGrams}g (${Math.round(compositeMealTotalWeightG)}g total in ${dishware.bowl.name})`;
+        it.portion = `${splitGrams}g (${Math.round(compositeMealTotalWeightG)}g total in ${tareVessel.name})`;
       }
     }
   }
@@ -1200,7 +1225,6 @@ export function parseMealDescription(text, options = {}) {
   const totalCarbs = matchedItems.reduce((acc, it) => acc + it.carbs, 0);
   const totalFats = matchedItems.reduce((acc, it) => acc + it.fats, 0);
 
-  // Generate clear descriptive title
   const cleanItemNames = matchedItems.map(m => m.name.replace(/\s*\([^)]*\)/, ''));
   let title = '';
   if (cleanItemNames.length === 1) {
@@ -1211,8 +1235,8 @@ export function parseMealDescription(text, options = {}) {
     title = cleanItemNames.slice(0, -1).join(', ') + ' & ' + cleanItemNames[cleanItemNames.length - 1];
   }
 
-  if (isOverallBowl && !title.toLowerCase().includes('bowl') && !title.toLowerCase().includes('smoothie')) {
-    title += ` in Primary Bowl (${dishware.bowl.volumeMl}ml)`;
+  if (activeVessel && !title.toLowerCase().includes('bowl') && !title.toLowerCase().includes('plate') && !title.toLowerCase().includes('smoothie')) {
+    title += activeVessel.type === 'plate' ? ` on ${activeVessel.name} (${activeVessel.diameterInches}")` : ` in ${activeVessel.name} (${activeVessel.volumeMl}ml)`;
   }
 
   return {
@@ -1307,9 +1331,14 @@ export const DEFAULT_CALIBRATION_TASKS = [
       { key: "innerWellInches", label: "Inner Flat Bed (inches)", placeholder: "e.g. 8.5", type: "number", step: "0.1" },
       { key: "tareWeightG", label: "Empty Tare Weight (grams, optional)", placeholder: "e.g. 550", type: "number" }
     ],
-    completed: false,
-    completedAt: null,
-    values: null
+    completed: true,
+    completedAt: "2026-09-08T20:00:00.000Z",
+    values: {
+      name: "Main Dinner Plate",
+      diameterInches: 10.5,
+      innerWellInches: 8.5,
+      tareWeightG: 550
+    }
   },
   {
     id: "task-primary-bowl",
@@ -1319,15 +1348,21 @@ export const DEFAULT_CALIBRATION_TASKS = [
     icon: "🥣",
     instruction: "Measure top rim diameter (e.g. 8.0 inches), depth (e.g. 3.0 inches), and holding volume to your normal fill line in ml or oz (e.g. 750 ml / 25 fl oz). Eliminates 3D volumetric portion guessing.",
     fields: [
-      { key: "name", label: "Bowl Description", placeholder: "e.g. Matte Black Ceramic Bowl", type: "text", default: "Everyday Primary Bowl" },
+      { key: "name", label: "Bowl Description", placeholder: "e.g. Matte Black Ceramic Bowl", type: "text", default: "Primary Large Bowl" },
       { key: "diameterInches", label: "Top Rim Diameter (inches)", placeholder: "e.g. 8.0", type: "number", step: "0.1" },
       { key: "depthInches", label: "Bowl Depth / Height (inches)", placeholder: "e.g. 3.0", type: "number", step: "0.1" },
       { key: "volumeMl", label: "Usable Volume (ml or fl oz)", placeholder: "e.g. 750 ml or 25 fl oz", type: "text" },
       { key: "tareWeightG", label: "Empty Tare Weight (grams, optional)", placeholder: "e.g. 420", type: "number" }
     ],
-    completed: false,
-    completedAt: null,
-    values: null
+    completed: true,
+    completedAt: "2026-09-08T20:00:00.000Z",
+    values: {
+      name: "Primary Large Bowl",
+      diameterInches: 8.0,
+      depthInches: 3.0,
+      volumeMl: "750 ml",
+      tareWeightG: 420
+    }
   }
 ];
 
@@ -1382,46 +1417,84 @@ export function getCalibrationProgress(input = {}) {
 
 export function getCalibratedDishware(kitchenCalibration = {}) {
   const tasks = getMergedCalibrationTasks(kitchenCalibration);
-  const bowlTask = tasks.find(t => t.id === 'task-primary-bowl');
-  const plateTask = tasks.find(t => t.id === 'task-dinner-plate');
+  const dishwareTasks = tasks.filter(t => t.category === 'dishware' || t.id.includes('bowl') || t.id.includes('plate'));
 
-  const bowlValues = bowlTask?.values || {};
-  const plateValues = plateTask?.values || {};
+  const vessels = [];
 
-  let bowlVol = 750;
-  if (bowlValues.volumeMl) {
-    const num = parseFloat(String(bowlValues.volumeMl).replace(/[^\d.]/g, ''));
-    if (!isNaN(num) && num > 0) bowlVol = num;
+  for (const t of dishwareTasks) {
+    const v = t.values || {};
+    const name = v.name || t.title || (t.id.includes('plate') ? 'Main Dinner Plate' : 'Primary Large Bowl');
+    const isPlate = t.id.includes('plate') || /plate/i.test(name);
+    
+    let volMl = 750;
+    if (v.volumeMl) {
+      const parsed = parseFloat(String(v.volumeMl).replace(/[^\d.]/g, ''));
+      if (!isNaN(parsed) && parsed > 0) volMl = parsed;
+    } else if (isPlate) {
+      volMl = 850;
+    }
+
+    let tareG = isPlate ? 550 : 420;
+    if (v.tareWeightG) {
+      const parsed = parseFloat(v.tareWeightG);
+      if (!isNaN(parsed) && parsed > 0) tareG = parsed;
+    }
+
+    const diameter = parseFloat(v.diameterInches) || (isPlate ? 10.5 : 8.0);
+    const depth = parseFloat(v.depthInches) || (isPlate ? 1.0 : 3.0);
+    const innerWell = parseFloat(v.innerWellInches) || (isPlate ? 8.5 : diameter);
+
+    const servingFactor = isPlate
+      ? Math.round(Math.pow(innerWell / 8.5, 2) * 10) / 10 || 1.0
+      : Math.round((volMl / 375) * 10) / 10 || 2.0;
+
+    vessels.push({
+      id: t.id,
+      name,
+      type: isPlate ? 'plate' : 'bowl',
+      diameterInches: diameter,
+      depthInches: depth,
+      innerWellInches: innerWell,
+      volumeMl: volMl,
+      tareWeightG: tareG,
+      servingFactor
+    });
   }
 
-  let bowlTare = 420;
-  if (bowlValues.tareWeightG) {
-    const num = parseFloat(bowlValues.tareWeightG);
-    if (!isNaN(num) && num > 0) bowlTare = num;
-  }
+  const primaryBowl = vessels.find(v => v.type === 'bowl') || {
+    id: 'task-primary-bowl',
+    name: 'Primary Large Bowl',
+    type: 'bowl',
+    diameterInches: 8.0,
+    depthInches: 3.0,
+    volumeMl: 750,
+    tareWeightG: 420,
+    servingFactor: 2.0
+  };
 
-  let plateTare = 550;
-  if (plateValues.tareWeightG) {
-    const num = parseFloat(plateValues.tareWeightG);
-    if (!isNaN(num) && num > 0) plateTare = num;
-  }
-
-  const servingFactor = Math.round((bowlVol / 375) * 10) / 10 || 2.0;
+  const primaryPlate = vessels.find(v => v.type === 'plate') || {
+    id: 'task-dinner-plate',
+    name: 'Main Dinner Plate',
+    type: 'plate',
+    diameterInches: 10.5,
+    innerWellInches: 8.5,
+    volumeMl: 850,
+    tareWeightG: 550,
+    servingFactor: 1.0
+  };
 
   return {
-    bowl: {
-      name: bowlValues.name || 'Primary Large Bowl',
-      diameterInches: parseFloat(bowlValues.diameterInches) || 8.0,
-      depthInches: parseFloat(bowlValues.depthInches) || 3.0,
-      volumeMl: bowlVol,
-      tareWeightG: bowlTare,
-      servingFactor: servingFactor
-    },
-    plate: {
-      name: plateValues.name || 'Main Dinner Plate',
-      diameterInches: parseFloat(plateValues.diameterInches) || 10.5,
-      innerWellInches: parseFloat(plateValues.innerWellInches) || 8.5,
-      tareWeightG: plateTare
+    bowl: primaryBowl,
+    plate: primaryPlate,
+    vessels,
+    findVessel: (text = '') => {
+      const lower = text.toLowerCase();
+      for (const v of vessels) {
+        if (lower.includes(v.name.toLowerCase())) return v;
+      }
+      if (lower.includes('plate')) return primaryPlate;
+      if (lower.includes('bowl')) return primaryBowl;
+      return null;
     }
   };
 }

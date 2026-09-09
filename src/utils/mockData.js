@@ -59,6 +59,9 @@ export const INITIAL_NUTRITION_DATA = {
     { id: "w-7", date: "2026-09-08", weightLbs: 185.2, time: "7:15 AM", notes: "Morning baseline" }
   ],
   householdPantry: DEFAULT_HOUSEHOLD_PANTRY,
+  kitchenCalibration: {
+    tasks: DEFAULT_CALIBRATION_TASKS
+  },
   meals: []
 };
 
