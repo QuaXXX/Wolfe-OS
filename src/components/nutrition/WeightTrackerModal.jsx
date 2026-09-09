@@ -17,7 +17,8 @@ import {
   createWeightLogEntry, 
   calculateMovingAverageWeight, 
   calculateWeightVelocity,
-  getAdaptiveSurplusRecommendation 
+  getAdaptiveSurplusRecommendation, 
+  calculateWeightTrend 
 } from '../../utils/nutritionEngine.js';
 import { getTodayIso } from '../../utils/calendarUtils.js';
 
@@ -35,6 +36,7 @@ export const WeightTrackerModal = ({
   const [dateInput, setDateInput] = useState(getTodayIso());
   const [notesInput, setNotesInput] = useState('');
   const [error, setError] = useState(null);
+  const [weightSpan, setWeightSpan] = useState(14); // 7 | 14 | 30 | 'all'
 
   if (!isOpen) return null;
 
@@ -42,10 +44,17 @@ export const WeightTrackerModal = ({
     .filter(w => w && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const movingAvg = calculateMovingAverageWeight(weightHistory, 7);
+  const trend = calculateWeightTrend(weightHistory, weightSpan);
+  const movingAvg = calculateMovingAverageWeight(weightHistory, weightSpan === 'all' ? 30 : Number(weightSpan));
   const velocity = calculateWeightVelocity(weightHistory);
   const surplusRec = getAdaptiveSurplusRecommendation(weightHistory, currentCalorieTarget);
   const latestWeighIn = sortedHistory[0];
+
+  // SVG Chart points calculation
+  const chartPoints = (trend?.points || []).slice(-15);
+  const minWeight = chartPoints.length > 0 ? Math.min(...chartPoints.map(p => p.weightLbs)) - 0.5 : 180;
+  const maxWeight = chartPoints.length > 0 ? Math.max(...chartPoints.map(p => p.weightLbs)) + 0.5 : 190;
+  const weightRange = Math.max(1, maxWeight - minWeight);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -123,6 +132,117 @@ export const WeightTrackerModal = ({
             </button>
           </div>
 
+          {/* Time Span Selector Filter */}
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider font-mono">
+              Tracker Span:
+            </span>
+            <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/10 text-xs">
+              {[
+                { id: 7, label: '7 Days' },
+                { id: 14, label: '14 Days' },
+                { id: 30, label: '30 Days' },
+                { id: 'all', label: 'All Time' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setWeightSpan(tab.id);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                    weightSpan === tab.id 
+                      ? 'bg-white/20 text-white shadow-sm font-bold' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Multi-Week SVG Weight Trend Graph */}
+          {chartPoints.length >= 2 && (
+            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-mono">
+                <span className="text-slate-400">
+                  {weightSpan === 'all' ? 'All-Time' : `${weightSpan}-Day`} Scale Trajectory:
+                </span>
+                <span className={`font-bold ${trend.changeLbs >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {trend.changeLbs > 0 ? `+${trend.changeLbs}` : trend.changeLbs} lbs ({trend.startWeight} → {trend.endWeight})
+                </span>
+              </div>
+
+              {/* Sparkline / SVG Graph */}
+              <div className="relative h-24 w-full pt-2">
+                <svg className="w-full h-full overflow-visible" viewBox="0 0 300 80" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Area fill */}
+                  {chartPoints.length > 1 && (
+                    <polygon
+                      points={`
+                        0,80 
+                        ${chartPoints.map((p, idx) => {
+                          const x = (idx / (chartPoints.length - 1)) * 300;
+                          const y = 80 - ((p.weightLbs - minWeight) / weightRange) * 70;
+                          return `${x},${y}`;
+                        }).join(' ')} 
+                        300,80
+                      `}
+                      fill="url(#weightGrad)"
+                    />
+                  )}
+
+                  {/* Connecting Line */}
+                  {chartPoints.length > 1 && (
+                    <polyline
+                      fill="none"
+                      stroke="var(--accent-primary)"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points={chartPoints.map((p, idx) => {
+                        const x = (idx / (chartPoints.length - 1)) * 300;
+                        const y = 80 - ((p.weightLbs - minWeight) / weightRange) * 70;
+                        return `${x},${y}`;
+                      }).join(' ')}
+                    />
+                  )}
+
+                  {/* Data Points */}
+                  {chartPoints.map((p, idx) => {
+                    const x = (idx / (chartPoints.length - 1)) * 300;
+                    const y = 80 - ((p.weightLbs - minWeight) / weightRange) * 70;
+                    return (
+                      <circle
+                        key={idx}
+                        cx={x}
+                        cy={y}
+                        r="3.5"
+                        fill="#fff"
+                        stroke="var(--accent-primary)"
+                        strokeWidth="2"
+                      />
+                    );
+                  })}
+                </svg>
+              </div>
+
+              <div className="flex justify-between text-[9px] font-mono text-slate-500 pt-0.5">
+                <span>{chartPoints[0]?.date}</span>
+                <span>{chartPoints[chartPoints.length - 1]?.date}</span>
+              </div>
+            </div>
+          )}
+
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-3 gap-2.5">
             <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
@@ -136,11 +256,13 @@ export const WeightTrackerModal = ({
             </div>
 
             <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
-              <span className="text-[10px] font-mono uppercase text-indigo-300 block">7-Day Smoothed Avg</span>
+              <span className="text-[10px] font-mono uppercase text-indigo-300 block">
+                {weightSpan === 'all' ? '30d' : `${weightSpan}d`} Smoothed Avg
+              </span>
               <div className="text-lg font-bold font-mono text-indigo-300 mt-0.5">
                 {movingAvg ? `${movingAvg} lbs` : '—'}
               </div>
-              <span className="text-[9px] text-slate-500 font-mono">Filters water weight</span>
+              <span className="text-[9px] text-slate-500 font-mono">Filtered trend</span>
             </div>
 
             <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
@@ -153,6 +275,7 @@ export const WeightTrackerModal = ({
               </span>
             </div>
           </div>
+
 
           {/* On-the-fly Daily Calorie Target Adjuster */}
           <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2.5">

@@ -1186,3 +1186,34 @@ export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targ
 
   return history;
 }
+
+
+/**
+ * Calculate multi-week weight trends across 7, 14, 30 days or all-time
+ */
+export function calculateWeightTrend(weightHistory = [], days = 14) {
+  if (!Array.isArray(weightHistory) || weightHistory.length === 0) {
+    return { changeLbs: 0, startWeight: null, endWeight: null, points: [], sampleCount: 0 };
+  }
+
+  const sorted = [...weightHistory]
+    .filter(w => w && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  if (sorted.length === 0) {
+    return { changeLbs: 0, startWeight: null, endWeight: null, points: [], sampleCount: 0 };
+  }
+
+  const filtered = days === 'all' ? sorted : sorted.slice(-Number(days));
+  const startWeight = filtered[0].weightLbs;
+  const endWeight = filtered[filtered.length - 1].weightLbs;
+  const changeLbs = Number((endWeight - startWeight).toFixed(1));
+
+  return {
+    changeLbs,
+    startWeight,
+    endWeight,
+    points: filtered,
+    sampleCount: filtered.length
+  };
+}

@@ -45,6 +45,11 @@ export const INITIAL_NUTRITION_DATA = {
   targetWaterMl: 3500,
   currentDate: getTodayIso(),
   weightHistory: [
+    { id: "w-01", date: "2026-08-18", weightLbs: 183.0, time: "7:15 AM", notes: "3-week baseline" },
+    { id: "w-02", date: "2026-08-21", weightLbs: 183.2, time: "7:20 AM", notes: "Post-training" },
+    { id: "w-03", date: "2026-08-25", weightLbs: 183.6, time: "7:10 AM", notes: "Fasted" },
+    { id: "w-04", date: "2026-08-28", weightLbs: 183.8, time: "7:30 AM", notes: "2-week checkpoint" },
+    { id: "w-05", date: "2026-08-31", weightLbs: 184.0, time: "7:15 AM", notes: "Refeed day" },
     { id: "w-1", date: "2026-09-02", weightLbs: 184.2, time: "7:15 AM", notes: "Fasted morning weight" },
     { id: "w-2", date: "2026-09-03", weightLbs: 184.4, time: "7:20 AM", notes: "Post-rest day" },
     { id: "w-3", date: "2026-09-04", weightLbs: 184.1, time: "7:10 AM", notes: "Fasted" },
