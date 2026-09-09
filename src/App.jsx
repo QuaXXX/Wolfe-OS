@@ -185,7 +185,7 @@ export function App() {
       const vault = e.detail?.vault;
       if (!vault) return;
       // If user recently made an explicit local deletion/addition, don't let a stale inbound packet clobber it
-      if (isLocalMutationRecent(3500)) return;
+      if (isLocalMutationRecent(6000)) return;
 
       isApplyingInboundSyncRef.current = true;
       if (vault.nutrition) setNutritionData(vault.nutrition);

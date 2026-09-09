@@ -92,7 +92,7 @@ export function markLocalMutation() {
   lastLocalMutationAt = Date.now();
 }
 
-export function isLocalMutationRecent(windowMs = 4000) {
+export function isLocalMutationRecent(windowMs = 6000) {
   return (Date.now() - lastLocalMutationAt) < windowMs;
 }
 
@@ -280,6 +280,70 @@ export function mergeOsState(localVault, remoteVault) {
   });
   const mergedPantry = Array.from(pantryMap.values());
 
+  // Merge kitchen calibration tasks intelligently across devices
+  const localCalib = localNut.kitchenCalibration || {};
+  const remoteCalib = remoteNut.kitchenCalibration || {};
+  const localTasks = Array.isArray(localCalib.tasks) ? localCalib.tasks : [];
+  const remoteTasks = Array.isArray(remoteCalib.tasks) ? remoteCalib.tasks : [];
+
+  const taskMap = new Map();
+
+  // 1. Seed from remote tasks
+  remoteTasks.forEach(task => {
+    if (task && task.id && !isTombstoned(task.id, task.completedAt)) {
+      taskMap.set(task.id, task);
+    }
+  });
+
+  // 2. Merge local tasks
+  localTasks.forEach(localTask => {
+    if (!localTask || !localTask.id) return;
+    if (isTombstoned(localTask.id, localTask.completedAt)) {
+      taskMap.delete(localTask.id);
+      return;
+    }
+
+    const remoteTask = taskMap.get(localTask.id);
+    if (!remoteTask) {
+      taskMap.set(localTask.id, localTask);
+      return;
+    }
+
+    // Both exist: if one is completed and the other is not, COMPLETED ALWAYS WINS!
+    if (localTask.completed && !remoteTask.completed) {
+      taskMap.set(localTask.id, localTask);
+    } else if (!localTask.completed && remoteTask.completed) {
+      // Remote completed wins unless locally cleared more recently
+      const remoteCompletedTime = remoteTask.completedAt ? new Date(remoteTask.completedAt).getTime() : 0;
+      const localClearedTime = localTask.clearedAt ? new Date(localTask.clearedAt).getTime() : 0;
+      if (localClearedTime > remoteCompletedTime) {
+        taskMap.set(localTask.id, localTask);
+      } else {
+        taskMap.set(localTask.id, remoteTask);
+      }
+    } else if (localTask.completed && remoteTask.completed) {
+      // Both completed: whichever was completed or updated more recently wins
+      const localTime = localTask.completedAt ? new Date(localTask.completedAt).getTime() : (localCalib.updatedAt || 0);
+      const remoteTime = remoteTask.completedAt ? new Date(remoteTask.completedAt).getTime() : (remoteCalib.updatedAt || 0);
+      if (localTime >= remoteTime) {
+        taskMap.set(localTask.id, { ...remoteTask, ...localTask });
+      } else {
+        taskMap.set(localTask.id, { ...localTask, ...remoteTask });
+      }
+    } else {
+      // Neither completed: merge metadata
+      taskMap.set(localTask.id, { ...remoteTask, ...localTask });
+    }
+  });
+
+  const mergedCalibrationTasks = Array.from(taskMap.values());
+  const mergedCalibration = {
+    ...(localCalib.tasks?.length ? localCalib : remoteCalib),
+    ...(localCalib.updatedAt >= (remoteCalib.updatedAt || 0) ? localCalib : remoteCalib),
+    tasks: mergedCalibrationTasks,
+    updatedAt: Math.max(localCalib.updatedAt || 0, remoteCalib.updatedAt || 0, Date.now())
+  };
+
   const localIsNewerNut = isMutatingLocally || (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
   const baseNut = localIsNewerNut ? localNut : remoteNut;
 
@@ -287,7 +351,8 @@ export function mergeOsState(localVault, remoteVault) {
     ...baseNut,
     meals: mergedMeals,
     weightLogs: mergedWeightLogs,
-    householdPantry: mergedPantry.length > 0 ? mergedPantry : baseNut.householdPantry
+    householdPantry: mergedPantry.length > 0 ? mergedPantry : baseNut.householdPantry,
+    kitchenCalibration: mergedCalibration
   };
 
   // 2. WORKOUTS MERGE
@@ -446,7 +511,11 @@ export function importFullOsState(vault) {
     ...vault.nutrition,
     meals: (vault.nutrition.meals || []).filter(m => !isTomb(m.id)),
     weightLogs: (vault.nutrition.weightLogs || []).filter(w => !isTomb(w.id) && !isTomb(w.date)),
-    householdPantry: (vault.nutrition.householdPantry || []).filter(s => !isTomb(s.id) && !isTomb(s.name?.toLowerCase()))
+    householdPantry: (vault.nutrition.householdPantry || []).filter(s => !isTomb(s.id) && !isTomb(s.name?.toLowerCase())),
+    kitchenCalibration: vault.nutrition.kitchenCalibration ? {
+      ...vault.nutrition.kitchenCalibration,
+      tasks: (vault.nutrition.kitchenCalibration.tasks || []).filter(t => !isTomb(t.id))
+    } : vault.nutrition.kitchenCalibration
   } : null;
 
   const cleanWorkouts = vault.workouts ? {

@@ -39,7 +39,7 @@ import {
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
-import { recordDeletion, recordAdditionOrUpdate } from '../../utils/cloudSyncEngine.js';
+import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush } from '../../utils/cloudSyncEngine.js';
 
 export const NutritionView = ({ 
   nutritionData, 
@@ -134,10 +134,12 @@ export const NutritionView = ({
   const handleLogMeal = (mealEntry) => {
     playSound('success', soundEnabled);
     if (mealEntry?.id) recordAdditionOrUpdate(mealEntry.id);
+    markLocalMutation();
+
     setNutritionData(prev => {
       const nextMeals = [mealEntry, ...(prev.meals || [])];
       const newTotals = aggregateDailyNutrition(nextMeals);
-      return {
+      const nextData = {
         ...prev,
         consumedCalories: newTotals.calories,
         protein: { ...prev.protein, current: newTotals.protein },
@@ -145,16 +147,24 @@ export const NutritionView = ({
         fats: { ...prev.fats, current: newTotals.fats },
         meals: nextMeals
       };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      return nextData;
     });
+
+    triggerImmediateCloudPush(80);
   };
 
   const handleDeleteMeal = (mealId) => {
     playSound('click', soundEnabled);
     recordDeletion(mealId);
+    markLocalMutation();
+
     setNutritionData(prev => {
       const nextMeals = (prev.meals || []).filter(m => m.id !== mealId);
       const newTotals = aggregateDailyNutrition(nextMeals);
-      return {
+      const nextData = {
         ...prev,
         consumedCalories: newTotals.calories,
         protein: { ...prev.protein, current: newTotals.protein },
@@ -162,7 +172,13 @@ export const NutritionView = ({
         fats: { ...prev.fats, current: newTotals.fats },
         meals: nextMeals
       };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      return nextData;
     });
+
+    triggerImmediateCloudPush(80);
   };
 
   const handleQuickLogStaple = (staple) => {
@@ -274,21 +290,39 @@ export const NutritionView = ({
 
   const handleLogWeight = (weightEntry) => {
     if (weightEntry?.id || weightEntry?.date) recordAdditionOrUpdate(weightEntry.id || weightEntry.date);
+    markLocalMutation();
+
     setNutritionData(prev => {
       const existing = (prev.weightHistory || []).filter(w => w.date !== weightEntry.date);
-      return {
+      const nextData = {
         ...prev,
         weightHistory: [weightEntry, ...existing]
       };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      return nextData;
     });
+
+    triggerImmediateCloudPush(80);
   };
 
   const handleDeleteWeightLog = (idOrDate) => {
     recordDeletion(idOrDate);
-    setNutritionData(prev => ({
-      ...prev,
-      weightHistory: (prev.weightHistory || []).filter(w => w.id !== idOrDate && w.date !== idOrDate)
-    }));
+    markLocalMutation();
+
+    setNutritionData(prev => {
+      const nextData = {
+        ...prev,
+        weightHistory: (prev.weightHistory || []).filter(w => w.id !== idOrDate && w.date !== idOrDate)
+      };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      return nextData;
+    });
+
+    triggerImmediateCloudPush(80);
   };
 
   // Quick calorie target adjuster: +/- delta
@@ -339,27 +373,81 @@ export const NutritionView = ({
 
   const handleAddHouseholdStaple = (staple) => {
     if (staple?.id) recordAdditionOrUpdate(staple.id);
-    setNutritionData(prev => ({
-      ...prev,
-      householdPantry: [staple, ...(prev.householdPantry || [])]
-    }));
+    markLocalMutation();
+
+    setNutritionData(prev => {
+      const nextData = {
+        ...prev,
+        householdPantry: [staple, ...(prev.householdPantry || [])]
+      };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      return nextData;
+    });
+
+    triggerImmediateCloudPush(80);
   };
 
   const handleDeleteHouseholdStaple = (stapleId) => {
     recordDeletion(stapleId);
-    setNutritionData(prev => ({
-      ...prev,
-      householdPantry: (prev.householdPantry || []).filter(s => s.id !== stapleId)
-    }));
+    markLocalMutation();
+
+    setNutritionData(prev => {
+      const nextData = {
+        ...prev,
+        householdPantry: (prev.householdPantry || []).filter(s => s.id !== stapleId)
+      };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      return nextData;
+    });
+
+    triggerImmediateCloudPush(80);
   };
 
   const handleUpdateCalibration = (newCalibration) => {
     playSound('success', soundEnabled);
-    if (newCalibration?.id) recordAdditionOrUpdate(newCalibration.id);
+    
+    // 1. Record addition/update for the changed task and mark local mutation
+    const taskId = newCalibration?.lastUpdatedTaskId;
+    if (taskId) {
+      recordAdditionOrUpdate(taskId);
+    }
+    if (newCalibration?.deletedTaskId) {
+      recordDeletion(newCalibration.deletedTaskId);
+    }
+    recordAdditionOrUpdate('kitchen_calibration');
+    markLocalMutation();
+
+    const stampedCalibration = {
+      ...newCalibration,
+      updatedAt: Date.now()
+    };
+
+    // 2. Immediately persist to localStorage synchronously so any export/sync reads latest data!
+    try {
+      const rawCurrent = localStorage.getItem('wolfe_nutrition_data');
+      const parsedCurrent = rawCurrent ? JSON.parse(rawCurrent) : (nutritionData || {});
+      const updatedNut = {
+        ...parsedCurrent,
+        ...nutritionData,
+        kitchenCalibration: stampedCalibration
+      };
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(updatedNut));
+    } catch (e) {
+      console.warn("Failed to write nutrition calibration to localStorage immediately:", e);
+    }
+
+    // 3. Update React state
     setNutritionData(prev => ({
       ...prev,
-      kitchenCalibration: newCalibration
+      kitchenCalibration: stampedCalibration
     }));
+
+    // 4. Immediately trigger cloud sync so new data pushes to cloud BEFORE any background pull
+    triggerImmediateCloudPush(60);
   };
 
   const addWater = (deltaMl = 250) => {

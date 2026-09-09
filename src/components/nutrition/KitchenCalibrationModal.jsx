@@ -126,7 +126,12 @@ export const KitchenCalibrationModal = ({
     });
 
     if (onUpdateCalibration) {
-      onUpdateCalibration({ ...kitchenCalibration, tasks: updatedTasks });
+      onUpdateCalibration({ 
+        ...kitchenCalibration, 
+        tasks: updatedTasks,
+        updatedAt: Date.now(),
+        lastUpdatedTaskId: taskId
+      });
     }
     setExpandedTaskId(null);
   };
@@ -139,6 +144,7 @@ export const KitchenCalibrationModal = ({
           ...t,
           completed: false,
           completedAt: null,
+          clearedAt: new Date().toISOString(),
           values: null
         };
       }
@@ -146,7 +152,12 @@ export const KitchenCalibrationModal = ({
     });
 
     if (onUpdateCalibration) {
-      onUpdateCalibration({ ...kitchenCalibration, tasks: updatedTasks });
+      onUpdateCalibration({ 
+        ...kitchenCalibration, 
+        tasks: updatedTasks,
+        updatedAt: Date.now(),
+        lastClearedTaskId: taskId
+      });
     }
   };
 
@@ -154,7 +165,12 @@ export const KitchenCalibrationModal = ({
     playSound('click', soundEnabled);
     const updatedTasks = tasks.filter(t => t.id !== taskId);
     if (onUpdateCalibration) {
-      onUpdateCalibration({ ...kitchenCalibration, tasks: updatedTasks });
+      onUpdateCalibration({ 
+        ...kitchenCalibration, 
+        tasks: updatedTasks,
+        updatedAt: Date.now(),
+        deletedTaskId: taskId
+      });
     }
     setExpandedTaskId(null);
   };
@@ -188,7 +204,12 @@ export const KitchenCalibrationModal = ({
 
     const updatedTasks = [...tasks, newTask];
     if (onUpdateCalibration) {
-      onUpdateCalibration({ ...kitchenCalibration, tasks: updatedTasks });
+      onUpdateCalibration({ 
+        ...kitchenCalibration, 
+        tasks: updatedTasks,
+        updatedAt: Date.now(),
+        lastUpdatedTaskId: newTask.id
+      });
     }
 
     setIsAddingCustom(false);
@@ -329,7 +350,12 @@ export const KitchenCalibrationModal = ({
 
     const updatedTasks = [...tasks, newTask];
     if (onUpdateCalibration) {
-      onUpdateCalibration({ ...kitchenCalibration, tasks: updatedTasks });
+      onUpdateCalibration({ 
+        ...kitchenCalibration, 
+        tasks: updatedTasks,
+        updatedAt: Date.now(),
+        lastUpdatedTaskId: newTask.id
+      });
     }
     setGlobalBrandResults([]);
     setGlobalBrandQuery('');
