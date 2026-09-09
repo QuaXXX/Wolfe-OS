@@ -2046,6 +2046,7 @@ CRITICAL ACCURACY & INTEGRITY INSTRUCTIONS:
    c. Plated food with a label / packaging attached or alongside it.
    - If a printed Nutrition Facts label or barcode is readable, prioritize the EXACT printed numbers from the label.
    - If plated food is visible, break down the individual items using realistic portion sizes and strict USDA ground-truth macros.
+   - If food is pictured in a meal prep container, storage container, or snack bowl, dynamically evaluate the container size and food fill depth using visual cues.
    - If both are present, merge them accurately into the items list.
 ${calibPrompt ? `\n${calibPrompt}\n` : ''}
 4. STRICT USDA MACRO CALIBRATION (PREVENT OVER-ESTIMATION):

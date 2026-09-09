@@ -100,7 +100,7 @@ export const NutritionView = ({
 
   // Kitchen Hardware Calibration Progress
   const calibrationProgress = useMemo(() => {
-    return getCalibrationProgress(nutritionData?.kitchenCalibration?.tasks || []);
+    return getCalibrationProgress(nutritionData?.kitchenCalibration);
   }, [nutritionData?.kitchenCalibration]);
 
   

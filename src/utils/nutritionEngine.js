@@ -1056,7 +1056,7 @@ export function createWeightLogEntry(weightLbs, dateIso = null, notes = "") {
 // ---------------------------------------------------------------------------
 export const DEFAULT_CALIBRATION_TASKS = [
   // ---------------------------------------------------------------------------
-  // Necessary Physical Hardware & Dishware Calibration (Vision AI Scale Rulers)
+  // Essential Physical Hardware & Dishware Calibration (Vision AI Scale Rulers)
   // ---------------------------------------------------------------------------
   {
     id: "task-dinner-plate",
@@ -1092,63 +1092,13 @@ export const DEFAULT_CALIBRATION_TASKS = [
     completed: false,
     completedAt: null,
     values: null
-  },
-  {
-    id: "task-small-bowl",
-    category: "dishware",
-    title: "Measure Small / Snack Bowl",
-    shortDesc: "For oatmeal, greek yogurt, cereal, berries, & snacks",
-    icon: "🍧",
-    instruction: "Measure the rim diameter (typically 5.0\" to 6.5\") and holding volume (typically 350-450 ml). Vision AI uses this to calibrate smaller snack and breakfast bowls.",
-    fields: [
-      { key: "name", label: "Bowl Description", placeholder: "e.g. Small Cereal & Yogurt Bowl", type: "text", default: "Snack & Yogurt Bowl" },
-      { key: "diameterInches", label: "Top Rim Diameter (inches)", placeholder: "e.g. 5.5", type: "number", step: "0.1" },
-      { key: "depthInches", label: "Depth (inches)", placeholder: "e.g. 2.2", type: "number", step: "0.1" },
-      { key: "volumeMl", label: "Usable Volume (ml or oz)", placeholder: "e.g. 400 ml or 14 fl oz", type: "text" },
-      { key: "tareWeightG", label: "Empty Tare Weight (grams, optional)", placeholder: "e.g. 280", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-meal-prep-container",
-    category: "dishware",
-    title: "Measure Meal Prep Container",
-    shortDesc: "Glass or plastic rectangular container for batch cooked food",
-    icon: "🍱",
-    instruction: "Measure length, width, and depth of your standard prep container (e.g. 7.5\" x 5.5\" x 2.5\"). Enter holding volume (e.g. 850 ml or 3.5 cups).",
-    fields: [
-      { key: "name", label: "Container Type", placeholder: "e.g. Pyrex Glass 4-Cup Rectangular", type: "text", default: "Glass Meal Prep Container" },
-      { key: "lengthInches", label: "Length (inches)", placeholder: "e.g. 7.5", type: "number", step: "0.1" },
-      { key: "widthInches", label: "Width (inches)", placeholder: "e.g. 5.5", type: "number", step: "0.1" },
-      { key: "depthInches", label: "Depth (inches)", placeholder: "e.g. 2.5", type: "number", step: "0.1" },
-      { key: "volumeMl", label: "Total Volume", placeholder: "e.g. 850 ml or 3.5 cups", type: "text" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-shaker-bottle",
-    category: "dishware",
-    title: "Calibrate Shaker Bottle / Glass",
-    shortDesc: "BlenderBottle, cup, or tumbler for shakes & liquids",
-    icon: "🥤",
-    instruction: "Record total holding capacity (e.g. 28 oz / 800 ml or 16 oz glass) and your typical fill line (e.g. 12 oz or 16 oz). Lets Vision AI verify exact liquid volumes.",
-    fields: [
-      { key: "name", label: "Bottle / Cup Description", placeholder: "e.g. BlenderBottle Pro 28 oz / Pint Glass", type: "text", default: "28 oz Shaker Bottle" },
-      { key: "capacityOz", label: "Total Capacity (oz or ml)", placeholder: "e.g. 28 oz / 800 ml", type: "text" },
-      { key: "typicalFillOz", label: "Typical Liquid Fill Line", placeholder: "e.g. 12 oz or 16 oz", type: "text" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
   }
 ];
 
 export function getMergedCalibrationTasks(kitchenCalibration = {}) {
-  const existingTasks = Array.isArray(kitchenCalibration?.tasks) ? kitchenCalibration.tasks : [];
+  const existingTasks = Array.isArray(kitchenCalibration)
+    ? kitchenCalibration
+    : (Array.isArray(kitchenCalibration?.tasks) ? kitchenCalibration.tasks : []);
   const existingMap = new Map();
   const customTasks = [];
 
@@ -1177,10 +1127,8 @@ export function getMergedCalibrationTasks(kitchenCalibration = {}) {
   return [...merged, ...customTasks];
 }
 
-export function getCalibrationProgress(input = []) {
-  const tasks = Array.isArray(input)
-    ? input
-    : (Array.isArray(input?.tasks) ? getMergedCalibrationTasks(input) : DEFAULT_CALIBRATION_TASKS);
+export function getCalibrationProgress(input = {}) {
+  const tasks = getMergedCalibrationTasks(input);
 
   if (!Array.isArray(tasks) || tasks.length === 0) {
     return { total: DEFAULT_CALIBRATION_TASKS.length, completed: 0, percentage: 0, isAllCompleted: false };
@@ -1212,17 +1160,12 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
       lines.push(`- DINNER PLATE: "${v.name || 'Main Dinner Plate'}" | Outer Rim Diameter: ${v.diameterInches || 10.5}" | Flat Well: ${v.innerWellInches || 8.5}" ${v.tareWeightG ? `| Tare: ${v.tareWeightG}g` : ''}. (Use outer diameter as an absolute physical ruler in plate photos).`);
     } else if (task.id === "task-primary-bowl") {
       lines.push(`- PRIMARY LARGE BOWL: "${v.name || 'Primary Large Bowl'}" | Rim Diameter: ${v.diameterInches || 8.0}" | Depth: ${v.depthInches || 3.0}" | Usable Volume: ${v.volumeMl || '750 ml'} ${v.tareWeightG ? `| Tare: ${v.tareWeightG}g` : ''}. (Use this rim diameter to calibrate pixel scale and estimate food fill percentage).`);
-    } else if (task.id === "task-small-bowl") {
-      lines.push(`- SMALL / SNACK BOWL: "${v.name || 'Small Bowl'}" | Rim Diameter: ${v.diameterInches || 5.5}" | Depth: ${v.depthInches || 2.2}" | Volume: ${v.volumeMl || '400 ml'}. Use for yogurt, oats, fruit, and snacks.`);
-    } else if (task.id === "task-meal-prep-container") {
-      lines.push(`- MEAL PREP CONTAINER: "${v.name || 'Glass Prep Container'}" | Dimensions: ${v.lengthInches || 7.5}" x ${v.widthInches || 5.5}" x ${v.depthInches || 2.5}" | Volume: ${v.volumeMl || '850 ml'}. Use to calculate volume of batch cooked meals.`);
-    } else if (task.id === "task-shaker-bottle") {
-      lines.push(`- SHAKER BOTTLE / GLASS: "${v.name || 'Shaker Bottle / Glass'}" | Total Capacity: ${v.capacityOz || '28 oz'} | Typical Liquid Fill: ${v.typicalFillOz || '12-16 oz'}.`);
     } else {
       lines.push(`- CUSTOM CALIBRATION ("${task.title}"): ${JSON.stringify(v)}`);
     }
   }
 
-  lines.push("CRITICAL: When the photo shows one of these known vessels, apply the known diameter as the physical ground-truth scale ruler to calculate food volume rather than guessing generic portion sizes.");
+  lines.push("CONTAINERS, SNACK BOWLS & OTHER DISHES: If food is pictured in meal prep containers, small snack bowls, glass storage containers, or cups without custom calibration, dynamically estimate the vessel dimensions and portion volume from visual cues and context.");
+  lines.push("CRITICAL: When the photo shows one of the user's calibrated primary vessels (plate or primary bowl), apply the measured diameter as the physical ground-truth scale ruler to calculate food volume rather than guessing generic portion sizes.");
   return lines.join("\n");
 }
