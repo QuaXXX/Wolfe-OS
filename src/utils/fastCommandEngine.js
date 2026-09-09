@@ -7,6 +7,8 @@ import {
 } from './googleCalendarService.js';
 import { getPaperPositions } from './hermesPaperTrader.js';
 import { getSavedHermesBriefs } from './tradingStorage.js';
+import { parseMealDescription, createMealEntry, aggregateDailyNutrition } from './nutritionEngine.js';
+import { recordAdditionOrUpdate } from './cloudSyncEngine.js';
 
 // Color theme hue mappings
 const THEME_COLOR_MAP = {
@@ -436,6 +438,92 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       message: `Added +${cals} kcal${protein > 0 ? ` and +${protein}g protein` : ''}.`,
       targetView: "nutrition"
     };
+  }
+
+  // Natural Language Food Logging: "log 1 peanutbutter toast", "ate 2 eggs and apple", "had quinoa chickpea bowl"
+  const foodLogMatch = text.match(/^(?:log|add|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*(.+)$/i);
+  if (foodLogMatch) {
+    const rawFoodPhrase = foodLogMatch[1].trim();
+    if (!rawFoodPhrase.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock|water)\b/i)) {
+      const parsedMeal = parseMealDescription(rawFoodPhrase);
+      if (parsedMeal && parsedMeal.items && parsedMeal.items.length > 0) {
+        const mealEntry = createMealEntry({
+          name: parsedMeal.name,
+          slot: text.includes('breakfast') ? 'breakfast' : text.includes('dinner') ? 'dinner' : text.includes('snack') ? 'snack' : 'lunch',
+          calories: parsedMeal.calories,
+          protein: parsedMeal.protein,
+          carbs: parsedMeal.carbs,
+          fats: parsedMeal.fats,
+          items: parsedMeal.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+        });
+
+        recordAdditionOrUpdate(mealEntry.id);
+
+        if (setNutritionData) {
+          setNutritionData(prev => {
+            const nextMeals = [mealEntry, ...(prev?.meals || [])];
+            const totals = aggregateDailyNutrition(nextMeals);
+            return {
+              ...prev,
+              consumedCalories: totals.calories,
+              protein: { ...prev?.protein, current: totals.protein },
+              carbs: { ...prev?.carbs, current: totals.carbs },
+              fats: { ...prev?.fats, current: totals.fats },
+              meals: nextMeals
+            };
+          });
+        }
+
+        return {
+          handled: true,
+          title: "🍽️ Meal Logged",
+          message: `Logged ${parsedMeal.name}: ${parsedMeal.calories} kcal | ${parsedMeal.protein}g P | ${parsedMeal.carbs}g C | ${parsedMeal.fats}g F.`,
+          targetView: "nutrition",
+          actionLabel: "View Nutrition"
+        };
+      }
+    }
+  }
+
+  // Direct food utterance without prefix: "1 peanutbutter toast", "quinoa, cottagecheese, kale, chickpea and sweet potato bowl"
+  if (!text.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock|water|theme|color|accent|mode|screen|view|brief|position)\b/i)) {
+    const directMeal = parseMealDescription(text);
+    if (directMeal && directMeal.items && directMeal.items.length > 0 && directMeal.source === "ingredient_engine") {
+      const mealEntry = createMealEntry({
+        name: directMeal.name,
+        slot: 'lunch',
+        calories: directMeal.calories,
+        protein: directMeal.protein,
+        carbs: directMeal.carbs,
+        fats: directMeal.fats,
+        items: directMeal.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+      });
+
+      recordAdditionOrUpdate(mealEntry.id);
+
+      if (setNutritionData) {
+        setNutritionData(prev => {
+          const nextMeals = [mealEntry, ...(prev?.meals || [])];
+          const totals = aggregateDailyNutrition(nextMeals);
+          return {
+            ...prev,
+            consumedCalories: totals.calories,
+            protein: { ...prev?.protein, current: totals.protein },
+            carbs: { ...prev?.carbs, current: totals.carbs },
+            fats: { ...prev?.fats, current: totals.fats },
+            meals: nextMeals
+          };
+        });
+      }
+
+      return {
+        handled: true,
+        title: "🍽️ Meal Logged",
+        message: `Logged ${directMeal.name}: ${directMeal.calories} kcal | ${directMeal.protein}g P | ${directMeal.carbs}g C | ${directMeal.fats}g F.`,
+        targetView: "nutrition",
+        actionLabel: "View Nutrition"
+      };
+    }
   }
 
   // Reset Calories

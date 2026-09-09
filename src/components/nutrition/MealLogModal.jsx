@@ -269,34 +269,19 @@ export const MealLogModal = ({
               <span>New Staple</span>
             </button>
             {onOpenSnapModal && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    onClose();
-                    onOpenSnapModal('label');
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 active:scale-95"
-                  title="Scan Nutrition Facts Label or Barcode"
-                >
-                  <span>🏷️ Label / UPC</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    onClose();
-                    onOpenSnapModal('plate');
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 active:scale-95"
-                  title="Scan meal with Camera or Vision AI"
-                >
-                  <Camera className="w-3.5 h-3.5 text-slate-400" />
-                  <span>📷 Snap</span>
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  onClose();
+                  onOpenSnapModal();
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 active:scale-95"
+                title="Scan food, meal, or nutrition label with camera"
+              >
+                <Camera className="w-3.5 h-3.5 text-slate-400" />
+                <span>Scan Food</span>
+              </button>
             )}
           </div>
 

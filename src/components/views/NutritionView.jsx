@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   UtensilsCrossed, 
   Droplet, 
@@ -17,6 +17,8 @@ import {
   BookmarkPlus,
   Edit3,
   Barcode,
+  Mic,
+  MicOff,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,6 +31,7 @@ import {
   calculateWeightVelocity, 
   getAdaptiveSurplusRecommendation,
   createMealEntry,
+  parseMealDescription,
   DEFAULT_HOUSEHOLD_PANTRY 
 } from '../../utils/nutritionEngine.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
@@ -49,9 +52,12 @@ export const NutritionView = ({
   const [isSnapModalOpen, setIsSnapModalOpen] = useState(false);
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [activeQuickSlot, setActiveQuickSlot] = useState('lunch');
-  const [snapModalMode, setSnapModalMode] = useState('plate');
   const [pantryCategory, setPantryCategory] = useState('common');
   const [justLoggedToast, setJustLoggedToast] = useState(null);
+  const [quickAddText, setQuickAddText] = useState('');
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [quickAddFeedback, setQuickAddFeedback] = useState(null);
+  const speechRecognitionRef = useRef(null);
 
   // Destructure state from nutritionData with safe fallbacks
   const targetCalories = nutritionData.targetCalories || 3250;
@@ -167,6 +173,97 @@ export const NutritionView = ({
     handleLogMeal(meal);
     setJustLoggedToast(`Logged ${staple.name} (+${staple.protein}g Protein, ${staple.calories} kcal)`);
     setTimeout(() => setJustLoggedToast(null), 3000);
+  };
+
+  const handleQuickAddSubmit = () => {
+    if (!quickAddText.trim()) return;
+    const text = quickAddText.trim();
+    const parsed = parseMealDescription(text);
+    if (parsed && parsed.items && parsed.items.length > 0) {
+      playSound('success', soundEnabled);
+      const meal = createMealEntry({
+        name: parsed.name,
+        slot: activeQuickSlot || 'lunch',
+        calories: parsed.calories,
+        protein: parsed.protein,
+        carbs: parsed.carbs,
+        fats: parsed.fats,
+        items: parsed.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+      });
+      handleLogMeal(meal);
+      setQuickAddText('');
+      setQuickAddFeedback(`Logged ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
+      setTimeout(() => setQuickAddFeedback(null), 3500);
+    } else {
+      playSound('click', soundEnabled);
+      setIsMealModalOpen(true);
+    }
+  };
+
+  const handleToggleVoiceQuickAdd = () => {
+    if (isVoiceListening) {
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch (e) {}
+      }
+      setIsVoiceListening(false);
+      return;
+    }
+
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice speech recognition is not supported on this browser.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsVoiceListening(true);
+        playSound('click', soundEnabled);
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results?.[0]?.[0]?.transcript || '';
+        if (transcript) {
+          setQuickAddText(transcript);
+          const parsed = parseMealDescription(transcript);
+          if (parsed && parsed.items && parsed.items.length > 0) {
+            playSound('success', soundEnabled);
+            const meal = createMealEntry({
+              name: parsed.name,
+              slot: activeQuickSlot || 'lunch',
+              calories: parsed.calories,
+              protein: parsed.protein,
+              carbs: parsed.carbs,
+              fats: parsed.fats,
+              items: parsed.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+            });
+            handleLogMeal(meal);
+            setQuickAddText('');
+            setQuickAddFeedback(`Logged ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
+            setTimeout(() => setQuickAddFeedback(null), 3500);
+          }
+        }
+      };
+
+      recognition.onerror = () => {
+        setIsVoiceListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsVoiceListening(false);
+      };
+
+      speechRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      setIsVoiceListening(false);
+    }
   };
 
   const handleLogWeight = (weightEntry) => {
@@ -285,33 +382,6 @@ export const NutritionView = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Scan Label & Barcode */}
-          <button
-            onClick={() => {
-              playSound('click', soundEnabled);
-              setSnapModalMode('label');
-              setIsSnapModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-200 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Scan Nutrition Facts label on packages or barcodes"
-          >
-            <Barcode className="w-3.5 h-3.5 text-slate-400" />
-            <span>Scan Label</span>
-          </button>
-
-          {/* Snap Meal Camera */}
-          <button
-            onClick={() => {
-              playSound('click', soundEnabled);
-              setSnapModalMode('plate');
-              setIsSnapModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-200 text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
-          >
-            <Camera className="w-3.5 h-3.5 text-slate-400" />
-            <span>Snap Meal</span>
-          </button>
-
           {/* Morning Weight Tracker */}
           <button
             onClick={() => {
@@ -324,7 +394,7 @@ export const NutritionView = ({
             <span>Morning Weight</span>
           </button>
 
-          {/* Log Food Modal */}
+          {/* One Primary Log Food Modal */}
           <button
             onClick={() => {
               playSound('click', soundEnabled);
@@ -337,6 +407,62 @@ export const NutritionView = ({
             <span>Log Food</span>
           </button>
         </div>
+      </div>
+
+      {/* Quick Add Input Bar (Voice or Instant Text) */}
+      <div className="flex flex-col gap-2">
+        <div className="relative flex items-center gap-2 p-1.5 sm:p-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-2 flex-1 px-2.5 py-1">
+            <UtensilsCrossed className="w-4 h-4 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              value={quickAddText}
+              onChange={(e) => setQuickAddText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleQuickAddSubmit();
+                }
+              }}
+              placeholder='Quick log: "1 peanutbutter toast", "quinoa and chickpeas bowl", "2 eggs and apple"...'
+              className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Voice Speech Recognition Button */}
+          <button
+            type="button"
+            onClick={handleToggleVoiceQuickAdd}
+            className={`p-2 rounded-xl border transition-all cursor-pointer ${
+              isVoiceListening 
+                ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse' 
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-400 hover:text-white'
+            }`}
+            title={isVoiceListening ? "Listening... click to stop" : "Speak meal to log (e.g. '1 peanutbutter toast')"}
+          >
+            {isVoiceListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
+
+          {/* Add Button */}
+          <button
+            type="button"
+            onClick={handleQuickAddSubmit}
+            disabled={!quickAddText.trim()}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--accent-primary)' }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add</span>
+          </button>
+        </div>
+
+        {/* Quick Add Feedback Toast */}
+        {quickAddFeedback && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium">
+            <Check className="w-3.5 h-3.5 shrink-0" />
+            <span>{quickAddFeedback}</span>
+          </div>
+        )}
       </div>
 
       {/* 2. ADAPTIVE SURPLUS BANNER (Appears if weight stalls) */}
@@ -643,18 +769,6 @@ export const NutritionView = ({
                 ))}
               </select>
             </div>
-
-            <button
-              onClick={() => {
-                playSound('click', soundEnabled);
-                setSnapModalMode('label');
-                setIsSnapModalOpen(true);
-              }}
-              className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/10 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-            >
-              <Barcode className="w-3 h-3 text-slate-400" />
-              <span>Scan Label</span>
-            </button>
           </div>
         </div>
 
@@ -735,15 +849,6 @@ export const NutritionView = ({
               {meals.length} {meals.length === 1 ? 'Meal' : 'Meals'}
             </span>
           </h2>
-
-          <button
-            onClick={() => setIsMealModalOpen(true)}
-            className="text-xs font-semibold cursor-pointer flex items-center gap-1 hover:brightness-110 transition-all"
-            style={{ color: 'var(--accent-primary)' }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Meal</span>
-          </button>
         </div>
 
         {meals.length > 0 ? (
@@ -941,7 +1046,7 @@ export const NutritionView = ({
         householdPantry={householdPantry}
         onAddHouseholdStaple={handleAddHouseholdStaple}
         onDeleteHouseholdStaple={handleDeleteHouseholdStaple}
-        onOpenSnapModal={(mode = 'plate') => { setSnapModalMode(mode); setIsSnapModalOpen(true); }}
+        onOpenSnapModal={() => setIsSnapModalOpen(true)}
         soundEnabled={soundEnabled}
       />
 
@@ -960,7 +1065,6 @@ export const NutritionView = ({
         isOpen={isSnapModalOpen}
         onClose={() => setIsSnapModalOpen(false)}
         onLogMeal={handleLogMeal}
-        initialMode={snapModalMode}
         aiConfig={settings?.aiConfig}
         soundEnabled={soundEnabled}
       />

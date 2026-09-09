@@ -2024,37 +2024,59 @@ export async function analyzeMealWithAI({ imageBase64, mimeType = 'image/jpeg', 
       'gemini-1.5-flash'
     ];
 
-    const systemInstruction = `You are a clinical sports dietitian and precise food vision intelligence engine for Wolfe OS.
+    const systemInstruction = `You are a clinical sports dietitian, USDA nutritional database authority, and precise food vision intelligence engine for Wolfe OS.
 CRITICAL ACCURACY & INTEGRITY INSTRUCTIONS:
-1. FIRST, inspect the image to determine if edible food or beverage is actually present.
-2. If the image shows a person (face, body, selfie, hands without food), an empty room, furniture, an empty desk/plate, pets, electronics, or no recognizable food, you MUST NEVER GUESS OR FABRICATE FOOD. In that case, return strictly:
-   { "hasFood": false, "errorMessage": "No food detected in image. Please take a clear photo of your meal or describe what you are eating." }
-3. If edible food IS present, or if the user provided a meal description:
-   Break down every visible/described component on the plate:
-   - "name": Clean item name (e.g. "Grilled Chicken Breast", "Jasmine Rice", "Steamed Broccoli")
-   - "portion": Realistic estimated portion (e.g. "200g", "1.5 cups", "1 cup")
-   - "calories": Estimated calories for this item
-   - "protein": Protein in grams
-   - "carbs": Carbs in grams
-   - "fats": Fats in grams
-4. Calculate total calories, protein, carbs, and fats as the sum of items.
+1. FIRST, inspect the image to determine if edible food, beverage, food packaging, or a Nutrition Facts label / barcode is present.
+2. If the image shows a person (face, body, selfie, hands without food), an empty room, furniture, an empty desk/plate, pets, electronics, or no recognizable food/packaging, you MUST NEVER GUESS OR FABRICATE FOOD. In that case, return strictly:
+   { "hasFood": false, "errorMessage": "No food or nutrition label detected. Please take a clear photo of your meal or packaging." }
+
+3. UNIFIED SCANNING (Food Plated, Packaged Food, or Attached Label/Barcode):
+   The image may depict:
+   a. Plated food / meal in a bowl or plate.
+   b. A packaged food item with a printed Nutrition Facts label or barcode.
+   c. Plated food with a label / packaging attached or alongside it.
+   - If a printed Nutrition Facts label or barcode is readable, prioritize the EXACT printed numbers from the label.
+   - If plated food is visible, break down the individual items using realistic portion sizes and strict USDA ground-truth macros.
+   - If both are present, merge them accurately into the items list.
+
+4. STRICT USDA MACRO CALIBRATION (PREVENT OVER-ESTIMATION):
+   - Cooked Quinoa: ~120 kcal, 4.4g protein, 21.3g carbs, 1.9g fats per 100g (~222 kcal, 8.1g protein per cup). NEVER assign >10g protein to 1 cup of quinoa!
+   - Cooked Chickpeas / Garbanzo: ~164 kcal, 8.9g protein, 27.4g carbs, 2.6g fats per 100g (~135 kcal, 7.3g protein per 0.5 cup; ~269 kcal, 14.5g protein per 1 cup). Plant legumes are predominantly complex carbs; NEVER treat them like animal meat (never assign 30g+ protein to chickpeas)!
+   - Low-Fat Cottage Cheese: ~110 kcal, 14g protein per 0.5 cup (28g protein per full cup).
+   - Cooked Sweet Potato: ~103 kcal, 2.3g protein, 24g carbs per medium potato (114g).
+   - Kale / Greens: ~33 kcal, 2.5g protein per cup cooked (~8 kcal raw).
+   - Peanut Butter Toast: ~260 kcal, 9g protein, 24g carbs, 14g fats per slice (1 slice bread + 1.5 tbsp peanut butter).
+   - Cooked Chicken Breast: ~165 kcal, 31g protein, 3.6g fats per 100g (~280 kcal, 53g protein per breast).
+   - Lean Ground Beef (90/10): ~190 kcal, 26g protein, 9.5g fats per 100g.
+   - Whole Large Eggs: ~72 kcal, 6.3g protein, 4.8g fats per egg.
+   - Cooked White/Jasmine Rice: ~205 kcal, 4.2g protein, 45g carbs per cup.
+   - ATWATER ENERGY CONSISTENCY: Every item and total calories MUST align with: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
+
+5. Output itemized breakdown:
+   - "name": Clean item name (e.g. "Cooked Quinoa", "Low-fat Cottage Cheese", "Steamed Kale", "Chickpeas", "Sweet Potato")
+   - "portion": Realistic portion (e.g. "1 cup", "0.5 cup", "1 medium", "1 slice")
+   - "calories": Number
+   - "protein": Grams
+   - "carbs": Grams
+   - "fats": Grams
+
 Return ONLY valid JSON matching this schema:
 {
   "hasFood": true,
   "name": "Concise Meal Title",
   "items": [
-    { "name": "Item Name", "portion": "Portion", "calories": 300, "protein": 30, "carbs": 40, "fats": 5 }
+    { "name": "Item Name", "portion": "Portion", "calories": 220, "protein": 8, "carbs": 39, "fats": 4 }
   ],
-  "calories": 300,
-  "protein": 30,
-  "carbs": 40,
-  "fats": 5,
-  "notes": "Brief nutritional observation"
+  "calories": 220,
+  "protein": 8,
+  "carbs": 39,
+  "fats": 4,
+  "notes": "Verified against clinical USDA benchmarks"
 }`;
 
     const prompt = cleanDesc 
-      ? `Analyze this meal photo. The user notes: "${cleanDesc}". Identify every ingredient, estimate accurate portions, and calculate macro breakdown.`
-      : `Analyze this meal photo. Identify every visible edible ingredient, estimate accurate portions, and calculate macro breakdown. If no food is present, set hasFood to false.`;
+      ? `Analyze this meal photo (and any visible nutrition label/barcode). The user notes: "${cleanDesc}". Identify every ingredient/product, estimate accurate portions, and calculate macro breakdown using clinical USDA benchmarks.`
+      : `Analyze this meal photo (and any visible nutrition label/barcode). Identify every visible ingredient or package, estimate accurate portions, and calculate macro breakdown using clinical USDA benchmarks. If no food or label is present, set hasFood to false.`;
 
     for (const model of visionModels) {
       try {

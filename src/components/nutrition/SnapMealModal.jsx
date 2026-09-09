@@ -17,10 +17,8 @@ import {
   MicOff, 
   Edit3,
   Barcode,
-  Tag,
   ScanLine,
   Search,
-  FileText,
   CheckCircle2
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
@@ -35,22 +33,19 @@ export const SnapMealModal = ({
   isOpen,
   onClose,
   onLogMeal,
-  initialMode = 'plate', // 'plate' | 'label'
   aiConfig = {},
   soundEnabled = true
 }) => {
-  const [scanMode, setScanMode] = useState(initialMode || 'plate');
   const [description, setDescription] = useState('');
   const [imageBase64, setImageBase64] = useState(null);
   const [imageMimeType, setImageMimeType] = useState('image/jpeg');
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [facingMode, setFacingMode] = useState('environment'); // 'environment' | 'user'
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState(null);
   const [analyzedMeal, setAnalyzedMeal] = useState(null);
-  const [scannedLabel, setScannedLabel] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
-  const [servingMultiplier, setServingMultiplier] = useState(1);
   const [selectedSlot, setSelectedSlot] = useState('lunch');
   const [isListening, setIsListening] = useState(false);
   const [cameraPermissionStatus, setCameraPermissionStatus] = useState('prompt'); // 'prompt' | 'granted' | 'denied'
@@ -61,10 +56,9 @@ export const SnapMealModal = ({
   const streamRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Sync mode, permission status, and cleanup on open/close
+  // Sync state, check camera permission, and cleanup on open/close
   useEffect(() => {
     if (isOpen) {
-      setScanMode(initialMode || 'plate');
       setAnalysisError(null);
       if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
         navigator.permissions.query({ name: 'camera' })
@@ -80,7 +74,7 @@ export const SnapMealModal = ({
       stopCamera();
       resetState();
     }
-  }, [isOpen, initialMode]);
+  }, [isOpen]);
 
   const resetState = () => {
     setDescription('');
@@ -89,16 +83,14 @@ export const SnapMealModal = ({
     setIsAnalyzing(false);
     setAnalysisError(null);
     setAnalyzedMeal(null);
-    setScannedLabel(null);
     setBarcodeInput('');
     setIsLookingUpBarcode(false);
-    setServingMultiplier(1);
     setIsListening(false);
   };
 
-  // Live Barcode Detection Loop (when camera is on in label mode)
+  // Live Barcode Detection Loop (when camera is on)
   useEffect(() => {
-    if (!isCameraActive || scanMode !== 'label') return;
+    if (!isCameraActive) return;
     if (typeof window === 'undefined' || !('BarcodeDetector' in window)) return;
 
     let active = true;
@@ -118,93 +110,78 @@ export const SnapMealModal = ({
         if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
           const code = barcodes[0].rawValue;
           active = false;
-          clearInterval(interval);
-          handleBarcodeDetected(code);
+          playSound('success', soundEnabled);
+          stopCamera();
+          setIsLookingUpBarcode(true);
+          const prod = await lookupBarcodeOpenFoodFacts(code);
+          if (prod && prod.hasLabel) {
+            setAnalyzedMeal({
+              name: prod.productName,
+              items: [
+                {
+                  name: prod.productName,
+                  portion: prod.servingSize || "1 serving",
+                  calories: prod.calories,
+                  protein: prod.protein,
+                  carbs: prod.carbs,
+                  fats: prod.fats
+                }
+              ],
+              calories: prod.calories,
+              protein: prod.protein,
+              carbs: prod.carbs,
+              fats: prod.fats,
+              notes: `Scanned Barcode (${code})`
+            });
+          }
+          setIsLookingUpBarcode(false);
         }
-      } catch (err) {}
-    }, 600);
+      } catch (e) {}
+    }, 700);
 
     return () => {
       active = false;
       clearInterval(interval);
     };
-  }, [isCameraActive, scanMode, isAnalyzing, isLookingUpBarcode]);
+  }, [isCameraActive, isAnalyzing, isLookingUpBarcode]);
 
-  const handleBarcodeDetected = async (code) => {
-    if (!code) return;
+  // Camera stream controls
+  const startCamera = async (overrideFacing) => {
     playSound('click', soundEnabled);
-    setIsLookingUpBarcode(true);
     setAnalysisError(null);
+    const targetFacing = overrideFacing || facingMode;
+
     try {
-      const product = await lookupBarcodeOpenFoodFacts(code);
-      if (product) {
-        playSound('success', soundEnabled);
-        setScannedLabel(product);
-        setServingMultiplier(1);
-        stopCamera();
-      } else {
-        setAnalysisError(`Barcode ${code} found, but product is not in database. Snap a photo of the Nutrition Facts label for exact reading.`);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
-    } catch (e) {
-      setAnalysisError("Barcode lookup failed. Please take a photo of the Nutrition Facts label directly.");
-    } finally {
-      setIsLookingUpBarcode(false);
-    }
-  };
 
-  const handleManualBarcodeSubmit = (e) => {
-    e.preventDefault();
-    if (!barcodeInput.trim()) return;
-    handleBarcodeDetected(barcodeInput.trim());
-  };
+      const constraints = {
+        video: {
+          facingMode: { ideal: targetFacing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
 
-  const handleNativeCameraClick = () => {
-    playSound('click', soundEnabled);
-    cameraInputRef.current?.click();
-  };
-
-  const handleTriggerCamera = async () => {
-    playSound('click', soundEnabled);
-    // If browser camera permission is already blocked, launch native phone camera directly from user click stack
-    if (cameraPermissionStatus === 'denied') {
-      cameraInputRef.current?.click();
-      return;
-    }
-
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext) {
-      try {
-        await startCamera();
-        return;
-      } catch (err) {
-        console.warn("Direct webcam failed, falling back to native camera capture:", err);
-      }
-    }
-    cameraInputRef.current?.click();
-  };
-
-  const startCamera = async () => {
-    playSound('click', soundEnabled);
-    try {
-      setAnalysisError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
-      setIsCameraActive(true);
-      setCameraPermissionStatus('granted');
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
       }
+      setIsCameraActive(true);
+      setCameraPermissionStatus('granted');
     } catch (err) {
-      console.warn("Camera access failed:", err);
-      setIsCameraActive(false);
+      console.warn("Camera start failed:", err);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setCameraPermissionStatus('denied');
-        setAnalysisError('PERMISSION_DENIED');
+        setAnalysisError("Camera access was blocked. Tap 'Phone Camera (Direct)' below to use your native phone camera, or upload a photo.");
       } else {
-        setAnalysisError("Camera access failed or device is busy. You can use the Phone Camera (Direct) button below.");
+        setAnalysisError("Could not access camera device. Tap 'Phone Camera (Direct)' or upload an image.");
       }
+      setIsCameraActive(false);
     }
   };
 
@@ -213,7 +190,18 @@ export const SnapMealModal = ({
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setIsCameraActive(false);
+  };
+
+  const toggleFacingMode = () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    if (isCameraActive) {
+      startCamera(nextMode);
+    }
   };
 
   const handleSnapPhoto = () => {
@@ -223,18 +211,18 @@ export const SnapMealModal = ({
     try {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      setImageBase64(dataUrl);
+      const base64 = canvas.toDataURL('image/jpeg', 0.88);
+      setImageBase64(base64);
       setImageMimeType('image/jpeg');
       stopCamera();
       playSound('success', soundEnabled);
     } catch (err) {
-      console.warn("Snap photo error:", err);
+      setAnalysisError("Failed to capture snapshot. Please try uploading a photo.");
     }
   };
 
@@ -302,129 +290,129 @@ export const SnapMealModal = ({
     }
   };
 
-  // Main Analysis Handler
+  // Unified Analysis Handler (Scans plates, packages, labels, or text in one pass)
   const handleAnalyze = async () => {
     playSound('click', soundEnabled);
     setIsAnalyzing(true);
     setAnalysisError(null);
 
-    if (scanMode === 'label') {
-      if (!imageBase64) {
-        setAnalysisError("Please snap or upload a photo of the Nutrition Facts panel or barcode.");
-        setIsAnalyzing(false);
-        return;
-      }
-      try {
-        const result = await scanNutritionLabelWithAI({
-          imageBase64,
-          mimeType: imageMimeType,
-          aiConfig
-        });
-        if (!result.hasLabel) {
-          setAnalysisError(result.errorMessage || "Could not read Nutrition Facts label. Please ensure the label is well-lit and clear.");
-          playSound('click', soundEnabled);
-        } else {
-          setScannedLabel(result);
-          setServingMultiplier(1);
-          playSound('success', soundEnabled);
-        }
-      } catch (err) {
-        setAnalysisError("Label scan encountered an error. Please try again or type the items directly.");
-      } finally {
-        setIsAnalyzing(false);
-      }
-    } else {
-      // Plate Mode
-      if (!description.trim() && !imageBase64) {
-        setAnalysisError("Please provide a photo or describe what you are eating (e.g. '200g chicken breast, 1.5 cups white rice, 2 eggs').");
+    if (!description.trim() && !imageBase64) {
+      setAnalysisError("Please take a photo, upload an image, or describe your food (e.g. '1 peanutbutter toast', 'chicken breast with rice').");
+      setIsAnalyzing(false);
+      return;
+    }
+
+    try {
+      // 1. Primary Unified Scan via Gemini Vision / Nutrition Engine
+      const result = await analyzeMealWithAI({
+        imageBase64,
+        mimeType: imageMimeType,
+        description: description.trim(),
+        aiConfig
+      });
+
+      if (result.hasFood && Array.isArray(result.items) && result.items.length > 0) {
+        setAnalyzedMeal(result);
+        playSound('success', soundEnabled);
         setIsAnalyzing(false);
         return;
       }
 
-      try {
-        const result = await analyzeMealWithAI({
+      // 2. If no plate food was recognized but an image was provided, inspect for Nutrition Facts label
+      if (imageBase64) {
+        const labelResult = await scanNutritionLabelWithAI({
           imageBase64,
           mimeType: imageMimeType,
-          description: description.trim(),
           aiConfig
         });
 
-        if (!result.hasFood) {
-          setAnalysisError(result.errorMessage || "No food detected. Please take a clear picture of your plate or describe what you are eating.");
-          playSound('click', soundEnabled);
-        } else {
+        if (labelResult.hasLabel) {
+          const itemTitle = labelResult.productName || "Scanned Food Item";
           setAnalyzedMeal({
-            name: result.name || "Analyzed Meal",
-            items: result.items || [],
-            calories: result.calories || 0,
-            protein: result.protein || 0,
-            carbs: result.carbs || 0,
-            fats: result.fats || 0,
-            notes: result.notes || ""
+            name: itemTitle,
+            items: [
+              {
+                name: itemTitle,
+                portion: labelResult.servingSize || "1 serving",
+                calories: labelResult.calories || 0,
+                protein: labelResult.protein || 0,
+                carbs: labelResult.carbs || 0,
+                fats: labelResult.fats || 0
+              }
+            ],
+            calories: labelResult.calories || 0,
+            protein: labelResult.protein || 0,
+            carbs: labelResult.carbs || 0,
+            fats: labelResult.fats || 0,
+            notes: "Nutrition Facts label scanned accurately"
           });
           playSound('success', soundEnabled);
+          setIsAnalyzing(false);
+          return;
         }
-      } catch (err) {
-        setAnalysisError("Analysis encountered an error. Please describe the items directly.");
-      } finally {
-        setIsAnalyzing(false);
       }
+
+      // If neither recognized food or label
+      setAnalysisError(result.errorMessage || "No food or nutrition label was detected. Please ensure your photo is clear and well-lit.");
+      playSound('click', soundEnabled);
+    } catch (err) {
+      setAnalysisError("Meal scan encountered an error. Please try again or type the items directly.");
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
-  // Itemized Editing Handlers for Plate Mode
-  const handleItemChange = (index, field, value) => {
-    if (!analyzedMeal) return;
-    const nextItems = [...analyzedMeal.items];
-    const item = { ...nextItems[index] };
+  // Manual Barcode Lookup
+  const handleManualBarcodeSubmit = async (e) => {
+    e.preventDefault();
+    if (!barcodeInput.trim()) return;
+    playSound('click', soundEnabled);
+    setIsLookingUpBarcode(true);
+    setAnalysisError(null);
 
-    if (field === 'name' || field === 'portion') {
-      item[field] = value;
-    } else {
-      item[field] = Math.max(0, parseInt(value, 10) || 0);
+    try {
+      const prod = await lookupBarcodeOpenFoodFacts(barcodeInput.trim());
+      if (prod && prod.hasLabel) {
+        const title = prod.productName || `Item #${barcodeInput.trim()}`;
+        setAnalyzedMeal({
+          name: title,
+          items: [
+            {
+              name: title,
+              portion: prod.servingSize || "1 serving",
+              calories: prod.calories,
+              protein: prod.protein,
+              carbs: prod.carbs,
+              fats: prod.fats
+            }
+          ],
+          calories: prod.calories,
+          protein: prod.protein,
+          carbs: prod.carbs,
+          fats: prod.fats,
+          notes: `Verified from Open Food Facts (${barcodeInput.trim()})`
+        });
+        playSound('success', soundEnabled);
+      } else {
+        setAnalysisError(`Barcode ${barcodeInput} was not found in the global food database. Please take a photo of the nutrition label instead.`);
+      }
+    } catch (err) {
+      setAnalysisError("Barcode lookup failed. Please snap a photo of the label.");
+    } finally {
+      setIsLookingUpBarcode(false);
     }
-
-    nextItems[index] = item;
-
-    const totCal = nextItems.reduce((acc, it) => acc + (Number(it.calories) || 0), 0);
-    const totP = nextItems.reduce((acc, it) => acc + (Number(it.protein) || 0), 0);
-    const totC = nextItems.reduce((acc, it) => acc + (Number(it.carbs) || 0), 0);
-    const totF = nextItems.reduce((acc, it) => acc + (Number(it.fats) || 0), 0);
-
-    setAnalyzedMeal(prev => ({
-      ...prev,
-      items: nextItems,
-      calories: totCal,
-      protein: totP,
-      carbs: totC,
-      fats: totF
-    }));
   };
 
-  const handleAddItem = () => {
+  // Adjust item in analyzed meal
+  const handleRemoveItem = (index) => {
     if (!analyzedMeal) return;
-    const newItem = {
-      name: "New Item",
-      portion: "1 serving",
-      calories: 100,
-      protein: 10,
-      carbs: 10,
-      fats: 2
-    };
-    const nextItems = [...analyzedMeal.items, newItem];
-    setAnalyzedMeal(prev => ({
-      ...prev,
-      items: nextItems,
-      calories: prev.calories + newItem.calories,
-      protein: prev.protein + newItem.protein,
-      carbs: prev.carbs + newItem.carbs,
-      fats: prev.fats + newItem.fats
-    }));
-  };
-
-  const handleDeleteItem = (index) => {
-    if (!analyzedMeal) return;
+    playSound('click', soundEnabled);
     const nextItems = analyzedMeal.items.filter((_, i) => i !== index);
+    if (nextItems.length === 0) {
+      setAnalyzedMeal(null);
+      return;
+    }
+
     const totCal = nextItems.reduce((acc, it) => acc + (Number(it.calories) || 0), 0);
     const totP = nextItems.reduce((acc, it) => acc + (Number(it.protein) || 0), 0);
     const totC = nextItems.reduce((acc, it) => acc + (Number(it.carbs) || 0), 0);
@@ -440,8 +428,8 @@ export const SnapMealModal = ({
     }));
   };
 
-  // Confirm and Log Plate Meal
-  const handleConfirmLogPlate = () => {
+  // Confirm and Log Meal
+  const handleConfirmLog = () => {
     if (!analyzedMeal) return;
     playSound('success', soundEnabled);
 
@@ -453,34 +441,6 @@ export const SnapMealModal = ({
       carbs: analyzedMeal.carbs,
       fats: analyzedMeal.fats,
       items: analyzedMeal.items.map(it => `${it.portion || '1 serving'} ${it.name} (${it.calories} kcal, ${it.protein}g P)`)
-    });
-
-    onLogMeal(meal);
-    onClose();
-  };
-
-  // Confirm and Log Scanned Label / Barcode Item
-  const handleConfirmLogLabel = () => {
-    if (!scannedLabel) return;
-    playSound('success', soundEnabled);
-
-    const qty = Math.max(0.25, Number(servingMultiplier) || 1);
-    const totCal = Math.round(scannedLabel.calories * qty);
-    const totP = Math.round(scannedLabel.protein * qty);
-    const totC = Math.round(scannedLabel.carbs * qty);
-    const totF = Math.round(scannedLabel.fats * qty);
-
-    const title = scannedLabel.productName || "Scanned Item";
-    const itemDesc = `${qty !== 1 ? `${qty}x ` : ''}${scannedLabel.servingSize || '1 serving'} ${title} (${totCal} kcal, ${totP}g P, ${totC}g C, ${totF}g F)`;
-
-    const meal = createMealEntry({
-      name: `${qty !== 1 ? `${qty}x ` : ''}${title}`,
-      slot: selectedSlot,
-      calories: totCal,
-      protein: totP,
-      carbs: totC,
-      fats: totF,
-      items: [itemDesc]
     });
 
     onLogMeal(meal);
@@ -518,23 +478,17 @@ export const SnapMealModal = ({
                 className="w-10 h-10 rounded-2xl flex items-center justify-center bg-white/[0.04]"
                 style={{ border: '1px solid var(--accent-border)' }}
               >
-                {scanMode === 'label' ? (
-                  <Barcode className="w-5 h-5 text-emerald-400" />
-                ) : (
-                  <Camera className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
-                )}
+                <Camera className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>{scanMode === 'label' ? 'Label & Barcode Scanner' : 'AI Meal & Plate Scanner'}</span>
+                  <span>Food & Nutrition Scanner</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
-                    {scanMode === 'label' ? 'Nutrition Facts OCR' : 'Multimodal Vision'}
+                    Unified Vision + OCR
                   </span>
                 </h3>
                 <p className="text-xs text-slate-400">
-                  {scanMode === 'label' 
-                    ? 'Scan printed Nutrition Facts on packaging or scan barcode' 
-                    : 'Describe or snap cooked meals on your plate to calculate macros'}
+                  Point at meals, snacks, or packaging nutrition labels — AI extracts verified macros
                 </p>
               </div>
             </div>
@@ -547,43 +501,6 @@ export const SnapMealModal = ({
               className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all border border-white/5 cursor-pointer"
             >
               <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Mode Tabs: Meal Plate vs Nutrition Label & Barcode */}
-          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-            <button
-              type="button"
-              onClick={() => {
-                playSound('click', soundEnabled);
-                setScanMode('plate');
-                setAnalysisError(null);
-              }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                scanMode === 'plate'
-                  ? 'bg-white/10 text-white shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <UtensilsCrossed className="w-3.5 h-3.5 text-slate-400" />
-              <span>🍽️ Plate & Meal Vision</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                playSound('click', soundEnabled);
-                setScanMode('label');
-                setAnalysisError(null);
-              }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                scanMode === 'label'
-                  ? 'bg-white/10 text-white shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Barcode className="w-3.5 h-3.5 text-slate-400" />
-              <span>🏷️ Nutrition Label & Barcode</span>
             </button>
           </div>
 
@@ -606,67 +523,91 @@ export const SnapMealModal = ({
                   <div className="w-8 h-8 border-b-2 border-l-2 border-white/40 absolute bottom-0 left-0 rounded-bl-xl" />
                   <div className="w-8 h-8 border-b-2 border-r-2 border-white/40 absolute bottom-0 right-0 rounded-br-xl" />
 
-                  {scanMode === 'label' && (
-                    <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-slate-300 flex items-center gap-1.5 shadow-lg">
-                      <ScanLine className="w-3 h-3 animate-pulse text-slate-400" />
-                      <span>Align Nutrition Facts or Barcode</span>
-                    </div>
-                  )}
+                  <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-slate-300 flex items-center gap-1.5 shadow-lg">
+                    <ScanLine className="w-3 h-3 animate-pulse text-slate-400" />
+                    <span>Food Plate or Nutrition Facts Label</span>
+                  </div>
                 </div>
 
                 <div className="absolute bottom-4 flex items-center gap-3">
                   <button
                     type="button"
                     onClick={handleSnapPhoto}
-                    className="px-5 py-2.5 rounded-full bg-white text-black font-bold text-xs shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-full text-white font-bold text-xs shadow-lg transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
                   >
-                    <Camera className="w-4 h-4 text-black" />
-                    <span>{scanMode === 'label' ? 'Capture Label' : 'Take Photo'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={stopCamera}
-                    className="px-3 py-2.5 rounded-full bg-white/20 text-white font-medium text-xs hover:bg-white/30 transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : imageBase64 ? (
-              <div className="relative aspect-video w-full bg-black/40 flex items-center justify-center p-2">
-                <img
-                  src={imageBase64}
-                  alt="Preview"
-                  className="max-h-full max-w-full rounded-xl object-contain shadow-lg"
-                />
-                <button
-                  type="button"
-                  onClick={() => setImageBase64(null)}
-                  className="absolute top-4 right-4 p-1.5 rounded-xl bg-black/70 hover:bg-rose-500/80 text-white transition-all cursor-pointer"
-                  title="Remove photo"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="p-5 text-center space-y-3">
-                <div className="flex items-center justify-center gap-2.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={handleTriggerCamera}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
-                  >
-                    <Camera className="w-4 h-4 text-slate-400" />
-                    <span>{scanMode === 'label' ? 'Scan Label (Live Scanner)' : 'Take Photo (Live)'}</span>
+                    <Camera className="w-4 h-4" />
+                    <span>Snap Photo</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={handleNativeCameraClick}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
-                    title="Opens native phone camera directly (bypasses browser WebRTC permissions)"
+                    onClick={toggleFacingMode}
+                    className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+                    title="Switch Camera"
                   >
-                    <Camera className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-slate-300 border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : imageBase64 ? (
+              <div className="relative aspect-video w-full bg-black flex items-center justify-center">
+                <img
+                  src={imageBase64}
+                  alt="Captured food or label"
+                  className="w-full h-full object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setImageBase64(null);
+                    setAnalyzedMeal(null);
+                  }}
+                  className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-white border border-white/20 text-xs font-semibold backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retake</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-6 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
+                  <Camera className="w-7 h-7" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Snap Meal or Nutrition Label</h4>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                    Take a live photo, use your direct phone camera, or upload an image from your library.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => startCamera()}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-semibold shadow-md transition-all active:scale-95 cursor-pointer"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Live Camera</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-white text-xs font-semibold border border-white/15 transition-all active:scale-95 cursor-pointer"
+                    title="Direct phone camera capture without WebRTC permission blocks"
+                  >
+                    <Camera className="w-4 h-4 text-emerald-400" />
                     <span>Phone Camera (Direct)</span>
                   </button>
 
@@ -676,7 +617,7 @@ export const SnapMealModal = ({
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
                   >
                     <UploadCloud className="w-4 h-4 text-slate-400" />
-                    <span>Upload from Photos</span>
+                    <span>Upload Photo</span>
                   </button>
 
                   <input
@@ -696,412 +637,200 @@ export const SnapMealModal = ({
                     className="hidden"
                   />
                 </div>
-
-                <p className="text-[11px] text-slate-500">
-                  {scanMode === 'label' 
-                    ? 'Take a photo of the Nutrition Facts panel or barcode on granola bars, packages, or wrappers'
-                    : 'Clear top-down photos of meals yield the most accurate macro estimation'}
-                </p>
               </div>
             )}
           </div>
 
-          {/* Quick Barcode Number Lookup (when in Label mode) */}
-          {scanMode === 'label' && (
-            <form onSubmit={handleManualBarcodeSubmit} className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-white/10">
-              <Barcode className="w-4 h-4 text-slate-400 ml-1 shrink-0" />
-              <input
-                type="text"
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                placeholder="Enter Barcode / UPC number (e.g. 016000275270)..."
-                className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 font-mono outline-none"
-              />
+          {/* Quick Barcode Number Lookup */}
+          <form onSubmit={handleManualBarcodeSubmit} className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-white/10">
+            <Barcode className="w-4 h-4 text-slate-400 ml-1 shrink-0" />
+            <input
+              type="text"
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              placeholder="Or enter Barcode / UPC number (e.g. 016000275270)..."
+              className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 font-mono outline-none"
+            />
+            <button
+              type="submit"
+              disabled={isLookingUpBarcode || !barcodeInput.trim()}
+              className="px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] text-white border border-white/15 text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {isLookingUpBarcode ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+              <span>Lookup</span>
+            </button>
+          </form>
+
+          {/* Description input with voice dictation */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                <UtensilsCrossed className="w-3.5 h-3.5 text-slate-400" />
+                <span>Food Details & Notes (Optional Voice or Text)</span>
+              </label>
+
               <button
-                type="submit"
-                disabled={isLookingUpBarcode || !barcodeInput.trim()}
-                className="px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] text-white border border-white/15 text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                type="button"
+                onClick={toggleListening}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isListening 
+                    ? 'bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse' 
+                    : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5'
+                }`}
+                title="Click to dictate what you are eating"
               >
-                {isLookingUpBarcode ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-                <span>Lookup</span>
+                {isListening ? <MicOff className="w-3 h-3 text-red-400" /> : <Mic className="w-3 h-3 text-slate-400" />}
+                <span>{isListening ? 'Listening...' : 'Voice Dictate'}</span>
               </button>
-            </form>
-          )}
-
-          {/* Plate Mode: Description input with voice dictation */}
-          {scanMode === 'plate' && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                  <UtensilsCrossed className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Meal Details & Ingredients (Optional Voice or Text)</span>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={toggleListening}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-                    isListening 
-                      ? 'bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse' 
-                      : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5'
-                  }`}
-                  title="Click to dictate what you are eating"
-                >
-                  {isListening ? <MicOff className="w-3 h-3 text-red-400" /> : <Mic className="w-3 h-3 text-slate-400" />}
-                  <span>{isListening ? 'Listening...' : 'Voice Dictate'}</span>
-                </button>
-              </div>
-
-              <textarea
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g., 2 eggs, 1 apple, and 1 granola bar, or 200g chicken breast with 1.5 cups white rice..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-white/25 transition-all resize-none"
-              />
             </div>
-          )}
 
-          {/* Action Button: Analyze Plate or Scan Label */}
-          <div>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder='e.g., "1 peanutbutter toast", "quinoa, cottagecheese, kale, chickpea and sweet potato bowl"...'
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-white/25 transition-all resize-none"
+            />
+          </div>
+
+          {/* Action Button */}
+          {!analyzedMeal && (
             <button
               type="button"
-              disabled={isAnalyzing}
+              disabled={isAnalyzing || (!imageBase64 && !description.trim())}
               onClick={handleAnalyze}
-              className="w-full py-2.5 rounded-xl text-white font-semibold text-xs shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 rounded-2xl text-white font-bold text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ backgroundColor: 'var(--accent-primary)' }}
             >
               {isAnalyzing ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>{scanMode === 'label' ? 'Scanning Nutrition Facts Label...' : 'Analyzing Ingredients & Calculating Macros...'}</span>
+                  <span>Analyzing Food & Macros...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>{scanMode === 'label' ? 'Scan & Read Nutrition Facts' : 'Analyze Plate & Calculate Macros'}</span>
+                  <span>Analyze & Calculate Macros</span>
                 </>
               )}
             </button>
-          </div>
+          )}
 
-          {/* CAMERA PERMISSION BLOCKED NOTICE & ONE-TAP RECOVERY */}
-          {(cameraPermissionStatus === 'denied' || analysisError === 'PERMISSION_DENIED') && (
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left space-y-3">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs font-bold text-amber-200">
-                    Camera Access Blocked in Browser ("Never Allow" was chosen)
-                  </div>
-                  <p className="text-[11px] text-amber-200/80 leading-relaxed mt-0.5">
-                    Browser security prevents websites from asking automatically once blocked. Here are the two quickest ways forward:
-                  </p>
-                </div>
-              </div>
-
-              {/* Option 1: Instant bypass fix */}
-              <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2 text-[11px] text-slate-300">
-                <div className="font-semibold text-white flex items-center justify-between">
-                  <span>⚡ Instant Fix (No settings required)</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">1-Tap</span>
-                </div>
-                <p className="text-slate-400 leading-normal text-[11px]">
-                  Use <strong>Phone Camera (Direct)</strong>. It launches your phone's native camera app directly and bypasses browser WebRTC permissions completely!
-                </p>
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={handleNativeCameraClick}
-                    className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
-                    style={{ backgroundColor: 'var(--accent-primary)' }}
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>Launch Phone Camera Now</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Option 2: Browser address bar unblock steps */}
-              <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2 text-[11px] text-slate-300">
-                <div className="font-semibold text-white flex items-center gap-1.5">
-                  <span>🔄 How to Reset Browser Permission:</span>
-                </div>
-                <div className="space-y-1 text-slate-400 text-[11px] leading-relaxed">
-                  <div>• <strong>Android (Chrome)</strong>: Tap the 🔒 or ⚙️ icon on the left of the URL address bar ➔ <strong>Permissions</strong> (or Site settings) ➔ <strong>Camera</strong> ➔ tap <strong>Reset</strong> or <strong>Allow</strong>.</div>
-                  <div>• <strong>iPhone (Safari)</strong>: Tap the <strong>aA</strong> icon on the left of the address bar ➔ <strong>Website Settings</strong> ➔ <strong>Camera</strong> ➔ select <strong>Allow</strong> or <strong>Ask</strong>.</div>
-                </div>
-                <div className="pt-1 flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold border border-white/10 flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Test & Re-Prompt Camera</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => window.location.reload()}
-                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs border border-white/5 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Reload Page</span>
-                  </button>
-                </div>
+          {/* Analysis Error */}
+          {analysisError && (
+            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="font-semibold text-red-200">Unable to calculate</p>
+                <p className="text-red-300/90 leading-relaxed text-[11px]">{analysisError}</p>
               </div>
             </div>
           )}
 
-          {/* Standard Error / Notice Banner */}
-          {analysisError && analysisError !== 'PERMISSION_DENIED' && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 flex items-start gap-2 text-xs">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-semibold">Notice</div>
-                <div className="text-[11px] text-rose-300/90 leading-relaxed mt-0.5">{analysisError}</div>
+          {/* Mobile Camera Permission Block Guidance Banner */}
+          {cameraPermissionStatus === 'denied' && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs space-y-2">
+              <div className="flex items-center gap-2 font-bold text-amber-300">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>Camera Permission Blocked on Phone</span>
               </div>
+              <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                If your browser blocked camera access, use the <strong className="text-white">Phone Camera (Direct)</strong> button above.
+              </p>
             </div>
           )}
 
-          {/* SCANNED LABEL RESULT CARD */}
-          {scannedLabel && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 rounded-2xl bg-white/[0.03] border border-emerald-500/30 space-y-4"
-            >
-              {/* Product Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <input
-                      type="text"
-                      value={scannedLabel.productName}
-                      onChange={(e) => setScannedLabel(prev => ({ ...prev, productName: e.target.value }))}
-                      className="bg-transparent border-b border-white/20 text-white font-bold text-sm focus:outline-none focus:border-white/50 px-1 py-0.5"
-                    />
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5 font-mono flex items-center gap-2">
-                    <span>{scannedLabel.brand ? `${scannedLabel.brand} • ` : ''}Serving: {scannedLabel.servingSize || '1 serving'}</span>
-                    {scannedLabel.barcodeNumber && (
-                      <span className="text-emerald-400">UPC: {scannedLabel.barcodeNumber}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Slot Selector */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono">Slot:</span>
-                  <select
-                    value={selectedSlot}
-                    onChange={(e) => setSelectedSlot(e.target.value)}
-                    className="bg-white/10 border border-white/15 rounded-lg text-xs text-white px-2 py-1 font-mono focus:outline-none"
-                  >
-                    <option value="breakfast" className="bg-slate-900">Breakfast</option>
-                    <option value="lunch" className="bg-slate-900">Lunch</option>
-                    <option value="dinner" className="bg-slate-900">Dinner</option>
-                    <option value="post_workout" className="bg-slate-900">Post-Workout</option>
-                    <option value="snack" className="bg-slate-900">Snacks</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Servings Adjuster */}
-              <div className="flex items-center justify-between bg-black/40 p-2.5 rounded-xl border border-white/5 text-xs">
-                <span className="text-slate-300 font-medium">Number of Servings:</span>
-                <div className="flex items-center gap-2 font-mono">
-                  <button
-                    type="button"
-                    onClick={() => setServingMultiplier(prev => Math.max(0.25, prev - (prev > 1 ? 1 : 0.25)))}
-                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <span className="text-white font-bold text-sm w-12 text-center">{servingMultiplier}x</span>
-                  <button
-                    type="button"
-                    onClick={() => setServingMultiplier(prev => prev + (prev >= 1 ? 1 : 0.25))}
-                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* Nutrition Facts Macros Grid */}
-              <div className="grid grid-cols-4 gap-2 text-center bg-black/60 p-3 rounded-xl border border-white/10 font-mono text-xs">
-                <div>
-                  <div className="text-white font-bold text-lg">
-                    {Math.round(scannedLabel.calories * servingMultiplier)}
-                  </div>
-                  <div className="text-slate-500 text-[9px] uppercase">Calories</div>
-                </div>
-                <div>
-                  <div className="text-emerald-400 font-bold text-lg">
-                    {Math.round(scannedLabel.protein * servingMultiplier)}g
-                  </div>
-                  <div className="text-slate-500 text-[9px] uppercase">Protein</div>
-                </div>
-                <div>
-                  <div className="text-sky-400 font-bold text-lg">
-                    {Math.round(scannedLabel.carbs * servingMultiplier)}g
-                  </div>
-                  <div className="text-slate-500 text-[9px] uppercase">Carbs</div>
-                </div>
-                <div>
-                  <div className="text-amber-400 font-bold text-lg">
-                    {Math.round(scannedLabel.fats * servingMultiplier)}g
-                  </div>
-                  <div className="text-slate-500 text-[9px] uppercase">Fats</div>
-                </div>
-              </div>
-
-              {(scannedLabel.fiber != null || scannedLabel.sugar != null) && (
-                <div className="flex items-center justify-between px-3 text-[11px] font-mono text-slate-400 border-t border-white/5 pt-2">
-                  {scannedLabel.fiber != null && (
-                    <span>Fiber: <strong className="text-slate-200">{Math.round(scannedLabel.fiber * servingMultiplier)}g</strong></span>
-                  )}
-                  {scannedLabel.sugar != null && (
-                    <span>Sugars: <strong className="text-slate-200">{Math.round(scannedLabel.sugar * servingMultiplier)}g</strong></span>
-                  )}
-                  <span>Source: {scannedLabel.notes || 'Nutrition Facts'}</span>
-                </div>
-              )}
-
-              {/* Confirm & Log Button */}
-              <button
-                type="button"
-                onClick={handleConfirmLogLabel}
-                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <Check className="w-4 h-4" />
-                <span>Log Scanned Food ({Math.round(scannedLabel.calories * servingMultiplier)} kcal)</span>
-              </button>
-            </motion.div>
-          )}
-
-          {/* ANALYZED PLATE RESULT */}
+          {/* 2. ANALYZED RESULTS CARD */}
           {analyzedMeal && (
             <motion.div
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-4"
+              className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-4 shadow-xl"
             >
-              {/* Header Title & Slot Selector */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-white/10">
+              {/* Meal Title & Slot */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
                 <div>
-                  <div className="text-xs font-bold text-white flex items-center gap-2">
-                    <UtensilsCrossed className="w-4 h-4 text-emerald-400" />
-                    <input
-                      type="text"
-                      value={analyzedMeal.name}
-                      onChange={(e) => setAnalyzedMeal(prev => ({ ...prev, name: e.target.value }))}
-                      className="bg-transparent border-b border-white/20 text-white font-bold text-sm focus:outline-none focus:border-white/50 px-1 py-0.5"
-                    />
-                  </div>
-                  {analyzedMeal.notes && (
-                    <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{analyzedMeal.notes}</div>
-                  )}
+                  <span className="text-[10px] font-mono font-semibold uppercase text-slate-400">Meal Identified</span>
+                  <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>{analyzedMeal.name}</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  </h4>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono">Slot:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 font-semibold">Slot:</span>
                   <select
                     value={selectedSlot}
                     onChange={(e) => setSelectedSlot(e.target.value)}
-                    className="bg-white/10 border border-white/15 rounded-lg text-xs text-white px-2 py-1 font-mono focus:outline-none"
+                    className="bg-black/60 border border-white/15 rounded-lg px-2.5 py-1 text-xs font-mono text-white outline-none cursor-pointer"
                   >
-                    <option value="breakfast" className="bg-slate-900">Breakfast</option>
-                    <option value="lunch" className="bg-slate-900">Lunch</option>
-                    <option value="dinner" className="bg-slate-900">Dinner</option>
-                    <option value="post_workout" className="bg-slate-900">Post-Workout</option>
-                    <option value="snack" className="bg-slate-900">Snacks</option>
+                    <option value="breakfast">🍳 Breakfast</option>
+                    <option value="lunch">🥗 Lunch</option>
+                    <option value="dinner">🥩 Dinner</option>
+                    <option value="post_workout">⚡ Post-Workout</option>
+                    <option value="snack">🍎 Snack</option>
                   </select>
                 </div>
               </div>
 
-              {/* Itemized Breakdown Table */}
+              {/* Total Macros Banner */}
+              <div className="grid grid-cols-4 gap-2 text-center p-3 rounded-xl bg-black/40 border border-white/5">
+                <div>
+                  <div className="text-[10px] uppercase font-mono text-slate-400">Calories</div>
+                  <div className="text-base font-bold text-white font-mono flex items-center justify-center gap-1">
+                    <Flame className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{analyzedMeal.calories}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase font-mono text-slate-400">Protein</div>
+                  <div className="text-base font-bold text-white font-mono" style={{ color: 'var(--accent-primary)' }}>
+                    {analyzedMeal.protein}g
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase font-mono text-slate-400">Carbs</div>
+                  <div className="text-base font-bold text-white font-mono">
+                    {analyzedMeal.carbs}g
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase font-mono text-slate-400">Fats</div>
+                  <div className="text-base font-bold text-white font-mono">
+                    {analyzedMeal.fats}g
+                  </div>
+                </div>
+              </div>
+
+              {/* Itemized Ingredients List */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300">Itemized Ingredient Breakdown:</span>
-                  <button
-                    type="button"
-                    onClick={handleAddItem}
-                    className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add Item</span>
-                  </button>
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <span>Detected Ingredients ({analyzedMeal.items?.length || 0})</span>
+                  <span>Portion & Macros</span>
                 </div>
 
-                <div className="space-y-1.5">
-                  {analyzedMeal.items.map((item, idx) => (
-                    <div 
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {analyzedMeal.items?.map((item, idx) => (
+                    <div
                       key={idx}
-                      className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 text-xs transition-all"
                     >
-                      <div className="flex-1 min-w-[140px]">
-                        <input
-                          type="text"
-                          value={item.name}
-                          onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
-                          className="bg-transparent border-b border-white/10 text-white font-semibold text-xs focus:outline-none focus:border-white/40 w-full"
-                        />
-                        <input
-                          type="text"
-                          value={item.portion}
-                          onChange={(e) => handleItemChange(idx, 'portion', e.target.value)}
-                          className="bg-transparent text-slate-400 text-[10px] font-mono focus:outline-none w-full mt-0.5"
-                          placeholder="Portion"
-                        />
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-primary)' }} />
+                        <span className="font-semibold text-white">{item.name}</span>
+                        <span className="text-[11px] font-mono text-slate-400">({item.portion})</span>
                       </div>
 
-                      <div className="flex items-center gap-2 font-mono text-[11px]">
-                        <div className="text-center">
-                          <input
-                            type="number"
-                            value={item.calories}
-                            onChange={(e) => handleItemChange(idx, 'calories', e.target.value)}
-                            className="w-14 text-center bg-white/5 rounded border border-white/10 text-white font-bold py-0.5 focus:outline-none"
-                          />
-                          <div className="text-[9px] text-slate-500 uppercase">kcal</div>
+                      <div className="flex items-center gap-3">
+                        <div className="font-mono text-right text-[11px]">
+                          <span className="text-white font-bold">{item.calories} cal</span>
+                          <span className="text-slate-400 ml-1.5">{item.protein}g P • {item.carbs}g C • {item.fats}g F</span>
                         </div>
-
-                        <div className="text-center">
-                          <input
-                            type="number"
-                            value={item.protein}
-                            onChange={(e) => handleItemChange(idx, 'protein', e.target.value)}
-                            className="w-12 text-center bg-emerald-500/10 rounded border border-emerald-500/20 text-emerald-300 font-bold py-0.5 focus:outline-none"
-                          />
-                          <div className="text-[9px] text-slate-500 uppercase">Prot (g)</div>
-                        </div>
-
-                        <div className="text-center">
-                          <input
-                            type="number"
-                            value={item.carbs}
-                            onChange={(e) => handleItemChange(idx, 'carbs', e.target.value)}
-                            className="w-12 text-center bg-sky-500/10 rounded border border-sky-500/20 text-sky-300 font-bold py-0.5 focus:outline-none"
-                          />
-                          <div className="text-[9px] text-slate-500 uppercase">Carb (g)</div>
-                        </div>
-
-                        <div className="text-center">
-                          <input
-                            type="number"
-                            value={item.fats}
-                            onChange={(e) => handleItemChange(idx, 'fats', e.target.value)}
-                            className="w-12 text-center bg-amber-500/10 rounded border border-amber-500/20 text-amber-300 font-bold py-0.5 focus:outline-none"
-                          />
-                          <div className="text-[9px] text-slate-500 uppercase">Fat (g)</div>
-                        </div>
-
                         <button
                           type="button"
-                          onClick={() => handleDeleteItem(idx)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer ml-1"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+                          title="Remove item"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1111,35 +840,35 @@ export const SnapMealModal = ({
                 </div>
               </div>
 
-              {/* Total Macros Summary Bar */}
-              <div className="grid grid-cols-4 gap-2 text-center bg-black/60 p-2.5 rounded-xl border border-white/10 font-mono text-xs">
-                <div>
-                  <div className="text-white font-bold text-base">{analyzedMeal.calories}</div>
-                  <div className="text-slate-500 text-[9px] uppercase">Calories</div>
-                </div>
-                <div>
-                  <div className="text-emerald-400 font-bold text-base">{analyzedMeal.protein}g</div>
-                  <div className="text-slate-500 text-[9px] uppercase">Protein</div>
-                </div>
-                <div>
-                  <div className="text-sky-400 font-bold text-base">{analyzedMeal.carbs}g</div>
-                  <div className="text-slate-500 text-[9px] uppercase">Carbs</div>
-                </div>
-                <div>
-                  <div className="text-amber-400 font-bold text-base">{analyzedMeal.fats}g</div>
-                  <div className="text-slate-500 text-[9px] uppercase">Fats</div>
-                </div>
-              </div>
+              {analyzedMeal.notes && (
+                <p className="text-[11px] text-slate-400 italic">
+                  Note: {analyzedMeal.notes}
+                </p>
+              )}
 
-              {/* Confirm Log Button */}
-              <button
-                type="button"
-                onClick={handleConfirmLogPlate}
-                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <Check className="w-4 h-4" />
-                <span>Confirm & Log Plate Meal to Daily Tracker</span>
-              </button>
+              {/* Confirm & Log Button */}
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setAnalyzedMeal(null);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 font-semibold text-xs border border-white/10 transition-all cursor-pointer"
+                >
+                  Scan Another
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmLog}
+                  className="flex-1 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Confirm & Log to Meals</span>
+                </button>
+              </div>
             </motion.div>
           )}
         </motion.div>

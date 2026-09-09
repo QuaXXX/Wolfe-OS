@@ -180,8 +180,8 @@ export const INGREDIENT_DATABASE = [
   {
     regex: /\b(?:sweet\s+potatoes?|sweet\s+potato)\b/i,
     name: "Sweet Potato (Cooked)",
-    defaultUnit: "g",
-    defaultQty: 200,
+    defaultUnit: "potato",
+    defaultQty: 1,
     perUnit: {
       potato: { calories: 135, protein: 3, carbs: 31, fats: 0.2 },
       potatoes: { calories: 135, protein: 3, carbs: 31, fats: 0.2 },
@@ -199,6 +199,20 @@ export const INGREDIENT_DATABASE = [
       potatoes: { calories: 160, protein: 4.3, carbs: 37, fats: 0.2 },
       g: { calories: 0.92, protein: 0.025, carbs: 0.21, fats: 0.001 },
       oz: { calories: 26, protein: 0.7, carbs: 6.0, fats: 0.03 }
+    }
+  },
+  {
+    regex: /\b(?:peanut\s*butter\s+toasts?|pb\s+toasts?|toasts?\s+(?:with|w\/)?\s*peanut\s*butter)\b/i,
+    name: "Peanut Butter Toast",
+    defaultUnit: "slice",
+    defaultQty: 1,
+    perUnit: {
+      slice: { calories: 260, protein: 9, carbs: 24, fats: 14 },
+      slices: { calories: 260, protein: 9, carbs: 24, fats: 14 },
+      toast: { calories: 260, protein: 9, carbs: 24, fats: 14 },
+      toasts: { calories: 260, protein: 9, carbs: 24, fats: 14 },
+      piece: { calories: 260, protein: 9, carbs: 24, fats: 14 },
+      pieces: { calories: 260, protein: 9, carbs: 24, fats: 14 }
     }
   },
   {
@@ -232,7 +246,7 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:peanut\s+butter|pb)\b/i,
+    regex: /\b(?:peanut\s*butter|peanutbutter|pb)\b/i,
     name: "Peanut Butter",
     defaultUnit: "tbsp",
     defaultQty: 2,
@@ -400,14 +414,90 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:cottage\s+cheese)\b/i,
+    regex: /\b(?:cottage\s*cheese|cottagecheese)\b/i,
     name: "Cottage Cheese (Low-fat)",
-    defaultUnit: "cups",
-    defaultQty: 1,
+    defaultUnit: "cup",
+    defaultQty: 0.5,
     perUnit: {
       cup: { calories: 220, protein: 28, carbs: 8, fats: 5 },
       cups: { calories: 220, protein: 28, carbs: 8, fats: 5 },
-      g: { calories: 0.97, protein: 0.12, carbs: 0.035, fats: 0.022 }
+      serving: { calories: 110, protein: 14, carbs: 4, fats: 2.5 },
+      servings: { calories: 110, protein: 14, carbs: 4, fats: 2.5 },
+      tub: { calories: 440, protein: 56, carbs: 16, fats: 10 },
+      g: { calories: 0.97, protein: 0.12, carbs: 0.035, fats: 0.022 },
+      oz: { calories: 27.5, protein: 3.5, carbs: 1.0, fats: 0.6 }
+    }
+  },
+  {
+    regex: /\b(?:quinoa|cooked\s+quinoa)\b/i,
+    name: "Quinoa (Cooked)",
+    defaultUnit: "cup",
+    defaultQty: 1,
+    per100g: { calories: 120, protein: 4.4, carbs: 21.3, fats: 1.9 },
+    perUnit: {
+      cup: { calories: 222, protein: 8.1, carbs: 39.4, fats: 3.6 },
+      cups: { calories: 222, protein: 8.1, carbs: 39.4, fats: 3.6 },
+      bowl: { calories: 222, protein: 8.1, carbs: 39.4, fats: 3.6 },
+      serving: { calories: 222, protein: 8.1, carbs: 39.4, fats: 3.6 },
+      g: { calories: 1.2, protein: 0.044, carbs: 0.213, fats: 0.019 },
+      oz: { calories: 34, protein: 1.25, carbs: 6.0, fats: 0.54 }
+    }
+  },
+  {
+    regex: /\b(?:chickpeas?|chick\s+peas?|garbanzo(?:\s+beans?)?)\b/i,
+    name: "Chickpeas (Cooked)",
+    defaultUnit: "cup",
+    defaultQty: 0.5,
+    per100g: { calories: 164, protein: 8.9, carbs: 27.4, fats: 2.6 },
+    perUnit: {
+      cup: { calories: 269, protein: 14.5, carbs: 45, fats: 4.2 },
+      cups: { calories: 269, protein: 14.5, carbs: 45, fats: 4.2 },
+      can: { calories: 390, protein: 21, carbs: 65, fats: 6 },
+      cans: { calories: 390, protein: 21, carbs: 65, fats: 6 },
+      serving: { calories: 135, protein: 7.3, carbs: 22.5, fats: 2.1 },
+      servings: { calories: 135, protein: 7.3, carbs: 22.5, fats: 2.1 },
+      g: { calories: 1.64, protein: 0.089, carbs: 0.274, fats: 0.026 },
+      oz: { calories: 46.5, protein: 2.5, carbs: 7.8, fats: 0.74 }
+    }
+  },
+  {
+    regex: /\b(?:kale|cooked\s+kale|steamed\s+kale|raw\s+kale)\b/i,
+    name: "Kale",
+    defaultUnit: "cup",
+    defaultQty: 1,
+    per100g: { calories: 28, protein: 1.9, carbs: 5.6, fats: 0.4 },
+    perUnit: {
+      cup: { calories: 33, protein: 2.5, carbs: 6, fats: 0.5 },
+      cups: { calories: 33, protein: 2.5, carbs: 6, fats: 0.5 },
+      bowl: { calories: 33, protein: 2.5, carbs: 6, fats: 0.5 },
+      serving: { calories: 33, protein: 2.5, carbs: 6, fats: 0.5 },
+      g: { calories: 0.33, protein: 0.025, carbs: 0.06, fats: 0.005 }
+    }
+  },
+  {
+    regex: /\b(?:black\s*beans?)\b/i,
+    name: "Black Beans (Cooked)",
+    defaultUnit: "cup",
+    defaultQty: 0.5,
+    per100g: { calories: 132, protein: 8.9, carbs: 23.7, fats: 0.5 },
+    perUnit: {
+      cup: { calories: 227, protein: 15, carbs: 41, fats: 0.9 },
+      cups: { calories: 227, protein: 15, carbs: 41, fats: 0.9 },
+      can: { calories: 380, protein: 25, carbs: 68, fats: 1.5 },
+      cans: { calories: 380, protein: 25, carbs: 68, fats: 1.5 },
+      serving: { calories: 114, protein: 7.6, carbs: 20.5, fats: 0.5 }
+    }
+  },
+  {
+    regex: /\b(?:lentils?)\b/i,
+    name: "Lentils (Cooked)",
+    defaultUnit: "cup",
+    defaultQty: 0.5,
+    per100g: { calories: 116, protein: 9, carbs: 20, fats: 0.4 },
+    perUnit: {
+      cup: { calories: 230, protein: 18, carbs: 40, fats: 0.8 },
+      cups: { calories: 230, protein: 18, carbs: 40, fats: 0.8 },
+      serving: { calories: 115, protein: 9, carbs: 20, fats: 0.4 }
     }
   }
 ];
@@ -591,6 +681,28 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     fats: 14,
     category: "Snacks",
     icon: "🌰"
+  },
+  {
+    id: "staple-pb-toast",
+    name: "Peanut Butter Toast",
+    portion: "1 slice + 1.5 tbsp PB",
+    calories: 260,
+    protein: 9,
+    carbs: 24,
+    fats: 14,
+    category: "Carbs",
+    icon: "🍞"
+  },
+  {
+    id: "staple-quinoa-bowl",
+    name: "Quinoa & Chickpea Bowl",
+    portion: "1 cup quinoa, 0.5 cup chickpeas, kale, sweet potato",
+    calories: 620,
+    protein: 21,
+    carbs: 110,
+    fats: 8,
+    category: "Common",
+    icon: "🥗"
   }
 ];
 
@@ -788,8 +900,9 @@ export function parseMealDescription(text) {
     };
   }
 
-  // 2. Split clauses by comma, "and", "&", "+", "with", "plus", "w/" or newline
+  // 2. Split clauses by comma, "and", "&", "+", "with", "plus", "w/", newline, or unpunctuated quantity boundaries (e.g. "2 eggs 1 banana")
   const clauses = text
+    .replace(/(?<=[a-zA-Z])\s+(?=\d+(?:\.\d+)?|\d+\/\d+)/g, ', ')
     .split(/[,+&\n]|\band\b|\bwith\b|\bplus\b|\bw\//i)
     .map(c => c.trim())
     .filter(Boolean);
@@ -797,7 +910,7 @@ export function parseMealDescription(text) {
   const matchedItems = [];
 
   for (const clause of clauses) {
-    const qtyRegex = /(?:^|\s)(\d+(?:\.\d+)?|\d+\/\d+)\s*(egg\s+whites?|whole\s+eggs?|bars?|pouches?|packs?|scoops?|slices?|cups?|tbsp|tablespoons?|whites?|eggs?|bananas?|apples?|potatoes?|cans?|glass(?:es)?|oz|ounces|grams?|g\b)?/i;
+    const qtyRegex = /(?:^|\s)(\d+(?:\.\d+)?|\d+\/\d+)\s*(egg\s+whites?|whole\s+eggs?|bars?|pouches?|packs?|scoops?|slices?|toasts?|pieces?|bowls?|servings?|cups?|tbsp|tablespoons?|whites?|eggs?|bananas?|apples?|potatoes?|cans?|glass(?:es)?|oz|ounces|grams?|g\b)?/i;
     const qtyMatch = clause.match(qtyRegex);
 
     let quantity = null;
