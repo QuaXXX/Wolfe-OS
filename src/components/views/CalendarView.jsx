@@ -82,6 +82,36 @@ export const CalendarView = ({
     return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }, [currentMonthDate]);
 
+  // Rolling day window for side-scrollable horizontal calendar strip (-14 days to +28 days)
+  const dayWindow = useMemo(() => {
+    const days = [];
+    for (let i = -14; i <= 28; i++) {
+      const dStr = addDays(selectedDate, i);
+      const [y, m, d] = dStr.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      days.push({
+        dateIso: dStr,
+        dayNumber: d,
+        dayName: dateObj.toLocaleDateString('en-US', { weekday: 'short' }),
+        monthName: dateObj.toLocaleDateString('en-US', { month: 'short' })
+      });
+    }
+    return days;
+  }, [selectedDate]);
+
+  const dayScrollRef = useRef(null);
+  const selectedDayCardRef = useRef(null);
+
+  useEffect(() => {
+    if (selectedDayCardRef.current) {
+      selectedDayCardRef.current.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest'
+      });
+    }
+  }, [selectedDate, viewMode]);
+
   const handlePrevMonth = () => {
     playSound('switch', soundEnabled);
     const [y, m] = currentMonthDate.split('-').map(Number);
@@ -233,10 +263,6 @@ export const CalendarView = ({
 
   return (
     <div 
-      onTouchStart={handleCalendarTouchStart}
-      onTouchEnd={handleCalendarTouchEnd}
-      onMouseDown={handleCalendarMouseDown}
-      onMouseUp={handleCalendarMouseUp}
       className="max-w-6xl mx-auto space-y-6 pb-24 select-none cursor-default"
     >
       
@@ -375,37 +401,105 @@ export const CalendarView = ({
       {/* 2. DAY VIEW MODE */}
       {viewMode === 'day' && (
         <div className="space-y-5">
-          {/* Date Selector Banner */}
-          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#0f1220] border border-white/10 shadow-sm">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrevDay}
-                className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 transition-colors"
-                title="Previous Day"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleNextDay}
-                className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 transition-colors"
-                title="Next Day"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <span className="text-sm font-bold text-white pl-2">
-                {formatDateTitle(selectedDate)}
-              </span>
+          {/* Scrollable Calendar Day Carousel Banner */}
+          <div className="p-3 sm:p-4 rounded-3xl bg-[#0f1220]/90 border border-white/10 shadow-xl space-y-3 font-sans">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-white/[0.04] border border-white/10">
+                  <CalendarIcon className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                </div>
+                <span className="text-sm font-bold text-white tracking-tight">
+                  {formatDateTitle(selectedDate)}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handlePrevDay}
+                  className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 transition-colors cursor-pointer"
+                  title="Previous Day"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {selectedDate !== todayIso && (
+                  <button
+                    onClick={handleTodayJump}
+                    className="px-2.5 py-1 rounded-xl text-xs font-bold text-white border transition-all cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--accent-subtle)',
+                      borderColor: 'var(--accent-border)',
+                      color: 'var(--accent-primary)'
+                    }}
+                  >
+                    Today
+                  </button>
+                )}
+                <button
+                  onClick={handleNextDay}
+                  className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 transition-colors cursor-pointer"
+                  title="Next Day"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {selectedDate !== todayIso && (
-                <button
-                  onClick={handleTodayJump}
-                  className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition-colors"
-                >
-                  Today
-                </button>
-              )}
+            {/* Horizontal Side-Scrollable Day Strip */}
+            <div 
+              ref={dayScrollRef}
+              className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none scroll-smooth touch-pan-x"
+            >
+              {dayWindow.map((day) => {
+                const isSelected = day.dateIso === selectedDate;
+                const isToday = day.dateIso === todayIso;
+                const dayDeadlines = items.filter(it => it.date === day.dateIso && it.type === 'deadline');
+                const dayEvents = items.filter(it => it.date === day.dateIso && it.type === 'event');
+                const dayTasks = items.filter(it => it.date === day.dateIso && (it.type === 'task' || it.type === 'reminder'));
+
+                return (
+                  <button
+                    key={day.dateIso}
+                    ref={isSelected ? selectedDayCardRef : null}
+                    type="button"
+                    onClick={() => {
+                      playSound('click', soundEnabled);
+                      setSelectedDate(day.dateIso);
+                    }}
+                    className={`shrink-0 w-14 sm:w-16 py-2 px-1 rounded-2xl flex flex-col items-center justify-between transition-all cursor-pointer relative ${
+                      isSelected
+                        ? 'text-white shadow-lg scale-[1.03]'
+                        : 'bg-white/[0.03] text-slate-400 hover:text-white hover:bg-white/[0.06] border border-white/5'
+                    }`}
+                    style={isSelected ? {
+                      backgroundColor: 'var(--accent-subtle)',
+                      border: '1px solid var(--accent-border)',
+                      boxShadow: '0 0 18px -3px var(--accent-glow)'
+                    } : {}}
+                  >
+                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider opacity-80">
+                      {day.dayName}
+                    </span>
+                    <span className={`text-base font-bold font-mono my-0.5 ${isSelected ? 'text-white' : isToday ? 'text-amber-300 font-extrabold' : 'text-slate-200'}`}>
+                      {day.dayNumber}
+                    </span>
+                    {/* Activity Indicator Dots */}
+                    <div className="flex items-center gap-1 h-1.5 mt-0.5">
+                      {dayDeadlines.length > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-sm" title={`${dayDeadlines.length} Deadlines`} />
+                      )}
+                      {dayEvents.length > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shadow-sm" title={`${dayEvents.length} Events`} />
+                      )}
+                      {dayTasks.length > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm" title={`${dayTasks.length} Tasks`} />
+                      )}
+                      {!dayDeadlines.length && !dayEvents.length && !dayTasks.length && (
+                        <span className="w-1 h-1 rounded-full bg-transparent" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

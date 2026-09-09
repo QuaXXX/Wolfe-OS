@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TopBar } from './components/layout/TopBar';
@@ -1138,8 +1139,6 @@ export function App() {
   return (
     <div 
       className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-white/20"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
     >
       {/* Background Interactive Ambient Glow */}
       <BackgroundGlow accentHue={settings.accentHue} />
@@ -1196,6 +1195,29 @@ export function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Mobile Floating Home Exit Button */}
+      {activeView !== 'home' && (
+        <div className="fixed bottom-20 right-4 sm:hidden z-50">
+          <button
+            type="button"
+            onClick={() => {
+              playSound('click', settings.soundEnabled);
+              handleNavigate('home');
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-white text-xs font-bold shadow-2xl backdrop-blur-xl transition-all active:scale-95 cursor-pointer"
+            style={{
+              backgroundColor: 'rgba(15, 18, 32, 0.95)',
+              border: '1px solid var(--accent-border)',
+              boxShadow: '0 8px 25px -4px rgba(0,0,0,0.7), 0 0 15px -3px var(--accent-glow)'
+            }}
+            title="Return to Home Hub"
+          >
+            <X className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+            <span>Home</span>
+          </button>
+        </div>
+      )}
 
       {/* Floating Interactive Dock */}
       <Dock 

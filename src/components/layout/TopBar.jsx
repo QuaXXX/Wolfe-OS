@@ -289,11 +289,25 @@ export const TopBar = ({
           </div>
 
           {activeView !== 'home' && (
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 pl-3 border-l border-white/10">
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-              <span className="capitalize font-semibold" style={{ color: 'var(--accent-primary)' }}>
-                {activeView}
-              </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  onNavigate('home');
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold cursor-pointer transition-all active:scale-95 shadow-sm"
+                title="Return to Home Dashboard"
+              >
+                <X className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden sm:inline">Home</span>
+              </button>
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 pl-1 border-l border-white/10">
+                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                <span className="capitalize font-semibold" style={{ color: 'var(--accent-primary)' }}>
+                  {activeView}
+                </span>
+              </div>
             </div>
           )}
         </div>
