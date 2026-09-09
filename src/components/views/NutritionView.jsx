@@ -357,7 +357,7 @@ export const NutritionView = ({
   const handleQuickAddSubmit = () => {
     if (!quickAddText.trim()) return;
     const text = quickAddText.trim();
-    const parsed = parseMealDescription(text);
+    const parsed = parseMealDescription(text, { kitchenCalibration: nutritionData?.kitchenCalibration, householdPantry });
     if (parsed && parsed.items && parsed.items.length > 0) {
       playSound('success', soundEnabled);
       const meal = createMealEntry({
@@ -411,7 +411,7 @@ export const NutritionView = ({
         const transcript = event.results?.[0]?.[0]?.transcript || '';
         if (transcript) {
           setQuickAddText(transcript);
-          const parsed = parseMealDescription(transcript);
+          const parsed = parseMealDescription(transcript, { kitchenCalibration: nutritionData?.kitchenCalibration, householdPantry });
           if (parsed && parsed.items && parsed.items.length > 0) {
             playSound('success', soundEnabled);
             const meal = createMealEntry({

@@ -17,7 +17,7 @@ import {
   getOpenPositions 
 } from './tradingStorage.js';
 import { getPaperPositions } from './hermesPaperTrader.js';
-import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt } from './nutritionEngine.js';
+import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt } from './nutritionEngine.js';
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
 
@@ -2007,16 +2007,21 @@ Return ONLY valid JSON matching this schema:
  * Analyze a meal from photo (via Gemini Vision) and/or natural language description.
  * If photo contains no food, returns hasFood: false with clear warning.
  */
-export async function analyzeMealWithAI({ imageBase64, mimeType = 'image/jpeg', description = '', aiConfig = DEFAULT_AI_CONFIG, kitchenCalibration = null }) {
+export async function analyzeMealWithAI({ imageBase64, mimeType = 'image/jpeg', description = '', aiConfig = DEFAULT_AI_CONFIG, kitchenCalibration = null, householdPantry = null }) {
   const apiKey = aiConfig?.apiKey || API_KEY;
   const cleanDesc = (description || '').trim();
 
   // Extract user's hardware & kitchen calibration if available
   let calibPrompt = "";
+  let pantryPrompt = "";
   try {
     const rawCalib = kitchenCalibration || aiConfig?.kitchenCalibration || (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('wolfe_nutrition_data') || '{}')?.kitchenCalibration : null);
     if (rawCalib) {
       calibPrompt = buildAiCalibrationPrompt(rawCalib);
+    }
+    const rawPantry = householdPantry || aiConfig?.householdPantry || (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('wolfe_nutrition_data') || '{}')?.householdPantry : null);
+    if (rawPantry) {
+      pantryPrompt = buildAiPantryPrompt(rawPantry);
     }
   } catch (e) {}
 
@@ -2049,6 +2054,7 @@ CRITICAL ACCURACY & INTEGRITY INSTRUCTIONS:
    - If food is pictured in a meal prep container, storage container, or snack bowl, dynamically evaluate the container size and food fill depth using visual cues.
    - If both are present, merge them accurately into the items list.
 ${calibPrompt ? `\n${calibPrompt}\n` : ''}
+${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
 4. STRICT USDA MACRO CALIBRATION (PREVENT OVER-ESTIMATION):
    - Cooked Quinoa: ~120 kcal, 4.4g protein, 21.3g carbs, 1.9g fats per 100g (~222 kcal, 8.1g protein per cup). NEVER assign >10g protein to 1 cup of quinoa!
    - Cooked Chickpeas / Garbanzo: ~164 kcal, 8.9g protein, 27.4g carbs, 2.6g fats per 100g (~135 kcal, 7.3g protein per 0.5 cup; ~269 kcal, 14.5g protein per 1 cup). Plant legumes are predominantly complex carbs; NEVER treat them like animal meat (never assign 30g+ protein to chickpeas)!
@@ -2162,7 +2168,7 @@ Return ONLY valid JSON matching this schema:
   // 2. Fallback / Description-based Engine:
   // If description is provided, parse it accurately with parseMealDescription
   if (cleanDesc) {
-    const parsed = parseMealDescription(cleanDesc);
+    const parsed = parseMealDescription(cleanDesc, { kitchenCalibration, householdPantry });
     if (parsed && parsed.items && parsed.items.length > 0) {
       return {
         hasFood: true,

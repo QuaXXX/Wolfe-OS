@@ -602,7 +602,7 @@ export const MealLogModal = ({
 
     try {
       // 1. First attempt instant natural language parsing
-      const fastParsed = parseMealDescription(query);
+      const fastParsed = parseMealDescription(query, { kitchenCalibration, householdPantry });
       if (fastParsed && fastParsed.calories > 0) {
         setVoiceParsedMeal(fastParsed);
         playSound('success', soundEnabled);
@@ -614,7 +614,8 @@ export const MealLogModal = ({
       const aiResult = await analyzeMealWithAI({
         description: query,
         aiConfig,
-        kitchenCalibration
+        kitchenCalibration,
+        householdPantry
       });
 
       if (aiResult.hasFood && Array.isArray(aiResult.items) && aiResult.items.length > 0) {
@@ -643,7 +644,7 @@ export const MealLogModal = ({
     setQuickFeedback(null);
 
     try {
-      const parsed = parseMealDescription(query);
+      const parsed = parseMealDescription(query, { kitchenCalibration, householdPantry });
       if (parsed && parsed.calories > 0) {
         const meal = createMealEntry({
           date: selectedDate,
@@ -661,7 +662,7 @@ export const MealLogModal = ({
       }
 
       // Fallback AI parse
-      const aiRes = await analyzeMealWithAI({ description: query, aiConfig });
+      const aiRes = await analyzeMealWithAI({ description: query, aiConfig, kitchenCalibration, householdPantry });
       if (aiRes.hasFood && Array.isArray(aiRes.items)) {
         const meal = createMealEntry({
           date: selectedDate,

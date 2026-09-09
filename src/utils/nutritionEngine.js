@@ -150,9 +150,12 @@ export const INGREDIENT_DATABASE = [
     name: "White Rice (Cooked)",
     defaultUnit: "cups",
     defaultQty: 1.5,
+    per100g: { calories: 130, protein: 2.7, carbs: 28, fats: 0.3 },
     perUnit: {
       cup: { calories: 205, protein: 4.2, carbs: 45, fats: 0.4 },
       cups: { calories: 205, protein: 4.2, carbs: 45, fats: 0.4 },
+      bowl: { calories: 410, protein: 8.4, carbs: 90, fats: 0.8 },
+      bowls: { calories: 410, protein: 8.4, carbs: 90, fats: 0.8 },
       g: { calories: 1.3, protein: 0.027, carbs: 0.28, fats: 0.003 }
     }
   },
@@ -161,9 +164,13 @@ export const INGREDIENT_DATABASE = [
     name: "Brown Rice (Cooked)",
     defaultUnit: "cups",
     defaultQty: 1,
+    per100g: { calories: 110, protein: 2.5, carbs: 23, fats: 0.9 },
     perUnit: {
       cup: { calories: 218, protein: 4.5, carbs: 46, fats: 1.6 },
-      cups: { calories: 218, protein: 4.5, carbs: 46, fats: 1.6 }
+      cups: { calories: 218, protein: 4.5, carbs: 46, fats: 1.6 },
+      bowl: { calories: 436, protein: 9, carbs: 92, fats: 3.2 },
+      bowls: { calories: 436, protein: 9, carbs: 92, fats: 3.2 },
+      g: { calories: 1.1, protein: 0.025, carbs: 0.23, fats: 0.009 }
     }
   },
   {
@@ -171,9 +178,12 @@ export const INGREDIENT_DATABASE = [
     name: "Rolled Oats (Dry)",
     defaultUnit: "cups",
     defaultQty: 1,
+    per100g: { calories: 375, protein: 12.5, carbs: 67.5, fats: 6.2 },
     perUnit: {
       cup: { calories: 300, protein: 10, carbs: 54, fats: 5 },
       cups: { calories: 300, protein: 10, carbs: 54, fats: 5 },
+      bowl: { calories: 450, protein: 15, carbs: 81, fats: 7.5 },
+      bowls: { calories: 450, protein: 15, carbs: 81, fats: 7.5 },
       g: { calories: 3.75, protein: 0.125, carbs: 0.675, fats: 0.062 }
     }
   },
@@ -240,9 +250,13 @@ export const INGREDIENT_DATABASE = [
     name: "Pasta (Cooked)",
     defaultUnit: "cups",
     defaultQty: 1.5,
+    per100g: { calories: 158, protein: 5.8, carbs: 31, fats: 0.9 },
     perUnit: {
       cup: { calories: 220, protein: 8, carbs: 43, fats: 1.3 },
-      cups: { calories: 220, protein: 8, carbs: 43, fats: 1.3 }
+      cups: { calories: 220, protein: 8, carbs: 43, fats: 1.3 },
+      bowl: { calories: 440, protein: 16, carbs: 86, fats: 2.6 },
+      bowls: { calories: 440, protein: 16, carbs: 86, fats: 2.6 },
+      g: { calories: 1.58, protein: 0.058, carbs: 0.31, fats: 0.009 }
     }
   },
   {
@@ -332,9 +346,12 @@ export const INGREDIENT_DATABASE = [
     name: "Greek Yogurt (Non-fat)",
     defaultUnit: "cups",
     defaultQty: 1,
+    per100g: { calories: 59, protein: 10.3, carbs: 3.6, fats: 0.4 },
     perUnit: {
       cup: { calories: 130, protein: 23, carbs: 9, fats: 0 },
       cups: { calories: 130, protein: 23, carbs: 9, fats: 0 },
+      bowl: { calories: 260, protein: 46, carbs: 18, fats: 0 },
+      bowls: { calories: 260, protein: 46, carbs: 18, fats: 0 },
       g: { calories: 0.57, protein: 0.10, carbs: 0.04, fats: 0 }
     }
   },
@@ -443,9 +460,12 @@ export const INGREDIENT_DATABASE = [
     name: "Cottage Cheese (Low-fat)",
     defaultUnit: "cup",
     defaultQty: 0.5,
+    per100g: { calories: 86, protein: 11, carbs: 3.4, fats: 2.3 },
     perUnit: {
       cup: { calories: 220, protein: 28, carbs: 8, fats: 5 },
       cups: { calories: 220, protein: 28, carbs: 8, fats: 5 },
+      bowl: { calories: 330, protein: 42, carbs: 12, fats: 7.5 },
+      bowls: { calories: 330, protein: 42, carbs: 12, fats: 7.5 },
       serving: { calories: 110, protein: 14, carbs: 4, fats: 2.5 },
       servings: { calories: 110, protein: 14, carbs: 4, fats: 2.5 },
       tub: { calories: 440, protein: 56, carbs: 16, fats: 10 },
@@ -523,6 +543,48 @@ export const INGREDIENT_DATABASE = [
       cup: { calories: 230, protein: 18, carbs: 40, fats: 0.8 },
       cups: { calories: 230, protein: 18, carbs: 40, fats: 0.8 },
       serving: { calories: 115, protein: 9, carbs: 20, fats: 0.4 }
+    }
+  },
+  {
+    regex: /\b(?:cereal|cheerios|corn\s*flakes|special\s*k|granola\s+cereal)\b/i,
+    name: "Cereal",
+    defaultUnit: "cup",
+    defaultQty: 1,
+    per100g: { calories: 380, protein: 8, carbs: 83, fats: 3 },
+    perUnit: {
+      cup: { calories: 110, protein: 2.5, carbs: 24, fats: 1 },
+      cups: { calories: 110, protein: 2.5, carbs: 24, fats: 1 },
+      bowl: { calories: 220, protein: 5, carbs: 48, fats: 2 },
+      bowls: { calories: 220, protein: 5, carbs: 48, fats: 2 },
+      g: { calories: 3.8, protein: 0.08, carbs: 0.83, fats: 0.03 }
+    }
+  },
+  {
+    regex: /\b(?:chili|beef\s+chili|turkey\s+chili)\b/i,
+    name: "Chili",
+    defaultUnit: "bowl",
+    defaultQty: 1,
+    per100g: { calories: 125, protein: 9, carbs: 12, fats: 4.5 },
+    perUnit: {
+      cup: { calories: 280, protein: 22, carbs: 23, fats: 12 },
+      cups: { calories: 280, protein: 22, carbs: 23, fats: 12 },
+      bowl: { calories: 560, protein: 44, carbs: 46, fats: 24 },
+      bowls: { calories: 560, protein: 44, carbs: 46, fats: 24 },
+      g: { calories: 1.25, protein: 0.09, carbs: 0.12, fats: 0.045 }
+    }
+  },
+  {
+    regex: /\b(?:soup|chicken\s+soup|vegetable\s+soup)\b/i,
+    name: "Soup",
+    defaultUnit: "bowl",
+    defaultQty: 1,
+    per100g: { calories: 60, protein: 3.5, carbs: 7.5, fats: 1.8 },
+    perUnit: {
+      cup: { calories: 150, protein: 8, carbs: 18, fats: 5 },
+      cups: { calories: 150, protein: 8, carbs: 18, fats: 5 },
+      bowl: { calories: 300, protein: 16, carbs: 36, fats: 10 },
+      bowls: { calories: 300, protein: 16, carbs: 36, fats: 10 },
+      g: { calories: 0.6, protein: 0.035, carbs: 0.075, fats: 0.018 }
     }
   }
 ];
@@ -816,121 +878,321 @@ export function getAdaptiveSurplusRecommendation(weightHistory = [], currentCalo
 }
 
 // ---------------------------------------------------------------------------
-// 6. NATURAL LANGUAGE MEAL PARSER
+// 6. NATURAL LANGUAGE MEAL PARSER (HARDWARE-AWARE & PANTRY-GROUNDED)
 // ---------------------------------------------------------------------------
 
-/**
- * Parses free-form meal descriptions into an itemized macro breakdown.
- * Returns null if no food items could be identified.
- */
-export function parseMealDescription(text) {
-  if (!text || typeof text !== 'string' || !text.trim()) {
-    return null;
+function getFoodPerGramRates(food) {
+  if (food.perUnit && food.perUnit.g) {
+    return food.perUnit.g;
   }
+  if (food.per100g) {
+    return {
+      calories: food.per100g.calories / 100,
+      protein: food.per100g.protein / 100,
+      carbs: food.per100g.carbs / 100,
+      fats: food.per100g.fats / 100
+    };
+  }
+  return null;
+}
 
-  // 1. Direct macro pattern: "650 calories, 45g protein, 60g carbs, 15g fats"
-  const calMatch = text.match(/(\d+)\s*(?:cals?|calories|kcal)\b/i);
-  const protMatch = text.match(/(\d+)\s*g?\s*(?:protein|p)\b/i);
-  const carbMatch = text.match(/(\d+)\s*g?\s*(?:carbs?|c)\b/i);
-  const fatMatch = text.match(/(\d+)\s*g?\s*(?:fats?|f)\b/i);
+export function parseMealDescription(text, options = {}) {
+  if (!text || typeof text !== 'string' || !text.trim()) return null;
+  const cleanText = text.trim();
 
+  const dishware = options.dishware || getCalibratedDishware(options.kitchenCalibration);
+  const pantry = (Array.isArray(options.householdPantry) && options.householdPantry.length > 0)
+    ? options.householdPantry
+    : DEFAULT_HOUSEHOLD_PANTRY;
+
+  const bowlTare = dishware.bowl.tareWeightG || 420;
+  const plateTare = dishware.plate.tareWeightG || 550;
+
+  // Direct macro check: '650 cals, 45g p, 60g c, 15g f'
+  const calMatch = cleanText.match(/(\d+)\s*(?:cals?|calories|kcal)\b/i);
+  const protMatch = cleanText.match(/(\d+)\s*g?\s*(?:protein|p)\b/i);
+  const carbMatch = cleanText.match(/(\d+)\s*g?\s*(?:carbs?|c)\b/i);
+  const fatMatch = cleanText.match(/(\d+)\s*g?\s*(?:fats?|f)\b/i);
   if (calMatch && (protMatch || carbMatch || fatMatch)) {
-    const cals = parseInt(calMatch[1], 10);
+    const c = parseInt(calMatch[1], 10);
     const p = protMatch ? parseInt(protMatch[1], 10) : 0;
-    const c = carbMatch ? parseInt(carbMatch[1], 10) : 0;
+    const cb = carbMatch ? parseInt(carbMatch[1], 10) : 0;
     const f = fatMatch ? parseInt(fatMatch[1], 10) : 0;
     return {
-      name: "Custom Macro Log",
-      items: [
-        {
-          name: "Direct Macro Entry",
-          portion: "1 serving",
-          calories: cals,
-          protein: p,
-          carbs: c,
-          fats: f
-        }
-      ],
-      calories: cals,
-      protein: p,
-      carbs: c,
-      fats: f,
-      source: "manual_macro"
+      name: 'Custom Macro Log',
+      items: [{ name: 'Direct Macro Entry', portion: '1 serving', calories: c, protein: p, carbs: cb, fats: f }],
+      calories: c, protein: p, carbs: cb, fats: f,
+      source: 'manual_macro'
     };
   }
 
-  // 2. Split clauses by comma, "and", "&", "+", "with", "plus", "w/", newline, or unpunctuated quantity boundaries (e.g. "2 eggs 1 banana")
-  const clauses = text
-    .replace(/(?<=[a-zA-Z])\s+(?=\d+(?:\.\d+)?|\d+\/\d+)/g, ', ')
-    .split(/[,+&\n]|\band\b|\bwith\b|\bplus\b|\bw\//i)
-    .map(c => c.trim())
-    .filter(Boolean);
-
-  const matchedItems = [];
-
-  for (const clause of clauses) {
-    const qtyRegex = /(?:^|\s)(\d+(?:\.\d+)?|\d+\/\d+)\s*(egg\s+whites?|whole\s+eggs?|bars?|pouches?|packs?|scoops?|slices?|toasts?|pieces?|bowls?|servings?|cups?|tbsp|tablespoons?|whites?|eggs?|bananas?|apples?|potatoes?|cans?|glass(?:es)?|oz|ounces|grams?|g\b)?/i;
-    const qtyMatch = clause.match(qtyRegex);
-
-    let quantity = null;
-    let unit = null;
-
-    if (qtyMatch) {
-      const rawQty = qtyMatch[1];
-      if (rawQty.includes('/')) {
-        const [num, den] = rawQty.split('/').map(Number);
-        quantity = den ? num / den : 1;
-      } else {
-        quantity = parseFloat(rawQty);
-      }
-      unit = (qtyMatch[2] || '').toLowerCase();
-    }
-
-    for (const food of INGREDIENT_DATABASE) {
-      if (food.regex.test(clause)) {
-        const usedUnit = unit || food.defaultUnit;
-        const usedQty = quantity !== null && !isNaN(quantity) ? quantity : food.defaultQty;
-
-        let itemCals = 0;
-        let itemP = 0;
-        let itemC = 0;
-        let itemF = 0;
-
-        if (food.perUnit && food.perUnit[usedUnit]) {
-          const rates = food.perUnit[usedUnit];
-          itemCals = Math.round(rates.calories * usedQty);
-          itemP = Math.round(rates.protein * usedQty);
-          itemC = Math.round(rates.carbs * usedQty);
-          itemF = Math.round(rates.fats * usedQty);
-        } else if (food.per100g && (usedUnit === 'g' || usedUnit === 'grams')) {
-          const factor = usedQty / 100;
-          itemCals = Math.round(food.per100g.calories * factor);
-          itemP = Math.round(food.per100g.protein * factor);
-          itemC = Math.round(food.per100g.carbs * factor);
-          itemF = Math.round(food.per100g.fats * factor);
-        } else if (food.perUnit && food.perUnit[food.defaultUnit]) {
-          const rates = food.perUnit[food.defaultUnit];
-          itemCals = Math.round(rates.calories * usedQty);
-          itemP = Math.round(rates.protein * usedQty);
-          itemC = Math.round(rates.carbs * usedQty);
-          itemF = Math.round(rates.fats * usedQty);
-        }
-
-        matchedItems.push({
-          name: food.name,
-          portion: `${usedQty} ${usedUnit || food.defaultUnit}`,
-          calories: itemCals,
-          protein: itemP,
-          carbs: itemC,
-          fats: itemF
-        });
-        break;
-      }
+  // 1. Detect tare / scale gross readings:
+  // e.g. "scale says 670g in primary bowl with oats", "scale reads 670g with bowl", "670g on scale in bowl"
+  let tareAdjustedWeightG = null;
+  let tareVesselName = 'Primary Bowl';
+  const scaleGrossMatch = cleanText.match(/(?:scale\s+(?:reads?|says?)?|weighs?|total\s+weight\s+is?|gross)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+)?(bowl|plate)/i);
+  if (scaleGrossMatch) {
+    const grossG = parseFloat(scaleGrossMatch[1]);
+    const vessel = scaleGrossMatch[2].toLowerCase();
+    const tare = vessel.includes('plate') ? plateTare : bowlTare;
+    tareVesselName = vessel.includes('plate') ? dishware.plate.name : dishware.bowl.name;
+    if (grossG > tare) {
+      tareAdjustedWeightG = Math.round(grossG - tare);
+    } else {
+      tareAdjustedWeightG = Math.round(grossG);
     }
   }
 
-  if (matchedItems.length === 0) {
-    return null;
+  // 2. Prepare text for clause splitting
+  let stripped = cleanText
+    .replace(/^(?:i\s+)?(?:had|ate|eating|logged?|drank|consumed)\s+/i, '')
+    .replace(/\s+(?:for\s+(?:breakfast|lunch|dinner|snack|post-workout|meal))\b/i, '')
+    // Remove standalone scale reading preamble if captured
+    .replace(/(?:scale\s+(?:reads?|says?)?|weighs?|total\s+weight\s+is?|gross)?\s*\d+(?:\.\d+)?\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+)?(?:bowl|plate)\s*(?:with|and|of)?/i, '')
+    .trim();
+
+  // Check composite total meal weight across multiple items:
+  // e.g. "400g chicken and rice in bowl" or "bowl of chicken and rice, 400g"
+  let compositeMealTotalWeightG = tareAdjustedWeightG;
+  const compositeWeightMatch = stripped.match(/^(\d+(?:\.\d+)?)\s*(?:g|grams?)\s+(?:of\s+)?(.+?\s+(?:and|&)\s+.+)/i)
+    || stripped.match(/(.+?\s+(?:and|&)\s+.+?)[,\s]+(?:total\s+(?:weight\s+)?|weighing\s+|net\s+)?(\d+(?:\.\d+)?)\s*(?:g|grams?)\b/i);
+
+  let isCompositeSplit = false;
+  if (compositeWeightMatch && !cleanText.match(/\d+\s*(?:g|grams?)\s+[a-zA-Z]+.+\d+\s*(?:g|grams?)/i)) {
+    if (compositeWeightMatch[1] && !isNaN(parseFloat(compositeWeightMatch[1]))) {
+      compositeMealTotalWeightG = parseFloat(compositeWeightMatch[1]);
+      stripped = compositeWeightMatch[2];
+      isCompositeSplit = true;
+    } else if (compositeWeightMatch[2] && !isNaN(parseFloat(compositeWeightMatch[2]))) {
+      compositeMealTotalWeightG = parseFloat(compositeWeightMatch[2]);
+      stripped = compositeWeightMatch[1];
+      isCompositeSplit = true;
+    }
+  }
+
+  const rawClauses = stripped
+    .replace(/(?<=[a-zA-Z])\s+(?=\d+(?:\.\d+)?|\d+\/\d+)/g, ', ')
+    .split(/[,+;\n]|\band\b|\bplus\b|\bwith\b|\bw\//i)
+    .map(c => c.trim())
+    .filter(c => c && !c.match(/^(?:my|the)?\s*(?:primary\s+|large\s+)?(?:bowl|plate)$/i));
+
+  const matchedItems = [];
+  const isOverallBowl = /\bbowl\b/i.test(cleanText);
+
+  for (const clause of rawClauses) {
+    // A. Check user custom protein shake / smoothie
+    if (/\b(?:protein\s+(?:shake|smoothie)|smoothie|my\s+shake|canadian\s+protein\s+shake)\b/i.test(clause)) {
+      let mult = 1;
+      const qm = clause.match(/(\d+(?:\.\d+)?|\d+\/\d+|half|two|three|four|2|3|4)\s*(?:shakes?|smoothies?)?/i);
+      if (qm) {
+        const w = qm[1].toLowerCase();
+        if (w === 'half') mult = 0.5;
+        else if (w === 'two' || w === '2') mult = 2;
+        else if (w === 'three' || w === '3') mult = 3;
+        else if (w === 'four' || w === '4') mult = 4;
+        else if (parseFloat(w)) mult = parseFloat(w);
+      }
+      matchedItems.push({
+        name: 'Protein Smoothie (Canadian Protein Vegan, 2c Milk, 1 Banana)',
+        portion: mult === 1 ? '1 serving (2 cups milk, 1 cup Canadian Protein vegan, 1 banana)' : `${mult} servings`,
+        calories: Math.round(755 * mult),
+        protein: Math.round(91 * mult),
+        carbs: Math.round(58 * mult),
+        fats: Math.round(17 * mult)
+      });
+      continue;
+    }
+
+    // Parse quantity and unit
+    let qty = null;
+    let unit = null;
+
+    const numWordMap = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, half: 0.5, '1/2': 0.5 };
+    const qRegex = /(?:^|\s)(\d+(?:\.\d+)?|\d+\/\d+|half|a|an|one|two|three|four|five|six)\s*(egg\s+whites?|whole\s+eggs?|bars?|pouches?|packs?|scoops?|slices?|toasts?|pieces?|bowls?|plates?|servings?|cups?|glasses?|glass|tbsp|tablespoons?|tsp|teaspoons?|whites?|eggs?|bananas?|apples?|potatoes?|cans?|oz|ounces|grams?|g\b)?/i;
+    const qm = clause.match(qRegex);
+
+    if (qm) {
+      const rawNum = qm[1].toLowerCase();
+      if (numWordMap[rawNum] !== undefined) {
+        qty = numWordMap[rawNum];
+      } else if (rawNum.includes('/')) {
+        const [n, d] = rawNum.split('/').map(Number);
+        qty = d ? n / d : 1;
+      } else {
+        qty = parseFloat(rawNum);
+      }
+      unit = (qm[2] || '').toLowerCase().trim();
+    }
+
+    // Direct gram match within the clause: "250g chicken", "200g white rice"
+    const directGramMatch = clause.match(/(\d+(?:\.\d+)?)\s*(?:g|grams?)\b/i);
+    if (directGramMatch) {
+      qty = parseFloat(directGramMatch[1]);
+      unit = 'g';
+    }
+
+    // Direct oz match: "8 oz steak"
+    const directOzMatch = clause.match(/(\d+(?:\.\d+)?)\s*(?:oz|ounces?)\b/i);
+    if (directOzMatch) {
+      qty = parseFloat(directOzMatch[1]);
+      unit = 'oz';
+    }
+
+    // If clause specifically mentions bowl
+    const clauseHasBowl = /\bbowls?\b/i.test(clause);
+    if (clauseHasBowl && !unit) unit = 'bowl';
+
+    // B. Check user calibrated milk
+    if (/\b(?:milk|glass\s+of\s+milk|cup\s+of\s+milk)\b/i.test(clause) && !/\b(?:fairlife|soy|almond|oat\s+milk)\b/i.test(clause)) {
+      const usedQty = (qty !== null && !isNaN(qty)) ? qty : 1;
+      matchedItems.push({
+        name: 'Milk (User Calibrated)',
+        portion: `${usedQty} ${usedQty === 1 ? 'cup / glass' : 'cups / glasses'} (250ml)`,
+        calories: Math.round(130 * usedQty),
+        protein: Math.round(9 * usedQty),
+        carbs: Math.round(12 * usedQty),
+        fats: Math.round(5 * usedQty)
+      });
+      continue;
+    }
+
+    // C. Check custom user pantry staples (only when not specifying gram/oz weights, so ingredient DB can compute exact weight)
+    let matchedPantryItem = null;
+    if (unit !== 'g' && unit !== 'oz') {
+      for (const staple of pantry) {
+        if (!staple || !staple.name) continue;
+        const cleanStapleName = staple.name.toLowerCase().trim();
+        if (['milk', 'eggs', 'egg', 'protein shake'].includes(cleanStapleName)) continue;
+        const escaped = cleanStapleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const stapleRegex = new RegExp(`(?:^|\\s)${escaped}s?(?:\\s|$)`, 'i');
+        if (stapleRegex.test(clause)) {
+          matchedPantryItem = staple;
+          break;
+        }
+      }
+    }
+
+    if (matchedPantryItem) {
+      const usedQty = (qty !== null && !isNaN(qty)) ? qty : 1;
+      matchedItems.push({
+        name: matchedPantryItem.name,
+        portion: usedQty === 1 ? (matchedPantryItem.portion || '1 serving') : `${usedQty} servings`,
+        calories: Math.round((matchedPantryItem.calories || 0) * usedQty),
+        protein: Math.round((matchedPantryItem.protein || 0) * usedQty),
+        carbs: Math.round((matchedPantryItem.carbs || 0) * usedQty),
+        fats: Math.round((matchedPantryItem.fats || 0) * usedQty)
+      });
+      continue;
+    }
+
+    // D. Match against INGREDIENT_DATABASE
+    let matchedFood = null;
+    for (const food of INGREDIENT_DATABASE) {
+      if (food.regex.test(clause)) {
+        matchedFood = food;
+        break;
+      }
+    }
+
+    if (matchedFood) {
+      let usedQty = (qty !== null && !isNaN(qty)) ? qty : matchedFood.defaultQty;
+      let usedUnit = unit || matchedFood.defaultUnit;
+
+      let itemCals = 0;
+      let itemP = 0;
+      let itemC = 0;
+      let itemF = 0;
+      let portionLabel = `${usedQty} ${usedUnit}`;
+
+      const perGramRates = getFoodPerGramRates(matchedFood);
+
+      if (usedUnit === 'bowl' || usedUnit === 'bowls') {
+        const bowlFactor = dishware.bowl.servingFactor || 2.0;
+        const bowlVol = dishware.bowl.volumeMl || 750;
+        portionLabel = `${usedQty === 1 ? '1' : usedQty} Primary Bowl (${bowlVol}ml capacity)`;
+
+        if (matchedFood.perUnit && matchedFood.perUnit.bowl) {
+          const r = matchedFood.perUnit.bowl;
+          const volScale = bowlVol / 750; // scaled to calibrated bowl volume
+          itemCals = Math.round(r.calories * usedQty * volScale);
+          itemP = Math.round(r.protein * usedQty * volScale);
+          itemC = Math.round(r.carbs * usedQty * volScale);
+          itemF = Math.round(r.fats * usedQty * volScale);
+        } else if (perGramRates) {
+          // Standard full bowl holds ~300g cooked food
+          const netG = 300 * (bowlVol / 750) * usedQty;
+          itemCals = Math.round(perGramRates.calories * netG);
+          itemP = Math.round(perGramRates.protein * netG);
+          itemC = Math.round(perGramRates.carbs * netG);
+          itemF = Math.round(perGramRates.fats * netG);
+        } else if (matchedFood.perUnit && matchedFood.perUnit[matchedFood.defaultUnit]) {
+          const r = matchedFood.perUnit[matchedFood.defaultUnit];
+          itemCals = Math.round(r.calories * usedQty * bowlFactor);
+          itemP = Math.round(r.protein * usedQty * bowlFactor);
+          itemC = Math.round(r.carbs * usedQty * bowlFactor);
+          itemF = Math.round(r.fats * usedQty * bowlFactor);
+        }
+      } else if ((usedUnit === 'g' || usedUnit === 'grams') && perGramRates) {
+        itemCals = Math.round(perGramRates.calories * usedQty);
+        itemP = Math.round(perGramRates.protein * usedQty);
+        itemC = Math.round(perGramRates.carbs * usedQty);
+        itemF = Math.round(perGramRates.fats * usedQty);
+        portionLabel = `${usedQty}g`;
+      } else if (matchedFood.perUnit && matchedFood.perUnit[usedUnit]) {
+        const r = matchedFood.perUnit[usedUnit];
+        itemCals = Math.round(r.calories * usedQty);
+        itemP = Math.round(r.protein * usedQty);
+        itemC = Math.round(r.carbs * usedQty);
+        itemF = Math.round(r.fats * usedQty);
+      } else if (matchedFood.perUnit && matchedFood.perUnit[matchedFood.defaultUnit]) {
+        const r = matchedFood.perUnit[matchedFood.defaultUnit];
+        itemCals = Math.round(r.calories * usedQty);
+        itemP = Math.round(r.protein * usedQty);
+        itemC = Math.round(r.carbs * usedQty);
+        itemF = Math.round(r.fats * usedQty);
+      }
+
+      matchedItems.push({
+        name: matchedFood.name,
+        portion: portionLabel,
+        calories: itemCals,
+        protein: itemP,
+        carbs: itemC,
+        fats: itemF
+      });
+    }
+  }
+
+  if (matchedItems.length === 0) return null;
+
+  // 3. Tare-adjusted scale deduction application:
+  // If user provided a scale reading with bowl/plate, and we have 1 food item:
+  if (tareAdjustedWeightG && matchedItems.length === 1) {
+    const it = matchedItems[0];
+    const dbFood = INGREDIENT_DATABASE.find(f => f.name === it.name);
+    const perGram = dbFood ? getFoodPerGramRates(dbFood) : null;
+    if (perGram) {
+      const netG = tareAdjustedWeightG;
+      it.calories = Math.round(perGram.calories * netG);
+      it.protein = Math.round(perGram.protein * netG);
+      it.carbs = Math.round(perGram.carbs * netG);
+      it.fats = Math.round(perGram.fats * netG);
+      it.portion = `${netG}g in ${tareVesselName} (net from scale: ${tareAdjustedWeightG + (tareVesselName.toLowerCase().includes('plate') ? plateTare : bowlTare)}g - ${tareVesselName.toLowerCase().includes('plate') ? plateTare : bowlTare}g tare)`;
+    }
+  } else if (compositeMealTotalWeightG && matchedItems.length > 1 && isCompositeSplit) {
+    // If meal has a combined composite weight (e.g. 400g chicken and rice in bowl):
+    const splitGrams = Math.round(compositeMealTotalWeightG / matchedItems.length);
+    for (const it of matchedItems) {
+      const dbFood = INGREDIENT_DATABASE.find(f => f.name === it.name);
+      const perGram = dbFood ? getFoodPerGramRates(dbFood) : null;
+      if (perGram) {
+        it.calories = Math.round(perGram.calories * splitGrams);
+        it.protein = Math.round(perGram.protein * splitGrams);
+        it.carbs = Math.round(perGram.carbs * splitGrams);
+        it.fats = Math.round(perGram.fats * splitGrams);
+        it.portion = `${splitGrams}g (${Math.round(compositeMealTotalWeightG)}g total in ${dishware.bowl.name})`;
+      }
+    }
   }
 
   const totalCalories = matchedItems.reduce((acc, it) => acc + it.calories, 0);
@@ -938,9 +1200,20 @@ export function parseMealDescription(text) {
   const totalCarbs = matchedItems.reduce((acc, it) => acc + it.carbs, 0);
   const totalFats = matchedItems.reduce((acc, it) => acc + it.fats, 0);
 
-  const title = matchedItems.length <= 2 
-    ? matchedItems.map(m => m.name.replace(/\s*\([^)]*\)/, '')).join(' & ')
-    : `${matchedItems[0].name.replace(/\s*\([^)]*\)/, '')} & Plate Bowl`;
+  // Generate clear descriptive title
+  const cleanItemNames = matchedItems.map(m => m.name.replace(/\s*\([^)]*\)/, ''));
+  let title = '';
+  if (cleanItemNames.length === 1) {
+    title = cleanItemNames[0];
+  } else if (cleanItemNames.length === 2) {
+    title = cleanItemNames.join(' & ');
+  } else {
+    title = cleanItemNames.slice(0, -1).join(', ') + ' & ' + cleanItemNames[cleanItemNames.length - 1];
+  }
+
+  if (isOverallBowl && !title.toLowerCase().includes('bowl') && !title.toLowerCase().includes('smoothie')) {
+    title += ` in Primary Bowl (${dishware.bowl.volumeMl}ml)`;
+  }
 
   return {
     name: title,
@@ -1105,6 +1378,73 @@ export function getCalibrationProgress(input = {}) {
     percentage,
     isAllCompleted: completed === total && total > 0
   };
+}
+
+export function getCalibratedDishware(kitchenCalibration = {}) {
+  const tasks = getMergedCalibrationTasks(kitchenCalibration);
+  const bowlTask = tasks.find(t => t.id === 'task-primary-bowl');
+  const plateTask = tasks.find(t => t.id === 'task-dinner-plate');
+
+  const bowlValues = bowlTask?.values || {};
+  const plateValues = plateTask?.values || {};
+
+  let bowlVol = 750;
+  if (bowlValues.volumeMl) {
+    const num = parseFloat(String(bowlValues.volumeMl).replace(/[^\d.]/g, ''));
+    if (!isNaN(num) && num > 0) bowlVol = num;
+  }
+
+  let bowlTare = 420;
+  if (bowlValues.tareWeightG) {
+    const num = parseFloat(bowlValues.tareWeightG);
+    if (!isNaN(num) && num > 0) bowlTare = num;
+  }
+
+  let plateTare = 550;
+  if (plateValues.tareWeightG) {
+    const num = parseFloat(plateValues.tareWeightG);
+    if (!isNaN(num) && num > 0) plateTare = num;
+  }
+
+  const servingFactor = Math.round((bowlVol / 375) * 10) / 10 || 2.0;
+
+  return {
+    bowl: {
+      name: bowlValues.name || 'Primary Large Bowl',
+      diameterInches: parseFloat(bowlValues.diameterInches) || 8.0,
+      depthInches: parseFloat(bowlValues.depthInches) || 3.0,
+      volumeMl: bowlVol,
+      tareWeightG: bowlTare,
+      servingFactor: servingFactor
+    },
+    plate: {
+      name: plateValues.name || 'Main Dinner Plate',
+      diameterInches: parseFloat(plateValues.diameterInches) || 10.5,
+      innerWellInches: parseFloat(plateValues.innerWellInches) || 8.5,
+      tareWeightG: plateTare
+    }
+  };
+}
+
+/**
+ * Builds AI system instruction prompt grounding custom household pantry staples
+ */
+export function buildAiPantryPrompt(householdPantry = []) {
+  const pantry = (Array.isArray(householdPantry) && householdPantry.length > 0)
+    ? householdPantry
+    : DEFAULT_HOUSEHOLD_PANTRY;
+
+  const lines = [
+    "USER PANTRY & STAPLE MEAL DEFINITIONS (HOUSEHOLD GROUND TRUTH):",
+    "The user has specific staples and customized recipes. Use these exact macros when the user mentions these items:"
+  ];
+
+  for (const item of pantry) {
+    if (!item || !item.name) continue;
+    lines.push(`- "${item.name}": Portion "${item.portion || '1 serving'}" -> ${item.calories} kcal, ${item.protein}g P, ${item.carbs}g C, ${item.fats}g F.`);
+  }
+
+  return lines.join("\n");
 }
 
 export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
