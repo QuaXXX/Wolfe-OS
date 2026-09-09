@@ -412,13 +412,13 @@ export const NutritionView = ({
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
                 : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
             }`}
-            title="Calibrate your dishes, pantry staples & everyday meals for accurate AI food vision"
+            title="Calibrate your dishware dimensions so AI vision estimates exact portion sizes"
           >
             <Ruler className={`w-3.5 h-3.5 ${calibrationProgress.isAllCompleted ? 'text-emerald-400' : 'text-indigo-400'}`} />
             <span>
               {calibrationProgress.isAllCompleted 
-                ? 'Kitchen Calibrated' 
-                : `Calibrate: ${calibrationProgress.completed}/${calibrationProgress.total || 22}`}
+                ? 'Hardware Calibrated' 
+                : `Calibrate: ${calibrationProgress.completed}/${calibrationProgress.total || 5}`}
             </span>
             {calibrationProgress.isAllCompleted && (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />

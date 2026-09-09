@@ -36,10 +36,31 @@ export const KitchenCalibrationModal = ({
     return getMergedCalibrationTasks(kitchenCalibration);
   }, [kitchenCalibration]);
 
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'dishware' | 'staples' | 'recipes'
+  const [activeTab, setActiveTab] = useState('all');
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [formValues, setFormValues] = useState({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [isBrandSearchOpen, setIsBrandSearchOpen] = useState(false);
+
+  const availableTabs = useMemo(() => {
+    const dishwareTasks = tasks.filter(t => t.category === 'dishware');
+    const staplesTasks = tasks.filter(t => t.category === 'staples');
+    const recipeTasks = tasks.filter(t => t.category === 'recipes');
+
+    const tabs = [
+      { id: 'all', label: `All (${tasks.filter(t => t.completed).length}/${tasks.length})` }
+    ];
+    if (dishwareTasks.length > 0) {
+      tabs.push({ id: 'dishware', label: `🥣 Dishware (${dishwareTasks.filter(t => t.completed).length}/${dishwareTasks.length})` });
+    }
+    if (staplesTasks.length > 0) {
+      tabs.push({ id: 'staples', label: `🏷️ Saved Staples (${staplesTasks.filter(t => t.completed).length}/${staplesTasks.length})` });
+    }
+    if (recipeTasks.length > 0) {
+      tabs.push({ id: 'recipes', label: `🥗 Custom Builds (${recipeTasks.filter(t => t.completed).length}/${recipeTasks.length})` });
+    }
+    return tabs;
+  }, [tasks]);
 
   // Global Brand Search State
   const [globalBrandQuery, setGlobalBrandQuery] = useState('');
@@ -406,80 +427,106 @@ export const KitchenCalibrationModal = ({
             )}
           </div>
 
-          {/* Category Filter Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-            {[
-              { 
-                id: 'all', 
-                label: `All (${tasks.filter(t => t.completed).length}/${tasks.length})` 
-              },
-              { 
-                id: 'dishware', 
-                label: `🥣 Dishware & Hardware (${tasks.filter(t => t.category === 'dishware' && t.completed).length}/${tasks.filter(t => t.category === 'dishware').length})` 
-              },
-              { 
-                id: 'staples', 
-                label: `🏷️ Pantry & Staples (${tasks.filter(t => t.category === 'staples' && t.completed).length}/${tasks.filter(t => t.category === 'staples').length})` 
-              },
-              { 
-                id: 'recipes', 
-                label: `🥗 Everyday Meal Builds (${tasks.filter(t => t.category === 'recipes' && t.completed).length}/${tasks.filter(t => t.category === 'recipes').length})` 
-              }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  setActiveTab(tab.id);
-                }}
-                className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'bg-white/15 text-white shadow-sm'
-                    : 'bg-white/[0.03] hover:bg-white/[0.06] text-slate-400 hover:text-white border border-white/5'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Category Filter Tabs (Only shown if user has custom staples / builds) */}
+          {availableTabs.length > 2 ? (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+              {availableTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setActiveTab(tab.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    activeTab === tab.id
+                      ? 'bg-white/15 text-white shadow-sm'
+                      : 'bg-white/[0.03] hover:bg-white/[0.06] text-slate-400 hover:text-white border border-white/5'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-xs text-slate-300 px-0.5">
+              <div className="flex items-center gap-2 font-bold text-white">
+                <Ruler className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Necessary Hardware Scale Tasks ({tasks.filter(t => t.completed).length}/{tasks.length})</span>
+              </div>
+              <span className="text-[11px] font-mono text-slate-400">Physical measurements for vision scale</span>
+            </div>
+          )}
+
+          {/* Action Toolbar: Collapsible Brand Search & Custom Hardware */}
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                playSound('click', soundEnabled);
+                setIsBrandSearchOpen(prev => !prev);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                isBrandSearchOpen 
+                  ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' 
+                  : 'bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 border-white/10'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Search Brand & Save Staple</span>
+              {isBrandSearchOpen ? <ChevronUp className="w-3.5 h-3.5 ml-0.5" /> : <ChevronDown className="w-3.5 h-3.5 ml-0.5" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                playSound('click', soundEnabled);
+                setIsAddingCustom(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 border border-white/10 text-xs font-semibold transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-slate-400" />
+              <span>+ Add Hardware</span>
+            </button>
           </div>
 
-          {/* Global Brand Search Bar */}
-          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Search className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Search Branded Food Database</span>
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                Direct Nutrition Facts Label Lookup
-              </span>
-            </div>
-
-            <form onSubmit={handleGlobalBrandSearch} className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={globalBrandQuery}
-                  onChange={(e) => setGlobalBrandQuery(e.target.value)}
-                  placeholder='Search any food brand (e.g. "Good Culture 2%", "Kirkland PB", "Fairlife", "Barebells")...'
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/30"
-                />
+          {/* Collapsible Brand Search Bar */}
+          {isBrandSearchOpen && (
+            <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Search className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Search Branded Food Database</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  Direct Nutrition Facts Label Lookup
+                </span>
               </div>
-              <button
-                type="submit"
-                disabled={isGlobalSearching || !globalBrandQuery.trim()}
-                className="px-4 py-2 rounded-xl text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50"
-                style={{ backgroundColor: 'var(--accent-primary)' }}
-              >
-                {isGlobalSearching ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Search className="w-3.5 h-3.5" />
-                )}
-                <span>{isGlobalSearching ? 'Searching...' : 'Search'}</span>
-              </button>
-            </form>
+
+              <form onSubmit={handleGlobalBrandSearch} className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={globalBrandQuery}
+                    onChange={(e) => setGlobalBrandQuery(e.target.value)}
+                    placeholder='Search any food brand (e.g. "Good Culture 2%", "Kirkland PB", "Fairlife", "Barebells")...'
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/30"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isGlobalSearching || !globalBrandQuery.trim()}
+                  className="px-4 py-2 rounded-xl text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                >
+                  {isGlobalSearching ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isGlobalSearching ? 'Searching...' : 'Search'}</span>
+                </button>
+              </form>
 
             {/* Global Search Results List */}
             {globalBrandResults.length > 0 && (
@@ -556,6 +603,7 @@ export const KitchenCalibrationModal = ({
               <p className="text-xs text-amber-300 pt-1">{globalSearchError}</p>
             )}
           </div>
+        )}
 
           {/* Task Checklist */}
           <div className="space-y-2.5 max-h-[46vh] overflow-y-auto pr-1">

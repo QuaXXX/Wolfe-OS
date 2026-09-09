@@ -1056,7 +1056,7 @@ export function createWeightLogEntry(weightLbs, dateIso = null, notes = "") {
 // ---------------------------------------------------------------------------
 export const DEFAULT_CALIBRATION_TASKS = [
   // ---------------------------------------------------------------------------
-  // Category 1: Dishware & Kitchen Hardware (Scale Rulers)
+  // Necessary Physical Hardware & Dishware Calibration (Vision AI Scale Rulers)
   // ---------------------------------------------------------------------------
   {
     id: "task-dinner-plate",
@@ -1064,7 +1064,7 @@ export const DEFAULT_CALIBRATION_TASKS = [
     title: "Measure Main Dinner Plate",
     shortDesc: "Standard large flat plate used for main meals",
     icon: "🍽️",
-    instruction: "Measure the outer rim diameter in inches (e.g. 10.5 inches) and the inner usable flat bed diameter (e.g. 8.5 inches). Enter color or pattern so vision AI can recognize it immediately.",
+    instruction: "Measure the outer rim diameter in inches (e.g. 10.5 inches) and the inner usable flat bed diameter (e.g. 8.5 inches). This provides Gemini Vision with an absolute physical ruler when estimating portions in plate photos.",
     fields: [
       { key: "name", label: "Plate Description", placeholder: "e.g. White Porcelain Dinner Plate", type: "text", default: "Main Dinner Plate" },
       { key: "diameterInches", label: "Outer Rim Diameter (inches)", placeholder: "e.g. 10.5", type: "number", step: "0.1" },
@@ -1079,9 +1079,9 @@ export const DEFAULT_CALIBRATION_TASKS = [
     id: "task-primary-bowl",
     category: "dishware",
     title: "Measure Primary Large Bowl",
-    shortDesc: "Everyday deep bowl for grain bowls, salads, large meals",
+    shortDesc: "Everyday deep bowl for salads, grain bowls, pastas, large meals",
     icon: "🥣",
-    instruction: "Grab a ruler and measure the top rim diameter across the bowl (e.g. 8.0 inches). Next, fill it with water to your normal eating line and measure holding volume in ml or fl oz (e.g. 750 ml / 25 fl oz). Optional: weigh the empty bowl on your kitchen scale to record tare weight.",
+    instruction: "Measure top rim diameter (e.g. 8.0 inches), depth (e.g. 3.0 inches), and holding volume to your normal fill line in ml or oz (e.g. 750 ml / 25 fl oz). Eliminates 3D volumetric portion guessing.",
     fields: [
       { key: "name", label: "Bowl Description", placeholder: "e.g. Matte Black Ceramic Bowl", type: "text", default: "Everyday Primary Bowl" },
       { key: "diameterInches", label: "Top Rim Diameter (inches)", placeholder: "e.g. 8.0", type: "number", step: "0.1" },
@@ -1097,9 +1097,9 @@ export const DEFAULT_CALIBRATION_TASKS = [
     id: "task-small-bowl",
     category: "dishware",
     title: "Measure Small / Snack Bowl",
-    shortDesc: "For oatmeal, greek yogurt, cereal, berries, & desserts",
+    shortDesc: "For oatmeal, greek yogurt, cereal, berries, & snacks",
     icon: "🍧",
-    instruction: "Measure the rim diameter of your smaller snack or cereal bowl (typically 5.0\" to 6.5\"). Note depth and capacity in ml/oz (typically 350-450 ml).",
+    instruction: "Measure the rim diameter (typically 5.0\" to 6.5\") and holding volume (typically 350-450 ml). Vision AI uses this to calibrate smaller snack and breakfast bowls.",
     fields: [
       { key: "name", label: "Bowl Description", placeholder: "e.g. Small Cereal & Yogurt Bowl", type: "text", default: "Snack & Yogurt Bowl" },
       { key: "diameterInches", label: "Top Rim Diameter (inches)", placeholder: "e.g. 5.5", type: "number", step: "0.1" },
@@ -1114,10 +1114,10 @@ export const DEFAULT_CALIBRATION_TASKS = [
   {
     id: "task-meal-prep-container",
     category: "dishware",
-    title: "Measure Glass Meal Prep Container",
-    shortDesc: "Pyrex or glass containers used for batch cooked food",
+    title: "Measure Meal Prep Container",
+    shortDesc: "Glass or plastic rectangular container for batch cooked food",
     icon: "🍱",
-    instruction: "Measure length, width, and depth of your standard rectangular or square glass prep container (e.g. 7.5\" x 5.5\" x 2.5\"). Enter volume in cups or ml (e.g. 3.5 cups / 850 ml).",
+    instruction: "Measure length, width, and depth of your standard prep container (e.g. 7.5\" x 5.5\" x 2.5\"). Enter holding volume (e.g. 850 ml or 3.5 cups).",
     fields: [
       { key: "name", label: "Container Type", placeholder: "e.g. Pyrex Glass 4-Cup Rectangular", type: "text", default: "Glass Meal Prep Container" },
       { key: "lengthInches", label: "Length (inches)", placeholder: "e.g. 7.5", type: "number", step: "0.1" },
@@ -1132,298 +1132,14 @@ export const DEFAULT_CALIBRATION_TASKS = [
   {
     id: "task-shaker-bottle",
     category: "dishware",
-    title: "Calibrate Shaker Bottle / Blender Cup",
-    shortDesc: "BlenderBottle or NutriBullet cup for shakes",
+    title: "Calibrate Shaker Bottle / Glass",
+    shortDesc: "BlenderBottle, cup, or tumbler for shakes & liquids",
     icon: "🥤",
-    instruction: "Record the total capacity of your shaker bottle (e.g. BlenderBottle Classic 28 oz, Yeti 26 oz, NutriBullet 24 oz) and your typical liquid fill line (e.g. 12 oz or 16 oz).",
+    instruction: "Record total holding capacity (e.g. 28 oz / 800 ml or 16 oz glass) and your typical fill line (e.g. 12 oz or 16 oz). Lets Vision AI verify exact liquid volumes.",
     fields: [
-      { key: "name", label: "Bottle Brand / Model", placeholder: "e.g. BlenderBottle Pro 28 oz", type: "text", default: "28 oz Shaker Bottle" },
+      { key: "name", label: "Bottle / Cup Description", placeholder: "e.g. BlenderBottle Pro 28 oz / Pint Glass", type: "text", default: "28 oz Shaker Bottle" },
       { key: "capacityOz", label: "Total Capacity (oz or ml)", placeholder: "e.g. 28 oz / 800 ml", type: "text" },
       { key: "typicalFillOz", label: "Typical Liquid Fill Line", placeholder: "e.g. 12 oz or 16 oz", type: "text" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-drink-glass",
-    category: "dishware",
-    title: "Measure Everyday Drinking Glass / Mug",
-    shortDesc: "For coffee, milk, hydration, or electrolyte drinks",
-    icon: "☕",
-    instruction: "Fill your everyday drinking glass or coffee mug with water and measure how much liquid it holds (e.g. 16 fl oz pint glass, 12 oz mug). This lets the AI verify exact beverage volumes.",
-    fields: [
-      { key: "name", label: "Glass / Mug Description", placeholder: "e.g. Pint Glass / Ceramic Mug", type: "text", default: "Everyday Drinking Glass" },
-      { key: "volumeOz", label: "Liquid Capacity (oz or ml)", placeholder: "e.g. 16 fl oz / 470 ml", type: "text" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-
-  // ---------------------------------------------------------------------------
-  // Category 2: Everyday Proteins & Pantry Staples
-  // ---------------------------------------------------------------------------
-  {
-    id: "task-protein-powder",
-    category: "staples",
-    title: "Log Your Protein Powder Brand & Scoop",
-    shortDesc: "Exact grams & protein per scoop",
-    icon: "💪",
-    instruction: "Check your protein powder tub. Enter brand, flavor, scoop weight in grams (usually 30g-35g), and protein per scoop (usually 24g-27g).",
-    fields: [
-      { key: "brand", label: "Brand & Flavor", placeholder: "e.g. Optimum Nutrition Gold Standard Whey, Ghost, Dymatize", type: "text" },
-      { key: "scoopGrams", label: "Grams per Scoop", placeholder: "e.g. 31g", type: "text" },
-      { key: "proteinPerScoop", label: "Protein per Scoop (grams)", placeholder: "e.g. 24", type: "number" },
-      { key: "calsPerScoop", label: "Calories per Scoop", placeholder: "e.g. 120", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-greek-yogurt",
-    category: "staples",
-    title: "Specify Greek Yogurt Brand & Fat %",
-    shortDesc: "0% Nonfat vs 2% Low-Fat vs 5% Whole Milk",
-    icon: "🍦",
-    instruction: "Check your greek yogurt tub. Enter the brand and fat percentage (e.g. Fage Total 0% Nonfat, Fage 2%, Oikos Pro, Chobani). Record protein and calories per 3/4 cup (170g).",
-    fields: [
-      { key: "brand", label: "Brand Name & Fat %", placeholder: "e.g. Fage Total 0% Nonfat", type: "text" },
-      { key: "proteinPerServing", label: "Protein per 3/4 cup (170g) (grams)", placeholder: "e.g. 18", type: "number" },
-      { key: "calsPerServing", label: "Calories per 3/4 cup", placeholder: "e.g. 90", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-eggs-style",
-    category: "staples",
-    title: "Log Your Eggs & Egg Whites Setup",
-    shortDesc: "Egg size (Large vs XL) & liquid egg white carton",
-    icon: "🥚",
-    instruction: "Select your standard carton egg size (Large = ~72 kcal, 6.3g P; XL = ~80 kcal, 7g P). If you use carton liquid egg whites (e.g. Kirkland Liquid Egg Whites), enter the brand and protein.",
-    fields: [
-      { key: "eggSize", label: "Whole Egg Size", placeholder: "e.g. Large (USDA Standard 50g, 72 kcal, 6.3g P)", type: "text", default: "Large Eggs (72 kcal, 6g P)" },
-      { key: "liquidWhiteBrand", label: "Liquid Egg White Brand (optional)", placeholder: "e.g. Kirkland Signature Liquid Egg Whites (5g P / 3 tbsp)", type: "text" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-meats-prep",
-    category: "staples",
-    title: "Tune Your Everyday Meat & Poultry Cuts",
-    shortDesc: "Chicken breast, 90/10 beef, steak, salmon",
-    icon: "🥩",
-    instruction: "Enter the primary meat cuts in your fridge/freezer and your standard cooked portion (e.g. 6 oz or 8 oz cooked). Note: meat loses ~25% weight when cooked due to water loss (8 oz raw = ~6 oz cooked).",
-    fields: [
-      { key: "favoriteCuts", label: "Primary Meat Cuts", placeholder: "e.g. Chicken Breast, 90/10 Lean Ground Beef, Flank Steak, Salmon", type: "text" },
-      { key: "typicalServingOz", label: "Standard Cooked Serving", placeholder: "e.g. 6 to 8 oz cooked (~170-225g)", type: "text" },
-      { key: "cookedYieldPct", label: "Cooked Yield Factor", placeholder: "75% (8 oz raw = 6 oz cooked)", type: "text", default: "75% (cooked weight is 25% less than raw)" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-rice-grains",
-    category: "staples",
-    title: "Log Your Everyday Rice & Grains",
-    shortDesc: "Jasmine, Basmati, Oats, Brown Rice, Sweet Potato",
-    icon: "🍚",
-    instruction: "Enter your staple grain (e.g. Jasmine Rice, Basmati, Rolled Oats, Sweet Potato). Record standard cooked cup metrics so vision AI doesn't confuse dry vs cooked weights.",
-    fields: [
-      { key: "stapleGrain", label: "Primary Grain / Carb", placeholder: "e.g. Jasmine Rice, Rolled Oats, Sweet Potato", type: "text" },
-      { key: "calsPerCup", label: "Calories per 1 cup cooked", placeholder: "e.g. 205 kcal (Jasmine Rice)", type: "number", default: 205 },
-      { key: "carbsPerCup", label: "Carbs per 1 cup cooked (grams)", placeholder: "e.g. 45", type: "number", default: 45 },
-      { key: "proteinPerCup", label: "Protein per 1 cup cooked (grams)", placeholder: "e.g. 4", type: "number", default: 4 }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-bread-slice-weight",
-    category: "staples",
-    title: "Weigh 1 Slice of Your Bread",
-    shortDesc: "Exact gram weight of your everyday bread slice",
-    icon: "🍞",
-    instruction: "Place 1 typical slice of your everyday bread on your kitchen scale. Grocery bread slices typically range from 32g to 60g. Enter brand and exact weight.",
-    fields: [
-      { key: "brand", label: "Bread Brand & Style", placeholder: "e.g. Dave's Killer Bread, Sourdough, Ezekiel", type: "text" },
-      { key: "sliceWeightG", label: "Weight per Slice (grams)", placeholder: "e.g. 45", type: "number" },
-      { key: "calsPerSlice", label: "Calories per Slice (optional)", placeholder: "e.g. 110", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-bagels-wraps",
-    category: "staples",
-    title: "Log Your Bagels, Tortillas, or Wraps",
-    shortDesc: "Tortillas, wraps, pita, or bagels",
-    icon: "🌯",
-    instruction: "Enter the brand and style of wraps, bagels, or tortillas in your pantry (e.g. Mission Carb Balance 70 kcal / 19g fiber, Dave's Epic Bagel 260 kcal / 11g P, Ezekiel Sprouted Tortillas).",
-    fields: [
-      { key: "brand", label: "Brand & Product Name", placeholder: "e.g. Mission Carb Balance Flour Soft Taco", type: "text" },
-      { key: "calsPerUnit", label: "Calories per piece", placeholder: "e.g. 70", type: "number" },
-      { key: "carbsPerUnit", label: "Carbs per piece", placeholder: "e.g. 19g (15g fiber)", type: "text" },
-      { key: "proteinPerUnit", label: "Protein per piece (grams)", placeholder: "e.g. 5", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-cottage-cheese-brand",
-    category: "staples",
-    title: "Specify Cottage Cheese Brand & %",
-    shortDesc: "Target your exact protein and moisture density",
-    icon: "🥛",
-    instruction: "Enter the brand and fat percentage you buy (e.g. Good Culture 2% Low-Fat, Daisy 4% Whole Milk, Lucerne). Different brands vary significantly in moisture, curds, and protein density.",
-    fields: [
-      { key: "brand", label: "Brand Name & Fat %", placeholder: "e.g. Good Culture 2% Low-Fat", type: "text" },
-      { key: "proteinPerHalfCup", label: "Protein per 1/2 cup (grams)", placeholder: "e.g. 14", type: "number" },
-      { key: "calsPerHalfCup", label: "Calories per 1/2 cup", placeholder: "e.g. 100", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-peanut-butter-brand",
-    category: "staples",
-    title: "Log Your Peanut Butter / Nut Butter",
-    shortDesc: "Natural vs standard peanut butter profile",
-    icon: "🥜",
-    instruction: "Enter your brand (e.g. Kirkland Organic Creamy, Jif, Smucker's Natural, Skippy, Almond Butter). Natural nut butters without hydrogenated oil have distinct macro density.",
-    fields: [
-      { key: "brand", label: "Brand Name", placeholder: "e.g. Kirkland Organic Creamy", type: "text" },
-      { key: "servingGrams", label: "Grams per 2 tbsp", placeholder: "e.g. 32g", type: "text", default: "32g" },
-      { key: "cals", label: "Calories per 2 tbsp", placeholder: "e.g. 190", type: "number", default: 190 },
-      { key: "protein", label: "Protein per 2 tbsp (grams)", placeholder: "e.g. 8", type: "number", default: 8 }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-milk-staple",
-    category: "staples",
-    title: "Log Your Everyday Milk or Plant Milk",
-    shortDesc: "Fairlife, whole milk, almond milk, oat milk",
-    icon: "🧃",
-    instruction: "Enter the brand and type of milk you pour into shakes, coffee, or cereal (e.g. Fairlife 2% Ultra-Filtered 120 kcal / 13g P, Whole Milk 150 kcal / 8g P, Almond Breeze Unsweetened 30 kcal).",
-    fields: [
-      { key: "brand", label: "Brand & Milk Type", placeholder: "e.g. Fairlife 2% Ultra-Filtered", type: "text" },
-      { key: "calsPerCup", label: "Calories per 1 cup (240ml)", placeholder: "e.g. 120", type: "number" },
-      { key: "proteinPerCup", label: "Protein per 1 cup (grams)", placeholder: "e.g. 13", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-bars-staple",
-    category: "staples",
-    title: "Log Your Go-To Protein & Granola Bars",
-    shortDesc: "Pantry snack bars you grab on the go",
-    icon: "🍫",
-    instruction: "Enter the brand of protein or snack bars in your pantry (e.g. Barebells Caramel Cashew, Kirkland Signature Protein Bar, Nature Valley Crunchy, Clif Bar, Pure Protein).",
-    fields: [
-      { key: "brand", label: "Brand & Bar Name", placeholder: "e.g. Barebells Protein Bar / Kirkland Signature", type: "text" },
-      { key: "calsPerBar", label: "Calories per bar", placeholder: "e.g. 200", type: "number" },
-      { key: "proteinPerBar", label: "Protein per bar (grams)", placeholder: "e.g. 20", type: "number" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-cooking-oils",
-    category: "staples",
-    title: "Log Your Cooking Oils & Butter Habits",
-    shortDesc: "Olive oil, butter, avocado spray cooking fats",
-    icon: "🫒",
-    instruction: "Enter what cooking fat you use when cooking meals (e.g. Extra Virgin Olive Oil, Kerrygold Butter, Avocado Oil Spray). Note your typical amount per pan (1 tbsp oil = 120 kcal / 14g fats; 1 tbsp butter = 100 kcal / 11g fats; 1-sec spray = ~10 kcal).",
-    fields: [
-      { key: "oilType", label: "Primary Cooking Fat", placeholder: "e.g. Extra Virgin Olive Oil, Kerrygold Butter, Avocado Spray", type: "text" },
-      { key: "typicalAmount", label: "Typical Amount per Meal", placeholder: "e.g. 0.5 to 1 tbsp (~60-120 kcal)", type: "text" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-
-  // ---------------------------------------------------------------------------
-  // Category 3: Everyday Meal Builds & Templates
-  // ---------------------------------------------------------------------------
-  {
-    id: "task-meat-carb-plate",
-    category: "recipes",
-    title: "Tune Your Standard Meat & Carb Dinner",
-    shortDesc: "Baseline chicken/beef + rice/potatoes dinner",
-    icon: "🍛",
-    instruction: "Enter your standard dinner baseline when you eat meat, a carb, and veggies. This allows Gemini Vision to immediately recognize your staple dinner layout.",
-    fields: [
-      { key: "proteinPortion", label: "Cooked Meat Portion", placeholder: "e.g. 7 oz cooked chicken breast / 90/10 beef", type: "text", default: "7 oz cooked chicken breast / 90/10 beef" },
-      { key: "carbPortion", label: "Carb Portion", placeholder: "e.g. 1.5 cups cooked jasmine rice or potatoes", type: "text", default: "1.5 cups cooked jasmine rice or potatoes" },
-      { key: "veggiePortion", label: "Veggie Portion", placeholder: "e.g. 1 cup steamed broccoli or asparagus", type: "text", default: "1 cup steamed broccoli or asparagus" },
-      { key: "fatsNote", label: "Cooking Fat", placeholder: "e.g. 1 tbsp olive oil", type: "text", default: "1 tbsp olive oil" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-breakfast-build",
-    category: "recipes",
-    title: "Tune Your Daily Breakfast Plate",
-    shortDesc: "Baseline eggs, toast, butter, PB, or fruit",
-    icon: "🍳",
-    instruction: "Enter your standard morning breakfast template. Vision AI anchors to these numbers whenever you snap a photo of breakfast.",
-    fields: [
-      { key: "eggPortion", label: "Egg Setup", placeholder: "e.g. 3 whole eggs + 0.5 cup egg whites", type: "text", default: "3 whole eggs + 0.5 cup egg whites" },
-      { key: "carbPortion", label: "Toast / Carb", placeholder: "e.g. 2 slices toast with 1 tbsp butter or PB", type: "text", default: "2 slices toast with 1 tbsp butter or PB" },
-      { key: "fruitPortion", label: "Fruit / Side", placeholder: "e.g. 1 banana or apple", type: "text", default: "1 banana or apple" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-shake-build",
-    category: "recipes",
-    title: "Tune Your Post-Workout Shake / Smoothie",
-    shortDesc: "Baseline whey, milk, PB, banana, oats",
-    icon: "🥤",
-    instruction: "Enter your standard shake recipe in your shaker or blender. Whenever you snap a shake, the AI knows the exact liquid and powder foundation.",
-    fields: [
-      { key: "liquidBase", label: "Liquid Base", placeholder: "e.g. 12 oz Fairlife 2% or almond milk", type: "text", default: "12 oz Fairlife 2% or almond milk" },
-      { key: "proteinScoops", label: "Whey Scoops", placeholder: "e.g. 1.5 scoops whey (~36g protein)", type: "text", default: "1.5 scoops whey (~36g protein)" },
-      { key: "addIns", label: "Add-ins", placeholder: "e.g. 1 medium banana, 2 tbsp peanut butter", type: "text", default: "1 medium banana, 2 tbsp peanut butter" }
-    ],
-    completed: false,
-    completedAt: null,
-    values: null
-  },
-  {
-    id: "task-power-bowl-build",
-    category: "recipes",
-    title: "Tune Your Flexible Grain, Salad & Protein Bowl",
-    shortDesc: "Versatile bowl baseline (grains, protein, greens)",
-    icon: "🥗",
-    instruction: "Enter your standard bowl layout when making salads or grain bowls (quinoa, rice, chickpeas, cottage cheese, sweet potato, kale, etc.). Vision AI uses this as a reference baseline.",
-    fields: [
-      { key: "quinoaPortion", label: "Grain Base", placeholder: "e.g. 1 cup cooked rice or quinoa (~185g)", type: "text", default: "1 cup cooked rice or quinoa (~185g)" },
-      { key: "chickpeaPortion", label: "Legume / Topper", placeholder: "e.g. 0.5 cup chickpeas or beans (~82g)", type: "text", default: "0.5 cup chickpeas or beans (~82g)" },
-      { key: "cottageCheesePortion", label: "Cheese / Protein", placeholder: "e.g. 0.5 cup cottage cheese or feta (~113g)", type: "text", default: "0.5 cup cottage cheese or feta (~113g)" },
-      { key: "sweetPotatoPortion", label: "Roasted Vegetable", placeholder: "e.g. 1 medium sweet potato (~130g)", type: "text", default: "1 medium sweet potato (~130g)" },
-      { key: "kalePortion", label: "Greens / Salad", placeholder: "e.g. 1 cup kale or spinach (~130g)", type: "text", default: "1 cup kale or spinach (~130g)" }
     ],
     completed: false,
     completedAt: null,
@@ -1487,7 +1203,7 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
 
   const lines = [
     "USER PHYSICAL HARDWARE & KITCHEN CALIBRATION MANIFEST (GROUND TRUTH):",
-    "The user has physically measured their kitchenware, staple brands, and everyday meal builds. Use these exact measurements as an absolute physical ruler when analyzing photos:"
+    "The user has physically measured their kitchenware. Use these exact measurements as an absolute physical ruler when analyzing photos:"
   ];
 
   for (const task of completedTasks) {
@@ -1501,41 +1217,7 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
     } else if (task.id === "task-meal-prep-container") {
       lines.push(`- MEAL PREP CONTAINER: "${v.name || 'Glass Prep Container'}" | Dimensions: ${v.lengthInches || 7.5}" x ${v.widthInches || 5.5}" x ${v.depthInches || 2.5}" | Volume: ${v.volumeMl || '850 ml'}. Use to calculate volume of batch cooked meals.`);
     } else if (task.id === "task-shaker-bottle") {
-      lines.push(`- SHAKER BOTTLE / BLENDER CUP: "${v.name || 'Shaker Bottle'}" | Total Capacity: ${v.capacityOz || '28 oz'} | Typical Liquid Fill: ${v.typicalFillOz || '12-16 oz'}.`);
-    } else if (task.id === "task-drink-glass") {
-      lines.push(`- DRINKING CUP / MUG: "${v.name || 'Everyday Tumbler/Mug'}" | Usable Volume: ${v.volumeOz || '16 oz'}.`);
-    } else if (task.id === "task-protein-powder") {
-      lines.push(`- PROTEIN POWDER: Brand: "${v.brand || 'Whey'}" | Scoop Size: ${v.scoopGrams || '31g'} | Protein: ${v.proteinPerScoop || 24}g | Calories: ${v.calsPerScoop || 120} kcal.`);
-    } else if (task.id === "task-greek-yogurt") {
-      lines.push(`- GREEK YOGURT: Brand: "${v.brand || 'Greek Yogurt'}" | Protein per 3/4 cup (170g): ${v.proteinPerServing || 18}g | Calories: ${v.calsPerServing || 90} kcal.`);
-    } else if (task.id === "task-eggs-style") {
-      lines.push(`- EGGS & EGG WHITES: Standard Size: "${v.eggSize || 'Large (50g, 72 kcal, 6.3g P)'}" ${v.liquidWhiteBrand ? `| Liquid Whites Brand: "${v.liquidWhiteBrand}"` : ''}.`);
-    } else if (task.id === "task-meats-prep") {
-      lines.push(`- MEATS & POULTRY BASELINE: Standard Cuts: "${v.favoriteCuts || 'Chicken Breast, 90/10 Beef'}" | Cooked-to-Raw Ratio: ${v.cookedYieldPct || '75%'} | Standard Serving: ${v.typicalServingOz || '6-8 oz cooked'}.`);
-    } else if (task.id === "task-rice-grains") {
-      lines.push(`- RICE & GRAINS: Staple: "${v.stapleGrain || 'Jasmine Rice'}" | 1 cup cooked = ${v.calsPerCup || 205} kcal, ${v.carbsPerCup || 45}g carbs, ${v.proteinPerCup || 4}g protein.`);
-    } else if (task.id === "task-bread-slice-weight") {
-      lines.push(`- BREAD STAPLE: Brand: "${v.brand || 'Everyday Bread'}" | Weight per slice: ${v.sliceWeightG || 45}g | Calories: ${v.calsPerSlice || 110} kcal.`);
-    } else if (task.id === "task-bagels-wraps") {
-      lines.push(`- BAGELS, TORTILLAS & WRAPS: Brand: "${v.brand || 'Wrap/Bagel'}" | Calories per unit: ${v.calsPerUnit || 70} kcal | Carbs: ${v.carbsPerUnit || '19g'} | Protein: ${v.proteinPerUnit || 5}g.`);
-    } else if (task.id === "task-cottage-cheese-brand") {
-      lines.push(`- COTTAGE CHEESE: Brand: "${v.brand || 'Good Culture 2%'}" | Protein per 1/2 cup: ${v.proteinPerHalfCup || 14}g | Calories: ${v.calsPerHalfCup || 100} kcal.`);
-    } else if (task.id === "task-peanut-butter-brand") {
-      lines.push(`- PEANUT BUTTER: Brand: "${v.brand || 'Natural PB'}" | Serving: ${v.servingGrams || '32g (2 tbsp)'} | Calories: ${v.cals || 190} kcal | Protein: ${v.protein || 8}g.`);
-    } else if (task.id === "task-milk-staple") {
-      lines.push(`- MILK / PLANT MILK: Brand: "${v.brand || 'Fairlife 2%'}" | Calories per 1 cup (240ml): ${v.calsPerCup || 120} kcal | Protein: ${v.proteinPerCup || 13}g.`);
-    } else if (task.id === "task-bars-staple") {
-      lines.push(`- SNACK & PROTEIN BARS: Go-to Brands: "${v.brand || 'Kirkland / Barebells'}" | Per bar: ${v.calsPerBar || 200} kcal | Protein: ${v.proteinPerBar || 20}g.`);
-    } else if (task.id === "task-cooking-oils") {
-      lines.push(`- COOKING OILS & BUTTER: Habits: "${v.oilType || 'Olive Oil / Butter'}" | Typical cooking fat per meal: ${v.typicalAmount || '0.5 to 1 tbsp (~60-120 kcal)'}.`);
-    } else if (task.id === "task-meat-carb-plate") {
-      lines.push(`- MEAT & CARB DINNER TEMPLATE: Standard Dinner: Protein (${v.proteinPortion || '7 oz cooked meat'}), Carbs (${v.carbPortion || '1.5 cups rice/potatoes'}), Veggies (${v.veggiePortion || '1 cup veggies'}), Cooking Fat (${v.fatsNote || '1 tbsp olive oil'}). Anchor dinner photos to this baseline.`);
-    } else if (task.id === "task-breakfast-build") {
-      lines.push(`- BREAKFAST BUILD TEMPLATE: Standard Morning: Eggs (${v.eggPortion || '3 whole eggs + 0.5 cup egg whites'}), Toast/Carb (${v.carbPortion || '2 slices toast with PB/butter'}), Fruit/Side (${v.fruitPortion || '1 banana or apple'}). Anchor breakfast photos to this baseline.`);
-    } else if (task.id === "task-shake-build") {
-      lines.push(`- POST-WORKOUT SHAKE TEMPLATE: Liquid (${v.liquidBase || '12 oz milk'}), Whey (${v.proteinScoops || '1.5 scoops whey'}), Add-ins (${v.addIns || 'banana, peanut butter'}). Anchor shake photos to this baseline.`);
-    } else if (task.id === "task-power-bowl-build") {
-      lines.push(`- FLEXIBLE GRAIN & SALAD BOWL: Base (${v.quinoaPortion || '1 cup cooked rice/grains'}), Protein/Legumes (${v.chickpeaPortion || '0.5 cup beans/meat'}), Cheese/Topper (${v.cottageCheesePortion || '0.5 cup cheese'}), Veggies (${v.sweetPotatoPortion || 'sweet potato/greens'}).`);
+      lines.push(`- SHAKER BOTTLE / GLASS: "${v.name || 'Shaker Bottle / Glass'}" | Total Capacity: ${v.capacityOz || '28 oz'} | Typical Liquid Fill: ${v.typicalFillOz || '12-16 oz'}.`);
     } else {
       lines.push(`- CUSTOM CALIBRATION ("${task.title}"): ${JSON.stringify(v)}`);
     }
