@@ -12,7 +12,11 @@ import {
   Check, 
   Trash2, 
   ChevronRight, 
-  Sparkles,
+  ChevronLeft, 
+  Sparkles, 
+  Calendar as CalendarIcon, 
+  CheckCheck, 
+  History,
   AlertCircle,
   BookmarkPlus,
   Edit3,
@@ -34,8 +38,11 @@ import {
   createMealEntry,
   parseMealDescription,
   DEFAULT_HOUSEHOLD_PANTRY,
-  getCalibrationProgress 
+  getCalibrationProgress,
+  filterMealsByDate,
+  getDailyNutritionHistory
 } from '../../utils/nutritionEngine.js';
+import { getTodayIso, formatDateTitle } from '../../utils/calendarUtils.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
@@ -53,12 +60,67 @@ export const NutritionView = ({
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [pantryCategory, setPantryCategory] = useState('common');
   const [justLoggedToast, setJustLoggedToast] = useState(null);
   const [quickAddText, setQuickAddText] = useState('');
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [quickAddFeedback, setQuickAddFeedback] = useState(null);
   const speechRecognitionRef = useRef(null);
+
+  // Date Navigation State
+  const todayIso = useMemo(() => getTodayIso(), []);
+  const [selectedDate, setSelectedDate] = useState(() => getTodayIso());
+  const dayScrollRef = useRef(null);
+  const selectedDayCardRef = useRef(null);
+
+  // Side-Scrollable Day Window: 14 days before today up to 3 days ahead
+  const dayWindow = useMemo(() => {
+    const days = [];
+    const base = new Date();
+    for (let i = -14; i <= 3; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      const dateIso = d.toISOString().split('T')[0];
+      days.push({
+        dateIso,
+        dayNumber: d.getDate(),
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        monthName: d.toLocaleDateString('en-US', { month: 'short' })
+      });
+    }
+    return days;
+  }, []);
+
+  // Auto-center selected day card in horizontal carousel
+  useEffect(() => {
+    if (selectedDayCardRef.current) {
+      selectedDayCardRef.current.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest'
+      });
+    }
+  }, [selectedDate]);
+
+  const handlePrevDay = () => {
+    playSound('switch', soundEnabled);
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleNextDay = () => {
+    playSound('switch', soundEnabled);
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleTodayJump = () => {
+    playSound('switch', soundEnabled);
+    setSelectedDate(todayIso);
+  };
 
   // Destructure state from nutritionData with safe fallbacks
   const targetCalories = nutritionData.targetCalories || 3250;
@@ -77,10 +139,20 @@ export const NutritionView = ({
   const [customCarbs, setCustomCarbs] = useState(targetCarbs);
   const [customFats, setCustomFats] = useState(targetFats);
 
-  // Aggregate current daily totals from meals
+  // Filter meals strictly for the selected date (legacy meals without date attribute default to todayIso)
+  const selectedDateMeals = useMemo(() => {
+    return (meals || []).filter(m => (m?.date || todayIso) === selectedDate);
+  }, [meals, selectedDate, todayIso]);
+
+  // Aggregate selected date nutrition totals
   const dailyTotals = useMemo(() => {
-    return aggregateDailyNutrition(meals);
-  }, [meals]);
+    return aggregateDailyNutrition(selectedDateMeals);
+  }, [selectedDateMeals]);
+
+  // 7-day consistency and lookback history
+  const nutritionHistory = useMemo(() => {
+    return getDailyNutritionHistory(meals, targetCalories, targetProtein, 7);
+  }, [meals, targetCalories, targetProtein]);
 
   const remainingCals = targetCalories - dailyTotals.calories;
   const calPercent = Math.min(100, Math.round((dailyTotals.calories / targetCalories) * 100));
@@ -133,18 +205,25 @@ export const NutritionView = ({
   // Handlers for logging
   const handleLogMeal = (mealEntry) => {
     playSound('success', soundEnabled);
-    if (mealEntry?.id) recordAdditionOrUpdate(mealEntry.id);
+    const stampedMeal = {
+      ...mealEntry,
+      date: mealEntry?.date || selectedDate || todayIso
+    };
+    if (stampedMeal?.id) recordAdditionOrUpdate(stampedMeal.id);
     markLocalMutation();
 
     setNutritionData(prev => {
-      const nextMeals = [mealEntry, ...(prev.meals || [])];
-      const newTotals = aggregateDailyNutrition(nextMeals);
+      const nextMeals = [stampedMeal, ...(prev.meals || [])];
+      // Today's total (for Home Dashboard consistency)
+      const todayMeals = nextMeals.filter(m => (m.date || todayIso) === todayIso);
+      const todayTotals = aggregateDailyNutrition(todayMeals);
+
       const nextData = {
         ...prev,
-        consumedCalories: newTotals.calories,
-        protein: { ...prev.protein, current: newTotals.protein },
-        carbs: { ...prev.carbs, current: newTotals.carbs },
-        fats: { ...prev.fats, current: newTotals.fats },
+        consumedCalories: todayTotals.calories,
+        protein: { ...prev.protein, current: todayTotals.protein },
+        carbs: { ...prev.carbs, current: todayTotals.carbs },
+        fats: { ...prev.fats, current: todayTotals.fats },
         meals: nextMeals
       };
       try {
@@ -163,13 +242,15 @@ export const NutritionView = ({
 
     setNutritionData(prev => {
       const nextMeals = (prev.meals || []).filter(m => m.id !== mealId);
-      const newTotals = aggregateDailyNutrition(nextMeals);
+      const todayMeals = nextMeals.filter(m => (m.date || todayIso) === todayIso);
+      const todayTotals = aggregateDailyNutrition(todayMeals);
+
       const nextData = {
         ...prev,
-        consumedCalories: newTotals.calories,
-        protein: { ...prev.protein, current: newTotals.protein },
-        carbs: { ...prev.carbs, current: newTotals.carbs },
-        fats: { ...prev.fats, current: newTotals.fats },
+        consumedCalories: todayTotals.calories,
+        protein: { ...prev.protein, current: todayTotals.protein },
+        carbs: { ...prev.carbs, current: todayTotals.carbs },
+        fats: { ...prev.fats, current: todayTotals.fats },
         meals: nextMeals
       };
       try {
@@ -184,6 +265,7 @@ export const NutritionView = ({
   const handleQuickLogStaple = (staple) => {
     playSound('success', soundEnabled);
     const meal = createMealEntry({
+      date: selectedDate,
       name: staple.name,
       slot: 'meal',
       calories: staple.calories,
@@ -193,7 +275,8 @@ export const NutritionView = ({
       items: [`${staple.portion || staple.name} (${staple.calories} kcal, ${staple.protein}g P)`]
     });
     handleLogMeal(meal);
-    setJustLoggedToast(`Logged ${staple.name} (+${staple.protein}g Protein, ${staple.calories} kcal)`);
+    const dayLabel = selectedDate === todayIso ? 'Today' : selectedDate;
+    setJustLoggedToast(`Logged ${staple.name} into ${dayLabel} (+${staple.protein}g P, ${staple.calories} kcal)`);
     setTimeout(() => setJustLoggedToast(null), 3000);
   };
 
@@ -204,6 +287,7 @@ export const NutritionView = ({
     if (parsed && parsed.items && parsed.items.length > 0) {
       playSound('success', soundEnabled);
       const meal = createMealEntry({
+        date: selectedDate,
         name: parsed.name,
         slot: 'meal',
         calories: parsed.calories,
@@ -257,6 +341,7 @@ export const NutritionView = ({
           if (parsed && parsed.items && parsed.items.length > 0) {
             playSound('success', soundEnabled);
             const meal = createMealEntry({
+              date: selectedDate,
               name: parsed.name,
               slot: 'meal',
               calories: parsed.calories,
@@ -485,6 +570,23 @@ export const NutritionView = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Consistency Lookback Toggle Button */}
+          <button
+            onClick={() => {
+              playSound('click', soundEnabled);
+              setIsHistoryExpanded(prev => !prev);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
+              isHistoryExpanded 
+                ? 'bg-white/15 text-white border-white/20 shadow-sm'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
+            }`}
+            title="View 7-day calorie and macro target history"
+          >
+            <History className="w-3.5 h-3.5 text-sky-400" />
+            <span>{isHistoryExpanded ? 'Hide History' : '7-Day History'}</span>
+          </button>
+
           {/* Hardware & Dish Calibration Pill */}
           <button
             onClick={() => {
@@ -502,7 +604,7 @@ export const NutritionView = ({
             <span>
               {calibrationProgress.isAllCompleted 
                 ? 'Hardware Calibrated' 
-                : `Calibrate: ${calibrationProgress.completed}/${calibrationProgress.total || 5}`}
+                : `Calibrate: ${calibrationProgress.completed}/${calibrationProgress.total || 2}`}
             </span>
             {calibrationProgress.isAllCompleted && (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />
@@ -535,6 +637,186 @@ export const NutritionView = ({
           </button>
         </div>
       </div>
+
+      {/* Side-Scrollable Day Navigation Strip */}
+      <div className="p-3 sm:p-4 rounded-3xl bg-[#0f1220]/90 border border-white/10 shadow-xl space-y-3 font-sans">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-xl bg-white/[0.04] border border-white/10">
+              <CalendarIcon className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white tracking-tight flex items-center gap-1.5">
+                <span>{formatDateTitle(selectedDate)}</span>
+                {selectedDate === todayIso && (
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">
+                    Today
+                  </span>
+                )}
+              </span>
+              <div className="text-[10px] font-mono text-slate-400">
+                {selectedDateMeals.length} logged • {dailyTotals.calories} kcal ({dailyTotals.protein}g P)
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handlePrevDay}
+              className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 transition-colors cursor-pointer"
+              title="Previous Day"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {selectedDate !== todayIso && (
+              <button
+                onClick={handleTodayJump}
+                className="px-2.5 py-1 rounded-xl text-xs font-bold text-white border transition-all cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--accent-subtle)',
+                  borderColor: 'var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                }}
+              >
+                Today
+              </button>
+            )}
+            <button
+              onClick={handleNextDay}
+              className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/5 transition-colors cursor-pointer"
+              title="Next Day"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Horizontal Carousel of Day Cards */}
+        <div 
+          ref={dayScrollRef}
+          className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none scroll-smooth touch-pan-x"
+        >
+          {dayWindow.map((day) => {
+            const isSelected = day.dateIso === selectedDate;
+            const isToday = day.dateIso === todayIso;
+            const dayMeals = (meals || []).filter(m => (m?.date || todayIso) === day.dateIso);
+            const dayTotals = aggregateDailyNutrition(dayMeals);
+            const hitGoal = dayTotals.calories >= targetCalories;
+
+            return (
+              <button
+                key={day.dateIso}
+                ref={isSelected ? selectedDayCardRef : null}
+                type="button"
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  setSelectedDate(day.dateIso);
+                }}
+                className={`shrink-0 w-16 sm:w-20 py-2 px-1 rounded-2xl flex flex-col items-center justify-between transition-all cursor-pointer relative ${
+                  isSelected
+                    ? 'text-white shadow-lg scale-[1.03]'
+                    : 'bg-white/[0.03] text-slate-400 hover:text-white hover:bg-white/[0.06] border border-white/5'
+                }`}
+                style={isSelected ? {
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
+                  boxShadow: '0 0 18px -3px var(--accent-glow)'
+                } : {}}
+              >
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider opacity-80">
+                  {day.dayName}
+                </span>
+                <span className={`text-base font-bold font-mono my-0.5 ${isSelected ? 'text-white' : isToday ? 'text-amber-300 font-extrabold' : 'text-slate-200'}`}>
+                  {day.dayNumber}
+                </span>
+                
+                {/* Calorie status badge */}
+                <div className="text-[10px] font-mono mt-0.5">
+                  {dayTotals.calories > 0 ? (
+                    <span className={`font-bold ${hitGoal ? 'text-emerald-400' : 'text-slate-300'}`}>
+                      {dayTotals.calories >= 1000 ? `${(dayTotals.calories / 1000).toFixed(1)}k` : dayTotals.calories}
+                      {hitGoal && ' ✓'}
+                    </span>
+                  ) : (
+                    <span className="text-slate-600">—</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 7-DAY CONSISTENCY & HISTORY LOOKBACK CARD (Expandable) */}
+      {isHistoryExpanded && (
+        <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-3.5">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-sky-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+                7-Day Calorie & Macro Target Consistency
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">
+              Tap any day to inspect full meal breakdown
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            {nutritionHistory.map((h) => {
+              const isSelected = h.dateIso === selectedDate;
+              return (
+                <div
+                  key={h.dateIso}
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setSelectedDate(h.dateIso);
+                  }}
+                  className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-white/[0.08] border-white/25 shadow-md scale-[1.02]'
+                      : 'bg-white/[0.02] hover:bg-white/[0.05] border-white/10'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">{h.dateTitle}</span>
+                    {h.hitCalories ? (
+                      <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold flex items-center gap-1">
+                        <CheckCheck className="w-3 h-3" /> Hit Goal
+                      </span>
+                    ) : h.calories > 0 ? (
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-mono font-bold">
+                        {h.pctCalories}%
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-slate-500">No Logs</span>
+                    )}
+                  </div>
+
+                  <div className="mt-2 space-y-1 font-mono">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-400">Calories:</span>
+                      <span className={`font-bold ${h.hitCalories ? 'text-emerald-400' : 'text-white'}`}>
+                        {h.calories} / {h.targetCalories}
+                      </span>
+                    </div>
+                    <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all ${h.hitCalories ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                        style={{ width: `${h.pctCalories}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
+                      <span>Protein: <strong className="text-white">{h.protein}g</strong> / {h.targetProtein}g</span>
+                      <span>{h.mealCount} meals</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </GlassCard>
+      )}
 
       {/* Quick Add Input Bar (Voice or Instant Text) */}
       <div className="flex flex-col gap-2">
@@ -870,20 +1152,23 @@ export const NutritionView = ({
         </div>
       </div>
 
-      {/* 4. HOUSEHOLD PANTRY STAPLES (1-Tap Fast Logging) */}
+      {/* 4. HOUSEHOLD PANTRY STAPLES (1-Tap Fast Logging - Icon + Name + Plus) */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-base">🏠</span>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <span>Kitchen Staples & Quick Add</span>
+              <span>Quick Staples</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-400 border border-white/10">
-                1-Tap Fast Log
+                1-Tap Fast Add
               </span>
             </h2>
           </div>
-          
-          
+          {selectedDate !== todayIso && (
+            <div className="text-[11px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl">
+              Logging into: <strong>{formatDateTitle(selectedDate)}</strong>
+            </div>
+          )}
         </div>
 
         {/* Category Filter Pills */}
@@ -926,28 +1211,23 @@ export const NutritionView = ({
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+        {/* Minimal Action Chips: Icon + Name + Plus button (No macro clutter) */}
+        <div className="flex items-center gap-2 flex-wrap">
           {filteredPantry.map((staple) => (
             <button
               key={staple.id}
+              type="button"
               onClick={() => handleQuickLogStaple(staple)}
-              className="p-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] hover:border-white/20 border border-white/10 text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between space-y-2 group relative overflow-hidden"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm hover:border-white/20 group"
+              title={`Tap to log ${staple.name} into ${selectedDate === todayIso ? 'Today' : selectedDate}`}
             >
-              <div className="flex items-center justify-between w-full">
-                <span className="text-xl">{staple.icon || '🍽️'}</span>
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-300 border border-white/10">
-                  +{staple.protein}g P
-                </span>
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white truncate">{staple.name}</div>
-                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                  {staple.calories} kcal • {staple.portion}
-                </div>
-              </div>
-              <div className="w-full pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-400 group-hover:text-white transition-colors">
-                <span>Tap to Log</span>
-                <Plus className="w-3 h-3 text-slate-500 group-hover:text-white" />
+              <span className="text-base">{staple.icon || '🍽️'}</span>
+              <span>{staple.name}</span>
+              <div 
+                className="w-5 h-5 rounded-full flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
+                style={{ backgroundColor: 'var(--accent-primary)' }}
+              >
+                <Plus className="w-3 h-3 text-white" strokeWidth={3} />
               </div>
             </button>
           ))}
@@ -958,16 +1238,16 @@ export const NutritionView = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-            <span>Today's Logged Meals</span>
+            <span>{selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}</span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-slate-400">
-              {meals.length} {meals.length === 1 ? 'Meal' : 'Meals'}
+              {selectedDateMeals.length} {selectedDateMeals.length === 1 ? 'Meal' : 'Meals'}
             </span>
           </h2>
         </div>
 
-        {meals.length > 0 ? (
+        {selectedDateMeals.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {meals.map((meal) => {
+            {selectedDateMeals.map((meal) => {
               return (
                 <GlassCard key={meal.id} hoverEffect={false} className="p-4 flex flex-col justify-between space-y-3">
                   <div className="flex items-start justify-between gap-3">
@@ -1026,7 +1306,7 @@ export const NutritionView = ({
             <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
               <UtensilsCrossed className="w-5 h-5" />
             </div>
-            <div className="text-xs font-bold text-white">No Meals Logged Today</div>
+            <div className="text-xs font-bold text-white">{selectedDate === todayIso ? "No Meals Logged Today" : `No Meals Logged for ${formatDateTitle(selectedDate)}`}</div>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
               Tap any household staple above or click "Log Food" to upload an image, talk to add, or quick log.
             </p>
@@ -1151,6 +1431,7 @@ export const NutritionView = ({
       {/* MODALS */}
       <MealLogModal
         isOpen={isMealModalOpen}
+        selectedDate={selectedDate}
         onClose={() => setIsMealModalOpen(false)}
         onLogMeal={handleLogMeal}
         householdPantry={householdPantry}

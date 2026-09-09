@@ -41,6 +41,7 @@ export const MealLogModal = ({
   isOpen,
   onClose,
   onLogMeal,
+  selectedDate = null,
   householdPantry = [],
   onAddHouseholdStaple = null,
   aiConfig = {},
@@ -645,6 +646,7 @@ export const MealLogModal = ({
       const parsed = parseMealDescription(query);
       if (parsed && parsed.calories > 0) {
         const meal = createMealEntry({
+          date: selectedDate,
           name: parsed.name,
           calories: parsed.calories,
           protein: parsed.protein,
@@ -662,6 +664,7 @@ export const MealLogModal = ({
       const aiRes = await analyzeMealWithAI({ description: query, aiConfig });
       if (aiRes.hasFood && Array.isArray(aiRes.items)) {
         const meal = createMealEntry({
+          date: selectedDate,
           name: aiRes.name || query,
           calories: aiRes.calories,
           protein: aiRes.protein,
@@ -711,6 +714,7 @@ export const MealLogModal = ({
     playSound('success', soundEnabled);
     const title = item.brand ? `${item.brand} ${item.name}` : item.name;
     const meal = createMealEntry({
+      date: selectedDate,
       name: title,
       calories: item.calories,
       protein: item.protein,
@@ -738,6 +742,7 @@ export const MealLogModal = ({
     const title = qty > 1 ? `${qty}x ${staple.name}` : staple.name;
 
     const meal = createMealEntry({
+      date: selectedDate,
       name: title,
       calories: staple.calories * qty,
       protein: staple.protein * qty,
@@ -763,6 +768,7 @@ export const MealLogModal = ({
 
     playSound('success', soundEnabled);
     const meal = createMealEntry({
+      date: selectedDate,
       name: manualName.trim() || "Custom Meal",
       calories: finalCals,
       protein: p,
@@ -789,6 +795,7 @@ export const MealLogModal = ({
     playSound('success', soundEnabled);
 
     const meal = createMealEntry({
+      date: selectedDate,
       name: mealObj.name || "Logged Meal",
       calories: mealObj.calories,
       protein: mealObj.protein,
@@ -1635,54 +1642,25 @@ export const MealLogModal = ({
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-0.5">
-                  {filteredPantry.map((staple) => {
-                    const qty = stapleMultipliers[staple.id] || 1;
-                    return (
-                      <div
-                        key={staple.id}
-                        className="p-2.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 flex flex-col justify-between space-y-2 transition-all"
+                <div className="flex items-center gap-2 flex-wrap max-h-56 overflow-y-auto pr-0.5">
+                  {filteredPantry.map((staple) => (
+                    <button
+                      key={staple.id}
+                      type="button"
+                      onClick={() => handleLogStaple(staple)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm hover:border-white/20 group"
+                      title={`Tap to log ${staple.name}`}
+                    >
+                      <span className="text-base">{staple.icon || '🍽️'}</span>
+                      <span>{staple.name}</span>
+                      <div 
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
+                        style={{ backgroundColor: 'var(--accent-primary)' }}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg">{staple.icon || '🍽️'}</span>
-                          <div className="flex items-center gap-1 bg-black/40 rounded-lg p-0.5 border border-white/10 text-[10px] font-mono">
-                            <button
-                              type="button"
-                              onClick={() => adjustStapleMultiplier(staple.id, -1)}
-                              className="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-white"
-                            >
-                              <Minus className="w-2.5 h-2.5" />
-                            </button>
-                            <span className="font-bold text-white px-0.5">{qty}x</span>
-                            <button
-                              type="button"
-                              onClick={() => adjustStapleMultiplier(staple.id, 1)}
-                              className="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-white"
-                            >
-                              <Plus className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-xs font-bold text-white truncate">{staple.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">
-                            {staple.calories * qty} kcal • +{staple.protein * qty}g P
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleLogStaple(staple)}
-                          className="w-full py-1.5 rounded-xl text-white text-[11px] font-semibold transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
-                          style={{ backgroundColor: 'var(--accent-primary)' }}
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>Add</span>
-                        </button>
+                        <Plus className="w-3 h-3 text-white" strokeWidth={3} />
                       </div>
-                    );
-                  })}
+                    </button>
+                  ))}
                 </div>
               </div>
 

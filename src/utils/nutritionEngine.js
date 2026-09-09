@@ -280,15 +280,40 @@ export const INGREDIENT_DATABASE = [
   },
   {
     regex: /\b(?:whole\s+milk|milk)\b/i,
-    name: "Whole Milk",
+    name: "Milk",
     defaultUnit: "cups",
     defaultQty: 1,
     perUnit: {
-      cup: { calories: 150, protein: 8, carbs: 12, fats: 8 },
-      cups: { calories: 150, protein: 8, carbs: 12, fats: 8 },
-      glass: { calories: 150, protein: 8, carbs: 12, fats: 8 },
-      glasses: { calories: 150, protein: 8, carbs: 12, fats: 8 },
-      oz: { calories: 18.75, protein: 1, carbs: 1.5, fats: 1 }
+      cup: { calories: 130, protein: 9, carbs: 12, fats: 5 },
+      cups: { calories: 130, protein: 9, carbs: 12, fats: 5 },
+      glass: { calories: 130, protein: 9, carbs: 12, fats: 5 },
+      glasses: { calories: 130, protein: 9, carbs: 12, fats: 5 },
+      oz: { calories: 16.25, protein: 1.125, carbs: 1.5, fats: 0.625 }
+    }
+  },
+  {
+    regex: /\b(?:canadian\s+protein(?:\s+vegan)?|vegan\s+protein(?:\s+powder)?)\b/i,
+    name: "Canadian Protein Vegan Powder",
+    defaultUnit: "cups",
+    defaultQty: 1,
+    perUnit: {
+      scoop: { calories: 120, protein: 22, carbs: 2, fats: 2 },
+      scoops: { calories: 120, protein: 22, carbs: 2, fats: 2 },
+      cup: { calories: 390, protein: 72, carbs: 7, fats: 6.5 },
+      cups: { calories: 390, protein: 72, carbs: 7, fats: 6.5 },
+      g: { calories: 3.9, protein: 0.72, carbs: 0.07, fats: 0.065 }
+    }
+  },
+  {
+    regex: /\b(?:protein\s+(?:shake|smoothie)|smoothie)\b/i,
+    name: "Protein Shake",
+    defaultUnit: "shake",
+    defaultQty: 1,
+    perUnit: {
+      shake: { calories: 755, protein: 91, carbs: 58, fats: 17 },
+      shakes: { calories: 755, protein: 91, carbs: 58, fats: 17 },
+      smoothie: { calories: 755, protein: 91, carbs: 58, fats: 17 },
+      smoothies: { calories: 755, protein: 91, carbs: 58, fats: 17 }
     }
   },
   {
@@ -507,8 +532,8 @@ export const INGREDIENT_DATABASE = [
 // ---------------------------------------------------------------------------
 export const DEFAULT_HOUSEHOLD_PANTRY = [
   {
-    id: "staple-eggs-2",
-    name: "2 Whole Eggs",
+    id: "staple-eggs",
+    name: "Eggs",
     portion: "2 large eggs",
     calories: 144,
     protein: 13,
@@ -518,20 +543,42 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🍳"
   },
   {
-    id: "staple-eggs",
-    name: "3 Whole Eggs",
-    portion: "3 large eggs",
-    calories: 215,
-    protein: 19,
-    carbs: 1,
-    fats: 15,
+    id: "staple-protein-shake",
+    name: "Protein Shake",
+    portion: "2 cups milk, 1 cup Canadian Protein vegan powder, 1 banana",
+    calories: 755,
+    protein: 91,
+    carbs: 58,
+    fats: 17,
     category: "Protein",
-    icon: "🍳"
+    icon: "🥤"
+  },
+  {
+    id: "staple-milk",
+    name: "Milk",
+    portion: "1 cup / glass (250 ml)",
+    calories: 130,
+    protein: 9,
+    carbs: 12,
+    fats: 5,
+    category: "Dairy",
+    icon: "🥛"
+  },
+  {
+    id: "staple-banana",
+    name: "Banana",
+    portion: "1 banana (118g)",
+    calories: 105,
+    protein: 1.3,
+    carbs: 27,
+    fats: 0.3,
+    category: "Fruit",
+    icon: "🍌"
   },
   {
     id: "staple-apple",
-    name: "Medium Apple",
-    portion: "1 medium (182g)",
+    name: "Apple",
+    portion: "1 medium apple (182g)",
     calories: 95,
     protein: 0.5,
     carbs: 25,
@@ -540,63 +587,8 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🍎"
   },
   {
-    id: "staple-granola-bar",
-    name: "Granola Bar (Oats & Honey)",
-    portion: "1 bar / pouch (42g)",
-    calories: 190,
-    protein: 4,
-    carbs: 29,
-    fats: 7,
-    category: "Snacks",
-    icon: "🍫"
-  },
-  {
-    id: "staple-protein-bar",
-    name: "Protein Bar (20g Protein)",
-    portion: "1 bar (60g)",
-    calories: 200,
-    protein: 20,
-    carbs: 22,
-    fats: 7,
-    category: "Protein",
-    icon: "🍫"
-  },
-  {
-    id: "staple-banana",
-    name: "Large Banana",
-    portion: "1 large (135g)",
-    calories: 120,
-    protein: 1,
-    carbs: 31,
-    fats: 0,
-    category: "Fruit",
-    icon: "🍌"
-  },
-  {
-    id: "staple-whey",
-    name: "Whey Protein (1 Scoop)",
-    portion: "1 scoop (32g)",
-    calories: 130,
-    protein: 25,
-    carbs: 3,
-    fats: 2,
-    category: "Protein",
-    icon: "🥛"
-  },
-  {
-    id: "staple-greek-yogurt",
-    name: "Greek Yogurt (1 Cup)",
-    portion: "1 cup (227g)",
-    calories: 130,
-    protein: 23,
-    carbs: 9,
-    fats: 0,
-    category: "Dairy",
-    icon: "🥣"
-  },
-  {
     id: "staple-chicken",
-    name: "Chicken Breast (200g)",
+    name: "Chicken Breast",
     portion: "200g cooked",
     calories: 330,
     protein: 62,
@@ -606,8 +598,19 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🍗"
   },
   {
+    id: "staple-ground-beef",
+    name: "Ground Beef",
+    portion: "200g cooked (90/10)",
+    calories: 380,
+    protein: 50,
+    carbs: 0,
+    fats: 20,
+    category: "Protein",
+    icon: "🥩"
+  },
+  {
     id: "staple-rice",
-    name: "Jasmine White Rice (1.5 Cups)",
+    name: "White Rice",
     portion: "1.5 cups cooked",
     calories: 310,
     protein: 6,
@@ -617,74 +620,8 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🍚"
   },
   {
-    id: "staple-pb",
-    name: "Peanut Butter (2 tbsp)",
-    portion: "32g (2 tbsp)",
-    calories: 190,
-    protein: 8,
-    carbs: 7,
-    fats: 16,
-    category: "Fats",
-    icon: "🥜"
-  },
-  {
-    id: "staple-oats",
-    name: "Rolled Oats (1 Cup)",
-    portion: "80g dry (1 cup)",
-    calories: 300,
-    protein: 10,
-    carbs: 54,
-    fats: 5,
-    category: "Carbs",
-    icon: "🥣"
-  },
-  {
-    id: "staple-ground-beef",
-    name: "Ground Beef (200g 90/10)",
-    portion: "200g cooked",
-    calories: 380,
-    protein: 50,
-    carbs: 0,
-    fats: 20,
-    category: "Protein",
-    icon: "🥩"
-  },
-  {
-    id: "staple-milk",
-    name: "Whole Milk (1 Glass)",
-    portion: "250 ml (1 cup)",
-    calories: 150,
-    protein: 8,
-    carbs: 12,
-    fats: 8,
-    category: "Dairy",
-    icon: "🥛"
-  },
-  {
-    id: "staple-bagel",
-    name: "Plain Bagel w/ Butter",
-    portion: "1 whole + 1 tbsp",
-    calories: 360,
-    protein: 10,
-    carbs: 56,
-    fats: 11,
-    category: "Carbs",
-    icon: "🥯"
-  },
-  {
-    id: "staple-almonds",
-    name: "Almonds (1 oz / 28g)",
-    portion: "1 oz (~23 nuts)",
-    calories: 164,
-    protein: 6,
-    carbs: 6,
-    fats: 14,
-    category: "Snacks",
-    icon: "🌰"
-  },
-  {
     id: "staple-pb-toast",
-    name: "Peanut Butter Toast",
+    name: "PB Toast",
     portion: "1 slice + 1.5 tbsp PB",
     calories: 260,
     protein: 9,
@@ -694,15 +631,37 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🍞"
   },
   {
-    id: "staple-quinoa-bowl",
-    name: "Quinoa & Chickpea Bowl",
-    portion: "1 cup quinoa, 0.5 cup chickpeas, kale, sweet potato",
-    calories: 620,
-    protein: 21,
-    carbs: 110,
-    fats: 8,
-    category: "Common",
-    icon: "🥗"
+    id: "staple-oats",
+    name: "Rolled Oats",
+    portion: "1 cup dry (80g)",
+    calories: 300,
+    protein: 10,
+    carbs: 54,
+    fats: 5,
+    category: "Carbs",
+    icon: "🥣"
+  },
+  {
+    id: "staple-greek-yogurt",
+    name: "Greek Yogurt",
+    portion: "1 cup (227g)",
+    calories: 130,
+    protein: 23,
+    carbs: 9,
+    fats: 0,
+    category: "Dairy",
+    icon: "🥣"
+  },
+  {
+    id: "staple-granola-bar",
+    name: "Granola Bar",
+    portion: "1 bar / pouch (42g)",
+    calories: 190,
+    protein: 4,
+    carbs: 29,
+    fats: 7,
+    category: "Snacks",
+    icon: "🍫"
   }
 ];
 
@@ -1002,6 +961,7 @@ export function parseMealDescription(text) {
  * Create a validated meal entry from manual, pantry, or parsed inputs
  */
 export function createMealEntry({
+  date = null,
   name = "Meal",
   slot = "meal",
   time = "",
@@ -1021,6 +981,7 @@ export function createMealEntry({
 
   return {
     id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    date: date || getTodayIso(),
     slot: slot || "meal",
     name: (name || "Logged Meal").trim(),
     time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1168,4 +1129,60 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
   lines.push("CONTAINERS, SNACK BOWLS & OTHER DISHES: If food is pictured in meal prep containers, small snack bowls, glass storage containers, or cups without custom calibration, dynamically estimate the vessel dimensions and portion volume from visual cues and context.");
   lines.push("CRITICAL: When the photo shows one of the user's calibrated primary vessels (plate or primary bowl), apply the measured diameter as the physical ground-truth scale ruler to calculate food volume rather than guessing generic portion sizes.");
   return lines.join("\n");
+}
+
+
+/**
+ * Filter meals for a specific date (legacy entries without date default to today)
+ */
+export function filterMealsByDate(meals = [], dateIso = null) {
+  if (!Array.isArray(meals)) return [];
+  const targetIso = dateIso || getTodayIso();
+  const todayIso = getTodayIso();
+  return meals.filter(m => (m?.date || todayIso) === targetIso);
+}
+
+/**
+ * Generates an N-day history of nutrition targets hit vs missed
+ */
+export function getDailyNutritionHistory(meals = [], targetCalories = 3250, targetProtein = 180, daysCount = 7) {
+  if (!Array.isArray(meals)) meals = [];
+  const today = new Date();
+  const history = [];
+
+  for (let i = daysCount - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateIso = d.toISOString().split('T')[0];
+    const dayMeals = filterMealsByDate(meals, dateIso);
+    const totals = aggregateDailyNutrition(dayMeals);
+
+    const isToday = i === 0;
+    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+    const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    
+    const hitCalories = totals.calories >= targetCalories;
+    const hitProtein = totals.protein >= targetProtein;
+    const pctCalories = Math.min(100, Math.round((totals.calories / targetCalories) * 100));
+
+    history.push({
+      dateIso,
+      dateTitle: `${dayName}, ${monthDay}`,
+      dayName,
+      monthDay,
+      isToday,
+      calories: totals.calories,
+      protein: totals.protein,
+      carbs: totals.carbs,
+      fats: totals.fats,
+      mealCount: totals.mealCount,
+      targetCalories,
+      targetProtein,
+      hitCalories,
+      hitProtein,
+      pctCalories
+    });
+  }
+
+  return history;
 }
