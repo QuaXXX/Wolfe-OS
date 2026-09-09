@@ -115,6 +115,12 @@ export const TradingView = ({
   const [expandedJournalId, setExpandedJournalId] = useState(null);
   const [expandedPositionId, setExpandedPositionId] = useState(null);
   const [selectedTierFilter, setSelectedTierFilter] = useState('ALL'); // 'ALL' | 'A_PLUS' | 'A' | 'B' | 'LOWER'
+  const [cardRiskMap, setCardRiskMap] = useState({});
+
+  const setCardRiskForTicker = (ticker, amount) => {
+    playSound('click', soundEnabled);
+    setCardRiskMap(prev => ({ ...prev, [ticker]: amount }));
+  };
 
   // New Ticker input
   const [newTickerInput, setNewTickerInput] = useState('');
@@ -543,13 +549,64 @@ export const TradingView = ({
         </div>
       )}
 
-      {/* 2. DYNAMIC SYSTEM ACCENT HEADER WITH CLEAN DROPDOWNS */}
+      {/* 2. DYNAMIC SYSTEM ACCENT HEADER WITH QUICK TABS & DROPDOWN */}
       <div 
         className="flex items-center justify-between gap-3 pb-3 border-b"
         style={{ borderColor: 'var(--accent-border)' }}
       >
-        {/* Left: View Selector Dropdown */}
-        <div className="relative" ref={viewDropdownRef}>
+        <div className="flex items-center gap-2">
+          {/* Quick-Access Horizontal Tab Strip */}
+          <div className="hidden sm:flex items-center gap-1 p-1 rounded-2xl bg-black/40 border border-white/5 font-sans">
+            {[
+              { id: 'overview', label: 'Scanner', icon: Compass, count: availableWarRoomPlays.length },
+              { id: 'execute', label: 'Hyperliquid L1', icon: Zap },
+              { id: 'papertrader', label: 'Forward Test', icon: Bot, count: paperPositions.length },
+              { id: 'journal', label: 'Journal', icon: BookOpen, count: tradeJournal.length }
+            ].map(item => {
+              const isSelected = activeTab === item.id;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setActiveTab(item.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                  }`}
+                  style={isSelected ? {
+                    backgroundColor: 'var(--accent-subtle)',
+                    border: '1px solid var(--accent-border)',
+                    color: 'var(--accent-primary)'
+                  } : {}}
+                >
+                  <Icon className="w-3.5 h-3.5" style={isSelected ? { color: 'var(--accent-primary)' } : {}} />
+                  <span>{item.label}</span>
+                  {item.count > 0 && (
+                    <span 
+                      className="text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold"
+                      style={isSelected ? {
+                        backgroundColor: 'var(--accent-primary)',
+                        color: '#ffffff'
+                      } : {
+                        backgroundColor: 'rgba(255,255,255,0.08)',
+                        color: '#cbd5e1'
+                      }}
+                    >
+                      {item.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* View Selector Dropdown (for all views on mobile & auxiliary views) */}
+          <div className="relative" ref={viewDropdownRef}>
           <button
             type="button"
             onClick={() => {
@@ -646,6 +703,7 @@ export const TradingView = ({
               })}
             </div>
           )}
+        </div>
         </div>
 
         {/* Right: Realized PnL Pill */}
@@ -1297,7 +1355,8 @@ export const TradingView = ({
                                 ...play,
                                 entryNumeric: entryNum,
                                 stopNumeric: stopNum,
-                                target2RNumeric: tpNum
+                                target2RNumeric: tpNum,
+                                selectedRiskUSD: cardRiskMap[play.ticker] || 50
                               })}
                               className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm text-white hover:opacity-90"
                               style={{
@@ -1390,7 +1449,84 @@ export const TradingView = ({
                             R:R {riskRewardDisplay} ({profitPct}% TP / -{lossPct}% SL)
                           </span>
                         </div>
+
+                        {/* Trade Management Milestones: Breakeven & Scaling */}
+                        <div className="grid grid-cols-3 gap-1 pt-1 border-t border-white/5 text-[9px] font-mono text-center">
+                          <div className="p-1 rounded bg-white/[0.02] border border-white/5">
+                            <span className="text-slate-400 block text-[8px] uppercase">1R Breakeven Stop</span>
+                            <span className="text-white font-bold">{formatPriceVal(isLong ? entryNum + riskSpan : entryNum - riskSpan)}</span>
+                          </div>
+                          <div className="p-1 rounded bg-emerald-500/[0.04] border border-emerald-500/20">
+                            <span className="text-emerald-400 block text-[8px] uppercase">2R Scale 50% TP</span>
+                            <span className="text-emerald-300 font-bold">{tpFormatted}</span>
+                          </div>
+                          <div className="p-1 rounded bg-white/[0.02] border border-white/5">
+                            <span className="text-slate-400 block text-[8px] uppercase">3R Trailing Runner</span>
+                            <span className="text-white font-bold">{formatPriceVal(isLong ? entryNum + riskSpan * 3 : entryNum - riskSpan * 3)}</span>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* 1-Click Interactive Risk & Position Sizer */}
+                      {(() => {
+                        const cardRisk = cardRiskMap[play.ticker] || 50;
+                        const riskPerUnit = Math.max(0.0001, riskSpan);
+                        const exactUnits = cardRisk / riskPerUnit;
+                        const notionalVal = exactUnits * entryNum;
+                        const recLev = play.recommendedLeverage ? (parseInt(play.recommendedLeverage) || 5) : 5;
+                        const marginReq = notionalVal / recLev;
+                        const rrRatio = parseFloat(effectiveRR) || 2.5;
+                        const isRrPass = rrRatio >= 2.0;
+                        const isProxPass = absDistPct <= 1.2;
+                        const isChronosPass = play.chronosBacktest && ['CHRONOS PASSED', 'PASSED'].includes(play.chronosBacktest.status);
+                        const confluenceScore = (isRrPass ? 1 : 0) + (isProxPass ? 1 : 0) + (isChronosPass ? 1 : 0) + 1;
+
+                        return (
+                          <div className="space-y-2">
+                            {/* Position Sizer Widget */}
+                            <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1.5 font-sans">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-slate-300 flex items-center gap-1.5 font-semibold">
+                                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Dynamic Risk Sizer:</span>
+                                </span>
+                                <div className="flex items-center gap-1 font-mono">
+                                  {[25, 50, 100, 250].map((rv) => (
+                                    <button
+                                      key={rv}
+                                      type="button"
+                                      onClick={() => setCardRiskForTicker(play.ticker, rv)}
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors cursor-pointer ${
+                                        cardRisk === rv
+                                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                          : 'bg-white/[0.03] text-slate-400 border-white/10 hover:text-white'
+                                      }`}
+                                    >
+                                      ${rv}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between text-[10px] font-mono text-slate-300 pt-1 border-t border-white/5">
+                                <span>Target Risk: <strong className="text-amber-300">${cardRisk}</strong></span>
+                                <span>Position: <strong className="text-white">{exactUnits < 1 ? exactUnits.toFixed(3) : exactUnits.toFixed(2)} {play.ticker}</strong></span>
+                                <span className="text-slate-400">(${notionalVal.toFixed(0)} notional • ${marginReq.toFixed(0)} margin @ {recLev}x)</span>
+                              </div>
+                            </div>
+
+                            {/* Pre-Flight Confluence Gatekeeper */}
+                            <div className="px-2.5 py-1 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20 text-[10px] flex items-center justify-between font-sans">
+                              <span className="flex items-center gap-1.5 text-emerald-300 font-semibold">
+                                <span>✓ {confluenceScore}/4 Edge Qualified</span>
+                                <span className="text-slate-400 font-normal hidden sm:inline">• R:R {effectiveRR} • Chronos Expectancy • Swing Wick Stop</span>
+                              </span>
+                              <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                                {confluenceScore === 4 ? 'PRISTINE CONFLUENCE' : 'VERIFIED'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Strategy & Chronos Quantitative Backtest Panel */}
                       {play.chronosBacktest && (() => {
@@ -2056,6 +2192,59 @@ export const TradingView = ({
       {/* 7. TAB 5: TRADE JOURNAL */}
       {activeTab === 'journal' && (
         <div className="space-y-3 font-sans">
+          {/* Strategy Expectancy & Edge Breakdown Table */}
+          {stats.strategyBreakdown && stats.strategyBreakdown.length > 0 && (
+            <GlassCard hoverEffect={false} className="p-3.5 space-y-2.5 border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Strategy Realized Edge Breakdown
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Realized Performance by Playbook
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px] font-sans">
+                  <thead>
+                    <tr className="border-b border-white/10 text-[10px] uppercase font-mono text-slate-400">
+                      <th className="pb-1.5 font-medium">Strategy / Pattern Class</th>
+                      <th className="pb-1.5 font-medium text-center">Trades</th>
+                      <th className="pb-1.5 font-medium text-center">Win Rate</th>
+                      <th className="pb-1.5 font-medium text-right">Profit Factor</th>
+                      <th className="pb-1.5 font-medium text-right">Net Realized PnL</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-mono">
+                    {stats.strategyBreakdown.map((item, sIdx) => {
+                      const isProfit = item.totalPnlUSD >= 0;
+                      return (
+                        <tr key={sIdx} className="hover:bg-white/[0.02]">
+                          <td className="py-2 text-white font-sans font-medium">{item.strategy}</td>
+                          <td className="py-2 text-center text-slate-300">{item.trades}</td>
+                          <td className="py-2 text-center">
+                            <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${
+                              item.winRate >= 60 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                            }`}>
+                              {item.winRate}%
+                            </span>
+                          </td>
+                          <td className="py-2 text-right text-slate-200">{item.profitFactor}x</td>
+                          <td className={`py-2 text-right font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isProfit ? '+' : ''}${item.totalPnlUSD.toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </GlassCard>
+          )}
+
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
               Completed Trades ({tradeJournal.length})

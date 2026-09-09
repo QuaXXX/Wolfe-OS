@@ -54,6 +54,8 @@ export const HyperliquidDirectExecutionPanel = ({
   const [perpsEquity, setPerpsEquity] = useState(0);
   const [spotEquity, setSpotEquity] = useState(0);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [openL1Positions, setOpenL1Positions] = useState([]);
+  const [targetRiskUSD, setTargetRiskUSD] = useState(null);
   
   // Risk & Target Controls
   const [enableSl, setEnableSl] = useState(true);
@@ -99,6 +101,30 @@ export const HyperliquidDirectExecutionPanel = ({
           const data = await res.json();
           perpsVal = Number(data.crossMarginSummary?.accountValue || data.marginSummary?.accountValue || 0);
           setWithdrawable(Number(data.withdrawable || 0));
+
+          const activeL1 = (data.assetPositions || [])
+            .filter(p => p.position && Math.abs(Number(p.position.szi || 0)) > 1e-6)
+            .map(p => {
+              const pos = p.position;
+              const sz = Math.abs(Number(pos.szi));
+              const isLong = Number(pos.szi) > 0;
+              const entryPx = Number(pos.entryPx || 0);
+              const pnl = Number(pos.unrealizedPnl || 0);
+              const roe = Number(pos.returnOnEquity || 0);
+              const lev = pos.leverage?.value || 3;
+              const liqPx = Number(pos.liquidationPx || 0);
+              return {
+                coin: pos.coin,
+                side: isLong ? 'LONG' : 'SHORT',
+                size: sz,
+                entryPrice: entryPx,
+                unrealizedPnl: pnl,
+                roe: roe * 100,
+                leverage: lev,
+                liquidationPrice: liqPx
+              };
+            });
+          setOpenL1Positions(activeL1);
         }
       } catch (err) {
         console.warn("Perps fetch warning:", err);
@@ -172,6 +198,50 @@ export const HyperliquidDirectExecutionPanel = ({
   const projectedProfitUSD = (notionalPositionUSD * (tpPercent / 100));
   const projectedLossRoi = slPercent * leverage;
   const projectedProfitRoi = tpPercent * leverage;
+
+  const handleCloseSpecificL1Position = async (coin) => {
+    playSound('click', soundEnabled);
+    setTicker(coin);
+    addLog(`Closing ${coin} position on Hyperliquid L1...`, 'info');
+    try {
+      setIsExecuting(true);
+      const response = await fetch('/api/webhook/tradingview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker: coin,
+          action: 'flat',
+          api_token: 'wolfe_wh_live_auth'
+        })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Close position failed');
+      }
+      addLog(`✓ Position ${coin} successfully closed FLAT on Hyperliquid L1!`, 'success');
+      playSound('success', soundEnabled);
+      if (onOrderExecuted) onOrderExecuted();
+      setTimeout(fetchLiveState, 1500);
+    } catch (err) {
+      addLog(`❌ Failed to close ${coin}: ${err.message}`, 'error');
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const applyDollarRisk = (riskAmount) => {
+    playSound('click', soundEnabled);
+    setTargetRiskUSD(riskAmount);
+    // Calculate required size percent to lose exactly riskAmount at slPercent
+    const margin = perpsEquity > 0 ? perpsEquity : (spotEquity > 0 ? spotEquity : 100);
+    const stopFraction = (slPercent / 100) * leverage;
+    if (stopFraction > 0 && margin > 0) {
+      const requiredAllocatedMargin = riskAmount / stopFraction;
+      const pct = Math.max(5, Math.min(100, Math.round((requiredAllocatedMargin / margin) * 100)));
+      setSizePercent(pct);
+      addLog(`✓ Risk Sizer: Configured ${pct}% Equity to risk ~${riskAmount.toFixed(2)} on stop loss.`, 'info');
+    }
+  };
 
   const handleExecuteOrder = async (actionType) => {
     setIsExecuting(true);
@@ -381,18 +451,40 @@ export const HyperliquidDirectExecutionPanel = ({
             <span className="font-mono font-bold" style={{ color: 'var(--accent-primary)' }}>{sizePercent}% Equity</span>
           </div>
 
+          {/* Dollar Risk Presets */}
+          <div className="flex items-center gap-1 text-[10px] font-mono">
+            <span className="text-slate-400">Risk Target:</span>
+            {[25, 50, 100, 200].map((risk) => (
+              <button
+                key={risk}
+                type="button"
+                onClick={() => applyDollarRisk(risk)}
+                className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                  targetRiskUSD === risk
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                    : 'bg-black/40 text-slate-400 border-white/10 hover:text-white'
+                }`}
+              >
+                ${risk}
+              </button>
+            ))}
+          </div>
+
           <div className="grid grid-cols-4 gap-1 font-mono text-xs">
             {[25, 50, 75, 100].map((pct) => (
               <button
                 key={pct}
                 type="button"
-                onClick={() => setSizePercent(pct)}
+                onClick={() => {
+                  setTargetRiskUSD(null);
+                  setSizePercent(pct);
+                }}
                 className={`py-1 rounded-xl font-bold border transition-all cursor-pointer ${
-                  sizePercent === pct
+                  sizePercent === pct && !targetRiskUSD
                     ? 'shadow-sm'
                     : 'bg-black/30 text-slate-400 border-white/5 hover:text-white'
                 }`}
-                style={sizePercent === pct ? {
+                style={sizePercent === pct && !targetRiskUSD ? {
                   backgroundColor: 'var(--accent-subtle)',
                   color: 'var(--accent-primary)',
                   borderColor: 'var(--accent-border)'
@@ -644,6 +736,81 @@ export const HyperliquidDirectExecutionPanel = ({
             {confirmAction === 'FLAT' ? 'Click once more to instantly close position' : 'Market close open position & cancel all triggers'}
           </div>
         </button>
+      </div>
+
+      {/* Live Open Hyperliquid Positions Directly in Terminal */}
+      <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 font-sans">
+        <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="font-bold text-white uppercase tracking-wider text-[11px]">
+              Active Hyperliquid Positions ({openL1Positions.length})
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-mono">Real-Time On-Chain</span>
+        </div>
+
+        {openL1Positions.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {openL1Positions.map((pos, pIdx) => {
+              const isProfit = pos.unrealizedPnl >= 0;
+              return (
+                <div 
+                  key={pIdx}
+                  className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-2"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-white text-xs">{pos.coin}</span>
+                      <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded font-bold ${
+                        pos.side === 'LONG' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                      }`}>
+                        {pos.side} {pos.leverage}x
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {pos.size} contracts
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                      <span>Entry: <strong className="text-white">${pos.entryPrice}</strong></span>
+                      {pos.liquidationPrice > 0 && (
+                        <span>Liq: <strong className="text-rose-400">${pos.liquidationPrice.toFixed(2)}</strong></span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    <div className="text-right font-mono">
+                      <div className={`text-xs font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isProfit ? '+' : ''}${pos.unrealizedPnl.toFixed(2)}
+                      </div>
+                      <div className={`text-[9px] ${isProfit ? 'text-emerald-300' : 'text-rose-300'}`}>
+                        {isProfit ? '+' : ''}{pos.roe.toFixed(1)}% ROI
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCloseSpecificL1Position(pos.coin)}
+                      disabled={isExecuting}
+                      className="px-2 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-[10px] font-semibold cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                      title={`Close ${pos.coin} position immediately`}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-3 text-center rounded-xl bg-black/20 border border-white/5 text-[11px] text-slate-400 font-sans">
+            No active open positions on Hyperliquid. Deploy an order above or click a Scanned Setup to load.
+          </div>
+        )}
       </div>
 
       {/* Execution Diagnostics Terminal */}

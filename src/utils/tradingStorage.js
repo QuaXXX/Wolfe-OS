@@ -288,7 +288,8 @@ export function calculateTradingStats() {
       avgLossUSD: 0,
       profitFactor: 0,
       bestTradeUSD: 0,
-      worstTradeUSD: 0
+      worstTradeUSD: 0,
+      strategyBreakdown: []
     };
   }
 
@@ -298,22 +299,47 @@ export function calculateTradingStats() {
   let grossLosses = 0;
   let best = 0;
   let worst = 0;
+  const stratMap = {};
 
   journal.forEach(t => {
     const pnl = t.pnlUSD || 0;
     totalPnl += pnl;
+    const strat = t.strategy || 'Unclassified Pattern';
+    if (!stratMap[strat]) {
+      stratMap[strat] = { strategy: strat, trades: 0, wins: 0, totalPnlUSD: 0, grossWins: 0, grossLosses: 0 };
+    }
+    stratMap[strat].trades++;
+    stratMap[strat].totalPnlUSD += pnl;
+
     if (pnl > 0) {
       wins++;
       grossWins += pnl;
+      stratMap[strat].wins++;
+      stratMap[strat].grossWins += pnl;
       if (pnl > best) best = pnl;
     } else {
       grossLosses += Math.abs(pnl);
+      stratMap[strat].grossLosses += Math.abs(pnl);
       if (pnl < worst) worst = pnl;
     }
   });
 
   const winRate = Math.round((wins / journal.length) * 100);
-  const profitFactor = grossLosses > 0 ? Number((grossWins / grossLosses).toFixed(2)) : grossWins > 0 ? 99 : 0;
+  const profitFactor = grossLosses > 0 ? Number((grossWins / grossLosses).toFixed(2)) : (grossWins > 0 ? 99 : 0);
+
+  const strategyBreakdown = Object.values(stratMap).map(s => {
+    const sWinRate = s.trades > 0 ? Math.round((s.wins / s.trades) * 100) : 0;
+    const sPf = s.grossLosses > 0 ? Number((s.grossWins / s.grossLosses).toFixed(2)) : (s.grossWins > 0 ? 99 : 0);
+    return {
+      strategy: s.strategy,
+      trades: s.trades,
+      wins: s.wins,
+      losses: s.trades - s.wins,
+      winRate: sWinRate,
+      totalPnlUSD: Number(s.totalPnlUSD.toFixed(2)),
+      profitFactor: sPf
+    };
+  }).sort((a, b) => b.totalPnlUSD - a.totalPnlUSD);
 
   return {
     totalTrades: journal.length,
@@ -323,7 +349,8 @@ export function calculateTradingStats() {
     avgLossUSD: (journal.length - wins) > 0 ? Number((grossLosses / (journal.length - wins)).toFixed(2)) : 0,
     profitFactor,
     bestTradeUSD: Number(best.toFixed(2)),
-    worstTradeUSD: Number(worst.toFixed(2))
+    worstTradeUSD: Number(worst.toFixed(2)),
+    strategyBreakdown
   };
 }
 
