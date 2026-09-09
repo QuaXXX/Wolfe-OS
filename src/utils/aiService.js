@@ -2066,7 +2066,19 @@ ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
    - Lean Ground Beef (90/10): ~190 kcal, 26g protein, 9.5g fats per 100g.
    - Whole Large Eggs: ~72 kcal, 6.3g protein, 4.8g fats per egg.
    - Cooked White/Jasmine Rice: ~205 kcal, 4.2g protein, 45g carbs per cup.
+   - Bun / Dinner Roll (~50g): ~130 kcal, 4g protein, 24g carbs, 1.5g fats.
+   - Veggies / Mixed Vegetables: ~35 kcal, 2g protein, 7g carbs, 0.2g fats per 100g (~35 kcal per cup).
    - ATWATER ENERGY CONSISTENCY: Every item and total calories MUST align with: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
+
+4b. COMPOUND FILLINGS & INSIDES PARTITIONING (WEIGHT CONSERVATION RULE):
+    - When a filled item is described (e.g. "bun with 70g insides of beef and veggies", "taco with 60g chicken & peppers", "sandwich with 80g turkey and cheese"):
+    - The stated weight (e.g. 70g) is the TOTAL weight of the filling inside the item, NEVER the individual weight of each ingredient.
+    - Partition the specified weight across the inner components (e.g. for 70g beef & veggies: ~60% beef = 42g [~80 kcal, 11g P], ~40% veggies = 28g [~10 kcal, 1g P], totaling exactly 70g insides). NEVER double the weight to 70g beef AND 70g veggies!
+    - Include the outer bread/bun container (1 bun ~50g = ~130 kcal). Total for a bun with 70g beef & veggies insides is ~220 kcal, NOT >350 kcal.
+
+4c. CONSERVATIVE UNDERESTIMATION MANDATE:
+    - Wolfe OS Principle: When uncertain about cooking oils, dressings, portion sizes, or exact cuts, ALWAYS err on conservative underestimation rather than inflating calories.
+    - Do NOT inject hidden butter, oils, or sugars unless visibly oily or explicitly stated by the user.
 
 5. Output itemized breakdown:
    - "name": Clean item name (e.g. "Cooked Quinoa", "Low-fat Cottage Cheese", "Steamed Kale", "Chickpeas", "Sweet Potato")

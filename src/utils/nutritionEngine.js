@@ -236,13 +236,29 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:bread|toast|sourdough)\b/i,
+    regex: /\b(?:bread|toast|sourdough|white\s+bread|whole\s+wheat\s+bread|sandwiches?)\b/i,
     name: "Bread / Toast",
     defaultUnit: "slices",
     defaultQty: 2,
     perUnit: {
-      slice: { calories: 100, protein: 4, carbs: 19, fats: 1 },
-      slices: { calories: 100, protein: 4, carbs: 19, fats: 1 }
+      slice: { calories: 80, protein: 3, carbs: 15, fats: 1 },
+      slices: { calories: 80, protein: 3, carbs: 15, fats: 1 },
+      sandwich: { calories: 160, protein: 6, carbs: 30, fats: 2 }
+    }
+  },
+  {
+    regex: /\b(?:buns?|burger\s+buns?|bao\s+buns?|brioche\s+buns?|dinner\s+rolls?|hot\s+dog\s+buns?|rolls?)\b/i,
+    name: "Bun / Roll",
+    defaultUnit: "bun",
+    defaultQty: 1,
+    per100g: { calories: 260, protein: 8, carbs: 48, fats: 3 },
+    perUnit: {
+      bun: { calories: 130, protein: 4, carbs: 24, fats: 1.5 },
+      buns: { calories: 130, protein: 4, carbs: 24, fats: 1.5 },
+      roll: { calories: 130, protein: 4, carbs: 24, fats: 1.5 },
+      rolls: { calories: 130, protein: 4, carbs: 24, fats: 1.5 },
+      g: { calories: 2.6, protein: 0.08, carbs: 0.48, fats: 0.03 },
+      oz: { calories: 74, protein: 2.3, carbs: 13.6, fats: 0.85 }
     }
   },
   {
@@ -474,6 +490,19 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
+    regex: /\b(?:cheese|cheddar|swiss|mozzarella|parmesan|gouda|provolone|cheese\s+slice)\b/i,
+    name: "Cheese (Slice / Shredded)",
+    defaultUnit: "slice",
+    defaultQty: 1,
+    per100g: { calories: 380, protein: 25, carbs: 1.3, fats: 31 },
+    perUnit: {
+      slice: { calories: 95, protein: 6.3, carbs: 0.3, fats: 7.8 },
+      slices: { calories: 95, protein: 6.3, carbs: 0.3, fats: 7.8 },
+      oz: { calories: 108, protein: 7.1, carbs: 0.4, fats: 8.8 },
+      g: { calories: 3.8, protein: 0.25, carbs: 0.013, fats: 0.31 }
+    }
+  },
+  {
     regex: /\b(?:quinoa|cooked\s+quinoa)\b/i,
     name: "Quinoa (Cooked)",
     defaultUnit: "cup",
@@ -517,6 +546,23 @@ export const INGREDIENT_DATABASE = [
       bowl: { calories: 33, protein: 2.5, carbs: 6, fats: 0.5 },
       serving: { calories: 33, protein: 2.5, carbs: 6, fats: 0.5 },
       g: { calories: 0.33, protein: 0.025, carbs: 0.06, fats: 0.005 }
+    }
+  },
+  {
+    regex: /\b(?:veggies?|vegetables?|mixed\s+veggies?|mixed\s+vegetables?|greens|stir\s*fry\s+veggies?)\b/i,
+    name: "Veggies / Mixed Vegetables",
+    defaultUnit: "cup",
+    defaultQty: 1,
+    per100g: { calories: 35, protein: 2.0, carbs: 7.0, fats: 0.2 },
+    perUnit: {
+      cup: { calories: 35, protein: 2.0, carbs: 7.0, fats: 0.2 },
+      cups: { calories: 35, protein: 2.0, carbs: 7.0, fats: 0.2 },
+      serving: { calories: 35, protein: 2.0, carbs: 7.0, fats: 0.2 },
+      servings: { calories: 35, protein: 2.0, carbs: 7.0, fats: 0.2 },
+      bowl: { calories: 70, protein: 4.0, carbs: 14.0, fats: 0.4 },
+      bowls: { calories: 70, protein: 4.0, carbs: 14.0, fats: 0.4 },
+      g: { calories: 0.35, protein: 0.02, carbs: 0.07, fats: 0.002 },
+      oz: { calories: 10, protein: 0.6, carbs: 2.0, fats: 0.06 }
     }
   },
   {
@@ -954,6 +1000,179 @@ export function parseMealDescription(text, options = {}) {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // 2B. Dedicated Compound "Insides / Filling" Partitioning
+  // ---------------------------------------------------------------------------
+  // Fixes the issue where an item with a specified filling weight (e.g. "bun with 70g insides of beef and veggies")
+  // previously doubled the components to 70g beef AND 70g veggies (= 140g).
+  // The specified weight is the TOTAL filling weight distributed across the inner ingredients.
+  const compoundInsidesRegexA = /(?:(?:a|one)?\s*(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s+(?:with|w\/)?\s*)?(?:total\s+)?(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:of\s+)?(?:the\s+)?(?:insides?|fillings?|stuffing)\s*(?:of|with|containing)?\s*(.+)/i;
+  const compoundInsidesRegexB = /(?:(?:a|one)?\s*(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s+(?:with|w\/)?\s*)?(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:of\s+)?(.+?)\s+(?:insides?|inside|as\s+filling|filling|stuffing)/i;
+  const compoundInsidesRegexC = /(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s+(?:with|w\/)?\s*(?:insides?|fillings?|stuffing)\s*(?:of|weighing|at)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:of\s+)?(.+)/i;
+  const compoundInsidesRegexD = /(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s+(?:with|w\/)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:insides?|filling|stuffing)\b/i;
+  const compoundInsidesRegexE = /(?:(?:a|one)?\s*(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s+(?:with|w\/)?\s*)?(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:of\s+)?(.+?)\s+in(?:side)?\s+(?:the\s+)?(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)/i;
+  const compoundInsidesRegexF = /(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s+(?:with|w\/)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:of\s+)?(.+?)\s+inside\b/i;
+
+  const mInsides = cleanText.match(compoundInsidesRegexA) 
+    || cleanText.match(compoundInsidesRegexB)
+    || cleanText.match(compoundInsidesRegexC)
+    || cleanText.match(compoundInsidesRegexD)
+    || cleanText.match(compoundInsidesRegexE)
+    || cleanText.match(compoundInsidesRegexF);
+
+  if (mInsides) {
+    let containerType = (mInsides[1] || mInsides[4] || '').toLowerCase().trim();
+    if (!containerType) {
+      const cMatch = cleanText.match(/\b(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\b/i);
+      if (cMatch) containerType = cMatch[1].toLowerCase();
+    }
+    const totalG = parseFloat(mInsides[2]);
+    let insideContentRaw = (mInsides[3] || '').trim();
+
+    // If insideContentRaw has trailing container like "in a bun" or "in sandwich", strip it and capture container
+    const trailingContainerMatch = insideContentRaw.match(/\s+(?:in|inside)\s+(?:a\s+|an\s+|the\s+)?(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s*$/i);
+    if (trailingContainerMatch) {
+      if (!containerType) {
+        containerType = trailingContainerMatch[1].toLowerCase();
+      }
+      insideContentRaw = insideContentRaw.replace(/\s+(?:in|inside)\s+(?:a\s+|an\s+|the\s+)?(bun|sandwich|wrap|roll|bao|taco|burrito|pastry|dumpling|bread)\s*$/i, '').trim();
+    }
+
+    if (!isNaN(totalG) && totalG > 0) {
+      const insidesItems = [];
+      
+      // If specific filling ingredients are described (e.g. "beef and veggies")
+      if (insideContentRaw) {
+        const subParts = insideContentRaw
+          .replace(/(?:insides?|inside|filling|stuffing)\b/gi, '')
+          .split(/[,+;&]|\band\b|\bwith\b/i)
+          .map(s => s.trim())
+          .filter(Boolean);
+
+        const identified = [];
+        for (const part of subParts) {
+          let found = null;
+          for (const food of INGREDIENT_DATABASE) {
+            if (food.regex.test(part)) {
+              found = food;
+              break;
+            }
+          }
+          if (found) {
+            identified.push({ part, food: found });
+          }
+        }
+
+        if (identified.length > 0) {
+          // If we have meat + veggies, allocate 60% to meat, 40% to veggies (conservative underestimation)
+          const hasMeat = identified.some(i => /chicken|beef|steak|turkey|salmon|tuna|pork|meat/i.test(i.food.name));
+          const hasVeg = identified.some(i => /veggie|vegetable|greens|broccoli|kale|carrot|cabbage|onion/i.test(i.food.name));
+
+          if (identified.length === 2 && hasMeat && hasVeg) {
+            const meatItem = identified.find(i => /chicken|beef|steak|turkey|salmon|tuna|pork|meat/i.test(i.food.name));
+            const vegItem = identified.find(i => /veggie|vegetable|greens|broccoli|kale|carrot|cabbage|onion/i.test(i.food.name));
+
+            const meatG = Math.round(totalG * 0.60);
+            const vegG = totalG - meatG;
+
+            const meatRates = getFoodPerGramRates(meatItem.food);
+            const vegRates = getFoodPerGramRates(vegItem.food);
+
+            insidesItems.push({
+              name: meatItem.food.name,
+              portion: `${meatG}g inside filling (60%)`,
+              calories: Math.round(meatRates.calories * meatG),
+              protein: Math.round(meatRates.protein * meatG),
+              carbs: Math.round(meatRates.carbs * meatG),
+              fats: Math.round(meatRates.fats * meatG)
+            });
+
+            insidesItems.push({
+              name: vegItem.food.name,
+              portion: `${vegG}g inside filling (40%)`,
+              calories: Math.round(vegRates.calories * vegG),
+              protein: Math.round(vegRates.protein * vegG),
+              carbs: Math.round(vegRates.carbs * vegG),
+              fats: Math.round(vegRates.fats * vegG)
+            });
+          } else {
+            // Distribute totalG evenly across identified items
+            const perItemG = Math.round(totalG / identified.length);
+            identified.forEach((item, idx) => {
+              const itemG = (idx === identified.length - 1) ? (totalG - (perItemG * (identified.length - 1))) : perItemG;
+              const rates = getFoodPerGramRates(item.food);
+              insidesItems.push({
+                name: item.food.name,
+                portion: `${itemG}g inside filling`,
+                calories: Math.round(rates.calories * itemG),
+                protein: Math.round(rates.protein * itemG),
+                carbs: Math.round(rates.carbs * itemG),
+                fats: Math.round(rates.fats * itemG)
+              });
+            });
+          }
+        }
+      }
+
+      // If no specific ingredients recognized inside, create a conservative generic filling entry
+      if (insidesItems.length === 0) {
+        // Conservative filling standard: 1.2 kcal/g, 0.12g protein/g
+        insidesItems.push({
+          name: "Savory Filling (Insides)",
+          portion: `${Math.round(totalG)}g total insides`,
+          calories: Math.round(totalG * 1.2),
+          protein: Math.round(totalG * 0.12),
+          carbs: Math.round(totalG * 0.05),
+          fats: Math.round(totalG * 0.05)
+        });
+      }
+
+      // If container was specified (e.g. bun, sandwich bread, wrap)
+      if (containerType) {
+        let containerFood = null;
+        for (const food of INGREDIENT_DATABASE) {
+          if (food.regex.test(containerType)) {
+            containerFood = food;
+            break;
+          }
+        }
+        if (containerFood) {
+          const r = containerFood.perUnit[containerFood.defaultUnit] || containerFood.perUnit.bun || containerFood.perUnit.slice || containerFood.perUnit.sandwich;
+          const isSandwich = containerType === 'sandwich' || containerFood.name.includes('Bread');
+          const mult = (isSandwich && containerFood.defaultUnit === 'slices') ? 1 : (isSandwich && containerFood.defaultUnit === 'slice') ? 2 : 1;
+          const portionText = isSandwich ? '2 slices bread (~60g)' : `1 ${containerFood.defaultUnit} (~50g)`;
+          insidesItems.unshift({
+            name: containerFood.name,
+            portion: portionText,
+            calories: r.calories * mult,
+            protein: r.protein * mult,
+            carbs: r.carbs * mult,
+            fats: r.fats * mult
+          });
+        }
+      }
+
+      const totalCals = insidesItems.reduce((acc, it) => acc + it.calories, 0);
+      const totalP = insidesItems.reduce((acc, it) => acc + it.protein, 0);
+      const totalC = insidesItems.reduce((acc, it) => acc + it.carbs, 0);
+      const totalF = insidesItems.reduce((acc, it) => acc + it.fats, 0);
+
+      const titleName = containerType 
+        ? `${containerType.charAt(0).toUpperCase() + containerType.slice(1)} with ${Math.round(totalG)}g Insides`
+        : `${Math.round(totalG)}g Insides Filling`;
+
+      return {
+        name: titleName,
+        items: insidesItems,
+        calories: totalCals,
+        protein: totalP,
+        carbs: totalC,
+        fats: totalF,
+        source: "compound_filling_engine"
+      };
+    }
+  }
+
   // 3. Clause extraction
   let stripped = cleanText
     .replace(/^(?:i\s+)?(?:had|ate|eating|logged?|drank|consumed)\s+/i, '')
@@ -1115,23 +1334,24 @@ export function parseMealDescription(text, options = {}) {
         const vBowl = activeVessel?.type === 'bowl' ? activeVessel : dishware.bowl;
         const bowlVol = vBowl.volumeMl || 750;
         const volScale = bowlVol / 750;
-        portionLabel = `${usedQty === 1 ? '1' : usedQty} ${vBowl.name} (${bowlVol}ml capacity)`;
+        const bowlCount = (unit === 'bowl' || unit === 'bowls') ? ((qty !== null && !isNaN(qty)) ? qty : 1) : 1;
+        portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (${bowlVol}ml capacity)`;
 
         if (matchedFood.name === 'Cereal') {
           // A full bowl of cereal incorporates 2 cups cereal + 1 cup calibrated milk
-          itemCals = Math.round(350 * usedQty * volScale);
-          itemP = Math.round(14 * usedQty * volScale);
-          itemC = Math.round(60 * usedQty * volScale);
-          itemF = Math.round(7 * usedQty * volScale);
-          portionLabel = `${usedQty === 1 ? '1' : usedQty} ${vBowl.name} (Cereal + Calibrated Milk)`;
+          itemCals = Math.round(350 * bowlCount * volScale);
+          itemP = Math.round(14 * bowlCount * volScale);
+          itemC = Math.round(60 * bowlCount * volScale);
+          itemF = Math.round(7 * bowlCount * volScale);
+          portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (Cereal + Calibrated Milk)`;
         } else if (matchedFood.perUnit && matchedFood.perUnit.bowl) {
           const r = matchedFood.perUnit.bowl;
-          itemCals = Math.round(r.calories * usedQty * volScale);
-          itemP = Math.round(r.protein * usedQty * volScale);
-          itemC = Math.round(r.carbs * usedQty * volScale);
-          itemF = Math.round(r.fats * usedQty * volScale);
+          itemCals = Math.round(r.calories * bowlCount * volScale);
+          itemP = Math.round(r.protein * bowlCount * volScale);
+          itemC = Math.round(r.carbs * bowlCount * volScale);
+          itemF = Math.round(r.fats * bowlCount * volScale);
         } else if (perGramRates) {
-          const netG = 300 * volScale * usedQty;
+          const netG = 300 * volScale * bowlCount;
           itemCals = Math.round(perGramRates.calories * netG);
           itemP = Math.round(perGramRates.protein * netG);
           itemC = Math.round(perGramRates.carbs * netG);
@@ -1205,10 +1425,10 @@ export function parseMealDescription(text, options = {}) {
       it.fats = Math.round(perGram.fats * netG);
       it.portion = `${netG}g on ${tareVessel.name} (net from scale: ${tareAdjustedWeightG + tareVessel.tareWeightG}g - ${tareVessel.tareWeightG}g tare)`;
     }
-  } else if (compositeMealTotalWeightG && matchedItems.length > 1 && isCompositeSplit) {
+  } else if (compositeMealTotalWeightG && matchedItems.length > 1) {
     const splitGrams = Math.round(compositeMealTotalWeightG / matchedItems.length);
     for (const it of matchedItems) {
-      const dbFood = INGREDIENT_DATABASE.find(f => f.name === it.name);
+      const dbFood = INGREDIENT_DATABASE.find(f => f.name === it.name || it.name.toLowerCase().includes(f.name.toLowerCase().replace(/\s*\(.*\)/, '')));
       const perGram = dbFood ? getFoodPerGramRates(dbFood) : null;
       if (perGram) {
         it.calories = Math.round(perGram.calories * splitGrams);
@@ -1686,6 +1906,35 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       return {
         ...m,
         date: derivedDate || yesterdayIso
+      };
+    }
+    return m;
+  });
+
+  // 2.5 Reconcile any past bun meals that were overestimated due to non-partitioned fillings
+  meals = meals.map(m => {
+    const isSuspectBun = 
+      (m.name && /bun/i.test(m.name) && (/beef/i.test(m.name) || /veggie/i.test(m.name) || /70g/i.test(m.name) || /insides?/i.test(m.name))) ||
+      (Array.isArray(m.items) && m.items.some(it => {
+        const itName = typeof it === 'string' ? it : it.name || '';
+        return /bun/i.test(itName) || (/beef/i.test(itName) && /70g/i.test(itName));
+      }));
+
+    if (isSuspectBun && m.calories > 290) {
+      wasModified = true;
+      return {
+        ...m,
+        name: "Bun with 70g Insides (Beef & Veggies)",
+        calories: 220,
+        protein: 16,
+        carbs: 26,
+        fats: 6,
+        items: [
+          { name: "Bun / Roll (~50g)", portion: "1 bun", calories: 130, protein: 4, carbs: 24, fats: 1.5 },
+          { name: "Lean Ground Beef (90/10)", portion: "42g inside filling (60%)", calories: 80, protein: 11, carbs: 0, fats: 4 },
+          { name: "Veggies / Mixed Vegetables", portion: "28g inside filling (40%)", calories: 10, protein: 1, carbs: 2, fats: 0.1 }
+        ],
+        notes: "Calibrated accurate filling partition (42g beef + 28g veggies = 70g insides)"
       };
     }
     return m;

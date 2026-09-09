@@ -1,11 +1,9 @@
 import { X } from 'lucide-react';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TopBar } from './components/layout/TopBar';
 import { Dock, NAV_ITEMS } from './components/layout/Dock';
 import { BackgroundGlow } from './components/layout/BackgroundGlow';
-import { SettingsModal } from './components/layout/SettingsModal';
-import { GoogleCalendarModal } from './components/calendar/GoogleCalendarModal';
 import { ComingSoonModal } from './components/common/ComingSoonModal';
 import { UndoActionPopup } from './components/common/UndoActionPopup';
 import { playSound } from './utils/soundFX';
@@ -30,13 +28,18 @@ import {
   isLocalMutationRecent 
 } from './utils/cloudSyncEngine';
 
-// Views
+// HomeView is kept static for instant first paint on mobile
 import { HomeView } from './components/views/HomeView';
-import { SchoolView } from './components/views/SchoolView';
-import { WorkoutsView } from './components/views/WorkoutsView';
-import { NutritionView } from './components/views/NutritionView';
-import { TradingView } from './components/views/TradingView';
-import { CalendarView } from './components/views/CalendarView';
+
+// Code-split heavy views & modals to eliminate initial mobile loading freeze
+const SchoolView = lazy(() => import('./components/views/SchoolView').then(m => ({ default: m.SchoolView })));
+const WorkoutsView = lazy(() => import('./components/views/WorkoutsView').then(m => ({ default: m.WorkoutsView })));
+const NutritionView = lazy(() => import('./components/views/NutritionView').then(m => ({ default: m.NutritionView })));
+const TradingView = lazy(() => import('./components/views/TradingView').then(m => ({ default: m.TradingView })));
+const CalendarView = lazy(() => import('./components/views/CalendarView').then(m => ({ default: m.CalendarView })));
+
+const SettingsModal = lazy(() => import('./components/layout/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const GoogleCalendarModal = lazy(() => import('./components/calendar/GoogleCalendarModal').then(m => ({ default: m.GoogleCalendarModal })));
 
 // Mock Data
 import { 
@@ -79,6 +82,50 @@ class ViewErrorBoundary extends React.Component {
   }
 }
 
+// Safe Local & Session Storage wrappers to protect against mobile Safari Private Browsing SecurityErrors
+function safeGetItem(key) {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+}
+
+function safeSetItem(key, val) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(key, val);
+  } catch (e) {}
+}
+
+function safeSessionGet(key) {
+  try {
+    if (typeof sessionStorage === 'undefined') return null;
+    return sessionStorage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+}
+
+function safeSessionSet(key, val) {
+  try {
+    if (typeof sessionStorage === 'undefined') return;
+    sessionStorage.setItem(key, val);
+  } catch (e) {}
+}
+
+function ViewLoadingFallback() {
+  return (
+    <div className="w-full py-28 flex flex-col items-center justify-center space-y-3 select-none">
+      <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shadow-lg shadow-blue-500/10">
+        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+      <div className="text-[11px] font-bold text-slate-400 tracking-widest uppercase">Loading Module...</div>
+    </div>
+  );
+}
+
 const STORAGE_KEY_SETTINGS = 'wolfe_os_settings_v3';
 const STORAGE_KEY_CALENDAR = 'wolfe_os_calendar_v5';
 
@@ -109,10 +156,17 @@ export function App() {
   const [comingSoonData, setComingSoonData] = useState(null);
   const [undoAction, setUndoAction] = useState(null);
 
+  // Mark root rendered on mount to dismiss any loading recovery timers
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.getElementById('root')?.setAttribute('data-rendered', 'true');
+    }
+  }, []);
+
   // Settings State with LocalStorage Persistence & Env Fallback
   const [settings, setSettings] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
+      const saved = safeGetItem(STORAGE_KEY_SETTINGS);
       if (!saved) return DEFAULT_SETTINGS;
       const parsed = JSON.parse(saved);
       const envApiKey = import.meta.env?.VITE_GEMINI_API_KEY || '';
@@ -134,7 +188,7 @@ export function App() {
   // Calendar & Timeline State
   const [calendarData, setCalendarData] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_CALENDAR);
+      const saved = safeGetItem(STORAGE_KEY_CALENDAR);
       if (saved) {
         return JSON.parse(saved);
       }
@@ -147,37 +201,37 @@ export function App() {
   });
 
   const [schoolData, setSchoolData] = useState(() => {
-    const saved = localStorage.getItem('wolfe_school_data');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
+    try {
+      const saved = safeGetItem('wolfe_school_data');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
     return INITIAL_SCHOOL_DATA;
   });
 
   const [workoutData, setWorkoutData] = useState(() => {
-    const saved = localStorage.getItem('wolfe_workout_data');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
+    try {
+      const saved = safeGetItem('wolfe_workout_data');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
     return INITIAL_WORKOUT_DATA;
   });
 
   const [nutritionData, setNutritionData] = useState(() => {
-    const saved = localStorage.getItem('wolfe_nutrition_data');
-    if (saved) {
-      try { 
+    try {
+      const saved = safeGetItem('wolfe_nutrition_data');
+      if (saved) {
         const parsed = JSON.parse(saved);
         return synchronizeNutritionData(parsed);
-      } catch (e) {}
-    }
+      }
+    } catch (e) {}
     return synchronizeNutritionData(INITIAL_NUTRITION_DATA);
   });
 
   const [tradingData, setTradingData] = useState(() => {
-    const saved = localStorage.getItem('wolfe_trading_data');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
+    try {
+      const saved = safeGetItem('wolfe_trading_data');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
     return INITIAL_TRADING_DATA;
   });
 
@@ -263,12 +317,12 @@ export function App() {
 
   // Save changes to localStorage and debounced auto-push to cloud (suppressed on inbound sync)
   useEffect(() => {
-    localStorage.setItem('wolfe_calendar_data', JSON.stringify(calendarData));
-    localStorage.setItem('wolfe_school_data', JSON.stringify(schoolData));
-    localStorage.setItem('wolfe_workout_data', JSON.stringify(workoutData));
-    localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
-    localStorage.setItem('wolfe_trading_data', JSON.stringify(tradingData));
-    localStorage.setItem('wolfe_settings', JSON.stringify(settings));
+    safeSetItem('wolfe_calendar_data', JSON.stringify(calendarData));
+    safeSetItem('wolfe_school_data', JSON.stringify(schoolData));
+    safeSetItem('wolfe_workout_data', JSON.stringify(workoutData));
+    safeSetItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
+    safeSetItem('wolfe_trading_data', JSON.stringify(tradingData));
+    safeSetItem('wolfe_settings', JSON.stringify(settings));
 
     if (!isApplyingInboundSyncRef.current && isGoogleCalendarConnected()) {
       triggerDebouncedCloudPush(2500);
@@ -353,9 +407,9 @@ export function App() {
           // Device is disconnected from Google account
           if (mounted) setSyncStatus('disconnected');
           // "If needed, show the popup to manually sign in. Do not show this popup multiple times though, it should be a once then forever synced."
-          const hasPrompted = sessionStorage.getItem('wolfe_signin_modal_shown') || localStorage.getItem('wolfe_signin_modal_dismissed');
+          const hasPrompted = safeSessionGet('wolfe_signin_modal_shown') || safeGetItem('wolfe_signin_modal_dismissed');
           if (!hasPrompted && mounted) {
-            sessionStorage.setItem('wolfe_signin_modal_shown', 'true');
+            safeSessionSet('wolfe_signin_modal_shown', 'true');
             setTimeout(() => {
               if (mounted && !isGoogleCalendarConnected()) {
                 setIsGCalModalOpen(true);
@@ -1229,7 +1283,9 @@ export function App() {
             exit="exit"
           >
             <ViewErrorBoundary key={activeView}>
-              {renderActiveView()}
+              <Suspense fallback={<ViewLoadingFallback />}>
+                {renderActiveView()}
+              </Suspense>
             </ViewErrorBoundary>
           </motion.div>
         </AnimatePresence>
@@ -1273,34 +1329,42 @@ export function App() {
         soundEnabled={settings.soundEnabled}
       />
 
-      {/* Interactive Settings Drawer with Google Calendar & Color Slider */}
-      <SettingsModal 
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        settings={settings}
-        onUpdateSettings={setSettings}
-        onResetSettings={handleResetSettings}
-        onOpenGoogleCalendarModal={() => setIsGCalModalOpen(true)}
-        onSyncGoogleCalendarSuccess={handleSyncGoogleCalendarSuccess}
-        onSyncNow={() => syncWithGoogle(true)}
-        syncStatus={syncStatus}
-        lastSyncTimestamp={lastSyncTimestamp}
-        soundEnabled={settings.soundEnabled}
-      />
+      {/* Interactive Settings Drawer with Google Calendar & Color Slider (Lazily Loaded) */}
+      {isSettingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsModal 
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            settings={settings}
+            onUpdateSettings={setSettings}
+            onResetSettings={handleResetSettings}
+            onOpenGoogleCalendarModal={() => setIsGCalModalOpen(true)}
+            onSyncGoogleCalendarSuccess={handleSyncGoogleCalendarSuccess}
+            onSyncNow={() => syncWithGoogle(true)}
+            syncStatus={syncStatus}
+            lastSyncTimestamp={lastSyncTimestamp}
+            soundEnabled={settings.soundEnabled}
+          />
+        </Suspense>
+      )}
 
-      {/* Google Calendar 2-Way Sync Modal */}
-      <GoogleCalendarModal 
-        isOpen={isGCalModalOpen}
-        onClose={() => {
-          setIsGCalModalOpen(false);
-          localStorage.setItem('wolfe_signin_modal_dismissed', 'true');
-        }}
-        onSyncSuccess={handleSyncGoogleCalendarSuccess}
-        soundEnabled={settings.soundEnabled}
-        syncStatus={syncStatus}
-        lastSyncTimestamp={lastSyncTimestamp}
-        onSyncNow={() => syncWithGoogle(true)}
-      />
+      {/* Google Calendar 2-Way Sync Modal (Lazily Loaded) */}
+      {isGCalModalOpen && (
+        <Suspense fallback={null}>
+          <GoogleCalendarModal 
+            isOpen={isGCalModalOpen}
+            onClose={() => {
+              setIsGCalModalOpen(false);
+              safeSetItem('wolfe_signin_modal_dismissed', 'true');
+            }}
+            onSyncSuccess={handleSyncGoogleCalendarSuccess}
+            soundEnabled={settings.soundEnabled}
+            syncStatus={syncStatus}
+            lastSyncTimestamp={lastSyncTimestamp}
+            onSyncNow={() => syncWithGoogle(true)}
+          />
+        </Suspense>
+      )}
 
       {/* Reusable Coming Soon Feature Preview Modal */}
       <ComingSoonModal 

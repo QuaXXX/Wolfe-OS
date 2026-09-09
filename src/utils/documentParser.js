@@ -3,14 +3,28 @@
  * Extracts text from PDFs and TXT files, then passes to Gemini AI for syllabus timeline extraction.
  */
 
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { getTodayIso } from './calendarUtils.js';
 import { extractSyllabusDatesWithAI } from './aiService.js';
 
-// Set up local bundled pdf.js worker
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+let cachedPdfJs = null;
+
+/**
+ * Lazily load PDF.js library only when a PDF is uploaded,
+ * preventing 1.3MB of PDF decoding code from bloating initial app startup.
+ */
+async function getPdfJsLib() {
+  if (cachedPdfJs) return cachedPdfJs;
+  const pdfjsLib = await import('pdfjs-dist');
+  try {
+    const pdfWorkerModule = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+    if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerModule.default || pdfWorkerModule;
+    }
+  } catch (err) {
+    console.warn("Could not load bundled pdf.worker, continuing with inline worker fallback:", err);
+  }
+  cachedPdfJs = pdfjsLib;
+  return pdfjsLib;
 }
 
 /**
@@ -35,6 +49,7 @@ export async function extractTextFromFile(file) {
   // 2. PDF file
   if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
     try {
+      const pdfjsLib = await getPdfJsLib();
       const arrayBuffer = await file.arrayBuffer();
       const loadingTask = pdfjsLib.getDocument({
         data: arrayBuffer,
