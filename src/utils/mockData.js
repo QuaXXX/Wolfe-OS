@@ -3,7 +3,7 @@
  */
 
 import { getTodayIso, formatDateTitle } from './calendarUtils';
-import { DEFAULT_HOUSEHOLD_PANTRY } from './nutritionEngine';
+import { DEFAULT_HOUSEHOLD_PANTRY, DEFAULT_CALIBRATION_TASKS } from './nutritionEngine';
 
 export const INITIAL_USER = {
   name: "Zach Wolfe",

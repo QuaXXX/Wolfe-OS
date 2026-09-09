@@ -52,63 +52,10 @@
         min-height: 100%;
         background-color: #08090d;
       }
-      @keyframes wolfePulse {
-        0%, 100% { transform: scale(1); opacity: 0.92; box-shadow: 0 0 20px rgba(46,107,250,0.3); }
-        50% { transform: scale(1.05); opacity: 1; box-shadow: 0 0 35px rgba(46,107,250,0.6); }
-      }
-      @keyframes wolfeSpinner {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
     </style>
   </head>
   <body class="bg-[#08090d] text-slate-100 font-sans antialiased selection:bg-white/10 selection:text-white overflow-x-hidden min-h-screen">
-    <div id="root">
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background-color:#08090d;color:#ffffff;font-family:'Plus Jakarta Sans',sans-serif;user-select:none;padding:20px;box-sizing:border-box;">
-        <div style="position:relative;width:52px;height:52px;margin-bottom:16px;border-radius:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(46,107,250,0.35);display:flex;align-items:center;justify-content:center;animation:wolfePulse 2.2s ease-in-out infinite;">
-          <svg style="width:26px;height:26px;color:#2e6bfa;" viewBox="0 0 24 24" fill="none" stroke="#2e6bfa" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <!-- Left Ear -->
-            <path d="M4 4L7.5 10.5L3 13.5L4 4Z" fill="rgba(46,107,250,0.22)" />
-            <!-- Right Ear -->
-            <path d="M20 4L16.5 10.5L21 13.5L20 4Z" fill="rgba(46,107,250,0.22)" />
-            <!-- Crown / Forehead -->
-            <path d="M7.5 10.5L12 7L16.5 10.5" />
-            <!-- Snout to Nose -->
-            <path d="M8.5 13.5L12 20L15.5 13.5L12 11.5L8.5 13.5Z" fill="rgba(46,107,250,0.22)" />
-            <!-- Cheek lines -->
-            <path d="M3 13.5L8.5 13.5" />
-            <path d="M21 13.5L15.5 13.5" />
-          </svg>
-        </div>
-        <div style="font-weight:700;font-size:13px;letter-spacing:0.1em;color:#e2e8f0;margin-bottom:6px;">WOLFE OS</div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#64748b;letter-spacing:0.04em;">
-          <div style="width:10px;height:10px;border:1.5px solid rgba(46,107,250,0.2);border-top-color:#2e6bfa;border-radius:50%;animation:wolfeSpinner 0.8s linear infinite;"></div>
-          <span>Starting Command System...</span>
-        </div>
-
-        <!-- Timeout Recovery Prompt (Reveals if network or script hangs on mobile) -->
-        <div id="wolfe-loading-recovery" style="display:none;flex-direction:column;align-items:center;margin-top:24px;background:rgba(15,18,32,0.8);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px 16px;max-width:280px;text-align:center;">
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px;">Taking longer than usual to load?</div>
-          <div style="display:flex;gap:8px;">
-            <button onclick="window.location.reload(true)" style="background:rgba(46,107,250,0.25);border:1px solid rgba(46,107,250,0.4);color:#ffffff;font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;">
-              Reload
-            </button>
-            <button onclick="try{sessionStorage.clear();}catch(e){}window.location.reload(true)" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;font-size:11px;padding:6px 12px;border-radius:8px;cursor:pointer;">
-              Clear Cache
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <script>
-      setTimeout(function() {
-        var root = document.getElementById('root');
-        var rec = document.getElementById('wolfe-loading-recovery');
-        if (root && root.getAttribute('data-rendered') !== 'true' && rec) {
-          rec.style.display = 'flex';
-        }
-      }, 5500);
-    </script>
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
