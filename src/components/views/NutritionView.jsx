@@ -44,6 +44,7 @@ import {
   calculateWeightTrend,
   synchronizeNutritionData
 } from '../../utils/nutritionEngine.js';
+import { analyzeQuickLogWithAI } from '../../utils/aiService.js';
 import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
@@ -68,6 +69,7 @@ export const NutritionView = ({
   const [justLoggedToast, setJustLoggedToast] = useState(null);
   const [quickAddText, setQuickAddText] = useState('');
   const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [isQuickAnalyzing, setIsQuickAnalyzing] = useState(false);
   const [quickAddFeedback, setQuickAddFeedback] = useState(null);
   const speechRecognitionRef = useRef(null);
 
@@ -354,29 +356,63 @@ export const NutritionView = ({
     setTimeout(() => setJustLoggedToast(null), 3000);
   };
 
-  const handleQuickAddSubmit = () => {
-    if (!quickAddText.trim()) return;
+  const handleQuickAddSubmit = async () => {
+    if (!quickAddText.trim() || isQuickAnalyzing) return;
     const text = quickAddText.trim();
-    const parsed = parseMealDescription(text, { kitchenCalibration: nutritionData?.kitchenCalibration, householdPantry });
-    if (parsed && parsed.items && parsed.items.length > 0) {
-      playSound('success', soundEnabled);
-      const meal = createMealEntry({
-        date: selectedDate,
-        name: parsed.name,
-        slot: 'meal',
-        calories: parsed.calories,
-        protein: parsed.protein,
-        carbs: parsed.carbs,
-        fats: parsed.fats,
-        items: parsed.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+    setIsQuickAnalyzing(true);
+    try {
+      const parsed = await analyzeQuickLogWithAI({
+        query: text,
+        aiConfig: settings?.aiConfig,
+        kitchenCalibration: nutritionData?.kitchenCalibration,
+        householdPantry
       });
-      handleLogMeal(meal);
-      setQuickAddText('');
-      setQuickAddFeedback(`Logged ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
-      setTimeout(() => setQuickAddFeedback(null), 3500);
-    } else {
-      playSound('click', soundEnabled);
-      setIsMealModalOpen(true);
+
+      if (parsed && parsed.hasFood !== false && parsed.items && parsed.items.length > 0) {
+        playSound('success', soundEnabled);
+        const meal = createMealEntry({
+          date: selectedDate,
+          name: parsed.name,
+          slot: parsed.slot || 'meal',
+          calories: parsed.calories,
+          protein: parsed.protein,
+          carbs: parsed.carbs,
+          fats: parsed.fats,
+          items: parsed.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+        });
+        handleLogMeal(meal);
+        setQuickAddText('');
+        const slotBadge = (parsed.slot && parsed.slot !== 'meal') ? ` [${parsed.slot.toUpperCase()}]` : '';
+        setQuickAddFeedback(`Logged${slotBadge}: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
+        setTimeout(() => setQuickAddFeedback(null), 3500);
+      } else {
+        playSound('click', soundEnabled);
+        setIsMealModalOpen(true);
+      }
+    } catch (err) {
+      const local = parseMealDescription(text, { kitchenCalibration: nutritionData?.kitchenCalibration, householdPantry });
+      if (local && local.items && local.items.length > 0) {
+        playSound('success', soundEnabled);
+        const meal = createMealEntry({
+          date: selectedDate,
+          name: local.name,
+          slot: local.slot || 'meal',
+          calories: local.calories,
+          protein: local.protein,
+          carbs: local.carbs,
+          fats: local.fats,
+          items: local.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+        });
+        handleLogMeal(meal);
+        setQuickAddText('');
+        setQuickAddFeedback(`Logged: ${local.name} (${local.calories} kcal, ${local.protein}g P)`);
+        setTimeout(() => setQuickAddFeedback(null), 3500);
+      } else {
+        playSound('click', soundEnabled);
+        setIsMealModalOpen(true);
+      }
+    } finally {
+      setIsQuickAnalyzing(false);
     }
   };
 
@@ -407,27 +443,40 @@ export const NutritionView = ({
         playSound('click', soundEnabled);
       };
 
-      recognition.onresult = (event) => {
+      recognition.onresult = async (event) => {
         const transcript = event.results?.[0]?.[0]?.transcript || '';
         if (transcript) {
           setQuickAddText(transcript);
-          const parsed = parseMealDescription(transcript, { kitchenCalibration: nutritionData?.kitchenCalibration, householdPantry });
-          if (parsed && parsed.items && parsed.items.length > 0) {
-            playSound('success', soundEnabled);
-            const meal = createMealEntry({
-              date: selectedDate,
-              name: parsed.name,
-              slot: 'meal',
-              calories: parsed.calories,
-              protein: parsed.protein,
-              carbs: parsed.carbs,
-              fats: parsed.fats,
-              items: parsed.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+          setIsQuickAnalyzing(true);
+          try {
+            const parsed = await analyzeQuickLogWithAI({
+              query: transcript,
+              aiConfig: settings?.aiConfig,
+              kitchenCalibration: nutritionData?.kitchenCalibration,
+              householdPantry
             });
-            handleLogMeal(meal);
-            setQuickAddText('');
-            setQuickAddFeedback(`Logged ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
-            setTimeout(() => setQuickAddFeedback(null), 3500);
+            if (parsed && parsed.hasFood !== false && parsed.items && parsed.items.length > 0) {
+              playSound('success', soundEnabled);
+              const meal = createMealEntry({
+                date: selectedDate,
+                name: parsed.name,
+                slot: parsed.slot || 'meal',
+                calories: parsed.calories,
+                protein: parsed.protein,
+                carbs: parsed.carbs,
+                fats: parsed.fats,
+                items: parsed.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+              });
+              handleLogMeal(meal);
+              setQuickAddText('');
+              const slotBadge = (parsed.slot && parsed.slot !== 'meal') ? ` [${parsed.slot.toUpperCase()}]` : '';
+              setQuickAddFeedback(`Logged${slotBadge}: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
+              setTimeout(() => setQuickAddFeedback(null), 3500);
+            }
+          } catch (err) {
+            // Keep transcript in text field for user review
+          } finally {
+            setIsQuickAnalyzing(false);
           }
         }
       };
@@ -1028,14 +1077,15 @@ export const NutritionView = ({
               type="text"
               value={quickAddText}
               onChange={(e) => setQuickAddText(e.target.value)}
+              disabled={isQuickAnalyzing}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   handleQuickAddSubmit();
                 }
               }}
-              placeholder='Quick log: "1 peanutbutter toast", "quinoa and chickpeas bowl", "2 eggs and apple"...'
-              className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+              placeholder={isQuickAnalyzing ? "AI analyzing meal..." : 'Quick log: "1 peanutbutter toast", "chipotle bowl no cheese", "2 eggs and apple"...'}
+              className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
             />
           </div>
 
@@ -1043,7 +1093,8 @@ export const NutritionView = ({
           <button
             type="button"
             onClick={handleToggleVoiceQuickAdd}
-            className={`p-2 rounded-xl border transition-all cursor-pointer ${
+            disabled={isQuickAnalyzing}
+            className={`p-2 rounded-xl border transition-all cursor-pointer disabled:opacity-40 ${
               isVoiceListening 
                 ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse' 
                 : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-400 hover:text-white'
@@ -1057,12 +1108,21 @@ export const NutritionView = ({
           <button
             type="button"
             onClick={handleQuickAddSubmit}
-            disabled={!quickAddText.trim()}
+            disabled={!quickAddText.trim() || isQuickAnalyzing}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--accent-primary)' }}
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add</span>
+            {isQuickAnalyzing ? (
+              <>
+                <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                <span>AI Analyzing...</span>
+              </>
+            ) : (
+              <>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </>
+            )}
           </button>
         </div>
 

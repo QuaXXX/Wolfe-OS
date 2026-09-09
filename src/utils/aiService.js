@@ -2178,31 +2178,193 @@ Return ONLY valid JSON matching this schema:
   }
 
   // 2. Fallback / Description-based Engine:
-  // If description is provided, parse it accurately with parseMealDescription
+  // If description is provided, analyze with the dedicated Quick Log AI Engine
   if (cleanDesc) {
-    const parsed = parseMealDescription(cleanDesc, { kitchenCalibration, householdPantry });
-    if (parsed && parsed.items && parsed.items.length > 0) {
-      return {
-        hasFood: true,
-        name: parsed.name,
-        items: parsed.items,
-        calories: parsed.calories,
-        protein: parsed.protein,
-        carbs: parsed.carbs,
-        fats: parsed.fats,
-        notes: "Calculated from verified sports nutrition ingredient database"
-      };
-    }
-    return {
-      hasFood: false,
-      errorMessage: "Could not identify foods in your description. Try specifying items like '200g chicken breast, 1.5 cups white rice, 2 eggs'."
-    };
+    return await analyzeQuickLogWithAI({
+      query: cleanDesc,
+      aiConfig,
+      kitchenCalibration,
+      householdPantry
+    });
   }
 
   // 3. If only an image was submitted without description and no vision API could process it:
   return {
     hasFood: false,
     errorMessage: "Please describe what is on your plate (e.g. '8 oz chicken with rice') so we can calculate exact macros."
+  };
+}
+
+/**
+ * Context-Aware Natural Language Quick Log AI Engine
+ * Decomposes multi-item meals, resolves extra context, modifiers, preparation methods,
+ * cooking fats, exclusions, restaurant dishes, and hardware calibrations.
+ */
+export async function analyzeQuickLogWithAI({
+  query,
+  aiConfig = DEFAULT_AI_CONFIG,
+  kitchenCalibration = null,
+  householdPantry = null
+}) {
+  const cleanQuery = (query || '').trim();
+  if (!cleanQuery) {
+    return {
+      hasFood: false,
+      errorMessage: "Please enter or speak a meal description."
+    };
+  }
+
+  const apiKey = aiConfig?.apiKey || API_KEY;
+
+  // 1. If API key is available, call Gemini Language Models
+  if (apiKey) {
+    let calibPrompt = "";
+    let pantryPrompt = "";
+    try {
+      const rawCalib = kitchenCalibration || aiConfig?.kitchenCalibration || (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('wolfe_nutrition_data') || '{}')?.kitchenCalibration : null);
+      if (rawCalib) {
+        calibPrompt = buildAiCalibrationPrompt(rawCalib);
+      }
+      const rawPantry = householdPantry || aiConfig?.householdPantry || (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('wolfe_nutrition_data') || '{}')?.householdPantry : null);
+      if (rawPantry) {
+        pantryPrompt = buildAiPantryPrompt(rawPantry);
+      }
+    } catch (e) {}
+
+    const textModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-1.5-flash'
+    ];
+
+    const systemInstruction = `You are the elite clinical sports dietitian, USDA nutritional authority, and Quick Log AI Engine for Wolfe OS.
+Your task is to parse natural language food logs and voice transcripts with 100% precision.
+
+KEY INTELLIGENCE RULES:
+1. MULTIPLE ITEMS & SIDES:
+   - Identify EVERY distinct item mentioned in the meal (mains, sides, beverages, sauces, toppings, dressings, snacks).
+   - Each item must have its own accurate macro breakdown (calories, protein, carbs, fats) based on clinical USDA benchmarks.
+   - Example: "200g chicken breast, 1.5 cups white rice, 1 cup steamed broccoli, and 1 tbsp olive oil" -> 4 distinct items.
+
+2. EXTRA INFORMATION, MODIFIERS & PARTIAL CONSUMPTION:
+   - Partial Consumption & Fractions: If the user indicates they did not finish everything (e.g. "only ate half", "left a third of the rice", "ate 3/4 of the burger"):
+     Scale the portions, calories, and macros for that specific item accordingly.
+   - Preparation & Added Fats: If cooking fats or oils are mentioned (e.g. "cooked in 1 tbsp butter", "grilled with 1 tbsp olive oil", "deep fried"):
+     Include the oil or butter as an explicit item.
+   - Exclusions & Customizations: If the user says "no cheese", "without dressing", "hold the mayo", "skip the sour cream":
+     STRICTLY DO NOT include those items.
+   - Brand & Restaurant Menus: Understand menu items from Chipotle, Starbucks, Subway, Chick-fil-A, In-N-Out, etc., using true menu nutrition facts.
+
+3. HARDWARE & KITCHEN CALIBRATION:
+${calibPrompt ? `${calibPrompt}\n` : `   - Primary Large Bowl: 750ml capacity, 420g empty tare weight.\n   - Main Dinner Plate: 10.5" diameter, 550g empty tare weight.\n`}
+${pantryPrompt ? `${pantryPrompt}\n` : ''}
+   - When scale gross weight is mentioned with a calibrated vessel (e.g. "scale said 720g with primary bowl"):
+     Deduct 420g tare = 300g net food, and partition the net weight across the items.
+   - When a compound filling is mentioned (e.g. "bun with 70g insides of beef and veggies"):
+     Distribute the 70g total filling across the inner ingredients (e.g. 42g beef [80 kcal, 11g P] + 28g veggies [10 kcal, 1g P] = 70g) plus 1 bun (~130 kcal) = 220 kcal, NEVER doubling the filling.
+
+4. MEAL SLOT & TIME INFERENCE:
+   - Determine the slot: "breakfast", "lunch", "dinner", or "snack" based on keywords or context (default: "meal").
+
+5. CONSERVATIVE UNDERESTIMATION MANDATE:
+   - When uncertain about portion size or cooking oil, ALWAYS err on conservative underestimation.
+   - Atwater energy consistency: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
+
+OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
+{
+  "hasFood": true,
+  "name": "Concise Descriptive Title (e.g. Grilled Chicken, White Rice & Steamed Broccoli)",
+  "slot": "lunch",
+  "items": [
+    {
+      "name": "Clean Ingredient Name",
+      "portion": "Explicit Portion (e.g. 200g, 1 cup, 1 tbsp)",
+      "calories": 330,
+      "protein": 62,
+      "carbs": 0,
+      "fats": 7
+    }
+  ],
+  "calories": 555,
+  "protein": 67,
+  "carbs": 40,
+  "fats": 12,
+  "notes": "Brief summary of applied modifiers or tare deductions"
+}`;
+
+    const prompt = `Parse this food log entry accurately into itemized ingredients and calculate strict macros: "${cleanQuery}"`;
+
+    for (const model of textModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.1,
+              maxOutputTokens: 2048,
+            }
+          })
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (rawText) {
+            const parsed = safeParseJson(rawText);
+            if (parsed && parsed.hasFood !== false && Array.isArray(parsed.items) && parsed.items.length > 0) {
+              const totalCals = parsed.calories || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats);
+              return {
+                hasFood: true,
+                name: parsed.name || "Analyzed Meal",
+                slot: parsed.slot || "meal",
+                items: parsed.items,
+                calories: totalCals,
+                protein: parsed.protein || 0,
+                carbs: parsed.carbs || 0,
+                fats: parsed.fats || 0,
+                notes: parsed.notes || "Verified by Wolfe Quick Log AI"
+              };
+            }
+          }
+        }
+      } catch (err) {
+        // Fall to next model
+      }
+    }
+  }
+
+  // 2. Offline / Fallback Local Engine
+  const localParsed = parseMealDescription(cleanQuery, { kitchenCalibration, householdPantry });
+  if (localParsed && localParsed.items && localParsed.items.length > 0) {
+    return {
+      hasFood: true,
+      name: localParsed.name,
+      slot: localParsed.slot || 'meal',
+      items: localParsed.items,
+      calories: localParsed.calories,
+      protein: localParsed.protein,
+      carbs: localParsed.carbs,
+      fats: localParsed.fats,
+      notes: localParsed.notes || "Calculated from verified sports nutrition ingredient database"
+    };
+  }
+
+  return {
+    hasFood: false,
+    errorMessage: `Could not identify foods in "${cleanQuery}". Try e.g. "200g chicken, 1 cup rice, 1 cup broccoli" or "2 eggs on toast with butter".`
   };
 }
 

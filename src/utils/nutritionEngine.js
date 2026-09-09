@@ -1173,7 +1173,80 @@ export function parseMealDescription(text, options = {}) {
     }
   }
 
-  // 3. Clause extraction
+  // 3. Clause extraction & Context Intelligence
+  let detectedSlot = 'meal';
+  if (/\b(?:breakfast|morning\s+meal|pre-workout)\b/i.test(cleanText)) {
+    detectedSlot = 'breakfast';
+  } else if (/\b(?:lunch|midday\s+meal)\b/i.test(cleanText)) {
+    detectedSlot = 'lunch';
+  } else if (/\b(?:dinner|supper|evening\s+meal)\b/i.test(cleanText)) {
+    detectedSlot = 'dinner';
+  } else if (/\b(?:snack|post-workout|postworkout|shake|dessert)\b/i.test(cleanText)) {
+    detectedSlot = 'snack';
+  }
+
+  // Pre-process exclusions: e.g. "no cheese", "without sour cream", "hold the dressing", "skip mayo"
+  const excludedIngredients = [];
+  const exclusionRegex = /\b(?:no|without|hold\s+(?:the\s+)?|skip\s+(?:the\s+)?|omit\s+(?:the\s+)?)\s*([a-zA-Z\s]+?)(?=[,+;\n]|\band\b|\bplus\b|\bwith\b|\bw\/|$)/gi;
+  let exclMatch;
+  while ((exclMatch = exclusionRegex.exec(cleanText)) !== null) {
+    const rawWord = exclMatch[1].trim().toLowerCase();
+    if (rawWord && !['a', 'an', 'the', 'my', 'some'].includes(rawWord)) {
+      excludedIngredients.push(rawWord);
+    }
+  }
+
+  // Global consumption scaling (e.g. "only ate half", "left a third")
+  let globalPortionScale = 1.0;
+  let scalingNote = null;
+  if (/\b(?:only\s+(?:ate|had|finished)\s+half|ate\s+half\s+of\s+it|finished\s+half|half\s+of\s+it|ate\s+1\/2)\b/i.test(cleanText)) {
+    globalPortionScale = 0.5;
+    scalingNote = "Scaled to 50% consumed per note";
+  } else if (/\b(?:left\s+a\s+third|left\s+1\/3)\b/i.test(cleanText)) {
+    globalPortionScale = 0.67;
+    scalingNote = "Scaled to 67% consumed per note";
+  } else if (/\b(?:left\s+(?:a\s+)?quarter|left\s+1\/4|ate\s+3\/4)\b/i.test(cleanText)) {
+    globalPortionScale = 0.75;
+    scalingNote = "Scaled to 75% consumed per note";
+  } else if (/\b(?:double\s+portion|double\s+serving|2x\s+portion)\b/i.test(cleanText)) {
+    globalPortionScale = 2.0;
+    scalingNote = "Scaled to double portion";
+  }
+
+  // Added cooking fat / oil detection (e.g. "cooked in 1 tbsp olive oil", "fried in 1 tbsp butter")
+  const cookingFatMatch = cleanText.match(/(?:cooked|fried|saut[eé]ed|prepared)\s+in\s+(\d+(?:\.\d+)?|\d+\/\d+|a|one|half)?\s*(tbsp|tablespoons?|tsp|teaspoons?)\s+(olive\s+oil|butter|oil)/i);
+  let extraCookingFatItem = null;
+  if (cookingFatMatch) {
+    const rawAmt = (cookingFatMatch[1] || '1').toLowerCase();
+    const num = rawAmt === 'half' ? 0.5 : parseFloat(rawAmt) || 1;
+    const fatUnit = cookingFatMatch[2].toLowerCase();
+    const fatType = cookingFatMatch[3].toLowerCase();
+    const isButter = fatType.includes('butter');
+    const isTsp = fatUnit.startsWith('tsp');
+    const unitScale = isTsp ? (1 / 3) : 1;
+    const totalTbsp = num * unitScale;
+
+    if (isButter) {
+      extraCookingFatItem = {
+        name: "Butter",
+        portion: `${num} ${fatUnit} (Cooking Fat)`,
+        calories: Math.round(102 * totalTbsp),
+        protein: 0,
+        carbs: 0,
+        fats: Math.round(11.5 * totalTbsp)
+      };
+    } else {
+      extraCookingFatItem = {
+        name: "Olive Oil",
+        portion: `${num} ${fatUnit} (Cooking Oil)`,
+        calories: Math.round(120 * totalTbsp),
+        protein: 0,
+        carbs: 0,
+        fats: Math.round(14 * totalTbsp)
+      };
+    }
+  }
+
   let stripped = cleanText
     .replace(/^(?:i\s+)?(?:had|ate|eating|logged?|drank|consumed)\s+/i, '')
     .replace(/\s+(?:for\s+(?:breakfast|lunch|dinner|snack|post-workout|meal))\b/i, '')
@@ -1202,7 +1275,12 @@ export function parseMealDescription(text, options = {}) {
     .replace(/(?<=[a-zA-Z])\s+(?=\d+(?:\.\d+)?|\d+\/\d+)/g, ', ')
     .split(/[,+;\n]|\band\b|\bplus\b|\bwith\b|\bw\//i)
     .map(c => c.trim())
-    .filter(c => c && !c.match(/^(?:my|the)?\s*(?:primary\s+|large\s+|main\s+|dinner\s+)?(?:bowl|plate)$/i));
+    .filter(c => {
+      if (!c) return false;
+      if (c.match(/^(?:my|the)?\s*(?:primary\s+|large\s+|main\s+|dinner\s+)?(?:bowl|plate)$/i)) return false;
+      if (/^(?:no|without|hold|omit|skip)\b/i.test(c)) return false;
+      return true;
+    });
 
   const matchedItems = [];
 
@@ -1318,6 +1396,13 @@ export function parseMealDescription(text, options = {}) {
     }
 
     if (matchedFood) {
+      // Check if food was marked as excluded
+      const isExcluded = excludedIngredients.some(excl => 
+        matchedFood.name.toLowerCase().includes(excl) || 
+        (matchedFood.regex && matchedFood.regex.test(excl))
+      );
+      if (isExcluded) continue;
+
       let usedQty = (qty !== null && !isNaN(qty)) ? qty : matchedFood.defaultQty;
       let usedUnit = unit || matchedFood.defaultUnit;
 
@@ -1409,6 +1494,11 @@ export function parseMealDescription(text, options = {}) {
     }
   }
 
+  // Append cooking fat / oil if detected and not already in items
+  if (extraCookingFatItem && !matchedItems.some(it => it.name.toLowerCase().includes(extraCookingFatItem.name.toLowerCase()))) {
+    matchedItems.push(extraCookingFatItem);
+  }
+
   if (matchedItems.length === 0) return null;
 
   // 4. Tare Deduction Application
@@ -1440,6 +1530,17 @@ export function parseMealDescription(text, options = {}) {
     }
   }
 
+  // 5. Apply global portion / consumption scaling (e.g. "only ate half")
+  if (globalPortionScale !== 1.0) {
+    for (const it of matchedItems) {
+      it.calories = Math.round(it.calories * globalPortionScale);
+      it.protein = Math.round(it.protein * globalPortionScale);
+      it.carbs = Math.round(it.carbs * globalPortionScale);
+      it.fats = Math.round(it.fats * globalPortionScale);
+      it.portion = `${it.portion} (${Math.round(globalPortionScale * 100)}% consumed)`;
+    }
+  }
+
   const totalCalories = matchedItems.reduce((acc, it) => acc + it.calories, 0);
   const totalProtein = matchedItems.reduce((acc, it) => acc + it.protein, 0);
   const totalCarbs = matchedItems.reduce((acc, it) => acc + it.carbs, 0);
@@ -1451,6 +1552,8 @@ export function parseMealDescription(text, options = {}) {
     title = cleanItemNames[0];
   } else if (cleanItemNames.length === 2) {
     title = cleanItemNames.join(' & ');
+  } else if (cleanItemNames.length === 3) {
+    title = `${cleanItemNames[0]}, ${cleanItemNames[1]} & ${cleanItemNames[2]}`;
   } else {
     title = cleanItemNames.slice(0, -1).join(', ') + ' & ' + cleanItemNames[cleanItemNames.length - 1];
   }
@@ -1461,11 +1564,13 @@ export function parseMealDescription(text, options = {}) {
 
   return {
     name: title,
+    slot: detectedSlot,
     items: matchedItems,
     calories: totalCalories,
     protein: totalProtein,
     carbs: totalCarbs,
     fats: totalFats,
+    notes: scalingNote || "Calculated from verified sports nutrition database",
     source: "ingredient_engine"
   };
 }

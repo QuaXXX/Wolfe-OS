@@ -32,6 +32,7 @@ import {
 } from '../../utils/nutritionEngine.js';
 import { 
   analyzeMealWithAI, 
+  analyzeQuickLogWithAI,
   scanNutritionLabelWithAI, 
   lookupBarcodeOpenFoodFacts, 
   searchBrandedFoodDatabase 
@@ -94,6 +95,7 @@ export const MealLogModal = ({
   // SECTION 3: QUICK ADD STATE (IMPROVED)
   // ---------------------------------------------------------------------------
   const [quickInputText, setQuickInputText] = useState('');
+  const [isQuickAnalyzing, setIsQuickAnalyzing] = useState(false);
   const [quickFeedback, setQuickFeedback] = useState(null);
 
   // Quick Brand Search
@@ -163,6 +165,7 @@ export const MealLogModal = ({
 
     // Quick Add
     setQuickInputText('');
+    setIsQuickAnalyzing(false);
     setQuickFeedback(null);
     setQuickBrandQuery('');
     setQuickBrandResults([]);
@@ -601,25 +604,15 @@ export const MealLogModal = ({
     setVoiceError(null);
 
     try {
-      // 1. First attempt instant natural language parsing
-      const fastParsed = parseMealDescription(query, { kitchenCalibration, householdPantry });
-      if (fastParsed && fastParsed.calories > 0) {
-        setVoiceParsedMeal(fastParsed);
-        playSound('success', soundEnabled);
-        setIsParsingVoice(false);
-        return;
-      }
-
-      // 2. Comprehensive AI meal parsing
-      const aiResult = await analyzeMealWithAI({
-        description: query,
+      const result = await analyzeQuickLogWithAI({
+        query,
         aiConfig,
         kitchenCalibration,
         householdPantry
       });
 
-      if (aiResult.hasFood && Array.isArray(aiResult.items) && aiResult.items.length > 0) {
-        setVoiceParsedMeal(aiResult);
+      if (result && result.hasFood !== false && Array.isArray(result.items) && result.items.length > 0) {
+        setVoiceParsedMeal(result);
         playSound('success', soundEnabled);
       } else {
         setVoiceError(`Could not calculate macros for "${query}". Please adjust your words or use Quick Add.`);
@@ -638,40 +631,30 @@ export const MealLogModal = ({
   const handleQuickInputSubmit = async (e) => {
     if (e) e.preventDefault();
     const query = quickInputText.trim();
-    if (!query) return;
+    if (!query || isQuickAnalyzing) return;
 
     playSound('click', soundEnabled);
     setQuickFeedback(null);
+    setIsQuickAnalyzing(true);
 
     try {
-      const parsed = parseMealDescription(query, { kitchenCalibration, householdPantry });
-      if (parsed && parsed.calories > 0) {
-        const meal = createMealEntry({
-          date: selectedDate,
-          name: parsed.name,
-          calories: parsed.calories,
-          protein: parsed.protein,
-          carbs: parsed.carbs,
-          fats: parsed.fats,
-          items: parsed.items.map(it => `${it.portion || '1 serving'} ${it.name} (${it.calories} cal, ${it.protein}g P)`)
-        });
-        onLogMeal(meal);
-        playSound('success', soundEnabled);
-        onClose();
-        return;
-      }
+      const result = await analyzeQuickLogWithAI({
+        query,
+        aiConfig,
+        kitchenCalibration,
+        householdPantry
+      });
 
-      // Fallback AI parse
-      const aiRes = await analyzeMealWithAI({ description: query, aiConfig, kitchenCalibration, householdPantry });
-      if (aiRes.hasFood && Array.isArray(aiRes.items)) {
+      if (result && result.hasFood !== false && Array.isArray(result.items) && result.items.length > 0) {
         const meal = createMealEntry({
           date: selectedDate,
-          name: aiRes.name || query,
-          calories: aiRes.calories,
-          protein: aiRes.protein,
-          carbs: aiRes.carbs,
-          fats: aiRes.fats,
-          items: aiRes.items.map(it => `${it.portion || '1 serving'} ${it.name}`)
+          name: result.name,
+          slot: result.slot || 'meal',
+          calories: result.calories,
+          protein: result.protein,
+          carbs: result.carbs,
+          fats: result.fats,
+          items: result.items.map(it => `${it.portion || '1 serving'} ${it.name} (${it.calories || 0} cal, ${it.protein || 0}g P)`)
         });
         onLogMeal(meal);
         playSound('success', soundEnabled);
@@ -682,6 +665,8 @@ export const MealLogModal = ({
       setQuickFeedback(`Could not identify foods in "${query}". Try e.g. "1 peanutbutter toast" or "2 eggs 1 banana".`);
     } catch (err) {
       setQuickFeedback("Failed to add meal. Try selecting from quick staples below.");
+    } finally {
+      setIsQuickAnalyzing(false);
     }
   };
 
@@ -1524,17 +1509,25 @@ export const MealLogModal = ({
                     type="text"
                     value={quickInputText}
                     onChange={(e) => setQuickInputText(e.target.value)}
-                    placeholder='Type meal: "1 peanutbutter toast", "chicken & rice", "2 eggs 1 apple"...'
-                    className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+                    disabled={isQuickAnalyzing}
+                    placeholder={isQuickAnalyzing ? "AI analyzing meal..." : 'Type meal: "1 peanutbutter toast", "chipotle bowl no cheese", "2 eggs 1 apple"...'}
+                    className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={!quickInputText.trim()}
-                  className="px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+                  disabled={!quickInputText.trim() || isQuickAnalyzing}
+                  className="px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
                   style={{ backgroundColor: 'var(--accent-primary)' }}
                 >
-                  <span>Add</span>
+                  {isQuickAnalyzing ? (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                      <span>Analyzing...</span>
+                    </>
+                  ) : (
+                    <span>Add</span>
+                  )}
                 </button>
               </form>
 
