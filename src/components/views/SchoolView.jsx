@@ -23,6 +23,8 @@ import { FlashcardDeckModal } from '../school/FlashcardDeckModal';
 import { PracticeQuizModal } from '../school/PracticeQuizModal';
 import { CheatSheetModal } from '../school/CheatSheetModal';
 import { DeepFocusModal } from '../school/DeepFocusModal';
+import { ObsidianVaultManagerModal } from '../school/ObsidianVaultManagerModal';
+import { VaultSearchModal } from '../school/VaultSearchModal';
 import { 
   getVaultMetadata, 
   getVaultHandle, 
@@ -103,6 +105,8 @@ export const SchoolView = ({
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
   const [isDeepFocusOpen, setIsDeepFocusOpen] = useState(false);
+  const [isVaultManagerOpen, setIsVaultManagerOpen] = useState(false);
+  const [isVaultSearchOpen, setIsVaultSearchOpen] = useState(false);
 
   // --- POMODORO TIMER STATE ---
   const [focusDuration, setFocusDuration] = useState(25 * 60);
@@ -124,6 +128,30 @@ export const SchoolView = ({
     refreshStudyLibrary();
     loadVaultFiles();
   }, []);
+
+  // Networked Thought Navigation & Shortcut Listeners
+  useEffect(() => {
+    const handleOpenVaultSearch = () => setIsVaultSearchOpen(true);
+    const handleOpenVaultManager = () => setIsVaultManagerOpen(true);
+    const handleWolfeNavigate = (e) => {
+      const target = (e.detail?.target || '').toUpperCase();
+      const matched = courses.find(c => target.includes(c.code.replace(/\s+/g, '')) || target.includes(c.code));
+      if (matched) {
+        setSelectedCourse(matched.id || matched.code);
+        playSound('switch', soundEnabled);
+      }
+    };
+
+    window.addEventListener('open-vault-search', handleOpenVaultSearch);
+    window.addEventListener('open-vault-manager', handleOpenVaultManager);
+    window.addEventListener('wolfe-navigate', handleWolfeNavigate);
+
+    return () => {
+      window.removeEventListener('open-vault-search', handleOpenVaultSearch);
+      window.removeEventListener('open-vault-manager', handleOpenVaultManager);
+      window.removeEventListener('wolfe-navigate', handleWolfeNavigate);
+    };
+  }, [courses, soundEnabled]);
 
   useEffect(() => {
     let timer = null;
@@ -526,15 +554,39 @@ export const SchoolView = ({
           </h1>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSyncSchoolFolder}
-          className="px-3 py-1 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-        >
-          <FolderSync className="w-3.5 h-3.5 text-slate-400" />
-          <span>{vaultMeta.connected ? `${scannedFiles.length} Notes` : "Link Notes"}</span>
-          {vaultMeta.connected && <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Obsidian Semantic Search Button */}
+          <button
+            type="button"
+            onClick={() => {
+              playSound('click', soundEnabled);
+              setIsVaultSearchOpen(true);
+            }}
+            title="Search your Obsidian notes and course outlines with AI"
+            className="px-2.5 py-1 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 hover:text-purple-100 border border-purple-500/20 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">Search Vault</span>
+          </button>
+
+          {/* Obsidian Vault Manager Button */}
+          <button
+            type="button"
+            onClick={() => {
+              playSound('click', soundEnabled);
+              if (vaultMeta.connected) {
+                setIsVaultManagerOpen(true);
+              } else {
+                handleSyncSchoolFolder();
+              }
+            }}
+            className="px-3 py-1 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <FolderSync className="w-3.5 h-3.5 text-slate-400" />
+            <span>{vaultMeta.connected ? `${scannedFiles.length} Notes` : "Link Notes"}</span>
+            {vaultMeta.connected && <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />}
+          </button>
+        </div>
       </div>
 
       {/* MAIN TWO-COLUMN DASHBOARD */}
@@ -1059,6 +1111,30 @@ export const SchoolView = ({
         isOpen={isDeepFocusOpen}
         onClose={() => setIsDeepFocusOpen(false)}
         courseCode={activeCourse?.code || "Deep Work"}
+        soundEnabled={soundEnabled}
+      />
+
+      {/* OBSIDIAN VAULT MANAGER MODAL */}
+      <ObsidianVaultManagerModal
+        isOpen={isVaultManagerOpen}
+        onClose={() => setIsVaultManagerOpen(false)}
+        onVaultUpdated={() => {
+          loadVaultFiles();
+          setVaultMeta(getVaultMetadata());
+        }}
+        soundEnabled={soundEnabled}
+      />
+
+      {/* VAULT SEMANTIC SEARCH MODAL */}
+      <VaultSearchModal
+        isOpen={isVaultSearchOpen}
+        onClose={() => setIsVaultSearchOpen(false)}
+        scannedFiles={scannedFiles}
+        isConnected={vaultMeta.connected}
+        onOpenVaultManager={() => {
+          setIsVaultSearchOpen(false);
+          setIsVaultManagerOpen(true);
+        }}
         soundEnabled={soundEnabled}
       />
     </div>

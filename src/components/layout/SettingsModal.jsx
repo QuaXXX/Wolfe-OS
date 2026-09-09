@@ -24,6 +24,7 @@ import {
   ExternalLink,
   ShieldCheck,
   FolderSync,
+  Folder,
   Radio,
   Copy,
   Check,
@@ -878,13 +879,26 @@ export const SettingsModal = ({
                     AI reads your lecture notes & outlines to generate study decks and mock exams.
                   </p>
 
-                  <div className="pt-2 border-t border-white/5 flex justify-end">
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => {
+                        onClose();
+                        if (typeof window !== 'undefined') {
+                          window.dispatchEvent(new CustomEvent('open-vault-manager'));
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 text-xs font-medium border border-purple-500/25 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Folder className="w-3 h-3" />
+                      <span>Manage Vault Files</span>
+                    </button>
+
                     <button
                       onClick={handleDisconnectVault}
                       className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-300 text-xs font-medium border border-red-500/20 transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <Unlink className="w-3 h-3" />
-                      <span>Disconnect Obsidian Vault</span>
+                      <span>Disconnect</span>
                     </button>
                   </div>
                 </div>

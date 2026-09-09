@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { logCompletedTrade } from '../../utils/tradingStorage';
 import { callGemini, DEFAULT_AI_CONFIG } from '../../utils/aiService';
+import { saveTradeToObsidian, getVaultMetadata } from '../../utils/obsidianService';
 import { FormattedAiText } from '../common/FormattedAiText';
 import { playSound } from '../../utils/soundFX';
 
@@ -88,7 +89,7 @@ Provide a concise, razor-sharp 2-3 sentence psychological & technical post-morte
     }
   };
 
-  const handleSaveTrade = (e) => {
+  const handleSaveTrade = async (e) => {
     if (e) e.preventDefault();
     playSound('click', soundEnabled);
 
@@ -105,6 +106,13 @@ Provide a concise, razor-sharp 2-3 sentence psychological & technical post-morte
       notes,
       aiPostMortem: aiAnalysis
     });
+
+    // Automatically export to Obsidian Trading Journal if vault connected
+    try {
+      await saveTradeToObsidian(saved);
+    } catch (err) {
+      console.warn("Obsidian trade sync notice:", err);
+    }
 
     if (onTradeSaved) onTradeSaved(saved);
     onClose();

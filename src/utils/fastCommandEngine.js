@@ -814,6 +814,9 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   // Obsidian Vault Search Shortcut
   if (text.match(/\b(?:search\s+vault|ask\s+vault|find\s+in\s+notes|obsidian\s+search)\b/i)) {
     if (onNavigate) onNavigate('school');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('open-vault-search'));
+    }
     return {
       handled: true,
       title: "🔍 Ask My Obsidian Vault",

@@ -582,6 +582,54 @@ export function getVaultMetadata() {
 }
 
 /**
+ * Generates Obsidian-compatible YAML frontmatter properties
+ */
+export function generateYamlFrontmatter(fields = {}) {
+  const lines = ['---'];
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || v === null) continue;
+    if (Array.isArray(v)) {
+      if (v.length === 0) {
+        lines.push(`${k}: []`);
+      } else {
+        const formatted = v.map(item => {
+          const str = String(item).trim();
+          if (str.startsWith('[[') && str.endsWith(']]')) {
+            return `"${str}"`;
+          }
+          return `"${str.replace(/"/g, '\\"')}"`;
+        });
+        lines.push(`${k}: [${formatted.join(', ')}]`);
+      }
+    } else if (typeof v === 'boolean' || typeof v === 'number') {
+      lines.push(`${k}: ${v}`);
+    } else {
+      lines.push(`${k}: "${String(v).replace(/"/g, '\\"')}"`);
+    }
+  }
+  lines.push('---');
+  return lines.join('\n');
+}
+
+/**
+ * Builds standard obsidian:// deep link URI
+ */
+export function getObsidianUri(filePath, vaultName) {
+  const vName = vaultName || getVaultMetadata()?.folderName || 'Vault';
+  const cleanPath = (filePath || '').replace(/^\/+/, '').replace(/\.md$/, '');
+  return `obsidian://open?vault=${encodeURIComponent(vName)}&file=${encodeURIComponent(cleanPath)}`;
+}
+
+/**
+ * Trigger opening a file in Obsidian desktop or mobile app
+ */
+export function openInObsidianApp(filePath) {
+  if (typeof window === 'undefined') return;
+  const uri = getObsidianUri(filePath);
+  window.open(uri, '_self');
+}
+
+/**
  * Export quiz results or in-progress quizzes as formatted Markdown notes into Obsidian Vault
  */
 export async function saveQuizToObsidian(quiz) {
@@ -607,13 +655,33 @@ export async function saveQuizToObsidian(quiz) {
     const cleanDate = new Date(quiz.completedAt || quiz.lastUpdated || Date.now()).toISOString().split('T')[0];
     const safeTitle = (quiz.topic || quiz.title || 'Practice Quiz').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Quiz';
     const filename = `${safeTitle} Quiz (${cleanDate})`;
+    const answeredCount = quiz.userAnswers ? quiz.userAnswers.filter(a => a !== null && a !== undefined).length : 0;
+    const totalQ = quiz.questions?.length || 0;
+    const scoreVal = quiz.score || 0;
+    const masteryPct = Math.round(((scoreVal) / (totalQ || 1)) * 100);
+
+    const frontmatter = generateYamlFrontmatter({
+      type: 'study/quiz',
+      course: courseFolder,
+      topic: safeTitle,
+      date: cleanDate,
+      score: scoreVal,
+      total_questions: totalQ,
+      mastery_percent: masteryPct,
+      in_progress: !!quiz.isInProgress,
+      mode: quiz.depthMode || 'Exam Prep',
+      tags: ['school', 'quiz', courseFolder.toLowerCase().replace(/\s+/g, '-')],
+      references: [`[[${courseFolder}]]`, `[[Daily/${cleanDate}]]`]
+    });
 
     const scoreLine = quiz.isInProgress 
-      ? `**Status:** In Progress (${quiz.userAnswers ? quiz.userAnswers.filter(a => a !== null && a !== undefined).length : 0}/${quiz.questions?.length || 0} Answered)` 
-      : `**Score:** ${quiz.score || 0}/${quiz.questions?.length || 0} (${Math.round(((quiz.score || 0) / (quiz.questions?.length || 1)) * 100)}%)`;
+      ? `**Status:** In Progress (${answeredCount}/${totalQ} Answered)` 
+      : `**Score:** ${scoreVal}/${totalQ} (${masteryPct}%)`;
 
-    let md = `# 📝 ${quiz.courseCode || 'Course'}: ${quiz.topic || quiz.title || 'Practice Exam'}\n\n`;
-    md += `- **Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}\n`;
+    let md = `${frontmatter}\n\n`;
+    md += `# 📝 [[${courseFolder}]]: ${quiz.topic || quiz.title || 'Practice Exam'}\n\n`;
+    md += `- **Course Hub:** [[${courseFolder}]]\n`;
+    md += `- **Date:** [[Daily/${cleanDate}|${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}]]\n`;
     md += `- ${scoreLine}\n`;
     md += `- **Mode:** ${quiz.depthMode || 'Exam Prep'}\n\n`;
     md += `---\n\n## Questions & Detailed Solutions\n\n`;
@@ -672,11 +740,27 @@ export async function saveDeckToObsidian(deck) {
     const cleanDate = new Date(deck.lastStudied || deck.updatedAt || Date.now()).toISOString().split('T')[0];
     const safeTitle = (deck.title || deck.topic || 'Flashcard Deck').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Deck';
     const filename = `${safeTitle} (${cleanDate})`;
+    const cardCount = deck.cards?.length || 0;
+    const masteryPct = deck.masteryPercent || 0;
 
-    let md = `# 🃏 ${deck.courseCode || 'Course'}: ${deck.title || deck.topic || 'Study Flashcards'}\n\n`;
-    md += `- **Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}\n`;
-    md += `- **Card Count:** ${deck.cards?.length || 0}\n`;
-    md += `- **Mastery:** ${deck.masteryPercent || 0}%\n`;
+    const frontmatter = generateYamlFrontmatter({
+      type: 'study/flashcards',
+      course: courseFolder,
+      topic: safeTitle,
+      date: cleanDate,
+      card_count: cardCount,
+      mastery_percent: masteryPct,
+      mode: deck.depthMode || 'Active Recall',
+      tags: ['school', 'flashcards', 'flashcards-deck', courseFolder.toLowerCase().replace(/\s+/g, '-'), '#flashcards'],
+      references: [`[[${courseFolder}]]`, `[[Daily/${cleanDate}]]`]
+    });
+
+    let md = `${frontmatter}\n\n`;
+    md += `# 🃏 [[${courseFolder}]]: ${deck.title || deck.topic || 'Study Flashcards'}\n\n`;
+    md += `- **Course Hub:** [[${courseFolder}]]\n`;
+    md += `- **Date:** [[Daily/${cleanDate}|${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}]]\n`;
+    md += `- **Card Count:** ${cardCount}\n`;
+    md += `- **Mastery:** ${masteryPct}%\n`;
     md += `- **Mode:** ${deck.depthMode || 'Active Recall'}\n\n`;
     md += `---\n\n## Flashcards\n\n`;
 
@@ -684,6 +768,10 @@ export async function saveDeckToObsidian(deck) {
       md += `### Card ${idx + 1}: ${c.concept || 'Concept'}\n\n`;
       md += `**Q:** ${c.front}\n\n`;
       md += `**A:** ${c.back}\n\n`;
+      // Dual-compatibility: standard reader view + Obsidian Spaced Repetition plugin (front::back)
+      const cleanFront = (c.front || '').replace(/\r?\n+/g, ' ').trim();
+      const cleanBack = (c.back || '').replace(/\r?\n+/g, ' ').trim();
+      md += `<!-- srs-card: ${cleanFront} :: ${cleanBack} -->\n\n`;
       if (c.yieldReason) {
         md += `> 💡 *Exam Note:* ${c.yieldReason}\n\n`;
       }
@@ -724,9 +812,21 @@ export async function saveCheatSheetToObsidian(sheet) {
     const safeTitle = (sheet.title || 'Formula Sheet').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Cheat Sheet';
     const filename = `${safeTitle} (${cleanDate})`;
 
-    let md = `# ⚡ ${sheet.courseCode || 'Course'}: ${sheet.title || 'Formula & Cheat Sheet'}\n\n`;
+    const frontmatter = generateYamlFrontmatter({
+      type: 'study/cheatsheet',
+      course: courseFolder,
+      title: safeTitle,
+      date: cleanDate,
+      scope: sheet.chapterScope || 'All Chapters',
+      tags: ['school', 'cheatsheet', 'formulas', courseFolder.toLowerCase().replace(/\s+/g, '-')],
+      references: [`[[${courseFolder}]]`, `[[Daily/${cleanDate}]]`]
+    });
+
+    let md = `${frontmatter}\n\n`;
+    md += `# ⚡ [[${courseFolder}]]: ${sheet.title || 'Formula & Cheat Sheet'}\n\n`;
+    md += `- **Course Hub:** [[${courseFolder}]]\n`;
     md += `- **Scope:** ${sheet.chapterScope || 'All Chapters'}\n`;
-    md += `- **Generated:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}\n\n`;
+    md += `- **Generated:** [[Daily/${cleanDate}|${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}]]\n\n`;
     md += `---\n\n`;
 
     (sheet.sections || []).forEach(sec => {
@@ -762,8 +862,217 @@ export async function saveCheatSheetToObsidian(sheet) {
 }
 
 /**
+ * Export completed trade log into Obsidian Trading Journal
+ */
+export async function saveTradeToObsidian(trade) {
+  try {
+    const handle = await getVaultHandle();
+    if (!handle) return false;
+
+    const rootName = (handle.name || '').toLowerCase();
+    const isSchoolFolder = rootName === 'school';
+    const subfolder = isSchoolFolder ? `../Trading/Trades` : `Trading/Trades`;
+
+    const cleanDate = new Date(trade.closedAt || trade.openedAt || Date.now()).toISOString().split('T')[0];
+    const cleanTicker = (trade.ticker || 'TRADE').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanId = (trade.id || String(Date.now())).slice(-6);
+    const filename = `${cleanDate}_${cleanTicker}_${trade.side || 'LONG'}_${cleanId}`;
+
+    const pnl = Number(trade.pnlUSD || 0);
+    const isWin = pnl >= 0;
+
+    const frontmatter = generateYamlFrontmatter({
+      type: 'trading/journal',
+      ticker: cleanTicker,
+      side: trade.side || 'LONG',
+      entry_price: Number(trade.entryPrice || 0),
+      exit_price: Number(trade.exitPrice || 0),
+      size: Number(trade.size || 0),
+      pnl_usd: pnl,
+      return_percent: Number(trade.returnPct || 0),
+      is_win: isWin,
+      strategy: trade.strategy || 'Discretionary',
+      date: cleanDate,
+      tags: ['trading', 'journal', cleanTicker.toLowerCase(), isWin ? 'win' : 'loss', ...(trade.tags || []).map(t => t.toLowerCase().replace(/\s+/g, '-'))],
+      references: [`[[Trading/Playbook]]`, `[[Daily/${cleanDate}]]`]
+    });
+
+    let md = `${frontmatter}\n\n`;
+    md += `# 📈 [[Trading]]: ${cleanTicker} (${trade.side || 'LONG'}) — ${isWin ? '🟢 +$' : '🔴 -$'}${Math.abs(pnl).toFixed(2)}\n\n`;
+    md += `- **Date:** [[Daily/${cleanDate}|${new Date(trade.closedAt || Date.now()).toLocaleDateString('en-US', { dateStyle: 'full' })}]]\n`;
+    md += `- **Strategy:** ${trade.strategy || 'Discretionary'}\n`;
+    md += `- **P&L:** $${pnl.toFixed(2)} (${trade.returnPct || 0}%)\n`;
+    md += `- **Entry:** $${trade.entryPrice} ➔ **Exit:** $${trade.exitPrice}\n`;
+    md += `- **Position Size:** ${trade.size}\n\n`;
+
+    if (trade.tags && trade.tags.length > 0) {
+      md += `### Execution Tags\n`;
+      trade.tags.forEach(tag => {
+        md += `- \`#${tag.replace(/\s+/g, '-')}\`\n`;
+      });
+      md += `\n`;
+    }
+
+    if (trade.notes) {
+      md += `### Trader Notes\n${trade.notes}\n\n`;
+    }
+
+    if (trade.aiPostMortem) {
+      md += `### 🧠 AI Coach Post-Mortem\n> ${trade.aiPostMortem.replace(/\n+/g, '\n> ')}\n\n`;
+    }
+
+    md += `---\n*Logged via Wolfe OS Networked Thought Architecture*\n`;
+
+    await saveMarkdownToVault(handle, subfolder, filename, md);
+    return true;
+  } catch (err) {
+    console.warn("Could not export trade to Obsidian:", err);
+    return false;
+  }
+}
+
+/**
+ * Synchronize daily performance, tasks, nutrition, trades, and study to Obsidian Daily Note
+ */
+export async function syncDailySummaryToObsidian(summaryData = {}) {
+  try {
+    const handle = await getVaultHandle();
+    if (!handle) return false;
+
+    const rootName = (handle.name || '').toLowerCase();
+    const isSchoolFolder = rootName === 'school';
+    const subfolder = isSchoolFolder ? `../Daily` : `Daily`;
+
+    const date = summaryData.date || new Date().toISOString().split('T')[0];
+    const filename = `${date}`;
+
+    const frontmatter = generateYamlFrontmatter({
+      type: 'daily/summary',
+      date: date,
+      calories: summaryData.calories || 0,
+      target_calories: summaryData.targetCalories || 0,
+      protein_g: summaryData.protein || 0,
+      tasks_completed: summaryData.tasksCompleted || 0,
+      tasks_total: summaryData.tasksTotal || 0,
+      study_sessions_count: summaryData.studySessions?.length || 0,
+      trades_count: summaryData.trades?.length || 0,
+      net_trading_pnl: summaryData.tradingPnl || 0,
+      tags: ['daily', 'journal', 'summary']
+    });
+
+    let md = `${frontmatter}\n\n`;
+    md += `# 📅 Daily Log: ${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { dateStyle: 'full' })}\n\n`;
+
+    // 1. Tasks & Agenda
+    if (summaryData.tasks && summaryData.tasks.length > 0) {
+      md += `## ⚡ Tasks & Agenda\n\n`;
+      summaryData.tasks.forEach(t => {
+        const check = t.completed ? 'x' : ' ';
+        md += `- [${check}] ${t.title || t.text} ${t.course ? `[[${t.course}]]` : ''}\n`;
+      });
+      md += `\n`;
+    }
+
+    // 2. Study & Academics
+    if (summaryData.studySessions && summaryData.studySessions.length > 0) {
+      md += `## 📚 Academics & Study Mastery\n\n`;
+      summaryData.studySessions.forEach(s => {
+        md += `- **[[${s.course || 'School'}]]**: ${s.topic || 'Review'} — ${s.type || 'Session'} (${s.score !== undefined ? `Score: ${s.score}%` : 'Completed'})\n`;
+      });
+      md += `\n`;
+    }
+
+    // 3. Trading Journal
+    if (summaryData.trades && summaryData.trades.length > 0) {
+      md += `## 📈 Trading Journal\n\n`;
+      const netPnl = summaryData.trades.reduce((acc, tr) => acc + (Number(tr.pnlUSD) || 0), 0);
+      md += `- **Net P&L:** ${netPnl >= 0 ? '🟢 +$' : '🔴 -$'}${Math.abs(netPnl).toFixed(2)}\n`;
+      summaryData.trades.forEach(tr => {
+        md += `- [[Trading/Trades/${date}_${tr.ticker}|${tr.ticker}]] (${tr.side}): ${tr.pnlUSD >= 0 ? '+' : ''}$${tr.pnlUSD}\n`;
+      });
+      md += `\n`;
+    }
+
+    // 4. Nutrition & Biofeedback
+    if (summaryData.calories !== undefined) {
+      md += `## 🥗 Nutrition & Fuel\n\n`;
+      md += `- **Calories:** ${summaryData.calories} / ${summaryData.targetCalories || 2500} kcal\n`;
+      if (summaryData.protein) md += `- **Protein:** ${summaryData.protein}g\n`;
+      if (summaryData.carbs) md += `- **Carbs:** ${summaryData.carbs}g\n`;
+      if (summaryData.fat) md += `- **Fat:** ${summaryData.fat}g\n`;
+      md += `\n`;
+    }
+
+    md += `---\n*Generated by Wolfe OS Networked Thought Architecture*\n`;
+
+    await saveMarkdownToVault(handle, subfolder, filename, md);
+    return true;
+  } catch (err) {
+    console.warn("Could not sync daily note to Obsidian:", err);
+    return false;
+  }
+}
+
+/**
+ * Generates an Obsidian Infinite Canvas (.canvas JSON) visual mind map
+ */
+export async function saveObsidianCanvasToVault(title, courseCode = 'General', nodes = [], edges = []) {
+  try {
+    const handle = await getVaultHandle();
+    if (!handle) return false;
+
+    const rootName = (handle.name || '').toLowerCase();
+    const isSchoolFolder = rootName === 'school';
+    const subfolder = isSchoolFolder ? `${courseCode}/Canvases` : `School/${courseCode}/Canvases`;
+    const safeTitle = (title || 'MindMap').replace(/[^a-zA-Z0-9\s-_]/g, '').trim();
+    const filename = `${safeTitle}.canvas`;
+
+    const canvasJson = {
+      nodes: nodes.map((n, idx) => ({
+        id: n.id || `node_${idx}`,
+        x: n.x || (idx % 3) * 320,
+        y: n.y || Math.floor(idx / 3) * 200,
+        width: n.width || 280,
+        height: n.height || 140,
+        type: n.type || 'text',
+        text: n.text || `# ${n.title || 'Concept'}\n\n${n.description || ''}`,
+        color: n.color || '1'
+      })),
+      edges: edges.map((e, idx) => ({
+        id: e.id || `edge_${idx}`,
+        fromNode: e.fromNode,
+        toNode: e.toNode,
+        fromSide: e.fromSide || 'right',
+        toSide: e.toSide || 'left',
+        label: e.label || ''
+      }))
+    };
+
+    const content = JSON.stringify(canvasJson, null, 2);
+    let targetDir = handle;
+    if (subfolder && subfolder !== '.') {
+      const parts = subfolder.split('/').filter(Boolean);
+      for (const part of parts) {
+        targetDir = await targetDir.getDirectoryHandle(part, { create: true });
+      }
+    }
+
+    const fileHandle = await targetDir.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
+
+    return { success: true, path: `${subfolder}/${filename}` };
+  } catch (err) {
+    console.warn("Could not save canvas to Obsidian:", err);
+    return false;
+  }
+}
+
+/**
  * Vault sample notes (empty until user connects their personal Obsidian vault)
  */
 export const SAMPLE_OBSIDIAN_VAULT = [];
+
 
 

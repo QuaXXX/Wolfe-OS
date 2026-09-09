@@ -12,14 +12,8 @@ export function cleanAiMessage(raw) {
   if (!raw || typeof raw !== 'string') return '';
   let text = raw.trim();
 
-  // 1. Strip outermost redundant surrounding quotes if balanced
-  if ((text.startsWith('"') && text.endsWith('"') && text.length > 2) ||
-      (text.startsWith("'") && text.endsWith("'") && text.length > 2)) {
-    const innerQuotes = (text.slice(1, -1).match(/"/g) || []).length;
-    if (innerQuotes % 2 === 0) {
-      text = text.slice(1, -1).trim();
-    }
-  }
+  // 1. Strip outermost redundant surrounding quotes (single or doubled): e.g. ""Text"" -> Text or "Text" -> Text
+  text = text.replace(/^["'`“‘]{1,2}([\s\S]*?)["'`”’]{1,2}$/, '$1').trim();
 
   // 2. Fix duplicated/nested quotes: ""Text"" -> "Text", \"\" -> "
   text = text.replace(/""([^"]+?)""/g, '"$1"');
@@ -36,12 +30,12 @@ export function cleanAiMessage(raw) {
 }
 
 /**
- * Splits inline string into formatted spans (bold, italic, code, text)
+ * Splits inline string into formatted spans (wikilinks, markdown links, bold, italic, code, text)
  */
 export function renderInlineContent(text) {
   if (!text) return null;
-  // Regex: matches **bold**, __bold__, `code`, *italic*, _italic_
-  const tokenRegex = /(\*\*[^*]+?\*\*|__[^_]+?__|`[^`]+?`|\*[^*]+?\*|_[^_]+?_)/g;
+  // Regex: matches [[wikilinks]], [markdown](links), **bold**, __bold__, `code`, *italic*, _italic_
+  const tokenRegex = /(\[\[[^\]]+?\]\]|\[[^\]]+?\]\([^)]+?\)|(?:\*\*[^*]+?\*\*|__[^_]+?__|`[^`]+?`|\*[^*]+?\*|_[^_]+?_))/g;
   const parts = [];
   let lastIdx = 0;
   let match;
@@ -53,19 +47,80 @@ export function renderInlineContent(text) {
     const token = match[0];
     const key = `token-${match.index}`;
 
-    if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
+    // 1. Obsidian [[Wikilink]] or [[Target|Alias]]
+    if (token.startsWith('[[') && token.endsWith(']]')) {
+      const inner = token.slice(2, -2).trim();
+      const [targetRaw, aliasRaw] = inner.split('|');
+      const target = (targetRaw || '').trim();
+      const label = (aliasRaw || targetRaw || '').trim();
+
+      const handleClickWikilink = (e) => {
+        e.stopPropagation();
+        // Alt or Ctrl click attempts to open directly in native Obsidian app
+        if (e.altKey || e.ctrlKey) {
+          const cleanPath = target.replace(/^\/+/, '').replace(/\.md$/, '');
+          window.open(`obsidian://open?file=${encodeURIComponent(cleanPath)}`, '_self');
+          return;
+        }
+        // Dispatch in-app navigation event
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('wolfe-navigate', { 
+            detail: { target, label, raw: token } 
+          }));
+        }
+      };
+
+      parts.push(
+        <button
+          key={key}
+          type="button"
+          onClick={handleClickWikilink}
+          title={`Link to [[${target}]] (Alt+Click to open in Obsidian)`}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md text-[11px] font-medium bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 hover:text-purple-100 hover:border-purple-400/50 transition-all cursor-pointer select-none group active:scale-95 align-middle"
+        >
+          <span className="opacity-70 group-hover:opacity-100 transition-opacity text-[10px]">🔗</span>
+          <span className="font-semibold underline decoration-purple-400/40 underline-offset-2">{label}</span>
+        </button>
+      );
+    } 
+    // 2. Markdown Link [Label](url)
+    else if (token.startsWith('[') && token.includes('](') && token.endsWith(')')) {
+      const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (linkMatch) {
+        const [, linkText, linkUrl] = linkMatch;
+        parts.push(
+          <a
+            key={key}
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 text-cyan-400 hover:text-cyan-300 underline underline-offset-2 font-medium transition-colors"
+          >
+            {linkText}
+          </a>
+        );
+      } else {
+        parts.push(token);
+      }
+    }
+    // 3. Bold
+    else if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
       parts.push(
         <strong key={key} className="font-semibold text-white">
           {token.slice(2, -2)}
         </strong>
       );
-    } else if (token.startsWith('`') && token.endsWith('`')) {
+    } 
+    // 4. Inline Code
+    else if (token.startsWith('`') && token.endsWith('`')) {
       parts.push(
         <code key={key} className="px-1.5 py-0.5 rounded bg-white/10 text-amber-300 font-mono text-[11px]">
           {token.slice(1, -1)}
         </code>
       );
-    } else if ((token.startsWith('*') && token.endsWith('*')) || (token.startsWith('_') && token.endsWith('_'))) {
+    } 
+    // 5. Italic
+    else if ((token.startsWith('*') && token.endsWith('*')) || (token.startsWith('_') && token.endsWith('_'))) {
       parts.push(
         <em key={key} className="italic text-slate-200">
           {token.slice(1, -1)}
