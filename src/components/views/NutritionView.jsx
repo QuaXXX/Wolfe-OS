@@ -70,20 +70,54 @@ export const NutritionView = ({
   const [quickAddFeedback, setQuickAddFeedback] = useState(null);
   const speechRecognitionRef = useRef(null);
 
-  // Date Navigation State
-  const todayIso = useMemo(() => getTodayIso(), []);
+  // Date Navigation State: Dynamic today tracking that automatically updates on new day / midnight / window focus
+  const [currentTodayIso, setCurrentTodayIso] = useState(() => getTodayIso());
   const [selectedDate, setSelectedDate] = useState(() => getTodayIso());
+  const todayIso = currentTodayIso;
   const dayScrollRef = useRef(null);
   const selectedDayCardRef = useRef(null);
 
-  // Side-Scrollable Day Window: 30 days before today up to 3 days ahead
+  // Auto-detect date change on window focus, visibility change, and periodic timer
+  useEffect(() => {
+    const checkRollover = () => {
+      const freshToday = getTodayIso();
+      setCurrentTodayIso(prev => {
+        if (prev !== freshToday) {
+          // If the user was viewing today, automatically advance to the new day
+          setSelectedDate(currSel => (currSel === prev ? freshToday : currSel));
+          return freshToday;
+        }
+        return prev;
+      });
+    };
+
+    // Check immediately on window focus (phone wake / tab return)
+    window.addEventListener('focus', checkRollover);
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') checkRollover();
+    };
+    document.addEventListener('visibilitychange', handleVis);
+
+    // Periodic check every 30 seconds
+    const interval = setInterval(checkRollover, 30000);
+
+    return () => {
+      window.removeEventListener('focus', checkRollover);
+      document.removeEventListener('visibilitychange', handleVis);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Side-Scrollable Day Window: 30 days before today up to 3 days ahead, calculated strictly in local timezone
   const dayWindow = useMemo(() => {
     const days = [];
     const base = new Date();
     for (let i = -30; i <= 3; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      const dateIso = d.toISOString().split('T')[0];
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dayNum = String(d.getDate()).padStart(2, '0');
+      const dateIso = `${y}-${m}-${dayNum}`;
       days.push({
         dateIso,
         dayNumber: d.getDate(),
@@ -92,7 +126,7 @@ export const NutritionView = ({
       });
     }
     return days;
-  }, []);
+  }, [currentTodayIso]);
 
   // Auto-center selected day card in horizontal carousel
   useEffect(() => {
@@ -121,7 +155,9 @@ export const NutritionView = ({
 
   const handleTodayJump = () => {
     playSound('switch', soundEnabled);
-    setSelectedDate(todayIso);
+    const freshToday = getTodayIso();
+    setCurrentTodayIso(freshToday);
+    setSelectedDate(freshToday);
   };
 
   // Destructure state from nutritionData with safe fallbacks
@@ -675,11 +711,6 @@ export const NutritionView = ({
             <div>
               <span className="text-xs font-bold text-white tracking-tight flex items-center gap-1.5">
                 <span>{formatDateTitle(selectedDate)}</span>
-                {selectedDate === todayIso && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">
-                    Today
-                  </span>
-                )}
               </span>
               <div className="text-[10px] font-mono text-slate-400">
                 {selectedDateMeals.length} logged • {dailyTotals.calories} kcal ({dailyTotals.protein}g P)
@@ -753,7 +784,10 @@ export const NutritionView = ({
                 <span className="text-[10px] uppercase font-mono font-bold tracking-wider opacity-80">
                   {day.dayName}
                 </span>
-                <span className={`text-base font-bold font-mono my-0.5 ${isSelected ? 'text-white' : isToday ? 'text-amber-300 font-extrabold' : 'text-slate-200'}`}>
+                <span 
+                  className={`text-base font-bold font-mono my-0.5 ${isSelected ? 'text-white' : 'text-slate-200'}`}
+                  style={!isSelected && isToday ? { color: 'var(--accent-primary)', fontWeight: '800' } : {}}
+                >
                   {day.dayNumber}
                 </span>
                 
@@ -1272,8 +1306,15 @@ export const NutritionView = ({
             </h2>
           </div>
           {selectedDate !== todayIso && (
-            <div className="text-[11px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl">
-              Logging into: <strong>{formatDateTitle(selectedDate)}</strong>
+            <div 
+              className="text-[11px] font-mono px-2.5 py-1 rounded-xl border shadow-sm"
+              style={{
+                backgroundColor: 'var(--accent-subtle)',
+                borderColor: 'var(--accent-border)',
+                color: 'var(--accent-primary)'
+              }}
+            >
+              Logging into: <strong className="text-white">{formatDateTitle(selectedDate)}</strong>
             </div>
           )}
         </div>
