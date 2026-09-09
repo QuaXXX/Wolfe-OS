@@ -1003,7 +1003,7 @@ export function parseMealDescription(text) {
  */
 export function createMealEntry({
   name = "Meal",
-  slot = "lunch",
+  slot = "meal",
   time = "",
   calories = 0,
   protein = 0,
@@ -1021,7 +1021,7 @@ export function createMealEntry({
 
   return {
     id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    slot: slot || "lunch",
+    slot: slot || "meal",
     name: (name || "Logged Meal").trim(),
     time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     calories: finalCals,

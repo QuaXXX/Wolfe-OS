@@ -27,7 +27,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '../common/GlassCard';
 import { playSound } from '../../utils/soundFX';
 import { 
-  MEAL_SLOTS, 
   aggregateDailyNutrition, 
   calculateMovingAverageWeight, 
   calculateWeightVelocity, 
@@ -39,7 +38,6 @@ import {
 } from '../../utils/nutritionEngine.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
-import { SnapMealModal } from '../nutrition/SnapMealModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
 import { recordDeletion, recordAdditionOrUpdate } from '../../utils/cloudSyncEngine.js';
 
@@ -53,10 +51,8 @@ export const NutritionView = ({
   // Modals state
   const [isMealModalOpen, setIsMealModalOpen] = useState(false);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
-  const [isSnapModalOpen, setIsSnapModalOpen] = useState(false);
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
-  const [activeQuickSlot, setActiveQuickSlot] = useState('lunch');
   const [pantryCategory, setPantryCategory] = useState('common');
   const [justLoggedToast, setJustLoggedToast] = useState(null);
   const [quickAddText, setQuickAddText] = useState('');
@@ -173,7 +169,7 @@ export const NutritionView = ({
     playSound('success', soundEnabled);
     const meal = createMealEntry({
       name: staple.name,
-      slot: activeQuickSlot,
+      slot: 'meal',
       calories: staple.calories,
       protein: staple.protein,
       carbs: staple.carbs,
@@ -193,7 +189,7 @@ export const NutritionView = ({
       playSound('success', soundEnabled);
       const meal = createMealEntry({
         name: parsed.name,
-        slot: activeQuickSlot || 'lunch',
+        slot: 'meal',
         calories: parsed.calories,
         protein: parsed.protein,
         carbs: parsed.carbs,
@@ -246,7 +242,7 @@ export const NutritionView = ({
             playSound('success', soundEnabled);
             const meal = createMealEntry({
               name: parsed.name,
-              slot: activeQuickSlot || 'lunch',
+              slot: 'meal',
               calories: parsed.calories,
               protein: parsed.protein,
               carbs: parsed.carbs,
@@ -799,20 +795,7 @@ export const NutritionView = ({
             </h2>
           </div>
           
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400">Slot:</span>
-              <select
-                value={activeQuickSlot}
-                onChange={(e) => setActiveQuickSlot(e.target.value)}
-                className="bg-black/60 border border-white/15 rounded-lg px-2.5 py-1 text-xs font-mono text-white outline-none cursor-pointer"
-              >
-                {MEAL_SLOTS.map(s => (
-                  <option key={s.id} value={s.id}>{s.icon} {s.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          
         </div>
 
         {/* Category Filter Pills */}
@@ -851,7 +834,7 @@ export const NutritionView = ({
         {justLoggedToast && (
           <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-slate-200 text-xs font-mono font-medium flex items-center gap-2">
             <Check className="w-4 h-4 text-emerald-400" />
-            <span>{justLoggedToast} to {MEAL_SLOTS.find(s => s.id === activeQuickSlot)?.label}</span>
+            <span>{justLoggedToast}</span>
           </div>
         )}
 
@@ -897,20 +880,16 @@ export const NutritionView = ({
         {meals.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {meals.map((meal) => {
-              const slotInfo = MEAL_SLOTS.find(s => s.id === meal.slot) || MEAL_SLOTS[1];
               return (
                 <GlassCard key={meal.id} hoverEffect={false} className="p-4 flex flex-col justify-between space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-base shrink-0">
-                        {slotInfo.icon}
+                        {meal.icon || '🍽️'}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-white">{meal.name}</span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-slate-400 uppercase">
-                            {slotInfo.label}
-                          </span>
                         </div>
                         {meal.time && (
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
@@ -961,7 +940,7 @@ export const NutritionView = ({
             </div>
             <div className="text-xs font-bold text-white">No Meals Logged Today</div>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-              Tap any household staple above, use "Log Food", or tap "Snap Meal" to log your plate.
+              Tap any household staple above or click "Log Food" to upload an image, talk to add, or quick log.
             </p>
           </GlassCard>
         )}
@@ -1089,7 +1068,8 @@ export const NutritionView = ({
         householdPantry={householdPantry}
         onAddHouseholdStaple={handleAddHouseholdStaple}
         onDeleteHouseholdStaple={handleDeleteHouseholdStaple}
-        onOpenSnapModal={() => setIsSnapModalOpen(true)}
+        aiConfig={settings?.aiConfig}
+        kitchenCalibration={nutritionData?.kitchenCalibration}
         soundEnabled={soundEnabled}
       />
 
@@ -1101,15 +1081,6 @@ export const NutritionView = ({
         onLogWeight={handleLogWeight}
         onDeleteWeightLog={handleDeleteWeightLog}
         onApplySurplus={handleApplySurplus}
-        soundEnabled={soundEnabled}
-      />
-
-      <SnapMealModal
-        isOpen={isSnapModalOpen}
-        onClose={() => setIsSnapModalOpen(false)}
-        onLogMeal={handleLogMeal}
-        aiConfig={settings?.aiConfig}
-        kitchenCalibration={nutritionData?.kitchenCalibration}
         soundEnabled={soundEnabled}
       />
 
