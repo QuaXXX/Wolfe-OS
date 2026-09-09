@@ -26,7 +26,8 @@ import { createMealEntry, calculateCaloriesFromMacros } from '../../utils/nutrit
 import { 
   analyzeMealWithAI, 
   scanNutritionLabelWithAI, 
-  lookupBarcodeOpenFoodFacts 
+  lookupBarcodeOpenFoodFacts,
+  searchBrandedFoodDatabase
 } from '../../utils/aiService.js';
 
 export const SnapMealModal = ({
@@ -47,6 +48,11 @@ export const SnapMealModal = ({
   const [analyzedMeal, setAnalyzedMeal] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
+  const [quickLookupMode, setQuickLookupMode] = useState('brand'); // 'brand' | 'barcode'
+  const [brandSearchInput, setBrandSearchInput] = useState('');
+  const [isSearchingBrand, setIsSearchingBrand] = useState(false);
+  const [brandSearchResults, setBrandSearchResults] = useState([]);
+  const [brandSearchError, setBrandSearchError] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState('lunch');
   const [isListening, setIsListening] = useState(false);
   const [cameraPermissionStatus, setCameraPermissionStatus] = useState('prompt'); // 'prompt' | 'granted' | 'denied'
@@ -86,6 +92,10 @@ export const SnapMealModal = ({
     setAnalyzedMeal(null);
     setBarcodeInput('');
     setIsLookingUpBarcode(false);
+    setBrandSearchInput('');
+    setBrandSearchResults([]);
+    setIsSearchingBrand(false);
+    setBrandSearchError(null);
     setIsListening(false);
   };
 
@@ -405,6 +415,70 @@ export const SnapMealModal = ({
     }
   };
 
+  // Brand & Product Search Lookup
+  const handleBrandSearchSubmit = async (e) => {
+    if (e) e.preventDefault();
+    const q = brandSearchInput.trim();
+    if (!q) return;
+
+    playSound('click', soundEnabled);
+    setIsSearchingBrand(true);
+    setBrandSearchError(null);
+
+    try {
+      const items = await searchBrandedFoodDatabase({ query: q, aiConfig });
+      if (items && items.length > 0) {
+        setBrandSearchResults(items);
+        playSound('success', soundEnabled);
+      } else {
+        setBrandSearchResults([]);
+        setBrandSearchError(`No verified manufacturer nutrition found for "${q}". Try typing the full brand name.`);
+      }
+    } catch (err) {
+      setBrandSearchError("Search failed. Please try again.");
+    } finally {
+      setIsSearchingBrand(false);
+    }
+  };
+
+  const handleSelectBrandItem = (item) => {
+    playSound('success', soundEnabled);
+    const fullTitle = item.brand ? `${item.brand} ${item.name}` : item.name;
+    const newItem = {
+      name: fullTitle,
+      portion: item.servingSize || "1 serving",
+      calories: Number(item.calories) || 0,
+      protein: Number(item.protein) || 0,
+      carbs: Number(item.carbs) || 0,
+      fats: Number(item.fats) || 0
+    };
+
+    if (analyzedMeal && Array.isArray(analyzedMeal.items) && analyzedMeal.items.length > 0) {
+      const nextItems = [...analyzedMeal.items, newItem];
+      setAnalyzedMeal({
+        ...analyzedMeal,
+        name: analyzedMeal.items.length === 1 ? `${analyzedMeal.name} + ${fullTitle}` : analyzedMeal.name,
+        items: nextItems,
+        calories: nextItems.reduce((acc, it) => acc + (Number(it.calories) || 0), 0),
+        protein: nextItems.reduce((acc, it) => acc + (Number(it.protein) || 0), 0),
+        carbs: nextItems.reduce((acc, it) => acc + (Number(it.carbs) || 0), 0),
+        fats: nextItems.reduce((acc, it) => acc + (Number(it.fats) || 0), 0),
+        notes: analyzedMeal.notes ? `${analyzedMeal.notes}; Added ${fullTitle}` : `Added ${fullTitle}`
+      });
+    } else {
+      setAnalyzedMeal({
+        name: fullTitle,
+        items: [newItem],
+        calories: newItem.calories,
+        protein: newItem.protein,
+        carbs: newItem.carbs,
+        fats: newItem.fats,
+        notes: `Verified Nutrition Facts from ${item.source || 'Brand Search'}`
+      });
+    }
+    setBrandSearchResults([]);
+  };
+
   // Adjust item in analyzed meal
   const handleRemoveItem = (index) => {
     if (!analyzedMeal) return;
@@ -649,25 +723,161 @@ export const SnapMealModal = ({
             )}
           </div>
 
-          {/* Quick Barcode Number Lookup */}
-          <form onSubmit={handleManualBarcodeSubmit} className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-white/10">
-            <Barcode className="w-4 h-4 text-slate-400 ml-1 shrink-0" />
-            <input
-              type="text"
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              placeholder="Or enter Barcode / UPC number (e.g. 016000275270)..."
-              className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 font-mono outline-none"
-            />
-            <button
-              type="submit"
-              disabled={isLookingUpBarcode || !barcodeInput.trim()}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] text-white border border-white/15 text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
-            >
-              {isLookingUpBarcode ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-              <span>Lookup</span>
-            </button>
-          </form>
+          {/* Quick Brand Search & Barcode Lookup */}
+          <div className="p-3 rounded-2xl bg-black/40 border border-white/10 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 bg-white/[0.04] p-0.5 rounded-xl border border-white/5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setQuickLookupMode('brand');
+                  }}
+                  className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    quickLookupMode === 'brand'
+                      ? 'bg-white/15 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Search className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Search Brand / Food</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setQuickLookupMode('barcode');
+                  }}
+                  className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    quickLookupMode === 'barcode'
+                      ? 'bg-white/15 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Barcode className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Barcode UPC</span>
+                </button>
+              </div>
+
+              <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
+                {quickLookupMode === 'brand' ? 'Direct Nutrition Facts Lookup' : '12-Digit UPC Scan'}
+              </span>
+            </div>
+
+            {quickLookupMode === 'brand' ? (
+              <div className="space-y-2">
+                <form onSubmit={handleBrandSearchSubmit} className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={brandSearchInput}
+                      onChange={(e) => setBrandSearchInput(e.target.value)}
+                      placeholder='Search any brand (e.g. "Good Culture 2%", "Fairlife 42g", "Quest Bar")...'
+                      className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSearchingBrand || !brandSearchInput.trim()}
+                    className="px-4 py-2 rounded-xl text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  >
+                    {isSearchingBrand ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Search className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isSearchingBrand ? 'Searching...' : 'Search'}</span>
+                  </button>
+                </form>
+
+                {/* Search Error */}
+                {brandSearchError && (
+                  <p className="text-[11px] text-amber-400 font-medium">{brandSearchError}</p>
+                )}
+
+                {/* Search Results */}
+                {brandSearchResults.length > 0 && (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pt-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pb-0.5">
+                      <span>Found {brandSearchResults.length} verified products:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBrandSearchResults([]);
+                          setBrandSearchInput('');
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                        <span>Clear</span>
+                      </button>
+                    </div>
+
+                    {brandSearchResults.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 flex items-center justify-between gap-3 transition-all"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-white truncate">{item.name}</span>
+                            {item.brand && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-slate-300 border border-white/10">
+                                {item.brand}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-mono text-emerald-400">
+                              {item.source}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                            <span>{item.servingSize}</span> • <span className="text-amber-300 font-semibold">{item.calories} kcal</span> • <span className="text-indigo-300 font-semibold">{item.protein}g P</span> • <span className="text-sky-300">{item.carbs}g C</span> • <span className="text-rose-300">{item.fats}g F</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSelectBrandItem(item)}
+                          className="px-3 py-1.5 rounded-lg text-white text-xs font-semibold shrink-0 transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                          style={{ backgroundColor: 'var(--accent-primary)' }}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{analyzedMeal ? 'Add to Meal' : 'Select'}</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleManualBarcodeSubmit} className="flex items-center gap-2">
+                <div className="relative flex-1 flex items-center bg-black/60 border border-white/10 rounded-xl px-2.5 py-1.5">
+                  <Barcode className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
+                  <input
+                    type="text"
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    placeholder="Enter Barcode / UPC number (e.g. 016000275270)..."
+                    className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 font-mono outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLookingUpBarcode || !barcodeInput.trim()}
+                  className="px-4 py-2 rounded-xl text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                >
+                  {isLookingUpBarcode ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isLookingUpBarcode ? 'Looking up...' : 'Lookup'}</span>
+                </button>
+              </form>
+            )}
+          </div>
 
           {/* Description input with voice dictation */}
           <div className="space-y-1.5">

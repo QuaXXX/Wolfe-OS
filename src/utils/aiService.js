@@ -2373,4 +2373,156 @@ export async function lookupBarcodeOpenFoodFacts(barcode) {
   }
 }
 
+/**
+ * Search branded foods and products via Open Food Facts and Gemini FDA/Nutrition database
+ */
+export async function searchBrandedFoodDatabase({ query, aiConfig = DEFAULT_AI_CONFIG }) {
+  const cleanQuery = (query || '').trim();
+  if (!cleanQuery || cleanQuery.length < 2) return [];
+
+  const apiKey = aiConfig?.apiKey || API_KEY || (typeof localStorage !== 'undefined' ? (JSON.parse(localStorage.getItem('wolfe_os_settings') || '{}')?.aiConfig?.apiKey || JSON.parse(localStorage.getItem('wolfe_settings') || '{}')?.aiConfig?.apiKey) : '');
+  const results = [];
+  const seenNames = new Set();
+
+  // 1. Query Open Food Facts search API (Fast global database with barcodes)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(cleanQuery)}&search_simple=1&action=process&json=true&page_size=6`, {
+      headers: { 'User-Agent': 'WolfeOS/1.0 (Windows NT 10.0; Win64; x64)' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const data = await res.json();
+      if (data && Array.isArray(data.products)) {
+        for (const p of data.products) {
+          if (!p.product_name) continue;
+          const nutriments = p.nutriments || {};
+          const cals = Math.round(Number(nutriments['energy-kcal_serving'] || nutriments['energy-kcal_100g'] || 0));
+          const protein = Math.round(Number(nutriments['proteins_serving'] || nutriments['proteins_100g'] || 0));
+          const carbs = Math.round(Number(nutriments['carbohydrates_serving'] || nutriments['carbohydrates_100g'] || 0));
+          const fats = Math.round(Number(nutriments['fat_serving'] || nutriments['fat_100g'] || 0));
+
+          if (cals > 0 || protein > 0) {
+            const key = (p.product_name + (p.brands || '')).toLowerCase();
+            if (!seenNames.has(key)) {
+              seenNames.add(key);
+              results.push({
+                id: p.code || `off-${Math.random().toString(36).substr(2, 9)}`,
+                name: p.product_name,
+                brand: p.brands || '',
+                servingSize: p.serving_size || '1 serving',
+                calories: cals,
+                protein,
+                carbs,
+                fats,
+                fiber: nutriments['fiber_serving'] != null ? Math.round(Number(nutriments['fiber_serving'])) : null,
+                sugar: nutriments['sugars_serving'] != null ? Math.round(Number(nutriments['sugars_serving'])) : null,
+                source: 'Open Food Facts'
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {}
+
+  // 2. Gemini fallback / enhancer: precise FDA/USDA manufacturer label data
+  if (results.length < 3 && apiKey) {
+    const models = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-lite-latest',
+      'gemini-1.5-flash'
+    ];
+
+    const prompt = `Search the verified food and nutrition database for the branded food: "${cleanQuery}".
+Return up to 4 exact or closely matching branded food items with exact manufacturer Nutrition Facts label data.`;
+
+    const systemInstruction = `You are a clinical sports dietitian and precise FDA & USDA branded food label authority.
+For the user's food/brand search query, return exact manufacturer Nutrition Facts label values.
+Return ONLY valid JSON matching this schema:
+[
+  {
+    "id": "item-id",
+    "name": "Full Product Name (e.g. Good Culture 2% Low-Fat Classic Cottage Cheese)",
+    "brand": "Brand Name (e.g. Good Culture)",
+    "servingSize": "Exact Serving Size (e.g. 1/2 cup (110g))",
+    "calories": 100,
+    "protein": 14,
+    "carbs": 3,
+    "fats": 2.5,
+    "fiber": 0,
+    "sugar": 3
+  }
+]`;
+
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.1,
+              maxOutputTokens: 1024
+            }
+          })
+        });
+
+        clearTimeout(timeoutId);
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const textPart = parts.find(p => p.text && !p.thought) || parts[0];
+        const rawText = textPart?.text || '';
+
+        if (rawText) {
+          const parsed = safeParseJson(rawText);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            for (const item of parsed) {
+              const key = (item.name + (item.brand || '')).toLowerCase();
+              if (!seenNames.has(key)) {
+                seenNames.add(key);
+                results.push({
+                  id: item.id || `ai-${Math.random().toString(36).substr(2, 9)}`,
+                  name: item.name,
+                  brand: item.brand || '',
+                  servingSize: item.servingSize || '1 serving',
+                  calories: Number(item.calories) || calculateCaloriesFromMacros(item.protein, item.carbs, item.fats),
+                  protein: Number(item.protein) || 0,
+                  carbs: Number(item.carbs) || 0,
+                  fats: Number(item.fats) || 0,
+                  fiber: item.fiber != null ? Number(item.fiber) : null,
+                  sugar: item.sugar != null ? Number(item.sugar) : null,
+                  source: 'FDA / Manufacturer Label'
+                });
+              }
+            }
+            break;
+          }
+        }
+      } catch (e) {
+        // Try next model
+      }
+    }
+  }
+
+  return results;
+}
+
+
 

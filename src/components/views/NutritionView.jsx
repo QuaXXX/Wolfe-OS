@@ -1118,6 +1118,7 @@ export const NutritionView = ({
         onClose={() => setIsCalibrationModalOpen(false)}
         kitchenCalibration={nutritionData?.kitchenCalibration}
         onUpdateCalibration={handleUpdateCalibration}
+        aiConfig={settings?.aiConfig}
         soundEnabled={soundEnabled}
       />
     </div>

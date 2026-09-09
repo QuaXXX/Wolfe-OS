@@ -16,16 +16,20 @@ import {
   Scale,
   UtensilsCrossed,
   Layers,
-  Edit3
+  Edit3,
+  Search,
+  RefreshCw
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { getCalibrationProgress, getMergedCalibrationTasks, DEFAULT_CALIBRATION_TASKS } from '../../utils/nutritionEngine.js';
+import { searchBrandedFoodDatabase } from '../../utils/aiService.js';
 
 export const KitchenCalibrationModal = ({
   isOpen,
   onClose,
   kitchenCalibration = {},
   onUpdateCalibration,
+  aiConfig = {},
   soundEnabled = true
 }) => {
   const tasks = useMemo(() => {
@@ -36,6 +40,18 @@ export const KitchenCalibrationModal = ({
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [formValues, setFormValues] = useState({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
+
+  // Global Brand Search State
+  const [globalBrandQuery, setGlobalBrandQuery] = useState('');
+  const [globalBrandResults, setGlobalBrandResults] = useState([]);
+  const [isGlobalSearching, setIsGlobalSearching] = useState(false);
+  const [globalSearchError, setGlobalSearchError] = useState(null);
+
+  // Per-Task Inline Brand Search State
+  const [taskBrandQueries, setTaskBrandQueries] = useState({});
+  const [taskBrandResults, setTaskBrandResults] = useState({});
+  const [taskIsSearching, setTaskIsSearching] = useState({});
+  const [taskSearchError, setTaskSearchError] = useState({});
 
   // Custom measurement state
   const [customTitle, setCustomTitle] = useState('');
@@ -159,6 +175,143 @@ export const KitchenCalibrationModal = ({
     setCustomDiameter('');
     setCustomVolume('');
     setCustomTare('');
+  };
+
+  const handleGlobalBrandSearch = async (e) => {
+    if (e) e.preventDefault();
+    const q = globalBrandQuery.trim();
+    if (!q) return;
+
+    playSound('click', soundEnabled);
+    setIsGlobalSearching(true);
+    setGlobalSearchError(null);
+
+    try {
+      const items = await searchBrandedFoodDatabase({ query: q, aiConfig });
+      if (items && items.length > 0) {
+        setGlobalBrandResults(items);
+        playSound('success', soundEnabled);
+      } else {
+        setGlobalBrandResults([]);
+        setGlobalSearchError(`No verified label found for "${q}". Try typing the full brand name.`);
+      }
+    } catch (err) {
+      setGlobalSearchError("Brand search encountered an issue. Please try again.");
+    } finally {
+      setIsGlobalSearching(false);
+    }
+  };
+
+  const handleTaskBrandSearch = async (taskId, defaultQuery = '') => {
+    const q = (taskBrandQueries[taskId] !== undefined ? taskBrandQueries[taskId] : (defaultQuery || formValues.brand || '')).trim();
+    if (!q) return;
+
+    playSound('click', soundEnabled);
+    setTaskIsSearching(prev => ({ ...prev, [taskId]: true }));
+    setTaskSearchError(prev => ({ ...prev, [taskId]: null }));
+
+    try {
+      const items = await searchBrandedFoodDatabase({ query: q, aiConfig });
+      if (items && items.length > 0) {
+        setTaskBrandResults(prev => ({ ...prev, [taskId]: items }));
+        playSound('success', soundEnabled);
+      } else {
+        setTaskBrandResults(prev => ({ ...prev, [taskId]: [] }));
+        setTaskSearchError(prev => ({ ...prev, [taskId]: `No product found for "${q}".` }));
+      }
+    } catch (err) {
+      setTaskSearchError(prev => ({ ...prev, [taskId]: "Search failed. Please try again." }));
+    } finally {
+      setTaskIsSearching(prev => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  const handleApplyBrandToTask = (task, item) => {
+    playSound('success', soundEnabled);
+    const updated = { ...formValues };
+
+    const fullTitle = item.brand ? `${item.brand} ${item.name}` : item.name;
+    if (task.fields.some(f => f.key === 'brand')) {
+      updated.brand = fullTitle;
+    }
+    if (task.fields.some(f => f.key === 'name')) {
+      updated.name = fullTitle;
+    }
+
+    const cals = Number(item.calories) || 0;
+    ['cals', 'calsPerHalfCup', 'calsPerSlice', 'calsPerCup', 'calsPerBar', 'calsPerUnit', 'calsPerScoop'].forEach(k => {
+      if (task.fields.some(f => f.key === k)) updated[k] = cals;
+    });
+
+    const protein = Number(item.protein) || 0;
+    ['protein', 'proteinPerHalfCup', 'proteinPerServing', 'proteinPerScoop', 'proteinPerCup', 'proteinPerBar', 'proteinPerUnit'].forEach(k => {
+      if (task.fields.some(f => f.key === k)) updated[k] = protein;
+    });
+
+    const carbs = Number(item.carbs) || 0;
+    ['carbs', 'carbsPerCup', 'carbsPerUnit'].forEach(k => {
+      if (task.fields.some(f => f.key === k)) updated[k] = carbs;
+    });
+
+    const fats = Number(item.fats) || 0;
+    ['fat', 'fats'].forEach(k => {
+      if (task.fields.some(f => f.key === k)) updated[k] = fats;
+    });
+
+    const sSize = item.servingSize || '';
+    const matchGrams = sSize.match(/(\d+(?:\.\d+)?)\s*g/i);
+    const gramsNum = matchGrams ? matchGrams[1] : null;
+
+    if (task.fields.some(f => f.key === 'sliceWeightG') && gramsNum) {
+      updated.sliceWeightG = gramsNum;
+    }
+    if (task.fields.some(f => f.key === 'servingGrams')) {
+      updated.servingGrams = sSize;
+    }
+    if (task.fields.some(f => f.key === 'scoopGrams') && gramsNum) {
+      updated.scoopGrams = `${gramsNum}g`;
+    }
+
+    setFormValues(updated);
+  };
+
+  const handleAddSearchedBrandAsStaple = (item) => {
+    playSound('success', soundEnabled);
+    const title = `${item.brand || ''} ${item.name}`.trim();
+    const newTask = {
+      id: `task-custom-${Date.now()}`,
+      category: 'staples',
+      title: title,
+      shortDesc: `${item.servingSize || '1 serving'} • ${item.calories} kcal • ${item.protein}g P`,
+      icon: "🏷️",
+      instruction: `Verified manufacturer nutrition facts for ${title}.`,
+      fields: [
+        { key: "brand", label: "Brand & Product Name", type: "text" },
+        { key: "servingSize", label: "Serving Size", type: "text" },
+        { key: "calories", label: "Calories", type: "number" },
+        { key: "protein", label: "Protein (g)", type: "number" },
+        { key: "carbs", label: "Carbs (g)", type: "number" },
+        { key: "fats", label: "Fats (g)", type: "number" }
+      ],
+      completed: true,
+      completedAt: new Date().toISOString(),
+      values: {
+        brand: title,
+        servingSize: item.servingSize || '1 serving',
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fats: item.fats,
+        source: item.source || 'Verified Label'
+      }
+    };
+
+    const updatedTasks = [...tasks, newTask];
+    if (onUpdateCalibration) {
+      onUpdateCalibration({ ...kitchenCalibration, tasks: updatedTasks });
+    }
+    setGlobalBrandResults([]);
+    setGlobalBrandQuery('');
   };
 
   const modalContent = (
@@ -291,6 +444,119 @@ export const KitchenCalibrationModal = ({
             ))}
           </div>
 
+          {/* Global Brand Search Bar */}
+          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Search className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Search Branded Food Database</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                Direct Nutrition Facts Label Lookup
+              </span>
+            </div>
+
+            <form onSubmit={handleGlobalBrandSearch} className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={globalBrandQuery}
+                  onChange={(e) => setGlobalBrandQuery(e.target.value)}
+                  placeholder='Search any food brand (e.g. "Good Culture 2%", "Kirkland PB", "Fairlife", "Barebells")...'
+                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/30"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isGlobalSearching || !globalBrandQuery.trim()}
+                className="px-4 py-2 rounded-xl text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--accent-primary)' }}
+              >
+                {isGlobalSearching ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Search className="w-3.5 h-3.5" />
+                )}
+                <span>{isGlobalSearching ? 'Searching...' : 'Search'}</span>
+              </button>
+            </form>
+
+            {/* Global Search Results List */}
+            {globalBrandResults.length > 0 && (
+              <div className="space-y-1.5 pt-1.5 max-h-52 overflow-y-auto">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1">
+                  <span>Found {globalBrandResults.length} verified products:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGlobalBrandResults([]);
+                      setGlobalBrandQuery('');
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Clear</span>
+                  </button>
+                </div>
+
+                {globalBrandResults.map(item => (
+                  <div
+                    key={item.id}
+                    className="p-2.5 rounded-xl bg-black/60 border border-white/10 hover:border-white/20 flex items-center justify-between gap-3 transition-all"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-white">{item.name}</span>
+                        {item.brand && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-slate-300 border border-white/10">
+                            {item.brand}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-mono text-emerald-400">
+                          {item.source}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                        <span>{item.servingSize}</span> • <span className="text-amber-300 font-semibold">{item.calories} kcal</span> • <span className="text-indigo-300 font-semibold">{item.protein}g P</span> • <span className="text-sky-300">{item.carbs}g C</span> • <span className="text-rose-300">{item.fats}g F</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {expandedTaskId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentTask = tasks.find(t => t.id === expandedTaskId);
+                            if (currentTask) handleApplyBrandToTask(currentTask, item);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                          title="Fill into currently open task"
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-300" />
+                          <span>Fill Open Task</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleAddSearchedBrandAsStaple(item)}
+                        className="px-3 py-1.5 rounded-lg text-white text-xs font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        style={{ backgroundColor: 'var(--accent-primary)' }}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Save as Staple</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {globalSearchError && (
+              <p className="text-xs text-amber-300 pt-1">{globalSearchError}</p>
+            )}
+          </div>
+
           {/* Task Checklist */}
           <div className="space-y-2.5 max-h-[46vh] overflow-y-auto pr-1">
             {filteredTasks.map(task => {
@@ -387,6 +653,82 @@ export const KitchenCalibrationModal = ({
                             {task.instruction}
                           </p>
                         </div>
+
+                        {/* Inline Brand Search & Auto-Fill */}
+                        {(task.category === 'staples' || task.fields.some(f => f.key === 'brand')) && (
+                          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                <Search className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>Look Up Your Brand</span>
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                Auto-fills exact nutrition
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={taskBrandQueries[task.id] !== undefined ? taskBrandQueries[task.id] : (formValues.brand || '')}
+                                onChange={(e) => setTaskBrandQueries(prev => ({ ...prev, [task.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleTaskBrandSearch(task.id);
+                                  }
+                                }}
+                                placeholder='e.g. "Good Culture 2%", "Dave’s Killer Bread", "Fairlife 2%"...'
+                                className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/30"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleTaskBrandSearch(task.id)}
+                                disabled={taskIsSearching[task.id]}
+                                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+                              >
+                                {taskIsSearching[task.id] ? (
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Search className="w-3.5 h-3.5" />
+                                )}
+                                <span>{taskIsSearching[task.id] ? 'Searching...' : 'Search'}</span>
+                              </button>
+                            </div>
+
+                            {/* Task Brand Results */}
+                            {taskBrandResults[task.id] && taskBrandResults[task.id].length > 0 && (
+                              <div className="space-y-1.5 pt-1 max-h-44 overflow-y-auto">
+                                {taskBrandResults[task.id].map(item => (
+                                  <div
+                                    key={item.id}
+                                    className="p-2 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between gap-3 text-xs"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="font-bold text-white truncate">{item.name}</div>
+                                      <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                                        {item.servingSize} • <span className="text-amber-300">{item.calories} kcal</span> • <span className="text-indigo-300">{item.protein}g P</span> • <span className="text-sky-300">{item.carbs}g C</span> • <span className="text-rose-300">{item.fats}g F</span>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplyBrandToTask(task, item)}
+                                      className="px-2.5 py-1 rounded-lg text-white text-xs font-semibold shrink-0 transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                                      style={{ backgroundColor: 'var(--accent-primary)' }}
+                                    >
+                                      <Sparkles className="w-3 h-3" />
+                                      <span>Apply</span>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {taskSearchError[task.id] && (
+                              <p className="text-[10px] text-amber-400">{taskSearchError[task.id]}</p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Input Fields */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
