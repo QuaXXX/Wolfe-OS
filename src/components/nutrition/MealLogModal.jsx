@@ -22,7 +22,7 @@ import {
   X, 
   Clock, 
   BookmarkPlus
-} from 'lucide-react';
+, Video, ExternalLink, Info } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { 
   calculateCaloriesFromMacros, 
@@ -61,6 +61,8 @@ export const MealLogModal = ({
   const [facingMode, setFacingMode] = useState('environment');
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [imageAnalysisError, setImageAnalysisError] = useState(null);
+  const [cameraPermissionStatus, setCameraPermissionStatus] = useState('prompt'); // 'prompt' | 'granted' | 'denied' | 'unknown'
+  const [showPermissionGuide, setShowPermissionGuide] = useState(false);
   const [analyzedMeal, setAnalyzedMeal] = useState(null);
 
   // Barcode & Brand Search within Image Scan
@@ -171,6 +173,50 @@ export const MealLogModal = ({
     setManualItems('');
   };
 
+  // Query camera permission & watch for unblocks in Samsung settings / browser
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      const checkPermission = async () => {
+        try {
+          if (navigator.permissions && navigator.permissions.query) {
+            const status = await navigator.permissions.query({ name: 'camera' });
+            setCameraPermissionStatus(status.state);
+            if (status.state === 'granted') {
+              setShowPermissionGuide(false);
+            } else if (status.state === 'denied') {
+              setShowPermissionGuide(true);
+            }
+            status.onchange = () => {
+              setCameraPermissionStatus(status.state);
+              if (status.state === 'granted') {
+                setShowPermissionGuide(false);
+                setImageAnalysisError(null);
+              } else if (status.state === 'denied') {
+                setShowPermissionGuide(true);
+              }
+            };
+          }
+        } catch (e) {
+          // Fallback if query not supported
+        }
+      };
+
+      checkPermission();
+
+      const handleAppFocus = () => {
+        checkPermission();
+      };
+
+      window.addEventListener('focus', handleAppFocus);
+      document.addEventListener('visibilitychange', handleAppFocus);
+
+      return () => {
+        window.removeEventListener('focus', handleAppFocus);
+        document.removeEventListener('visibilitychange', handleAppFocus);
+      };
+    }
+  }, []);
+
   // Stop camera when leaving upload_image tab
   useEffect(() => {
     if (activeTab !== 'upload_image' && isCameraActive) {
@@ -181,6 +227,27 @@ export const MealLogModal = ({
   // ---------------------------------------------------------------------------
   // CAMERA CONTROLS
   // ---------------------------------------------------------------------------
+  const triggerNativeCamera = () => {
+    playSound('click', soundEnabled);
+    setImageAnalysisError(null);
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  };
+
+  const handleLiveCameraAction = () => {
+    playSound('click', soundEnabled);
+    setImageAnalysisError(null);
+
+    // If camera permission was already denied in browser/PWA, launch Samsung camera directly!
+    if (cameraPermissionStatus === 'denied') {
+      triggerNativeCamera();
+      return;
+    }
+
+    startCamera();
+  };
+
   const startCamera = async (overrideFacing) => {
     playSound('click', soundEnabled);
     setImageAnalysisError(null);
@@ -207,9 +274,17 @@ export const MealLogModal = ({
         videoRef.current.play();
       }
       setIsCameraActive(true);
+      setCameraPermissionStatus('granted');
+      setShowPermissionGuide(false);
     } catch (err) {
-      setImageAnalysisError("Camera access was blocked or unavailable. Use 'Phone Camera (Direct)' or upload a photo.");
       setIsCameraActive(false);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraPermissionStatus('denied');
+        setShowPermissionGuide(true);
+        setImageAnalysisError("Live stream camera access is blocked in Android settings.");
+      } else {
+        setImageAnalysisError("Camera unavailable: " + (err.message || "Please use Phone Camera"));
+      }
     }
   };
 
@@ -909,64 +984,129 @@ export const MealLogModal = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="p-6 text-center space-y-4">
+                  <div className="p-5 text-center space-y-4">
                     <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
                       <Camera className="w-7 h-7" />
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-white">Snap Meal or Nutrition Label</h4>
                       <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                        Use your camera or upload a photo. Vision AI uses your dishware measurements to calculate exact macros.
+                        Take a live photo with your phone camera or stream live. Vision AI calibrates portion sizes using your measured dishware.
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                    {/* Primary Camera Action Buttons */}
+                    <div className="flex flex-col sm:flex-row items-stretch justify-center gap-2 max-w-md mx-auto">
+                      {/* Primary 1-Tap Live Photo: Uses Samsung Camera Intent (Works 100% even with browser permission blocked!) */}
                       <button
                         type="button"
-                        onClick={() => startCamera()}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-semibold shadow-md transition-all active:scale-95 cursor-pointer"
+                        onClick={triggerNativeCamera}
+                        className="flex-1 py-3 px-4 rounded-2xl text-white font-bold text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                         style={{ backgroundColor: 'var(--accent-primary)' }}
+                        title="Take a live photo using your Samsung camera (bypasses browser permission blocks)"
                       >
-                        <Camera className="w-4 h-4" />
-                        <span>Live Camera</span>
+                        <Camera className="w-4 h-4 text-white" />
+                        <span>Take Live Photo</span>
                       </button>
 
+                      {/* In-App Live Stream Viewfinder */}
                       <button
                         type="button"
-                        onClick={() => cameraInputRef.current?.click()}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-white text-xs font-semibold border border-white/15 transition-all active:scale-95 cursor-pointer"
-                        title="Direct phone camera without browser permission blocks"
+                        onClick={handleLiveCameraAction}
+                        className="py-3 px-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] text-white text-xs font-semibold border border-white/15 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                        title="In-app live stream viewfinder"
                       >
-                        <Camera className="w-4 h-4 text-emerald-400" />
-                        <span>Phone Camera (Direct)</span>
+                        <Video className="w-4 h-4 text-indigo-400" />
+                        <span>Live Stream</span>
                       </button>
 
+                      {/* Gallery / File Picker */}
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
+                        className="py-3 px-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.09] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <UploadCloud className="w-4 h-4 text-slate-400" />
-                        <span>Upload Photo</span>
+                        <span>Gallery</span>
                       </button>
-
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-
-                      <input
-                        ref={cameraInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
                     </div>
+
+                    {/* Samsung Fullscreen PWA Camera Help Card */}
+                    {(cameraPermissionStatus === 'denied' || showPermissionGuide) && (
+                      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs space-y-2.5 text-left mt-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 font-bold text-amber-300">
+                            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>Live Camera Blocked on Samsung (Fullscreen App)</span>
+                          </div>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                            PWA Mode
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                          Because Wolfe OS runs in <strong>fullscreen mode</strong> on your Samsung, the browser lock icon is hidden. Here is how to snap photos right now and re-enable live streaming:
+                        </p>
+
+                        <div className="p-2.5 rounded-xl bg-black/50 border border-amber-500/30 space-y-2">
+                          <div className="font-semibold text-white flex items-center gap-1.5 text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>1-Tap Solution (Works Right Now):</span>
+                          </div>
+                          <p className="text-[10px] text-slate-300">
+                            Tap <strong>"Take Live Photo"</strong> above. It launches your Samsung camera directly, bypassing browser permission limits!
+                          </p>
+                          <button
+                            type="button"
+                            onClick={triggerNativeCamera}
+                            className="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Camera className="w-4 h-4" />
+                            <span>Open Samsung Camera Now</span>
+                          </button>
+                        </div>
+
+                        <div className="space-y-1 pt-1 text-[11px] text-slate-300">
+                          <div className="font-semibold text-amber-300 flex items-center justify-between">
+                            <span>To Re-Enable In-App Live Stream (5 sec):</span>
+                            <button
+                              type="button"
+                              onClick={() => window.open(window.location.href, '_blank')}
+                              className="text-[10px] font-mono text-indigo-300 hover:text-indigo-200 underline cursor-pointer flex items-center gap-1"
+                            >
+                              <span>Open in Browser</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <ol className="list-decimal list-inside space-y-0.5 text-slate-300/90 pl-1 font-mono text-[10px]">
+                            <li>Go to phone Home Screen & long-press <strong>Wolfe OS</strong> icon</li>
+                            <li>Tap <strong>ℹ️ (App Info)</strong> in the top corner</li>
+                            <li>Tap <strong>Permissions → Camera → "Allow while using app"</strong></li>
+                            <li>Return here — in-app live stream will be unblocked!</li>
+                          </ol>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hidden Native File & Camera Inputs */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onClick={(e) => { e.target.value = ''; }}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+
+                    <input
+                      ref={cameraInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onClick={(e) => { e.target.value = ''; }}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
                   </div>
                 )}
               </div>
