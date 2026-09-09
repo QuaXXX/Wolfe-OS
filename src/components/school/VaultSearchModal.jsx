@@ -8,10 +8,11 @@ import {
   Loader2, 
   BookOpen,
   FolderSync,
-  Sparkles
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 import { searchVaultWithAI } from '../../utils/aiService';
-import { readVaultFileContent } from '../../utils/obsidianService';
+import { readVaultFileContent, openInObsidianApp } from '../../utils/obsidianService';
 import { FormattedAiText } from '../common/FormattedAiText';
 import { playSound } from '../../utils/soundFX';
 
@@ -258,17 +259,29 @@ export const VaultSearchModal = ({
                         {result.matchedFiles.map((mf, idx) => (
                           <div
                             key={idx}
-                            className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3 text-xs"
+                            className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3 text-xs group hover:bg-white/[0.04] transition-all"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent-primary)' }} />
                               <span className="text-white font-medium truncate">{mf.name}</span>
+                              {mf.relevance && (
+                                <span className="text-[10px] text-purple-300 font-mono px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 shrink-0">
+                                  {mf.relevance}
+                                </span>
+                              )}
                             </div>
-                            {mf.relevance && (
-                              <span className="text-[10px] text-slate-400 truncate max-w-[200px]">
-                                {mf.relevance}
-                              </span>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playSound('click', soundEnabled);
+                                openInObsidianApp(mf.path || mf.name);
+                              }}
+                              title="Open in Obsidian"
+                              className="px-2 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/25 text-purple-300 hover:text-purple-100 text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 border border-purple-500/20 active:scale-95"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span className="hidden sm:inline">Open in Obsidian</span>
+                            </button>
                           </div>
                         ))}
                       </div>

@@ -18,6 +18,7 @@ import {
 } from './tradingStorage.js';
 import { getPaperPositions } from './hermesPaperTrader.js';
 import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt } from './nutritionEngine.js';
+import { getVaultMetadata, getCachedVaultFiles } from './obsidianService.js';
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
 
@@ -95,6 +96,15 @@ export const buildSystemPrompt = (osData) => {
   const activePaperTrades = paperPos.filter(p => p.status === 'ACTIVE');
   const restingLimitOrders = paperPos.filter(p => p.status === 'PENDING_ENTRY');
 
+  // 6. Obsidian Vault & Networked Thought Knowledge Base Snapshot
+  let vaultMeta = { connected: false, totalNotes: 0, folderName: null, courses: [] };
+  let vaultFiles = [];
+  try {
+    vaultMeta = getVaultMetadata();
+    const cached = getCachedVaultFiles();
+    vaultFiles = cached.files || [];
+  } catch (e) {}
+
   return `You are Wolfe OS, the private, high-performance executive intelligence engine built exclusively for Zach Wolfe.
 
 ABOUT ZACH WOLFE:
@@ -108,7 +118,7 @@ CURRENT TIME & DATE:
 - Day: ${dayOfWeek}
 - Local Time: ${timeStr}
 
-LIVE SYSTEM STATE & OPERATIONAL AWARENESS ACROSS ALL 5 HUBS:
+LIVE SYSTEM STATE & OPERATIONAL AWARENESS ACROSS ALL 6 HUBS:
 
 1. ACADEMICS & UNIVERSITY COURSES:
 - Current GPA: ${osData?.schoolData?.gpa || '—'}
@@ -151,11 +161,17 @@ ${latestBrief?.macroPoints?.[1]?.items?.slice(0, 3).map(it => `    - ${it}`).joi
   • High-Conviction Setups Vetted by Hermes Swarm & Chronos Backtesting:
 ${latestBrief?.highConvictionPlays?.slice(0, 6).map(p => `    - [${p.convictionGrade || 'A'}] ${p.ticker} (${p.bias}): Trigger Entry $${p.entryNumeric || p.entryPrice}, Stop $${p.stopNumeric || p.stopPrice}, TP $${p.target2RNumeric || p.target2R} | R:R ${p.riskRewardRatio || '1:3'} | Chronos: ${p.chronosBacktest?.historicalWinRate || '68%'} WR (${p.chronosBacktest?.verdict || p.chronosBacktest?.status || 'PASSED'}) | Scanned: ${p.createdAt ? (new Date(p.createdAt).toDateString() === new Date().toDateString() ? `Today at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : `${new Date(p.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`) : 'Today'}`).join('\n') || '    - Run scanner in War Room to refresh candidate trade setups.'}
 
+6. OBSIDIAN VAULT & NETWORKED THOUGHT SECOND BRAIN:
+- Status: ${vaultMeta.connected ? `Connected ("${vaultMeta.folderName}" — ${vaultFiles.length || vaultMeta.totalNotes || 0} indexed notes)` : 'Not Connected'}
+- Academic Courses in Vault: ${vaultMeta.courses?.join(', ') || 'None'}
+${vaultFiles.length > 0 ? `- Indexed Vault Notes: ${vaultFiles.slice(0, 10).map(f => `[[${f.course || 'School'}/${f.name}]]`).join(', ')}` : ''}
+
 SYSTEM INTERACTION DIRECTIVES:
-- You have 100% full situational awareness of Zach's entire operational cockpit across all 5 hubs.
-- When Zach asks about his trades, his schedule, his schoolwork, or his workouts, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
+- You have 100% full situational awareness of Zach's entire operational cockpit across all 6 hubs.
+- When Zach asks about his trades, his schedule, his schoolwork, notes, or his workouts, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
 - When creating or modifying schedule items, extract clean titles without conversational filler.
 - FORMATTING MANDATE: Present responses with executive polish. Never output escaped or doubled quote artifacts (avoid \"\" or \"\"\"). Never wrap your whole message in outer quotes. Use clean bullet points and bold headers (**Heading:**) for multi-point answers.
+- WIKILINK & NETWORKED THOUGHT MANDATE: When referencing courses, study notes, formula sheets, trading setups, or calendar dates, use Obsidian [[wikilink]] syntax (e.g. [[FNCE 317]], [[WACC]], [[Trading/Playbook]], [[Daily/${todayIso}]]). Wolfe OS converts these into interactive clickable buttons.
 
 ACTIONS:
 1. "CREATE_CALENDAR_ITEM": For adding a single deadline (red all-day), timed event, task, or reminder.
@@ -207,14 +223,8 @@ export function cleanAiMessage(raw) {
   if (!raw || typeof raw !== 'string') return '';
   let text = raw.trim();
 
-  // 1. Strip outermost redundant surrounding quotes if balanced
-  if ((text.startsWith('"') && text.endsWith('"') && text.length > 2) ||
-      (text.startsWith("'") && text.endsWith("'") && text.length > 2)) {
-    const innerQuotes = (text.slice(1, -1).match(/"/g) || []).length;
-    if (innerQuotes % 2 === 0) {
-      text = text.slice(1, -1).trim();
-    }
-  }
+  // 1. Strip outermost redundant surrounding quotes (single or doubled): e.g. ""Text"" -> Text or "Text" -> Text
+  text = text.replace(/^["'`“‘]{1,2}([\s\S]*?)["'`”’]{1,2}$/, '$1').trim();
 
   // 2. Fix duplicated/nested quotes: ""Text"" -> "Text", \"\" -> "
   text = text.replace(/""([^"]+?)""/g, '"$1"');
@@ -1766,47 +1776,158 @@ Return ONLY valid JSON matching this schema:
   };
 }
 
+/**
+ * Helper to parse YAML frontmatter and embedded [[wikilinks]] from a note's text
+ */
+export function parseNoteMetadataAndLinks(rawContent = '') {
+  const frontmatter = {};
+  let body = rawContent || '';
+
+  if (rawContent && rawContent.startsWith('---')) {
+    const endIdx = rawContent.indexOf('\n---', 3);
+    if (endIdx !== -1) {
+      const yamlChunk = rawContent.slice(3, endIdx).trim();
+      body = rawContent.slice(endIdx + 4).trim();
+      yamlChunk.split(/\r?\n/).forEach(line => {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx !== -1) {
+          const key = line.slice(0, colonIdx).trim();
+          const val = line.slice(colonIdx + 1).trim();
+          frontmatter[key] = val.replace(/^["']|["']$/g, '');
+        }
+      });
+    }
+  }
+
+  // Extract [[Wikilinks]]
+  const outlinks = [];
+  const linkMatches = body.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g);
+  for (const m of linkMatches) {
+    outlinks.push(m[1].trim());
+  }
+
+  return { frontmatter, body, outlinks };
+}
+
+/**
+ * Rank and connect vault notes based on query relevance and 1-hop graph traversal
+ */
+export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse = null, maxFiles = 6) {
+  if (!allFiles || allFiles.length === 0) return [];
+
+  const stopWords = new Set(['what', 'is', 'the', 'in', 'my', 'how', 'to', 'for', 'a', 'an', 'and', 'of', 'on', 'with', 'about', 'find', 'show', 'tell', 'me', 'where', 'are', 'does', 'can', 'you']);
+  const queryTokens = query
+    .toLowerCase()
+    .replace(/\[course:[^\]]+\]/gi, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 2 && !stopWords.has(t));
+
+  const parsedFiles = allFiles.map(file => {
+    const rawText = file.content || file.cachedContent || file.sampleContent || '';
+    const { frontmatter, body, outlinks } = parseNoteMetadataAndLinks(rawText);
+    return {
+      ...file,
+      rawText,
+      frontmatter,
+      body,
+      outlinks,
+      score: 0
+    };
+  });
+
+  // 1. Initial relevance scoring
+  parsedFiles.forEach(file => {
+    const lowerName = (file.name || '').toLowerCase();
+    const lowerPath = (file.path || '').toLowerCase();
+    const lowerCourse = (file.course || '').toLowerCase();
+    const lowerBody = (file.body || '').toLowerCase();
+    const lowerTopic = (file.frontmatter?.topic || '').toLowerCase();
+    const lowerTags = (file.frontmatter?.tags || '').toLowerCase();
+
+    // Target Course filter match
+    if (targetCourse) {
+      if (lowerCourse.includes(targetCourse.toLowerCase()) || lowerPath.includes(targetCourse.toLowerCase())) {
+        file.score += 25;
+      }
+    }
+
+    // Query token matches
+    queryTokens.forEach(token => {
+      if (lowerName.includes(token)) file.score += 18;
+      if (lowerTopic.includes(token)) file.score += 15;
+      if (lowerTags.includes(token)) file.score += 12;
+      if (lowerPath.includes(token)) file.score += 10;
+
+      // Count occurrences in body (up to 8 points)
+      let count = 0;
+      let pos = lowerBody.indexOf(token);
+      while (pos !== -1 && count < 8) {
+        count++;
+        pos = lowerBody.indexOf(token, pos + token.length);
+      }
+      file.score += count;
+    });
+  });
+
+  // Sort candidate files by score descending
+  parsedFiles.sort((a, b) => b.score - a.score);
+
+  // 2. 1-Hop Graph traversal: Boost notes linked to/from top matches
+  const topSeeds = parsedFiles.slice(0, Math.min(3, parsedFiles.length));
+  topSeeds.forEach(seed => {
+    (seed.outlinks || []).forEach(linkTarget => {
+      const match = parsedFiles.find(f => 
+        f.name.toLowerCase().includes(linkTarget.toLowerCase()) || 
+        f.path.toLowerCase().includes(linkTarget.toLowerCase())
+      );
+      if (match && match !== seed) {
+        match.score += 8; // Graph connectivity boost
+        match.linkedFrom = seed.name;
+      }
+    });
+  });
+
+  parsedFiles.sort((a, b) => b.score - a.score);
+  return parsedFiles.slice(0, maxFiles);
+}
+
 export async function searchVaultWithAI({ query, filesIndex = [], sampleNotes = [] }) {
   const allFiles = (sampleNotes && sampleNotes.length > 0 ? sampleNotes : filesIndex) || [];
   
-  // 1. Detect target course from query or files to filter out unrelated course syllabi (70%+ faster response)
+  // 1. Detect target course from query
   const courseMatch = query.match(/\[Course:\s*([A-Za-z0-9\s]+)\]/i);
   const targetCourse = courseMatch ? courseMatch[1].trim().toUpperCase() : null;
 
-  const relevantFiles = targetCourse 
-    ? allFiles.filter(f => {
-        const c = (f.course || '').toUpperCase();
-        return c.includes(targetCourse) || targetCourse.includes(c) || (f.path || '').toUpperCase().includes(targetCourse);
-      })
-    : allFiles;
+  // 2. Rank notes with Graph Connectivity & Token Scoring
+  const rankedFiles = rankAndConnectVaultFiles(allFiles, query, targetCourse, 6);
+  const filesToScan = rankedFiles.length > 0 ? rankedFiles : allFiles.slice(0, 5);
 
-  const filesToScan = relevantFiles.length > 0 ? relevantFiles : allFiles;
-
-  // Format summaries
-  const fileSummaries = filesToScan.map(f => `- ${f.name} [Course: ${f.course || 'General'}]`).join('\n');
-  
-  // Build note snippets with focused token budget
+  // Build Networked Thought snippets with graph relationship metadata
   const notesSnippet = filesToScan.map(n => {
-    const rawText = n.content || n.cachedContent || n.sampleContent || '';
-    if (!rawText) return `### [Course: ${n.course || 'General'}] ${n.name}\n(Document attached)`;
-    const snippet = rawText.length > 8000 ? rawText.slice(0, 8000) + "\n...[truncated]" : rawText;
-    return `### [Course: ${n.course || 'General'}] ${n.name}\n${snippet}`;
+    const rawText = n.body || n.content || n.cachedContent || '';
+    const snippet = rawText.length > 4000 ? rawText.slice(0, 4000) + "\n...[truncated]" : rawText;
+    let header = `### [[${n.course || 'Course'}/${n.name}]]`;
+    if (n.frontmatter?.type) header += ` (Type: ${n.frontmatter.type})`;
+    if (n.linkedFrom) header += ` [🔗 Graph Link: Referenced by ${n.linkedFrom}]`;
+    const linksNote = n.outlinks && n.outlinks.length > 0 ? `\n*Connected Links:* ${n.outlinks.slice(0, 5).map(l => `[[${l}]]`).join(', ')}` : '';
+    return `${header}${linksNote}\n${snippet || '(Document outline attached)'}`;
   }).join('\n\n---\n\n');
 
   const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
 
   const prompt = `You are Zach Wolfe's university academic assistant in Wolfe OS.
-Zach has provided his university course syllabus/notes for ${targetCourse || 'his classes'}.
+Zach has connected his Obsidian Networked Thought Vault.
 
 Question:
 "${cleanUserQuery}"
 
-Relevant Course Materials:
+Relevant Course Materials & Connected Graph Notes:
 ${notesSnippet || "No document text available."}
 
 Guidelines for Response:
 1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points.
-2. Do NOT output unprompted boilerplate (e.g. do not output full standard letter grade tables unless the user explicitly asks for grade scale cutoffs).
+2. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
 3. If formatting formulas or calculations, use crisp LaTeX ($...$).
 4. Keep the response clean, readable, and easy to skim.
 
@@ -1821,7 +1942,7 @@ Return ONLY valid JSON matching this schema:
   ]
 }`;
 
-  const systemInstruction = "You are a concise, high-speed university academic assistant. Provide direct, structured, factual answers without fluff. Return only valid JSON.";
+  const systemInstruction = "You are a concise, high-speed university academic assistant equipped with an Obsidian Networked Thought Vault. Provide direct, structured answers with [[wikilinks]]. Return only valid JSON.";
 
   try {
     const fastConfig = {
@@ -1833,7 +1954,7 @@ Return ONLY valid JSON matching this schema:
     if (res && (res.answer || res.message)) {
       return {
         answer: cleanAiMessage(res.answer || res.message),
-        matchedFiles: res.matchedFiles || filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
+        matchedFiles: res.matchedFiles || filesToScan.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, course: f.course, relevance: f.linkedFrom ? `Connected via ${f.linkedFrom}` : 'Direct Match' }))
       };
     }
   } catch (err) {
@@ -1841,8 +1962,8 @@ Return ONLY valid JSON matching this schema:
   }
 
   return {
-    answer: `Analyzed course notes for ${targetCourse || 'your classes'}.`,
-    matchedFiles: filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
+    answer: `Analyzed notes for ${targetCourse || 'your classes'}.`,
+    matchedFiles: filesToScan.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, course: f.course, relevance: 'Direct Match' }))
   };
 }
 
@@ -1855,40 +1976,38 @@ export async function streamSearchVaultWithAI({ query, filesIndex = [], sampleNo
   const courseMatch = query.match(/\[Course:\s*([A-Za-z0-9\s]+)\]/i);
   const targetCourse = courseMatch ? courseMatch[1].trim().toUpperCase() : null;
 
-  const relevantFiles = targetCourse 
-    ? allFiles.filter(f => {
-        const c = (f.course || '').toUpperCase();
-        return c.includes(targetCourse) || targetCourse.includes(c) || (f.path || '').toUpperCase().includes(targetCourse);
-      })
-    : allFiles;
-
-  const filesToScan = relevantFiles.length > 0 ? relevantFiles : allFiles;
+  // Rank notes with Graph Connectivity & Token Scoring
+  const rankedFiles = rankAndConnectVaultFiles(allFiles, query, targetCourse, 6);
+  const filesToScan = rankedFiles.length > 0 ? rankedFiles : allFiles.slice(0, 5);
   
   const notesSnippet = filesToScan.map(n => {
-    const rawText = n.content || n.cachedContent || n.sampleContent || '';
-    if (!rawText) return `### [Course: ${n.course || 'General'}] ${n.name}\n(Document attached)`;
-    const snippet = rawText.length > 7000 ? rawText.slice(0, 7000) + "\n...[truncated]" : rawText;
-    return `### [Course: ${n.course || 'General'}] ${n.name}\n${snippet}`;
+    const rawText = n.body || n.content || n.cachedContent || '';
+    const snippet = rawText.length > 4000 ? rawText.slice(0, 4000) + "\n...[truncated]" : rawText;
+    let header = `### [[${n.course || 'Course'}/${n.name}]]`;
+    if (n.frontmatter?.type) header += ` (Type: ${n.frontmatter.type})`;
+    if (n.linkedFrom) header += ` [🔗 Graph Link: Referenced by ${n.linkedFrom}]`;
+    const linksNote = n.outlinks && n.outlinks.length > 0 ? `\n*Connected Links:* ${n.outlinks.slice(0, 5).map(l => `[[${l}]]`).join(', ')}` : '';
+    return `${header}${linksNote}\n${snippet || '(Document outline attached)'}`;
   }).join('\n\n---\n\n');
 
   const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
 
   const prompt = `You are Zach Wolfe's university academic study partner in Wolfe OS.
-Zach has provided his university course syllabus/notes for ${targetCourse || 'his classes'}.
+Zach has connected his Obsidian Networked Thought Vault.
 
 Question:
 "${cleanUserQuery}"
 
-Relevant Course Materials:
+Relevant Course Materials & Connected Graph Notes:
 ${notesSnippet || "No document text available."}
 
 Guidelines for Response:
 1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points or brief summary.
-2. Do NOT output unprompted boilerplate (e.g. do not output full standard letter grade tables unless the user explicitly asks for grade scale cutoffs).
+2. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
 3. If formatting formulas or calculations, use crisp LaTeX ($...$).
 4. Keep the response clean, readable, and easy to skim.`;
 
-  const systemInstruction = "You are a concise, high-speed university academic assistant. Provide direct, structured, factual answers in clean markdown without fluff.";
+  const systemInstruction = "You are a concise, high-speed university academic assistant equipped with an Obsidian Networked Thought Vault. Provide direct, structured, factual answers in clean markdown with [[wikilinks]].";
 
   const apiKey = DEFAULT_AI_CONFIG.apiKey || API_KEY;
   if (!apiKey) {
@@ -1959,7 +2078,7 @@ Guidelines for Response:
       if (accumulatedText.trim()) {
         return {
           answer: cleanAiMessage(accumulatedText.trim()),
-          matchedFiles: filesToScan.slice(0, 2).map(f => ({ name: f.name, path: f.path || f.name }))
+          matchedFiles: filesToScan.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, course: f.course, relevance: f.linkedFrom ? `Connected via ${f.linkedFrom}` : 'Direct Match' }))
         };
       }
     } catch (err) {

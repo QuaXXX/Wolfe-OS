@@ -24,6 +24,7 @@ import {
   readVaultFileContent,
   getCachedVaultFiles,
   processUploadedFolderFiles,
+  openInObsidianApp,
   SAMPLE_OBSIDIAN_VAULT
 } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
@@ -391,9 +392,25 @@ export const ObsidianVaultManagerModal = ({
             <div className="p-3 rounded-2xl bg-black/40 border border-white/10 overflow-y-auto font-mono text-[11px] text-slate-300">
               {selectedFile ? (
                 <div className="space-y-2">
-                  <div className="text-xs font-bold font-sans text-white border-b border-white/10 pb-1 flex items-center justify-between">
+                  <div className="text-xs font-bold font-sans text-white border-b border-white/10 pb-1.5 flex items-center justify-between gap-2">
                     <span className="truncate">{selectedFile.name}</span>
-                    <span className="text-[10px] font-mono" style={{ color: 'var(--accent-primary)' }}>{selectedFile.course || 'Document'}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-white/10" style={{ color: 'var(--accent-primary)' }}>
+                        {selectedFile.course || 'Document'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playSound('click', soundEnabled);
+                          openInObsidianApp(selectedFile.path || selectedFile.name);
+                        }}
+                        title="Open this note in the native Obsidian app"
+                        className="px-2 py-0.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-purple-100 text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer border border-purple-500/25 active:scale-95"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Open in Obsidian</span>
+                      </button>
+                    </div>
                   </div>
                   <pre className="whitespace-pre-wrap font-sans text-xs text-slate-300 leading-relaxed">
                     {fileContent || "Loading content..."}
