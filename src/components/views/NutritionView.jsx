@@ -141,6 +141,14 @@ export const NutritionView = ({
   const [customCarbs, setCustomCarbs] = useState(targetCarbs);
   const [customFats, setCustomFats] = useState(targetFats);
 
+  // Synchronize custom target fields with nutritionData targets
+  useEffect(() => {
+    setCustomCalories(targetCalories);
+    setCustomProtein(targetProtein);
+    setCustomCarbs(targetCarbs);
+    setCustomFats(targetFats);
+  }, [targetCalories, targetProtein, targetCarbs, targetFats, isTargetModalOpen]);
+
   // Filter meals strictly for the selected date (legacy meals without date attribute default to todayIso)
   const selectedDateMeals = useMemo(() => {
     return (meals || []).filter(m => (m?.date || todayIso) === selectedDate);
@@ -416,14 +424,12 @@ export const NutritionView = ({
     triggerImmediateCloudPush(80);
   };
 
-  // Quick calorie target adjuster: +/- delta
+  // Quick calorie target adjuster: adjusts draft value in edit modal
   const handleAdjustTargetCalories = (delta) => {
     playSound('click', soundEnabled);
-    const newTarget = Math.max(1500, Math.min(6500, targetCalories + delta));
-    setNutritionData(prev => ({
-      ...prev,
-      targetCalories: newTarget
-    }));
+    const current = parseInt(customCalories, 10) || targetCalories;
+    const nextVal = Math.max(1500, Math.min(6500, current + delta));
+    setCustomCalories(nextVal);
   };
 
   const handleApplySurplus = (newTarget) => {
@@ -436,15 +442,30 @@ export const NutritionView = ({
 
   // Save custom targets from modal
   const handleSaveCustomTargets = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     playSound('success', soundEnabled);
-    setNutritionData(prev => ({
-      ...prev,
-      targetCalories: parseInt(customCalories, 10) || targetCalories,
-      protein: { ...prev.protein, target: parseInt(customProtein, 10) || targetProtein },
-      carbs: { ...prev.carbs, target: parseInt(customCarbs, 10) || targetCarbs },
-      fats: { ...prev.fats, target: parseInt(customFats, 10) || targetFats }
-    }));
+    const newTargetCals = parseInt(customCalories, 10) || targetCalories;
+    const newProtein = parseInt(customProtein, 10) || targetProtein;
+    const newCarbs = parseInt(customCarbs, 10) || targetCarbs;
+    const newFats = parseInt(customFats, 10) || targetFats;
+
+    markLocalMutation();
+    setNutritionData(prev => {
+      const nextData = {
+        ...prev,
+        targetCalories: newTargetCals,
+        protein: { ...(prev.protein || {}), target: newProtein },
+        carbs: { ...(prev.carbs || {}), target: newCarbs },
+        fats: { ...(prev.fats || {}), target: newFats },
+        updatedAt: Date.now()
+      };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (err) {}
+      return nextData;
+    });
+
+    triggerImmediateCloudPush(80);
     setIsTargetModalOpen(false);
   };
 
@@ -1033,12 +1054,27 @@ export const NutritionView = ({
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
             <div>
               <span className="text-[10px] font-mono font-semibold uppercase text-slate-400">Daily Target</span>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>{targetCalories} kcal</span>
-                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-300">
-                  Daily Goal
-                </span>
-              </h3>
+              <div className="flex items-center gap-2 mt-0.5">
+                <h3 className="text-lg font-bold text-white font-mono">
+                  {targetCalories} kcal
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    setCustomCalories(targetCalories);
+                    setCustomProtein(targetProtein);
+                    setCustomCarbs(targetCarbs);
+                    setCustomFats(targetFats);
+                    setIsTargetModalOpen(true);
+                  }}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  title="Edit Daily Target Calories & Macros"
+                >
+                  <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                  <span className="text-[11px] font-medium">Edit</span>
+                </button>
+              </div>
             </div>
             <div className="text-right">
               <span className="text-[10px] text-slate-400 block uppercase font-mono">
@@ -1048,66 +1084,6 @@ export const NutritionView = ({
                 {Math.abs(remainingCals)} kcal {remainingCals < 0 ? 'over' : ''}
               </div>
             </div>
-          </div>
-
-          {/* Quick Calorie Target Adjuster Controls */}
-          <div className="hidden sm:flex items-center gap-1.5 flex-wrap pt-1">
-            <span className="text-[10px] text-slate-400 font-mono uppercase mr-1">Adjust Target:</span>
-            <button 
-              type="button"
-              onClick={() => handleAdjustTargetCalories(-250)}
-              className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
-              title="Decrease daily target by 250 kcal"
-            >
-              -250
-            </button>
-            <button 
-              type="button"
-              onClick={() => handleAdjustTargetCalories(-100)}
-              className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
-              title="Decrease daily target by 100 kcal"
-            >
-              -100
-            </button>
-            <button 
-              type="button"
-              onClick={() => handleAdjustTargetCalories(100)}
-              className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
-              title="Increase daily target by 100 kcal"
-            >
-              +100
-            </button>
-            <button 
-              type="button"
-              onClick={() => handleAdjustTargetCalories(250)}
-              className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
-              title="Increase daily target by 250 kcal"
-            >
-              +250
-            </button>
-            <button 
-              type="button"
-              onClick={() => handleAdjustTargetCalories(500)}
-              className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
-              title="Increase daily target by 500 kcal"
-            >
-              +500
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setCustomCalories(targetCalories);
-                setCustomProtein(targetProtein);
-                setCustomCarbs(targetCarbs);
-                setCustomFats(targetFats);
-                setIsTargetModalOpen(true);
-              }}
-              className="ml-auto px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-[11px] font-semibold border border-white/10 transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
-            >
-              <Edit3 className="w-3 h-3 text-slate-400" />
-              <span>Edit Target</span>
-            </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 items-center">
@@ -1488,8 +1464,11 @@ export const NutritionView = ({
               </div>
 
               <form onSubmit={handleSaveCustomTargets} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">Daily Target Calories (kcal)</label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300">Daily Target Calories (kcal)</label>
+                    <span className="text-[10px] font-mono text-slate-400">1,500 – 6,500 kcal</span>
+                  </div>
                   <input
                     type="number"
                     step="50"
@@ -1497,8 +1476,22 @@ export const NutritionView = ({
                     max="6500"
                     value={customCalories}
                     onChange={(e) => setCustomCalories(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/15 text-white font-mono font-bold text-sm focus:outline-none focus:border-white/30"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white font-mono font-bold text-sm focus:outline-none focus:border-white/30"
                   />
+                  {/* Quick delta adjustment chips INSIDE edit modal */}
+                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                    <span className="text-[10px] text-slate-400 font-mono mr-0.5">Quick Adjust:</span>
+                    {[-250, -100, 100, 250, 500].map(delta => (
+                      <button
+                        key={delta}
+                        type="button"
+                        onClick={() => handleAdjustTargetCalories(delta)}
+                        className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
+                      >
+                        {delta > 0 ? `+${delta}` : delta}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2.5">

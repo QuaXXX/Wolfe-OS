@@ -344,11 +344,34 @@ export function mergeOsState(localVault, remoteVault) {
     updatedAt: Math.max(localCalib.updatedAt || 0, remoteCalib.updatedAt || 0, Date.now())
   };
 
-  const localIsNewerNut = isMutatingLocally || (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
+  const localNutUpdated = localNut.updatedAt || 0;
+  const remoteNutUpdated = remoteNut.updatedAt || 0;
+  const localIsNewerNut = isMutatingLocally || localNutUpdated >= remoteNutUpdated || (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
   const baseNut = localIsNewerNut ? localNut : remoteNut;
+
+  const targetCalories = (localIsNewerNut || !remoteNut.targetCalories) 
+    ? (localNut.targetCalories || remoteNut.targetCalories || 3250)
+    : (remoteNut.targetCalories || localNut.targetCalories || 3250);
+
+  const protein = (localIsNewerNut || !remoteNut.protein)
+    ? (localNut.protein || remoteNut.protein)
+    : (remoteNut.protein || localNut.protein);
+
+  const carbs = (localIsNewerNut || !remoteNut.carbs)
+    ? (localNut.carbs || remoteNut.carbs)
+    : (remoteNut.carbs || localNut.carbs);
+
+  const fats = (localIsNewerNut || !remoteNut.fats)
+    ? (localNut.fats || remoteNut.fats)
+    : (remoteNut.fats || localNut.fats);
 
   merged.nutrition = {
     ...baseNut,
+    targetCalories,
+    protein,
+    carbs,
+    fats,
+    updatedAt: Math.max(localNutUpdated, remoteNutUpdated, Date.now()),
     meals: mergedMeals,
     weightLogs: mergedWeightLogs,
     householdPantry: mergedPantry.length > 0 ? mergedPantry : baseNut.householdPantry,
