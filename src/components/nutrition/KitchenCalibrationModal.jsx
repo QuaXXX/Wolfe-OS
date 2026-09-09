@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -19,7 +19,7 @@ import {
   Edit3
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
-import { getCalibrationProgress, DEFAULT_CALIBRATION_TASKS } from '../../utils/nutritionEngine.js';
+import { getCalibrationProgress, getMergedCalibrationTasks, DEFAULT_CALIBRATION_TASKS } from '../../utils/nutritionEngine.js';
 
 export const KitchenCalibrationModal = ({
   isOpen,
@@ -28,9 +28,9 @@ export const KitchenCalibrationModal = ({
   onUpdateCalibration,
   soundEnabled = true
 }) => {
-  const tasks = (kitchenCalibration?.tasks && kitchenCalibration.tasks.length > 0)
-    ? kitchenCalibration.tasks
-    : DEFAULT_CALIBRATION_TASKS;
+  const tasks = useMemo(() => {
+    return getMergedCalibrationTasks(kitchenCalibration);
+  }, [kitchenCalibration]);
 
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'dishware' | 'staples' | 'recipes'
   const [expandedTaskId, setExpandedTaskId] = useState(null);
@@ -256,10 +256,22 @@ export const KitchenCalibrationModal = ({
           {/* Category Filter Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
             {[
-              { id: 'all', label: `All (${tasks.length})` },
-              { id: 'dishware', label: '🥣 Dishware & Bowls' },
-              { id: 'staples', label: '🏷️ Pantry Brands' },
-              { id: 'recipes', label: '🥗 Signature Recipes' }
+              { 
+                id: 'all', 
+                label: `All (${tasks.filter(t => t.completed).length}/${tasks.length})` 
+              },
+              { 
+                id: 'dishware', 
+                label: `🥣 Dishware & Hardware (${tasks.filter(t => t.category === 'dishware' && t.completed).length}/${tasks.filter(t => t.category === 'dishware').length})` 
+              },
+              { 
+                id: 'staples', 
+                label: `🏷️ Pantry & Staples (${tasks.filter(t => t.category === 'staples' && t.completed).length}/${tasks.filter(t => t.category === 'staples').length})` 
+              },
+              { 
+                id: 'recipes', 
+                label: `🥗 Everyday Meal Builds (${tasks.filter(t => t.category === 'recipes' && t.completed).length}/${tasks.filter(t => t.category === 'recipes').length})` 
+              }
             ].map(tab => (
               <button
                 key={tab.id}

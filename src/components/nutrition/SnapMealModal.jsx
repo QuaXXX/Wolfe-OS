@@ -491,7 +491,7 @@ export const SnapMealModal = ({
                   {kitchenCalibration?.tasks?.filter(t => t.completed).length > 0 && (
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
                       <CheckCircle2 className="w-2.5 h-2.5" />
-                      <span>{kitchenCalibration.tasks.filter(t => t.completed).length} Dishes Calibrated</span>
+                      <span>{kitchenCalibration.tasks.filter(t => t.completed).length} Calibrations Active</span>
                     </span>
                   )}
                 </h3>
