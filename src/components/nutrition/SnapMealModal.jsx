@@ -34,6 +34,7 @@ export const SnapMealModal = ({
   onClose,
   onLogMeal,
   aiConfig = {},
+  kitchenCalibration = null,
   soundEnabled = true
 }) => {
   const [description, setDescription] = useState('');
@@ -308,7 +309,8 @@ export const SnapMealModal = ({
         imageBase64,
         mimeType: imageMimeType,
         description: description.trim(),
-        aiConfig
+        aiConfig,
+        kitchenCalibration
       });
 
       if (result.hasFood && Array.isArray(result.items) && result.items.length > 0) {
@@ -481,11 +483,17 @@ export const SnapMealModal = ({
                 <Camera className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2 flex-wrap">
                   <span>Food & Nutrition Scanner</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-slate-300 border border-white/10">
                     Unified Vision + OCR
                   </span>
+                  {kitchenCalibration?.tasks?.filter(t => t.completed).length > 0 && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
+                      <CheckCircle2 className="w-2.5 h-2.5" />
+                      <span>{kitchenCalibration.tasks.filter(t => t.completed).length} Dishes Calibrated</span>
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-slate-400">
                   Point at meals, snacks, or packaging nutrition labels — AI extracts verified macros

@@ -1050,3 +1050,159 @@ export function createWeightLogEntry(weightLbs, dateIso = null, notes = "") {
     notes: (notes || "").trim()
   };
 }
+
+// ---------------------------------------------------------------------------
+// 8. KITCHEN HARDWARE CALIBRATION TASKS & GROUND TRUTH GENERATOR
+// ---------------------------------------------------------------------------
+export const DEFAULT_CALIBRATION_TASKS = [
+  {
+    id: "task-primary-bowl",
+    category: "dishware",
+    title: "Measure Primary Bowl",
+    shortDesc: "Everyday salad, grain, or power bowl",
+    icon: "🥣",
+    instruction: "Grab a ruler and measure the top rim diameter across the bowl (e.g. 8.0 inches). Next, fill it with water to your normal eating line and pour into a measuring cup or scale to measure holding volume in ml or fl oz (e.g. 750 ml / 25 oz). Optional: weigh the empty bowl on your kitchen scale to record tare weight.",
+    fields: [
+      { key: "name", label: "Bowl Description", placeholder: "e.g. Matte Black Ceramic Bowl", type: "text", default: "Everyday Primary Bowl" },
+      { key: "diameterInches", label: "Top Rim Diameter (inches)", placeholder: "e.g. 8.0", type: "number", step: "0.1" },
+      { key: "depthInches", label: "Bowl Depth / Height (inches)", placeholder: "e.g. 3.0", type: "number", step: "0.1" },
+      { key: "volumeMl", label: "Usable Volume (ml or fl oz)", placeholder: "e.g. 750 ml or 25 fl oz", type: "text" },
+      { key: "tareWeightG", label: "Empty Tare Weight (grams, optional)", placeholder: "e.g. 420", type: "number" }
+    ],
+    completed: false,
+    completedAt: null,
+    values: null
+  },
+  {
+    id: "task-dinner-plate",
+    category: "dishware",
+    title: "Measure Main Dinner Plate",
+    shortDesc: "Standard large flat plate used for meals",
+    icon: "🍽️",
+    instruction: "Measure the outer rim diameter in inches (e.g. 10.5 inches) and the inner usable flat bed diameter (e.g. 8.5 inches). Enter color or pattern so vision AI can recognize it immediately.",
+    fields: [
+      { key: "name", label: "Plate Description", placeholder: "e.g. White Porcelain Dinner Plate", type: "text", default: "Main Dinner Plate" },
+      { key: "diameterInches", label: "Outer Rim Diameter (inches)", placeholder: "e.g. 10.5", type: "number", step: "0.1" },
+      { key: "innerWellInches", label: "Inner Flat Bed (inches)", placeholder: "e.g. 8.5", type: "number", step: "0.1" },
+      { key: "tareWeightG", label: "Empty Tare Weight (grams, optional)", placeholder: "e.g. 550", type: "number" }
+    ],
+    completed: false,
+    completedAt: null,
+    values: null
+  },
+  {
+    id: "task-bread-slice-weight",
+    category: "staples",
+    title: "Weigh 1 Slice of Your Bread",
+    shortDesc: "Exact gram weight of your everyday bread slice",
+    icon: "🍞",
+    instruction: "Place 1 typical slice of your everyday bread on your kitchen scale. Enter the brand and exact weight in grams (grocery bread slices typically range from 32g to 60g).",
+    fields: [
+      { key: "brand", label: "Bread Brand & Style", placeholder: "e.g. Dave's Killer Bread, Sourdough, Ezekiel", type: "text" },
+      { key: "sliceWeightG", label: "Weight per Slice (grams)", placeholder: "e.g. 45", type: "number" },
+      { key: "calsPerSlice", label: "Calories per Slice (optional)", placeholder: "e.g. 110", type: "number" }
+    ],
+    completed: false,
+    completedAt: null,
+    values: null
+  },
+  {
+    id: "task-cottage-cheese-brand",
+    category: "staples",
+    title: "Specify Cottage Cheese Brand & %",
+    shortDesc: "Target your exact protein and moisture density",
+    icon: "🥛",
+    instruction: "Enter the brand and fat percentage you buy (e.g. Good Culture 2% Low-Fat, Daisy 4% Whole Milk, Lucerne). Different brands vary significantly in moisture, curds, and protein density.",
+    fields: [
+      { key: "brand", label: "Brand Name & Fat %", placeholder: "e.g. Good Culture 2% Low-Fat", type: "text" },
+      { key: "proteinPerHalfCup", label: "Protein per 1/2 cup (grams)", placeholder: "e.g. 14", type: "number" },
+      { key: "calsPerHalfCup", label: "Calories per 1/2 cup", placeholder: "e.g. 100", type: "number" }
+    ],
+    completed: false,
+    completedAt: null,
+    values: null
+  },
+  {
+    id: "task-peanut-butter-brand",
+    category: "staples",
+    title: "Log Your Peanut Butter Brand",
+    shortDesc: "Natural vs standard peanut butter profile",
+    icon: "🥜",
+    instruction: "Enter your brand (e.g. Kirkland Organic Creamy, Jif, Smucker's Natural, Skippy). Natural peanut butters without hydrogenated oil have distinct macro density.",
+    fields: [
+      { key: "brand", label: "Brand Name", placeholder: "e.g. Kirkland Organic Creamy", type: "text" },
+      { key: "servingGrams", label: "Grams per 2 tbsp", placeholder: "e.g. 32g", type: "text", default: "32g" },
+      { key: "cals", label: "Calories per 2 tbsp", placeholder: "e.g. 190", type: "number", default: 190 },
+      { key: "protein", label: "Protein per 2 tbsp (grams)", placeholder: "e.g. 8", type: "number", default: 8 }
+    ],
+    completed: false,
+    completedAt: null,
+    values: null
+  },
+  {
+    id: "task-power-bowl-build",
+    category: "recipes",
+    title: "Tune Your Signature Power Bowl",
+    shortDesc: "Your baseline for Quinoa, Chickpeas & Cottage Cheese",
+    icon: "🥗",
+    instruction: "Enter your standard cooked portions for your signature power bowl so Gemini Vision and the nutrition engine calibrate to your exact personal recipe instead of guessing.",
+    fields: [
+      { key: "quinoaPortion", label: "Quinoa cooked portion", placeholder: "e.g. 1 cup (~185g)", type: "text", default: "1 cup (~185g)" },
+      { key: "chickpeaPortion", label: "Chickpeas cooked portion", placeholder: "e.g. 0.5 cup (~82g)", type: "text", default: "0.5 cup (~82g)" },
+      { key: "cottageCheesePortion", label: "Cottage cheese portion", placeholder: "e.g. 0.5 cup (~113g)", type: "text", default: "0.5 cup (~113g)" },
+      { key: "sweetPotatoPortion", label: "Sweet potato portion", placeholder: "e.g. 1 medium (~130g)", type: "text", default: "1 medium (~130g)" },
+      { key: "kalePortion", label: "Kale portion", placeholder: "e.g. 1 cup cooked (~130g)", type: "text", default: "1 cup cooked (~130g)" }
+    ],
+    completed: false,
+    completedAt: null,
+    values: null
+  }
+];
+
+export function getCalibrationProgress(tasks = []) {
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    return { total: 0, completed: 0, percentage: 0, isAllCompleted: false };
+  }
+  const completed = tasks.filter(t => t.completed).length;
+  const total = tasks.length;
+  const percentage = Math.round((completed / total) * 100);
+  return {
+    total,
+    completed,
+    percentage,
+    isAllCompleted: completed === total && total > 0
+  };
+}
+
+export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
+  const tasks = kitchenCalibration?.tasks || [];
+  const completedTasks = tasks.filter(t => t.completed && t.values);
+  if (completedTasks.length === 0) return "";
+
+  const lines = [
+    "USER PHYSICAL HARDWARE & KITCHEN CALIBRATION MANIFEST (GROUND TRUTH):",
+    "The user has physically measured their kitchenware, staple brands, and signature recipes. Use these exact measurements as an absolute physical ruler when analyzing photos:"
+  ];
+
+  for (const task of completedTasks) {
+    const v = task.values || {};
+    if (task.id === "task-primary-bowl") {
+      lines.push(`- PRIMARY BOWL: "${v.name || 'Primary Bowl'}" | Rim Diameter: ${v.diameterInches || 8.0}" | Depth: ${v.depthInches || 3.0}" | Usable Volume: ${v.volumeMl || '750 ml'} ${v.tareWeightG ? `| Tare: ${v.tareWeightG}g` : ''}. (Use this rim diameter to calibrate pixel scale and estimate food fill percentage).`);
+    } else if (task.id === "task-dinner-plate") {
+      lines.push(`- DINNER PLATE: "${v.name || 'Main Dinner Plate'}" | Outer Rim Diameter: ${v.diameterInches || 10.5}" | Flat Well: ${v.innerWellInches || 8.5}" ${v.tareWeightG ? `| Tare: ${v.tareWeightG}g` : ''}. (Use outer diameter as a 10.5" ruler in plate photos).`);
+    } else if (task.id === "task-bread-slice-weight") {
+      lines.push(`- BREAD STAPLE: Brand: "${v.brand || 'Everyday Bread'}" | Weight per slice: ${v.sliceWeightG || 45}g | Calories: ${v.calsPerSlice || 110} kcal.`);
+    } else if (task.id === "task-cottage-cheese-brand") {
+      lines.push(`- COTTAGE CHEESE STAPLE: Brand: "${v.brand || 'Good Culture 2%'}" | Protein per 1/2 cup: ${v.proteinPerHalfCup || 14}g | Calories: ${v.calsPerHalfCup || 100} kcal.`);
+    } else if (task.id === "task-peanut-butter-brand") {
+      lines.push(`- PEANUT BUTTER STAPLE: Brand: "${v.brand || 'Natural PB'}" | Serving: ${v.servingGrams || '32g (2 tbsp)'} | Calories: ${v.cals || 190} kcal | Protein: ${v.protein || 8}g.`);
+    } else if (task.id === "task-power-bowl-build") {
+      lines.push(`- SIGNATURE POWER BOWL RECIPE: Quinoa (${v.quinoaPortion || '1 cup'}), Chickpeas (${v.chickpeaPortion || '0.5 cup'}), Cottage Cheese (${v.cottageCheesePortion || '0.5 cup'}), Sweet Potato (${v.sweetPotatoPortion || '1 medium'}), Kale (${v.kalePortion || '1 cup'}). When this combination is visible, anchor portions to this baseline.`);
+    } else {
+      lines.push(`- CUSTOM CALIBRATION ("${task.title}"): ${JSON.stringify(v)}`);
+    }
+  }
+
+  lines.push("CRITICAL: When the photo shows one of these known vessels, apply the known diameter as the physical ground-truth scale ruler to calculate food volume rather than guessing generic portion sizes.");
+  return lines.join("\n");
+}

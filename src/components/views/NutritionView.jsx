@@ -19,6 +19,8 @@ import {
   Barcode,
   Mic,
   MicOff,
+  Ruler,
+  CheckCircle2,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,11 +34,13 @@ import {
   getAdaptiveSurplusRecommendation,
   createMealEntry,
   parseMealDescription,
-  DEFAULT_HOUSEHOLD_PANTRY 
+  DEFAULT_HOUSEHOLD_PANTRY,
+  getCalibrationProgress 
 } from '../../utils/nutritionEngine.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { SnapMealModal } from '../nutrition/SnapMealModal';
+import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
 import { recordDeletion, recordAdditionOrUpdate } from '../../utils/cloudSyncEngine.js';
 
 export const NutritionView = ({ 
@@ -51,6 +55,7 @@ export const NutritionView = ({
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isSnapModalOpen, setIsSnapModalOpen] = useState(false);
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
+  const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
   const [activeQuickSlot, setActiveQuickSlot] = useState('lunch');
   const [pantryCategory, setPantryCategory] = useState('common');
   const [justLoggedToast, setJustLoggedToast] = useState(null);
@@ -96,6 +101,11 @@ export const NutritionView = ({
   const surplusRecommendation = useMemo(() => {
     return getAdaptiveSurplusRecommendation(weightHistory, targetCalories);
   }, [weightHistory, targetCalories]);
+
+  // Kitchen Hardware Calibration Progress
+  const calibrationProgress = useMemo(() => {
+    return getCalibrationProgress(nutritionData?.kitchenCalibration?.tasks || []);
+  }, [nutritionData?.kitchenCalibration]);
 
   
   // Filtered pantry list based on category
@@ -347,6 +357,15 @@ export const NutritionView = ({
     }));
   };
 
+  const handleUpdateCalibration = (newCalibration) => {
+    playSound('success', soundEnabled);
+    if (newCalibration?.id) recordAdditionOrUpdate(newCalibration.id);
+    setNutritionData(prev => ({
+      ...prev,
+      kitchenCalibration: newCalibration
+    }));
+  };
+
   const addWater = (deltaMl = 250) => {
     playSound('click', soundEnabled);
     const nextMl = Math.max(0, Math.min(6000, waterMl + deltaMl));
@@ -382,6 +401,30 @@ export const NutritionView = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Hardware & Dish Calibration Pill */}
+          <button
+            onClick={() => {
+              playSound('click', soundEnabled);
+              setIsCalibrationModalOpen(true);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
+              calibrationProgress.isAllCompleted
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
+            }`}
+            title="Calibrate your dishes, bowls & pantry items for accurate AI food vision"
+          >
+            <Ruler className={`w-3.5 h-3.5 ${calibrationProgress.isAllCompleted ? 'text-emerald-400' : 'text-indigo-400'}`} />
+            <span>
+              {calibrationProgress.isAllCompleted 
+                ? 'Dishes Calibrated' 
+                : `Calibrate: ${calibrationProgress.completed}/${calibrationProgress.total || 6}`}
+            </span>
+            {calibrationProgress.isAllCompleted && (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />
+            )}
+          </button>
+
           {/* Morning Weight Tracker */}
           <button
             onClick={() => {
@@ -1066,6 +1109,15 @@ export const NutritionView = ({
         onClose={() => setIsSnapModalOpen(false)}
         onLogMeal={handleLogMeal}
         aiConfig={settings?.aiConfig}
+        kitchenCalibration={nutritionData?.kitchenCalibration}
+        soundEnabled={soundEnabled}
+      />
+
+      <KitchenCalibrationModal
+        isOpen={isCalibrationModalOpen}
+        onClose={() => setIsCalibrationModalOpen(false)}
+        kitchenCalibration={nutritionData?.kitchenCalibration}
+        onUpdateCalibration={handleUpdateCalibration}
         soundEnabled={soundEnabled}
       />
     </div>
