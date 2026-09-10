@@ -102,7 +102,7 @@ export const HomeView = ({
   const hasTimelineContent = todayDeadlines.length > 0 || todayEvents.length > 0 || todayTasks.length > 0 || todayReminders.length > 0;
 
   return (
-    <div className={`max-w-6xl mx-auto select-none ${isCompact ? 'space-y-3 pb-16' : 'space-y-5 pb-24'}`}>
+    <div className={`max-w-6xl mx-auto select-none ${isCompact ? 'space-y-4 pb-16' : 'space-y-5 pb-24'}`}>
       
       {/* 1. TOP COMPACT AI COMMAND & VOICE WIDGET */}
       <CompactVoiceWidget 
@@ -120,11 +120,11 @@ export const HomeView = ({
       {/* 2. TIMELINE & TASKS AT THE VERY TOP */}
       {vm.timeline !== false && (
         <GlassCard 
-          onClick={() => {
+          onClick={(e) => {
             playSound('click', soundEnabled);
             onNavigate('calendar');
           }}
-          className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
+          className={`relative z-10 isolate overflow-hidden flex flex-col justify-between group cursor-pointer touch-manipulation ${isCompact ? 'p-3.5' : 'p-5'}`}
         >
           <div>
             <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-2' : 'mb-3'}`}>
@@ -342,15 +342,16 @@ export const HomeView = ({
       )}
 
       {/* 3. Physical Performance: Nutrition & Workouts */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3' : 'gap-5'}`}>
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3.5 mt-2' : 'gap-5 mt-3'}`}>
         {/* Nutrition */}
         {vm.nutrition !== false && (
           <GlassCard 
-            onClick={() => {
+            onClick={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
               playSound('click', soundEnabled);
               onNavigate('nutrition');
             }}
-            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
+            className={`relative z-20 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
@@ -388,31 +389,27 @@ export const HomeView = ({
                       )}
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
-                      <span>Protein: <span className="font-mono text-slate-200 font-semibold">{nutritionData?.protein?.current || 0}g / {todayTargetProtein}g</span></span>
-                      <span className="font-mono text-slate-400">Carbs: {nutritionData?.carbs?.current || 0}g / {todayTargetCarbs}g</span>
+                      <span>P: {nutritionData?.protein?.current || 0}g / {todayTargetProtein}g</span>
+                      <span>C: {nutritionData?.carbs?.current || 0}g</span>
+                      <span>F: {nutritionData?.fats?.current || 0}g</span>
                     </div>
-                  </div>
 
-                  {/* Progress bar */}
-                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg my-2 overflow-hidden">
-                    <div 
-                      className="h-full rounded-lg transition-all duration-500" 
-                      style={{ 
-                        width: `${Math.min(100, Math.round(((nutritionData?.consumedCalories || 0) / (todayTargetCals || 1)) * 100))}%`,
-                        backgroundColor: 'var(--accent-primary)'
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-white/[0.04] font-mono">
-                    <span>Water: {Math.round((nutritionData?.waterMl || 0) / 1000 * 10) / 10}L / 3.5L</span>
-                    <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} kcal left</span>
+                    <div className="w-full h-1.5 bg-white/[0.06] rounded-lg mt-2.5 overflow-hidden">
+                      <div 
+                        className="h-full rounded-lg transition-all duration-300" 
+                        style={{ 
+                          width: `${Math.min(100, ((nutritionData?.consumedCalories || 0) / (todayTargetCals || 1)) * 100)}%`,
+                          backgroundColor: 'var(--accent-primary)'
+                        }}
+                      />
+                    </div>
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04]">
+                <div className="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
                   <span>P: {nutritionData?.protein?.current || 0}/{todayTargetProtein}g</span>
-                  <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} left</span>
+                  <span>C: {nutritionData?.carbs?.current || 0}g</span>
+                  <span>F: {nutritionData?.fats?.current || 0}g</span>
                 </div>
               )}
             </div>
@@ -422,11 +419,12 @@ export const HomeView = ({
         {/* Workouts */}
         {vm.workouts !== false && (
           <GlassCard 
-            onClick={() => {
+            onClick={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
               playSound('click', soundEnabled);
               onNavigate('workouts');
             }}
-            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
+            className={`relative z-10 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
@@ -481,16 +479,17 @@ export const HomeView = ({
       </div>
 
       {/* 4. Focus & Execution: Day Trading & School */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3' : 'gap-5'}`}>
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3.5' : 'gap-5'}`}>
         
         {/* Day Trading */}
         {vm.trading !== false && (
           <GlassCard 
-            onClick={() => {
+            onClick={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
               playSound('click', soundEnabled);
               onNavigate('trading');
             }}
-            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
+            className={`relative z-10 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
@@ -555,11 +554,12 @@ export const HomeView = ({
         {/* School & Academics */}
         {vm.school !== false && (
           <GlassCard 
-            onClick={() => {
+            onClick={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
               playSound('click', soundEnabled);
               onNavigate('school');
             }}
-            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
+            className={`relative z-10 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
           >
             <div>
               <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>

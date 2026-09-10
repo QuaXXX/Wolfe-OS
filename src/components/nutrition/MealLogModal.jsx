@@ -28,7 +28,8 @@ import {
   calculateCaloriesFromMacros, 
   createMealEntry, 
   parseMealDescription, 
-  DEFAULT_HOUSEHOLD_PANTRY 
+  DEFAULT_HOUSEHOLD_PANTRY,
+  sanitizeHouseholdPantry 
 } from '../../utils/nutritionEngine.js';
 import { 
   analyzeMealWithAI, 
@@ -120,7 +121,8 @@ export const MealLogModal = ({
     const raw = (Array.isArray(householdPantry) && householdPantry.length > 0) 
       ? householdPantry 
       : DEFAULT_HOUSEHOLD_PANTRY;
-    return (raw || []).filter(s => s && typeof s === 'object' && s.id);
+    const clean = sanitizeHouseholdPantry(raw);
+    return (clean || []).filter(s => s && typeof s === 'object' && s.id);
   }, [householdPantry]);
 
   const filteredPantry = useMemo(() => {
@@ -748,7 +750,7 @@ export const MealLogModal = ({
           protein: result.protein,
           carbs: result.carbs,
           fats: result.fats,
-          items: result.items.map(it => `${it.portion || '1 serving'} ${it.name} (${it.calories || 0} cal, ${it.protein || 0}g P)`)
+          items: result.items
         });
         onLogMeal(meal);
         playSound('success', soundEnabled);
@@ -800,7 +802,14 @@ export const MealLogModal = ({
       protein: item.protein,
       carbs: item.carbs,
       fats: item.fats,
-      items: [`${item.servingSize || '1 serving'} ${title} (${item.calories} kcal, ${item.protein}g P)`]
+      items: [{
+        name: title,
+        portion: item.servingSize || '1 serving',
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fats: item.fats
+      }]
     });
     onLogMeal(meal);
     onClose();
@@ -816,10 +825,29 @@ export const MealLogModal = ({
     });
   };
 
-  const handleLogStaple = (staple) => {
+  const handleLogStaple = (rawStaple) => {
     playSound('success', soundEnabled);
+    const staple = sanitizeHouseholdPantry([rawStaple])[0] || rawStaple;
     const qty = stapleMultipliers[staple.id] || 1;
     const title = qty > 1 ? `${qty}x ${staple.name}` : staple.name;
+
+    const mealItems = Array.isArray(staple.items) && staple.items.length > 0
+      ? staple.items.map(it => ({
+          name: it.name,
+          portion: it.portion,
+          calories: Math.round((it.calories || 0) * qty),
+          protein: Math.round((it.protein || 0) * qty),
+          carbs: Math.round((it.carbs || 0) * qty),
+          fats: Math.round((it.fats || 0) * qty)
+        }))
+      : [{
+          name: staple.name,
+          portion: qty > 1 ? `${qty}x (${staple.portion || staple.name})` : (staple.portion || staple.name),
+          calories: staple.calories * qty,
+          protein: staple.protein * qty,
+          carbs: staple.carbs * qty,
+          fats: staple.fats * qty
+        }];
 
     const meal = createMealEntry({
       date: selectedDate,
@@ -828,7 +856,7 @@ export const MealLogModal = ({
       protein: staple.protein * qty,
       carbs: staple.carbs * qty,
       fats: staple.fats * qty,
-      items: [`${qty > 1 ? `${qty}x ` : ''}${staple.portion || staple.name} (${staple.calories * qty} kcal, ${staple.protein * qty}g P)`]
+      items: mealItems
     });
 
     onLogMeal(meal);
@@ -874,6 +902,17 @@ export const MealLogModal = ({
     if (!mealObj) return;
     playSound('success', soundEnabled);
 
+    const mealItems = Array.isArray(mealObj.items)
+      ? mealObj.items.map(it => typeof it === 'object' && it ? {
+          name: it.name || 'Item',
+          portion: it.portion || '1 serving',
+          calories: Number(it.calories) || 0,
+          protein: Number(it.protein) || 0,
+          carbs: Number(it.carbs) || 0,
+          fats: Number(it.fats) || 0
+        } : it)
+      : [];
+
     const meal = createMealEntry({
       date: selectedDate,
       name: mealObj.name || "Logged Meal",
@@ -881,7 +920,7 @@ export const MealLogModal = ({
       protein: mealObj.protein,
       carbs: mealObj.carbs,
       fats: mealObj.fats,
-      items: (mealObj.items || []).map(it => `${it.portion || '1 serving'} ${it.name} (${it.calories} cal, ${it.protein}g P)`)
+      items: mealItems
     });
 
     onLogMeal(meal);
@@ -892,7 +931,7 @@ export const MealLogModal = ({
 
   const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-3 sm:p-4 select-none">
+      <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-3 sm:p-4 touch-pan-y">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}

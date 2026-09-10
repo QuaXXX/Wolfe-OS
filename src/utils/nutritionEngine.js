@@ -135,7 +135,20 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:whey(?:\s+protein)?|protein\s+powder|casein)\b/i,
+    regex: /\b(?:canadian\s+protein(?:\s+vegan)?|vegan\s+protein(?:\s+powder)?|plant\s+protein(?:\s+powder)?)\b/i,
+    name: "Canadian Protein Vegan Powder",
+    defaultUnit: "scoop",
+    defaultQty: 1,
+    perUnit: {
+      scoop: { calories: 120, protein: 20, carbs: 3, fats: 2 },
+      scoops: { calories: 120, protein: 20, carbs: 3, fats: 2 },
+      cup: { calories: 390, protein: 65, carbs: 10, fats: 6.5 },
+      cups: { calories: 390, protein: 65, carbs: 10, fats: 6.5 },
+      g: { calories: 3.9, protein: 0.67, carbs: 0.1, fats: 0.067 }
+    }
+  },
+  {
+    regex: /\b(?:whey(?:\s+protein)?|casein|protein\s+powder)\b/i,
     name: "Whey Protein Isolate",
     defaultUnit: "scoops",
     defaultQty: 1,
@@ -322,28 +335,15 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:canadian\s+protein(?:\s+vegan)?|vegan\s+protein(?:\s+powder)?)\b/i,
-    name: "Canadian Protein Vegan Powder",
-    defaultUnit: "cups",
-    defaultQty: 1,
-    perUnit: {
-      scoop: { calories: 120, protein: 22, carbs: 2, fats: 2 },
-      scoops: { calories: 120, protein: 22, carbs: 2, fats: 2 },
-      cup: { calories: 390, protein: 72, carbs: 7, fats: 6.5 },
-      cups: { calories: 390, protein: 72, carbs: 7, fats: 6.5 },
-      g: { calories: 3.9, protein: 0.72, carbs: 0.07, fats: 0.065 }
-    }
-  },
-  {
     regex: /\b(?:protein\s+(?:shake|smoothie)|smoothie)\b/i,
-    name: "Protein Shake",
-    defaultUnit: "shake",
+    name: "Protein Smoothie",
+    defaultUnit: "smoothie",
     defaultQty: 1,
     perUnit: {
-      shake: { calories: 755, protein: 91, carbs: 58, fats: 17 },
-      shakes: { calories: 755, protein: 91, carbs: 58, fats: 17 },
-      smoothie: { calories: 755, protein: 91, carbs: 58, fats: 17 },
-      smoothies: { calories: 755, protein: 91, carbs: 58, fats: 17 }
+      shake: { calories: 485, protein: 39, carbs: 54, fats: 12 },
+      shakes: { calories: 485, protein: 39, carbs: 54, fats: 12 },
+      smoothie: { calories: 485, protein: 39, carbs: 54, fats: 12 },
+      smoothies: { calories: 485, protein: 39, carbs: 54, fats: 12 }
     }
   },
   {
@@ -653,13 +653,18 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
   {
     id: "staple-protein-shake",
     name: "Protein Shake",
-    portion: "2 cups milk, 1 cup Canadian Protein vegan powder, 1 banana",
-    calories: 755,
-    protein: 91,
-    carbs: 58,
-    fats: 17,
+    portion: "2 cups milk, 1 scoop Canadian Protein vegan powder, 1 banana",
+    calories: 485,
+    protein: 39,
+    carbs: 54,
+    fats: 12,
     category: "Protein",
-    icon: "🥤"
+    icon: "🥤",
+    items: [
+      { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
+      { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
+      { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
+    ]
   },
   {
     id: "staple-milk",
@@ -772,6 +777,40 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🍫"
   }
 ];
+
+/**
+ * Validates and sanitizes household pantry staples against calibrated ground truth.
+ * Ensures the household protein shake is strictly 485 kcal / 39g P (1 scoop vegan powder, 2 cups milk, 1 banana).
+ */
+export function sanitizeHouseholdPantry(householdPantry = []) {
+  if (!Array.isArray(householdPantry) || householdPantry.length === 0) {
+    return DEFAULT_HOUSEHOLD_PANTRY;
+  }
+  return householdPantry.map(s => {
+    if (s && (s.id === 'staple-protein-shake' || /protein\s*(?:shake|smoothie)|smoothie/i.test(s.name || ''))) {
+      if (s.protein > 50 || s.calories > 600 || /1\s*cup/i.test(s.portion || '') || !Array.isArray(s.items) || s.items.length === 0) {
+        return {
+          ...s,
+          id: s.id || 'staple-protein-shake',
+          name: "Protein Shake",
+          portion: "2 cups milk, 1 scoop Canadian Protein vegan powder, 1 banana",
+          calories: 485,
+          protein: 39,
+          carbs: 54,
+          fats: 12,
+          category: "Protein",
+          icon: "🥤",
+          items: [
+            { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
+            { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
+            { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
+          ]
+        };
+      }
+    }
+    return s;
+  });
+}
 
 // ---------------------------------------------------------------------------
 // 4. MEAL SLOTS
@@ -1253,6 +1292,14 @@ export function parseMealDescription(text, options = {}) {
     .replace(/(?:scale\s+(?:reads?|says?)?|weighs?|total\s+weight\s+is?|gross)?\s*\d+(?:\.\d+)?\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+|main\s+|dinner\s+)?(?:bowl|plate)\s*(?:with|and|of)?/i, '')
     .trim();
 
+  // Extract carrier dish if user used "with", "containing", or "made with" (e.g. "protein smoothie with 2 cups of milk, 1 banana and 1 scoop of vegan protein powder")
+  let dishCarrierTitle = null;
+  const carrierMatch = stripped.match(/^(.+?)\s+(?:with|w\/|containing|made\s+with)\s+(.+)$/i);
+  if (carrierMatch && /\b(?:protein\s+(?:shake|smoothie)|smoothie|shake|salad|sandwich|bowl)\b/i.test(carrierMatch[1])) {
+    dishCarrierTitle = carrierMatch[1].trim();
+    stripped = carrierMatch[2].trim();
+  }
+
   // Composite meal weight (e.g. "400g chicken and rice in bowl")
   let compositeMealTotalWeightG = tareAdjustedWeightG;
   const compositeWeightMatch = stripped.match(/^(\d+(?:\.\d+)?)\s*(?:g|grams?)\s+(?:of\s+)?(.+?\s+(?:and|&)\s+.+)/i)
@@ -1285,7 +1332,7 @@ export function parseMealDescription(text, options = {}) {
   const matchedItems = [];
 
   for (const clause of rawClauses) {
-    // Custom smoothie
+    // Custom smoothie / shake
     if (/\b(?:protein\s+(?:shake|smoothie)|smoothie|my\s+shake|canadian\s+protein\s+shake)\b/i.test(clause)) {
       let mult = 1;
       const qm = clause.match(/(\d+(?:\.\d+)?|\d+\/\d+|half|two|three|four|2|3|4)\s*(?:shakes?|smoothies?)?/i);
@@ -1297,14 +1344,34 @@ export function parseMealDescription(text, options = {}) {
         else if (w === 'four' || w === '4') mult = 4;
         else if (parseFloat(w)) mult = parseFloat(w);
       }
-      matchedItems.push({
-        name: 'Protein Smoothie (Canadian Protein Vegan, 2c Milk, 1 Banana)',
-        portion: mult === 1 ? '1 serving (2 cups milk, 1 cup Canadian Protein vegan, 1 banana)' : `${mult} servings`,
-        calories: Math.round(755 * mult),
-        protein: Math.round(91 * mult),
-        carbs: Math.round(58 * mult),
-        fats: Math.round(17 * mult)
-      });
+      dishCarrierTitle = 'Protein Smoothie';
+      // Expand into the 3 constituent items so individual ingredients & accurate macros are preserved
+      matchedItems.push(
+        {
+          name: 'Milk (User Calibrated)',
+          portion: mult === 1 ? '2 cups / glasses (250ml)' : `${2 * mult} cups`,
+          calories: Math.round(260 * mult),
+          protein: Math.round(18 * mult),
+          carbs: Math.round(24 * mult),
+          fats: Math.round(10 * mult)
+        },
+        {
+          name: 'Canadian Protein Vegan Powder',
+          portion: mult === 1 ? '1 scoop' : `${mult} scoops`,
+          calories: Math.round(120 * mult),
+          protein: Math.round(20 * mult),
+          carbs: Math.round(3 * mult),
+          fats: Math.round(2 * mult)
+        },
+        {
+          name: 'Banana',
+          portion: mult === 1 ? '1 banana (118g)' : `${mult} bananas`,
+          calories: Math.round(105 * mult),
+          protein: Math.round(1.3 * mult),
+          carbs: Math.round(27 * mult),
+          fats: Math.round(0.3 * mult)
+        }
+      );
       continue;
     }
 
@@ -1548,7 +1615,10 @@ export function parseMealDescription(text, options = {}) {
 
   const cleanItemNames = matchedItems.map(m => m.name.replace(/\s*\([^)]*\)/, ''));
   let title = '';
-  if (cleanItemNames.length === 1) {
+  if (dishCarrierTitle) {
+    const isSmoothieOrShake = /smoothie|shake/i.test(dishCarrierTitle);
+    title = isSmoothieOrShake ? 'Protein Smoothie' : (dishCarrierTitle.charAt(0).toUpperCase() + dishCarrierTitle.slice(1));
+  } else if (cleanItemNames.length === 1) {
     title = cleanItemNames[0];
   } else if (cleanItemNames.length === 2) {
     title = cleanItemNames.join(' & ');
@@ -1593,13 +1663,35 @@ export function createMealEntry({
   fats = 0,
   items = []
 }) {
-  const p = Math.max(0, Math.round(Number(protein) || 0));
-  const c = Math.max(0, Math.round(Number(carbs) || 0));
-  const f = Math.max(0, Math.round(Number(fats) || 0));
+  let p = Math.max(0, Math.round(Number(protein) || 0));
+  let c = Math.max(0, Math.round(Number(carbs) || 0));
+  let f = Math.max(0, Math.round(Number(fats) || 0));
   
   const calculatedCals = calculateCaloriesFromMacros(p, c, f);
   const rawCals = Math.max(0, Math.round(Number(calories) || 0));
-  const finalCals = rawCals > 0 ? rawCals : calculatedCals;
+  let finalCals = rawCals > 0 ? rawCals : calculatedCals;
+  let finalName = (name || "Logged Meal").trim();
+  let finalItems = Array.isArray(items) ? items : [items].filter(Boolean);
+
+  // Safety calibration: a single household protein shake / smoothie with Canadian Protein vegan powder is ~39g P / 485 kcal, never 91g
+  const isSmoothie = /protein\s*(?:shake|smoothie)|smoothie/i.test(finalName) ||
+    finalItems.some(it => {
+      const itName = typeof it === 'string' ? it : it?.name || '';
+      return /protein\s*(?:shake|smoothie)|smoothie/i.test(itName) || (/vegan.*protein/i.test(itName) && (it?.protein >= 60));
+    });
+
+  if (isSmoothie && (p >= 60 || finalCals >= 650)) {
+    finalName = "Protein Shake (Milk, Banana & Vegan Protein Powder)";
+    finalCals = 485;
+    p = 39;
+    c = 54;
+    f = 12;
+    finalItems = [
+      { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
+      { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
+      { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
+    ];
+  }
 
   return {
     id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -1607,13 +1699,13 @@ export function createMealEntry({
     createdAt: Date.now(),
     updatedAt: Date.now(),
     slot: slot || "meal",
-    name: (name || "Logged Meal").trim(),
+    name: finalName,
     time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     calories: finalCals,
     protein: p,
     carbs: c,
     fats: f,
-    items: Array.isArray(items) ? items : [items].filter(Boolean)
+    items: finalItems
   };
 }
 
@@ -1828,9 +1920,10 @@ export function getCalibratedDishware(kitchenCalibration = {}) {
  * Builds AI system instruction prompt grounding custom household pantry staples
  */
 export function buildAiPantryPrompt(householdPantry = []) {
-  const pantry = (Array.isArray(householdPantry) && householdPantry.length > 0)
+  const rawPantry = (Array.isArray(householdPantry) && householdPantry.length > 0)
     ? householdPantry
     : DEFAULT_HOUSEHOLD_PANTRY;
+  const pantry = sanitizeHouseholdPantry(rawPantry);
 
   const lines = [
     "USER PANTRY & STAPLE MEAL DEFINITIONS (HOUSEHOLD GROUND TRUTH):",
@@ -2055,6 +2148,32 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
         notes: "Calibrated accurate filling partition (42g beef + 28g veggies = 70g insides)"
       };
     }
+
+    // 2.6 Reconcile past overestimated protein smoothie meals (e.g. 91g protein / 755 kcal or >50g protein from a single smoothie)
+    const isSuspectSmoothie = 
+      (m.name && /smoothie|shake/i.test(m.name)) ||
+      (Array.isArray(m.items) && m.items.some(it => {
+        const itName = typeof it === 'string' ? it : it?.name || '';
+        return /smoothie|shake/i.test(itName) || (/vegan.*protein/i.test(itName) && (it?.protein >= 50));
+      }));
+
+    if (isSuspectSmoothie && (m.protein >= 55 || m.calories >= 650)) {
+      wasModified = true;
+      return {
+        ...m,
+        name: "Protein Shake (Milk, Banana & Canadian Protein Vegan Powder)",
+        calories: 485,
+        protein: 39,
+        carbs: 54,
+        fats: 12,
+        items: [
+          { name: "Milk (User Calibrated)", portion: "2 cups / glasses (250ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
+          { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
+          { name: "Banana", portion: "1 banana (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
+        ],
+        notes: "Calibrated accurate smoothie macros (2c milk [18g P] + 1 scoop vegan powder [20g P] + 1 banana [1.3g P] = ~39g protein)"
+      };
+    }
     return m;
   }).filter(Boolean);
 
@@ -2065,6 +2184,19 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       nutritionData.weightHistory = cleanWeight;
       wasModified = true;
     }
+  }
+
+  // 2.7 Ensure householdPantry is fully sanitized and calibrated (e.g. 485 kcal / 39g P)
+  let householdPantry = nutritionData.householdPantry;
+  if (Array.isArray(householdPantry)) {
+    const cleanPantry = sanitizeHouseholdPantry(householdPantry);
+    if (JSON.stringify(cleanPantry) !== JSON.stringify(householdPantry)) {
+      wasModified = true;
+      householdPantry = cleanPantry;
+      nutritionData.householdPantry = cleanPantry;
+    }
+  } else {
+    householdPantry = DEFAULT_HOUSEHOLD_PANTRY;
   }
 
   // 3. Calculate consumption strictly from meals logged for TODAY (todayIso)
@@ -2088,7 +2220,7 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     nutritionData.waterMl !== waterMl;
 
   if (needsUpdate) {
-    return {
+    const syncedResult = {
       ...nutritionData,
       currentDate: todayIso,
       waterDate: todayIso,
@@ -2107,8 +2239,17 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       },
       waterMl,
       waterGlasses,
-      meals
+      meals,
+      ...(householdPantry ? { householdPantry } : {})
     };
+
+    if (wasModified && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(syncedResult));
+      } catch (e) {}
+    }
+
+    return syncedResult;
   }
 
   return nutritionData;

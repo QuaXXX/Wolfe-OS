@@ -8,7 +8,7 @@ import {
 import { getPaperPositions } from './hermesPaperTrader.js';
 import { getSavedHermesBriefs } from './tradingStorage.js';
 import { parseMealDescription, createMealEntry, aggregateDailyNutrition } from './nutritionEngine.js';
-import { recordAdditionOrUpdate } from './cloudSyncEngine.js';
+import { recordAdditionOrUpdate, triggerImmediateCloudPush, markLocalMutation } from './cloudSyncEngine.js';
 
 // Color theme hue mappings
 const THEME_COLOR_MAP = {
@@ -460,26 +460,39 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
           protein: parsedMeal.protein,
           carbs: parsedMeal.carbs,
           fats: parsedMeal.fats,
-          items: parsedMeal.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+          items: parsedMeal.items
         });
 
         recordAdditionOrUpdate(mealEntry.id);
+        markLocalMutation();
 
         if (setNutritionData) {
-          setNutritionData(prev => {
-            const nextMeals = [mealEntry, ...(prev?.meals || [])];
-            const todayMeals = nextMeals.filter(m => m.date === todayIso);
-            const totals = aggregateDailyNutrition(todayMeals);
-            return {
-              ...prev,
-              currentDate: todayIso,
-              consumedCalories: totals.calories,
-              protein: { ...(prev?.protein || {}), current: totals.protein },
-              carbs: { ...(prev?.carbs || {}), current: totals.carbs },
-              fats: { ...(prev?.fats || {}), current: totals.fats },
-              meals: nextMeals
-            };
-          });
+          let currentNut = {};
+          try {
+            const raw = localStorage.getItem('wolfe_nutrition_data');
+            if (raw) currentNut = JSON.parse(raw);
+          } catch (e) {}
+
+          const nextMeals = [mealEntry, ...(currentNut.meals || [])];
+          const todayMeals = nextMeals.filter(m => m.date === todayIso);
+          const totals = aggregateDailyNutrition(todayMeals);
+          const nextData = {
+            ...currentNut,
+            currentDate: todayIso,
+            consumedCalories: totals.calories,
+            protein: { ...(currentNut.protein || {}), current: totals.protein },
+            carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
+            fats: { ...(currentNut.fats || {}), current: totals.fats },
+            meals: nextMeals,
+            updatedAt: Date.now()
+          };
+
+          try {
+            localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+          } catch (e) {}
+
+          setNutritionData(nextData);
+          triggerImmediateCloudPush(80);
         }
 
         return {
@@ -506,26 +519,39 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
         protein: directMeal.protein,
         carbs: directMeal.carbs,
         fats: directMeal.fats,
-        items: directMeal.items.map(i => `${i.portion || '1 serving'} ${i.name}`)
+        items: directMeal.items
       });
 
       recordAdditionOrUpdate(mealEntry.id);
+      markLocalMutation();
 
       if (setNutritionData) {
-        setNutritionData(prev => {
-          const nextMeals = [mealEntry, ...(prev?.meals || [])];
-          const todayMeals = nextMeals.filter(m => m.date === todayIso);
-          const totals = aggregateDailyNutrition(todayMeals);
-          return {
-            ...prev,
-            currentDate: todayIso,
-            consumedCalories: totals.calories,
-            protein: { ...(prev?.protein || {}), current: totals.protein },
-            carbs: { ...(prev?.carbs || {}), current: totals.carbs },
-            fats: { ...(prev?.fats || {}), current: totals.fats },
-            meals: nextMeals
-          };
-        });
+        let currentNut = {};
+        try {
+          const raw = localStorage.getItem('wolfe_nutrition_data');
+          if (raw) currentNut = JSON.parse(raw);
+        } catch (e) {}
+
+        const nextMeals = [mealEntry, ...(currentNut.meals || [])];
+        const todayMeals = nextMeals.filter(m => m.date === todayIso);
+        const totals = aggregateDailyNutrition(todayMeals);
+        const nextData = {
+          ...currentNut,
+          currentDate: todayIso,
+          consumedCalories: totals.calories,
+          protein: { ...(currentNut.protein || {}), current: totals.protein },
+          carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
+          fats: { ...(currentNut.fats || {}), current: totals.fats },
+          meals: nextMeals,
+          updatedAt: Date.now()
+        };
+
+        try {
+          localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+        } catch (e) {}
+
+        setNutritionData(nextData);
+        triggerImmediateCloudPush(80);
       }
 
       return {

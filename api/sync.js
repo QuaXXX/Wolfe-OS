@@ -215,19 +215,60 @@ export default async function handler(req, res) {
       ...(payloadVault._tombstones || {})
     };
 
-    const isTomb = (id) => id && mergedTombstones[String(id)];
+    const isTomb = (id, updatedAt) => {
+      if (!id) return false;
+      const tombTime = mergedTombstones[String(id)];
+      if (!tombTime) return false;
+      const itemTime = updatedAt ? (new Date(updatedAt).getTime() || Number(updatedAt) || 0) : 0;
+      return itemTime <= tombTime;
+    };
+
+    // Intelligently merge meals between existing server vault and incoming payload
+    let finalMeals = [];
+    if (payloadVault.nutrition || existingVault?.nutrition) {
+      const mealMap = new Map();
+      // 1. Existing meals
+      (existingVault?.nutrition?.meals || []).forEach(m => {
+        if (!m) return;
+        const mId = m.id || `${m.date}-${m.name}-${m.calories}`;
+        const cleanM = m.id ? m : { ...m, id: mId };
+        if (!isTomb(cleanM.id, cleanM.updatedAt || cleanM.createdAt || cleanM.time)) {
+          mealMap.set(cleanM.id, cleanM);
+        }
+      });
+      // 2. Incoming payload meals
+      (payloadVault.nutrition?.meals || []).forEach(m => {
+        if (!m) return;
+        const mId = m.id || `${m.date}-${m.name}-${m.calories}`;
+        const cleanM = m.id ? m : { ...m, id: mId };
+        if (!isTomb(cleanM.id, cleanM.updatedAt || cleanM.createdAt || cleanM.time)) {
+          mealMap.set(cleanM.id, { ...(mealMap.get(cleanM.id) || {}), ...cleanM });
+        }
+      });
+      const getMealSortTime = (m) => {
+        if (m?.createdAt && typeof m.createdAt === 'number') return m.createdAt;
+        if (m?.updatedAt && typeof m.updatedAt === 'number') return m.updatedAt;
+        if (m?.id && typeof m.id === 'string') {
+          const parts = m.id.split('-');
+          const ts = parseInt(parts[1], 10);
+          if (!isNaN(ts) && ts > 1000000) return ts;
+        }
+        return 0;
+      };
+      finalMeals = Array.from(mealMap.values()).sort((a, b) => getMealSortTime(b) - getMealSortTime(a));
+    }
 
     // Purge tombstoned items from the incoming payload
     const sanitizedNutrition = payloadVault.nutrition ? {
       ...payloadVault.nutrition,
-      meals: (payloadVault.nutrition.meals || []).filter(m => !isTomb(m.id)),
-      weightLogs: (payloadVault.nutrition.weightLogs || []).filter(w => !isTomb(w.id) && !isTomb(w.date)),
-      householdPantry: (payloadVault.nutrition.householdPantry || []).filter(s => !isTomb(s.id) && !isTomb(s.name?.toLowerCase()))
+      meals: finalMeals,
+      weightLogs: (payloadVault.nutrition.weightLogs || []).filter(w => !isTomb(w.id, w.updatedAt) && !isTomb(w.date, w.updatedAt)),
+      householdPantry: (payloadVault.nutrition.householdPantry || []).filter(s => !isTomb(s.id, s.updatedAt) && !isTomb(s.name?.toLowerCase(), s.updatedAt))
     } : payloadVault.nutrition;
 
     const sanitizedWorkouts = payloadVault.workouts ? {
       ...payloadVault.workouts,
-      history: (payloadVault.workouts.history || []).filter(h => !isTomb(h.id) && !isTomb(`${h.date}_${h.routine}`))
+      history: (payloadVault.workouts.history || []).filter(h => !isTomb(h.id, h.date) && !isTomb(`${h.date}_${h.routine}`, h.date))
     } : payloadVault.workouts;
 
     const sanitizedTrading = payloadVault.trading ? {

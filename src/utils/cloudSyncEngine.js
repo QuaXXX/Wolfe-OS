@@ -171,9 +171,18 @@ export function exportFullOsState() {
 
   const meta = readStorageJson(SYNC_KEYS.CLOUD_META) || {};
 
+  const calculatedLastUpdated = Math.max(
+    meta.lastUpdated || 0,
+    nutrition.updatedAt || 0,
+    workouts.updatedAt || 0,
+    trading.updatedAt || 0,
+    lastLocalMutationAt || 0,
+    (isLocalMutationRecent(10000) ? Date.now() : 0)
+  );
+
   return {
     version: 2,
-    lastUpdated: meta.lastUpdated || Date.now(),
+    lastUpdated: calculatedLastUpdated || Date.now(),
     lastDevice: deviceId,
     lastPlatform: platform,
     _tombstones: getTombstones(),
@@ -241,15 +250,19 @@ export function mergeOsState(localVault, remoteVault) {
   // Merge meals by ID (purging tombstoned)
   const mealMap = new Map();
   (remoteNut.meals || []).forEach(m => {
-    if (!m || !m.id) return;
-    if (!isTombstoned(m.id, m.updatedAt || m.createdAt || m.time)) {
-      mealMap.set(m.id, m);
+    if (!m) return;
+    const mealId = m.id || `${m.date || getTodayIso()}-${m.name || 'meal'}-${m.calories || 0}`;
+    const cleanMeal = m.id ? m : { ...m, id: mealId };
+    if (!isTombstoned(cleanMeal.id, cleanMeal.updatedAt || cleanMeal.createdAt || cleanMeal.time)) {
+      mealMap.set(cleanMeal.id, cleanMeal);
     }
   });
   (localNut.meals || []).forEach(m => {
-    if (!m || !m.id) return;
-    if (!isTombstoned(m.id, m.updatedAt || m.createdAt || m.time)) {
-      mealMap.set(m.id, { ...(mealMap.get(m.id) || {}), ...m });
+    if (!m) return;
+    const mealId = m.id || `${m.date || getTodayIso()}-${m.name || 'meal'}-${m.calories || 0}`;
+    const cleanMeal = m.id ? m : { ...m, id: mealId };
+    if (!isTombstoned(cleanMeal.id, cleanMeal.updatedAt || cleanMeal.createdAt || cleanMeal.time)) {
+      mealMap.set(cleanMeal.id, { ...(mealMap.get(cleanMeal.id) || {}), ...cleanMeal });
     }
   });
   const getMealSortTime = (m) => {
@@ -566,19 +579,81 @@ export function importFullOsState(vault) {
   const activeTombstones = { ...getTombstones(), ...(vault._tombstones || {}) };
   saveTombstones(activeTombstones);
 
-  const isTomb = (id) => id && activeTombstones[String(id)];
+  const isTomb = (id, updatedAt) => {
+    if (!id) return false;
+    const tombTime = activeTombstones[String(id)];
+    if (!tombTime) return false;
+    const itemTime = updatedAt ? (new Date(updatedAt).getTime() || Number(updatedAt) || 0) : 0;
+    return itemTime <= tombTime;
+  };
+
+  // Read current local meals so newly added local meals are NEVER dropped by incoming sync
+  const currentLocalNutrition = readStorageJson(SYNC_KEYS.NUTRITION) || {};
+  const currentLocalMeals = Array.isArray(currentLocalNutrition.meals) ? currentLocalNutrition.meals : [];
 
   // Clean incoming vault collections against active tombstones before importing
-  const cleanNutrition = vault.nutrition ? {
-    ...vault.nutrition,
-    meals: (vault.nutrition.meals || []).filter(m => !isTomb(m.id)),
-    weightLogs: (vault.nutrition.weightLogs || []).filter(w => !isTomb(w.id) && !isTomb(w.date)),
-    householdPantry: (vault.nutrition.householdPantry || []).filter(s => !isTomb(s.id) && !isTomb(s.name?.toLowerCase())),
-    kitchenCalibration: vault.nutrition.kitchenCalibration ? {
-      ...vault.nutrition.kitchenCalibration,
-      tasks: (vault.nutrition.kitchenCalibration.tasks || []).filter(t => !isTomb(t.id))
-    } : vault.nutrition.kitchenCalibration
-  } : null;
+  let cleanNutrition = null;
+  if (vault.nutrition) {
+    const mealMap = new Map();
+    // 1. First add incoming meals (if not tombstoned)
+    (vault.nutrition.meals || []).forEach(m => {
+      if (!m) return;
+      const mId = m.id || `${m.date || getTodayIso()}-${m.name || 'meal'}-${m.calories || 0}`;
+      const cleanM = m.id ? m : { ...m, id: mId };
+      if (!isTomb(cleanM.id, cleanM.updatedAt || cleanM.createdAt || cleanM.time)) {
+        mealMap.set(cleanM.id, cleanM);
+      }
+    });
+    // 2. Union with current local meals: any meal in local storage that is not tombstoned MUST be preserved!
+    currentLocalMeals.forEach(m => {
+      if (!m) return;
+      const mId = m.id || `${m.date || getTodayIso()}-${m.name || 'meal'}-${m.calories || 0}`;
+      const cleanM = m.id ? m : { ...m, id: mId };
+      if (!isTomb(cleanM.id, cleanM.updatedAt || cleanM.createdAt || cleanM.time)) {
+        mealMap.set(cleanM.id, { ...(mealMap.get(cleanM.id) || {}), ...cleanM });
+      }
+    });
+
+    const getMealSortTime = (m) => {
+      if (m?.createdAt && typeof m.createdAt === 'number') return m.createdAt;
+      if (m?.updatedAt && typeof m.updatedAt === 'number') return m.updatedAt;
+      if (m?.id && typeof m.id === 'string') {
+        const parts = m.id.split('-');
+        const ts = parseInt(parts[1], 10);
+        if (!isNaN(ts) && ts > 1000000) return ts;
+      }
+      return 0;
+    };
+    const finalCleanMeals = Array.from(mealMap.values()).sort((a, b) => getMealSortTime(b) - getMealSortTime(a));
+    const todayIso = getTodayIso();
+    const todayMeals = finalCleanMeals.filter(m => m.date === todayIso);
+    const todayTotals = aggregateDailyNutrition(todayMeals);
+
+    cleanNutrition = {
+      ...vault.nutrition,
+      currentDate: todayIso,
+      consumedCalories: todayTotals.calories,
+      protein: {
+        ...(vault.nutrition.protein || { target: 180, unit: "g", color: "#6366f1" }),
+        current: todayTotals.protein
+      },
+      carbs: {
+        ...(vault.nutrition.carbs || { target: 450, unit: "g", color: "#06b6d4" }),
+        current: todayTotals.carbs
+      },
+      fats: {
+        ...(vault.nutrition.fats || { target: 80, unit: "g", color: "#f59e0b" }),
+        current: todayTotals.fats
+      },
+      meals: finalCleanMeals,
+      weightLogs: (vault.nutrition.weightLogs || []).filter(w => !isTomb(w.id, w.updatedAt) && !isTomb(w.date, w.updatedAt)),
+      householdPantry: (vault.nutrition.householdPantry || []).filter(s => !isTomb(s.id, s.updatedAt) && !isTomb(s.name?.toLowerCase(), s.updatedAt)),
+      kitchenCalibration: vault.nutrition.kitchenCalibration ? {
+        ...vault.nutrition.kitchenCalibration,
+        tasks: (vault.nutrition.kitchenCalibration.tasks || []).filter(t => !isTomb(t.id, t.completedAt))
+      } : vault.nutrition.kitchenCalibration
+    };
+  }
 
   const cleanWorkouts = vault.workouts ? {
     ...vault.workouts,
@@ -895,11 +970,13 @@ export async function saveVaultToGoogleCalendar(vault) {
  * Primary Master Sync: Executes 2-Way sync across Phone and Desktop with Dual-Layer Persistence
  */
 let activeSyncPromise = null;
+let hasQueuedSync = false;
 
 export async function syncFullOsWithCloud(options = {}) {
   const { forcePush = false, forcePull = false } = options;
 
   if (activeSyncPromise) {
+    hasQueuedSync = true;
     return activeSyncPromise;
   }
 
@@ -932,14 +1009,6 @@ export async function syncFullOsWithCloud(options = {}) {
       let remoteVault = await fetchVaultFromServerless(userKey);
       if (!remoteVault) {
         remoteVault = await fetchVaultFromGoogleCalendar();
-      } else {
-        // If serverless returned a vault, check if Google Calendar has a newer version in the background
-        fetchVaultFromGoogleCalendar().then(gVault => {
-          if (gVault && (gVault.lastUpdated || 0) > (remoteVault.lastUpdated || 0)) {
-            const updated = mergeOsState(exportFullOsState(), gVault);
-            importFullOsState(updated);
-          }
-        }).catch(() => {});
       }
 
       // 3. Force Pull: Replace local with remote if remote exists
@@ -992,6 +1061,12 @@ export async function syncFullOsWithCloud(options = {}) {
       return { success: false, error: err.message };
     } finally {
       activeSyncPromise = null;
+      if (hasQueuedSync) {
+        hasQueuedSync = false;
+        setTimeout(() => {
+          syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+        }, 60);
+      }
     }
   })();
 

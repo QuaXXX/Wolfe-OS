@@ -325,7 +325,29 @@ export function App() {
       if (isLocalMutationRecent(6000)) return;
 
       isApplyingInboundSyncRef.current = true;
-      if (vault.nutrition) setNutritionData(synchronizeNutritionData(vault.nutrition));
+      if (vault.nutrition) {
+        setNutritionData(prev => {
+          const existingMeals = Array.isArray(prev?.meals) ? prev.meals : [];
+          const inboundMeals = Array.isArray(vault.nutrition?.meals) ? vault.nutrition.meals : [];
+          const mealMap = new Map();
+          for (const m of existingMeals) {
+            if (m && m.id) mealMap.set(m.id, m);
+          }
+          for (const m of inboundMeals) {
+            if (m && m.id) {
+              const prevM = mealMap.get(m.id);
+              if (!prevM || (m.updatedAt || 0) >= (prevM.updatedAt || 0)) {
+                mealMap.set(m.id, m);
+              }
+            }
+          }
+          const mergedNutrition = {
+            ...vault.nutrition,
+            meals: Array.from(mealMap.values())
+          };
+          return synchronizeNutritionData(mergedNutrition);
+        });
+      }
       if (vault.workouts) setWorkoutData(vault.workouts);
       if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
       if (vault.school?.dashboard) setSchoolData(vault.school.dashboard);

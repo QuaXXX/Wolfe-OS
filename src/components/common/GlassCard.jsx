@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 
 export const GlassCard = ({
   children,
@@ -9,12 +8,11 @@ export const GlassCard = ({
   ...props
 }) => {
   return (
-    <motion.div
-      whileHover={hoverEffect ? { y: -2, transition: { duration: 0.15 } } : {}}
+    <div
       onClick={onClick}
       className={`
-        relative rounded-2xl theme-card overflow-hidden
-        ${hoverEffect ? 'cursor-pointer' : ''}
+        relative rounded-2xl theme-card overflow-hidden transition-transform duration-200
+        ${hoverEffect ? 'cursor-pointer hover:-translate-y-0.5 sm:hover:-translate-y-1' : ''}
         ${className}
       `}
       {...props}
@@ -24,6 +22,6 @@ export const GlassCard = ({
         className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" 
       />
       {children}
-    </motion.div>
+    </div>
   );
 };
