@@ -50,7 +50,7 @@ export function resolveCourseInstructor(courseCode) {
   const code = (courseCode || '').toUpperCase().trim();
 
   if (code.includes('FNCE')) {
-    return { instructor: 'Jaclyn Perrot', section: 'LEC 02/03' };
+    return { instructor: 'Holloway', section: 'LEC 02/03' };
   }
   if (code.includes('MKTG')) {
     return { instructor: 'Dr. Qiao Liu', section: 'L01/L02' };
@@ -76,7 +76,7 @@ export const SchoolView = ({
 }) => {
   // 5 Active Courses with Exact Instructors
   const defaultUniversityCourses = [
-    { id: 'fnce317', code: 'FNCE 317', name: 'Financial Management', instructor: 'Jaclyn Perrot' },
+    { id: 'fnce317', code: 'FNCE 317', name: 'Financial Management', instructor: 'Holloway' },
     { id: 'btma317', code: 'BTMA 317', name: 'Information Technology', instructor: 'Michael Saar' },
     { id: 'opma317', code: 'OPMA 317', name: 'Operations Management', instructor: 'Alireza Sabouri' },
     { id: 'mktg317', code: 'MKTG 317', name: 'Marketing Management', instructor: 'Dr. Qiao Liu' },
