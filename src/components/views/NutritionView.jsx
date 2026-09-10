@@ -1127,16 +1127,16 @@ const NutritionViewInner = ({
                   stroke="var(--accent-primary)" 
                   strokeWidth="7" 
                   strokeDasharray={251.2}
-                  strokeDashoffset={251.2 * (1 - Math.min(1, Math.max(0, (calPercent || 0) / 100)))}
+                  strokeDashoffset={251.2 * (1 - Math.min(1, Math.max(0, ((typeof calPercent === 'number' && !isNaN(calPercent) ? calPercent : 0) / 100))))}
                   strokeLinecap="round"
                   className="transition-all duration-500"
                 />
               </svg>
               <div className="absolute flex flex-col items-center text-center">
-                <span className="text-2xl font-bold font-mono text-white">{dailyTotals?.calories || 0}</span>
-                <span className="text-[9px] text-slate-400 uppercase font-mono">of {activeTargetCalories} kcal</span>
+                <span className="text-2xl font-bold font-mono text-white">{Number(dailyTotals?.calories) || 0}</span>
+                <span className="text-[9px] text-slate-400 uppercase font-mono">of {Number(activeTargetCalories) || 3250} kcal</span>
                 <span className="text-[11px] font-mono font-bold mt-0.5" style={{ color: 'var(--accent-primary)' }}>
-                  {Math.round(calPercent)}%
+                  {Math.round(typeof calPercent === 'number' && !isNaN(calPercent) ? calPercent : 0)}%
                 </span>
               </div>
             </div>
@@ -1152,7 +1152,7 @@ const NutritionViewInner = ({
                   <span className="text-[10px] text-slate-400 font-mono font-normal">(4 kcal/g)</span>
                 </span>
                 <span className="font-mono text-white font-bold">
-                  {dailyTotals?.protein || 0}g <span className="text-slate-400 font-normal">/ {activeTargetProtein}g</span>
+                  {Number(dailyTotals?.protein) || 0}g <span className="text-slate-400 font-normal">/ {Number(activeTargetProtein) || 180}g</span>
                 </span>
               </div>
               <div className="w-full h-2.5 bg-black/40 rounded-lg overflow-hidden">
@@ -1160,13 +1160,13 @@ const NutritionViewInner = ({
                   className="h-full rounded-lg transition-all duration-500" 
                   style={{ 
                     backgroundColor: 'var(--accent-primary)',
-                    width: `${Math.min(100, Math.max(0, ((dailyTotals?.protein || 0) / (activeTargetProtein || 1)) * 100))}%` 
+                    width: `${Math.min(100, Math.max(0, (((Number(dailyTotals?.protein) || 0) / (Number(activeTargetProtein) > 0 ? Number(activeTargetProtein) : 180)) * 100)))}%` 
                   }}
                 />
               </div>
               <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                <span>{Math.round(((dailyTotals?.protein || 0) / (activeTargetProtein || 1)) * 100)}% of goal</span>
-                <span>{Math.max(0, activeTargetProtein - (dailyTotals?.protein || 0))}g remaining</span>
+                <span>{Math.round(((Number(dailyTotals?.protein) || 0) / (Number(activeTargetProtein) > 0 ? Number(activeTargetProtein) : 180)) * 100)}% of goal</span>
+                <span>{Math.max(0, (Number(activeTargetProtein) || 180) - (Number(dailyTotals?.protein) || 0))}g remaining</span>
               </div>
             </div>
 
@@ -1178,18 +1178,18 @@ const NutritionViewInner = ({
                   <span className="text-[10px] text-slate-400 font-mono font-normal">(4 kcal/g)</span>
                 </span>
                 <span className="font-mono text-white font-bold">
-                  {dailyTotals?.carbs || 0}g <span className="text-slate-400 font-normal">/ {activeTargetCarbs}g</span>
+                  {Number(dailyTotals?.carbs) || 0}g <span className="text-slate-400 font-normal">/ {Number(activeTargetCarbs) || 450}g</span>
                 </span>
               </div>
               <div className="w-full h-2.5 bg-black/40 rounded-lg overflow-hidden">
                 <div 
                   className="h-full bg-sky-400 rounded-lg transition-all duration-500" 
-                  style={{ width: `${Math.min(100, Math.max(0, ((dailyTotals?.carbs || 0) / (activeTargetCarbs || 1)) * 100))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, (((Number(dailyTotals?.carbs) || 0) / (Number(activeTargetCarbs) > 0 ? Number(activeTargetCarbs) : 450)) * 100)))}%` }}
                 />
               </div>
               <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                <span>{Math.round(((dailyTotals?.carbs || 0) / (activeTargetCarbs || 1)) * 100)}% of goal</span>
-                <span>{Math.max(0, activeTargetCarbs - (dailyTotals?.carbs || 0))}g remaining</span>
+                <span>{Math.round(((Number(dailyTotals?.carbs) || 0) / (Number(activeTargetCarbs) > 0 ? Number(activeTargetCarbs) : 450)) * 100)}% of goal</span>
+                <span>{Math.max(0, (Number(activeTargetCarbs) || 450) - (Number(dailyTotals?.carbs) || 0))}g remaining</span>
               </div>
             </div>
 
@@ -1201,18 +1201,18 @@ const NutritionViewInner = ({
                   <span className="text-[10px] text-slate-400 font-mono font-normal">(9 kcal/g)</span>
                 </span>
                 <span className="font-mono text-white font-bold">
-                  {dailyTotals?.fats || 0}g <span className="text-slate-400 font-normal">/ {activeTargetFats}g</span>
+                  {Number(dailyTotals?.fats) || 0}g <span className="text-slate-400 font-normal">/ {Number(activeTargetFats) || 80}g</span>
                 </span>
               </div>
               <div className="w-full h-2.5 bg-black/40 rounded-lg overflow-hidden">
                 <div 
                   className="h-full bg-amber-400 rounded-lg transition-all duration-500" 
-                  style={{ width: `${Math.min(100, Math.max(0, ((dailyTotals?.fats || 0) / (activeTargetFats || 1)) * 100))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, (((Number(dailyTotals?.fats) || 0) / (Number(activeTargetFats) > 0 ? Number(activeTargetFats) : 80)) * 100)))}%` }}
                 />
               </div>
               <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                <span>{Math.round(((dailyTotals?.fats || 0) / (activeTargetFats || 1)) * 100)}% of goal</span>
-                <span>{Math.max(0, activeTargetFats - (dailyTotals?.fats || 0))}g remaining</span>
+                <span>{Math.round(((Number(dailyTotals?.fats) || 0) / (Number(activeTargetFats) > 0 ? Number(activeTargetFats) : 80)) * 100)}% of goal</span>
+                <span>{Math.max(0, (Number(activeTargetFats) || 80) - (Number(dailyTotals?.fats) || 0))}g remaining</span>
               </div>
             </div>
           </div>
@@ -1279,6 +1279,12 @@ const NutritionViewInner = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {selectedDateMeals.map((meal, mIdx) => {
               if (!meal) return null;
+              const displayMealName = typeof meal.name === 'string' ? meal.name : (meal.name?.name || meal.name?.title || 'Meal');
+              const displayCals = typeof meal.calories === 'number' ? meal.calories : (Number(meal.calories?.current || meal.calories) || 0);
+              const displayProtein = typeof meal.protein === 'number' ? meal.protein : (Number(meal.protein?.current || meal.protein) || 0);
+              const displayCarbs = typeof meal.carbs === 'number' ? meal.carbs : (Number(meal.carbs?.current || meal.carbs) || 0);
+              const displayFats = typeof meal.fats === 'number' ? meal.fats : (Number(meal.fats?.current || meal.fats) || 0);
+
               return (
                 <GlassCard key={meal.id || `meal-${mIdx}`} hoverEffect={false} className="p-4 flex flex-col justify-between space-y-3">
                   <div className="flex items-start justify-between gap-3">
@@ -1288,7 +1294,7 @@ const NutritionViewInner = ({
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white">{meal.name || 'Meal'}</span>
+                          <span className="text-xs font-bold text-white">{displayMealName}</span>
                         </div>
                         {meal.time && (
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
@@ -1301,8 +1307,8 @@ const NutritionViewInner = ({
 
                     <div className="flex items-center gap-2">
                       <div className="text-right font-mono">
-                        <div className="text-sm font-bold text-white">{meal.calories || 0} kcal</div>
-                        <div className="text-[10px] text-emerald-400 font-semibold">{meal.protein || 0}g Protein</div>
+                        <div className="text-sm font-bold text-white">{displayCals} kcal</div>
+                        <div className="text-[10px] text-emerald-400 font-semibold">{displayProtein}g Protein</div>
                       </div>
 
                       <button
@@ -1324,9 +1330,13 @@ const NutritionViewInner = ({
                       <div className="space-y-1">
                         {meal.items.map((it, idx) => {
                           const isObj = it && typeof it === 'object';
-                          const name = isObj ? (it.name || 'Item') : String(it);
-                          const portion = isObj ? it.portion : null;
-                          const hasMacros = isObj && (it.calories != null || it.protein != null || it.carbs != null || it.fats != null);
+                          const name = isObj ? (typeof it.name === 'string' ? it.name : String(it.name?.title || it.name?.name || 'Item')) : String(it || 'Item');
+                          const portion = isObj ? (typeof it.portion === 'string' ? it.portion : (it.portion ? String(it.portion) : null)) : null;
+                          const itCals = isObj && it.calories != null ? (typeof it.calories === 'number' ? it.calories : (Number(it.calories?.current || it.calories) || 0)) : null;
+                          const itProtein = isObj && it.protein != null ? (typeof it.protein === 'number' ? it.protein : (Number(it.protein?.current || it.protein) || 0)) : null;
+                          const itCarbs = isObj && it.carbs != null ? (typeof it.carbs === 'number' ? it.carbs : (Number(it.carbs?.current || it.carbs) || 0)) : null;
+                          const itFats = isObj && it.fats != null ? (typeof it.fats === 'number' ? it.fats : (Number(it.fats?.current || it.fats) || 0)) : null;
+                          const hasMacros = isObj && (itCals != null || itProtein != null || itCarbs != null || itFats != null);
 
                           return (
                             <div key={idx} className="p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-[11px] font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-1">
@@ -1339,17 +1349,17 @@ const NutritionViewInner = ({
                               </div>
                               {hasMacros && (
                                 <div className="flex items-center gap-2 text-[10px] shrink-0 self-end sm:self-auto">
-                                  {it.calories != null && (
-                                    <span className="text-white font-semibold">{it.calories} kcal</span>
+                                  {itCals != null && (
+                                    <span className="text-white font-semibold">{itCals} kcal</span>
                                   )}
-                                  {it.protein != null && (
-                                    <span className="text-emerald-400 font-semibold">{it.protein}g P</span>
+                                  {itProtein != null && (
+                                    <span className="text-emerald-400 font-semibold">{itProtein}g P</span>
                                   )}
-                                  {it.carbs != null && (
-                                    <span className="text-sky-300">{it.carbs}g C</span>
+                                  {itCarbs != null && (
+                                    <span className="text-sky-300">{itCarbs}g C</span>
                                   )}
-                                  {it.fats != null && (
-                                    <span className="text-amber-300">{it.fats}g F</span>
+                                  {itFats != null && (
+                                    <span className="text-amber-300">{itFats}g F</span>
                                   )}
                                 </div>
                               )}
@@ -1361,9 +1371,9 @@ const NutritionViewInner = ({
                   )}
 
                   <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-2 border-t border-white/5">
-                    <span>{meal.protein}g P</span>
-                    <span className="text-sky-300 font-semibold">{meal.carbs}g C</span>
-                    <span className="text-amber-300 font-semibold">{meal.fats}g F</span>
+                    <span>{displayProtein}g P</span>
+                    <span className="text-sky-300 font-semibold">{displayCarbs}g C</span>
+                    <span className="text-amber-300 font-semibold">{displayFats}g F</span>
                   </div>
                 </GlassCard>
               );
@@ -1977,9 +1987,17 @@ class NutritionErrorBoundary extends React.Component {
   handleRepair = () => {
     try {
       const raw = localStorage.getItem('wolfe_nutrition_data');
-      const parsed = raw ? JSON.parse(raw) : {};
+      let parsed = {};
+      try {
+        parsed = raw ? JSON.parse(raw) : {};
+      } catch (jsonErr) {
+        parsed = {};
+      }
       const sanitized = synchronizeNutritionData(parsed);
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(sanitized));
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(sanitized));
+      } catch (storageErr) {}
+
       if (typeof this.props.onRepair === 'function') {
         this.props.onRepair(sanitized);
       }
@@ -2030,4 +2048,6 @@ export const NutritionView = (props) => {
     </NutritionErrorBoundary>
   );
 };
+
+export default NutritionView;
 

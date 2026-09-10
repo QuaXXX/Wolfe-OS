@@ -980,7 +980,11 @@ export function calculateWeightVelocity(weightHistory = []) {
 
   const sorted = [...weightHistory]
     .filter(w => w && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => {
+      const ta = new Date(a.date).getTime();
+      const tb = new Date(b.date).getTime();
+      return (isNaN(ta) ? 0 : ta) - (isNaN(tb) ? 0 : tb);
+    });
 
   if (sorted.length < 2) {
     return { velocityLbsPerWeek: 0, status: "insufficient_data", message: "Log 2+ days of morning weight" };
@@ -989,9 +993,15 @@ export function calculateWeightVelocity(weightHistory = []) {
   const oldest = sorted[0];
   const newest = sorted[sorted.length - 1];
 
-  const daysElapsed = Math.max(1, (new Date(newest.date) - new Date(oldest.date)) / (1000 * 60 * 60 * 24));
-  const weightDiff = newest.weightLbs - oldest.weightLbs;
-  const velocity = Number(((weightDiff / daysElapsed) * 7).toFixed(2));
+  const tOld = new Date(oldest.date).getTime();
+  const tNew = new Date(newest.date).getTime();
+  const daysElapsed = (!isNaN(tOld) && !isNaN(tNew) && tNew > tOld)
+    ? Math.max(1, (tNew - tOld) / (1000 * 60 * 60 * 24))
+    : 1;
+
+  const weightDiff = (newest.weightLbs || 0) - (oldest.weightLbs || 0);
+  const rawVel = (weightDiff / daysElapsed) * 7;
+  const velocity = isNaN(rawVel) ? 0 : Number(rawVel.toFixed(2));
 
   let status = "optimal";
   let message = "Weight progress on pace (+0.5 to 1.0 lb/wk)";
@@ -2243,14 +2253,24 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     wasModified = true;
   }
 
-  // 2. Permanent Invariant: Ensure every single meal has an explicit, non-null date string
-  meals = meals.map(m => {
-    if (!m) return null;
-    if (!m.date) {
+  // 2. Permanent Invariant: Deeply sanitize every meal into primitive strings and finite numbers
+  meals = meals.map((m, idx) => {
+    if (!m || typeof m !== 'object') return null;
+
+    // Sanitize ID
+    let id = m.id;
+    if (!id || typeof id !== 'string') {
+      id = `meal-${Date.now()}-${idx}`;
+      wasModified = true;
+    }
+
+    // Sanitize date string YYYY-MM-DD
+    let dateStr = m.date;
+    if (!dateStr || typeof dateStr !== 'string') {
       wasModified = true;
       let derivedDate = null;
-      if (m.id && typeof m.id === 'string' && m.id.startsWith('meal-')) {
-        const parts = m.id.split('-');
+      if (typeof id === 'string' && id.startsWith('meal-')) {
+        const parts = id.split('-');
         const ts = parseInt(parts[1], 10);
         if (!isNaN(ts) && ts > 1600000000000) {
           const d = new Date(ts);
@@ -2260,12 +2280,89 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
           derivedDate = `${y}-${mo}-${dy}`;
         }
       }
-      return {
-        ...m,
-        date: derivedDate || yesterdayIso
-      };
+      dateStr = derivedDate || yesterdayIso;
     }
-    return m;
+
+    // Sanitize meal name (MUST be a string primitive, never an object)
+    let mealName = m.name;
+    if (typeof mealName === 'object' && mealName !== null) {
+      wasModified = true;
+      mealName = mealName.name || mealName.title || mealName.text || 'Logged Meal';
+    } else if (typeof mealName !== 'string' || !mealName.trim()) {
+      wasModified = true;
+      mealName = 'Logged Meal';
+    } else {
+      mealName = mealName.trim();
+    }
+
+    // Sanitize meal macros (MUST be finite numeric primitives)
+    const extractNum = (val) => {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      if (typeof val === 'object' && val !== null) {
+        wasModified = true;
+        const sub = val.current ?? val.value ?? val.val ?? val.target ?? 0;
+        return typeof sub === 'number' && !isNaN(sub) ? sub : (Number(sub) || 0);
+      }
+      const parsed = Number(val);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const protein = Math.max(0, Math.round(extractNum(m.protein)));
+    const carbs = Math.max(0, Math.round(extractNum(m.carbs)));
+    const fats = Math.max(0, Math.round(extractNum(m.fats)));
+    let calories = Math.max(0, Math.round(extractNum(m.calories)));
+    if (calories === 0 && (protein > 0 || carbs > 0 || fats > 0)) {
+      calories = calculateCaloriesFromMacros(protein, carbs, fats);
+      wasModified = true;
+    }
+
+    // Sanitize items array
+    let rawItems = Array.isArray(m.items) ? m.items : (m.items ? [m.items] : []);
+    let cleanItems = rawItems.map(it => {
+      if (!it) return null;
+      if (typeof it === 'string') return it.trim();
+      if (typeof it === 'object') {
+        let itName = it.name;
+        if (typeof itName === 'object' && itName !== null) {
+          itName = itName.name || itName.title || itName.text || 'Item';
+        } else if (typeof itName !== 'string' || !itName.trim()) {
+          itName = 'Item';
+        }
+        return {
+          name: itName.trim(),
+          portion: typeof it.portion === 'string' ? it.portion : (it.portion ? String(it.portion) : null),
+          calories: typeof it.calories !== 'undefined' ? extractNum(it.calories) : null,
+          protein: typeof it.protein !== 'undefined' ? extractNum(it.protein) : null,
+          carbs: typeof it.carbs !== 'undefined' ? extractNum(it.carbs) : null,
+          fats: typeof it.fats !== 'undefined' ? extractNum(it.fats) : null
+        };
+      }
+      return String(it);
+    }).filter(Boolean);
+
+    if (
+      m.id !== id ||
+      m.date !== dateStr ||
+      m.name !== mealName ||
+      typeof m.calories !== 'number' ||
+      typeof m.protein !== 'number' ||
+      typeof m.carbs !== 'number' ||
+      typeof m.fats !== 'number'
+    ) {
+      wasModified = true;
+    }
+
+    return {
+      ...m,
+      id,
+      date: dateStr,
+      name: mealName,
+      calories,
+      protein,
+      carbs,
+      fats,
+      items: cleanItems
+    };
   }).filter(Boolean);
 
   // 2.5 Reconcile any past bun meals that were overestimated due to non-partitioned fillings
@@ -2372,8 +2469,9 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
   }).filter(Boolean);
 
   // Sanitize weightHistory if present
+  let cleanWeight = [];
   if (Array.isArray(nutritionData.weightHistory)) {
-    const cleanWeight = nutritionData.weightHistory.filter(w => w && typeof w === 'object' && w.date && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs));
+    cleanWeight = nutritionData.weightHistory.filter(w => w && typeof w === 'object' && typeof w.date === 'string' && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs));
     if (cleanWeight.length !== nutritionData.weightHistory.length) {
       nutritionData.weightHistory = cleanWeight;
       wasModified = true;
@@ -2393,6 +2491,31 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     householdPantry = DEFAULT_HOUSEHOLD_PANTRY;
   }
 
+  // 2.8 Ensure dailyTargets is a valid dictionary object
+  let dailyTargets = nutritionData.dailyTargets;
+  if (!dailyTargets || typeof dailyTargets !== 'object' || Array.isArray(dailyTargets)) {
+    dailyTargets = {};
+    nutritionData.dailyTargets = {};
+    wasModified = true;
+  }
+
+  // 2.9 Ensure macro targets are positive numbers
+  const targetCalories = typeof nutritionData.targetCalories === 'number' && !isNaN(nutritionData.targetCalories) && nutritionData.targetCalories > 0
+    ? nutritionData.targetCalories
+    : (Number(nutritionData.targetCalories) || 3250);
+
+  const targetProtein = typeof nutritionData.protein?.target === 'number' && !isNaN(nutritionData.protein?.target)
+    ? nutritionData.protein.target
+    : (Number(nutritionData.protein?.target) || 180);
+
+  const targetCarbs = typeof nutritionData.carbs?.target === 'number' && !isNaN(nutritionData.carbs?.target)
+    ? nutritionData.carbs.target
+    : (Number(nutritionData.carbs?.target) || 450);
+
+  const targetFats = typeof nutritionData.fats?.target === 'number' && !isNaN(nutritionData.fats?.target)
+    ? nutritionData.fats.target
+    : (Number(nutritionData.fats?.target) || 80);
+
   // 3. Calculate consumption strictly from meals logged for TODAY (todayIso)
   const todayMeals = meals.filter(m => m && m.date === todayIso);
   const todayTotals = aggregateDailyNutrition(todayMeals);
@@ -2406,10 +2529,14 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
   // Check if state needs updating
   const needsUpdate = 
     wasModified ||
+    nutritionData.targetCalories !== targetCalories ||
     nutritionData.consumedCalories !== todayTotals.calories ||
     nutritionData.protein?.current !== todayTotals.protein ||
+    nutritionData.protein?.target !== targetProtein ||
     nutritionData.carbs?.current !== todayTotals.carbs ||
+    nutritionData.carbs?.target !== targetCarbs ||
     nutritionData.fats?.current !== todayTotals.fats ||
+    nutritionData.fats?.target !== targetFats ||
     nutritionData.currentDate !== todayIso ||
     nutritionData.waterMl !== waterMl;
 
@@ -2418,22 +2545,28 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       ...nutritionData,
       currentDate: todayIso,
       waterDate: todayIso,
+      targetCalories,
       consumedCalories: todayTotals.calories,
       protein: {
-        ...(nutritionData.protein || { target: 180, unit: "g", color: "#6366f1" }),
+        ...(nutritionData.protein || { unit: "g", color: "#6366f1" }),
+        target: targetProtein,
         current: todayTotals.protein
       },
       carbs: {
-        ...(nutritionData.carbs || { target: 450, unit: "g", color: "#06b6d4" }),
+        ...(nutritionData.carbs || { unit: "g", color: "#06b6d4" }),
+        target: targetCarbs,
         current: todayTotals.carbs
       },
       fats: {
-        ...(nutritionData.fats || { target: 80, unit: "g", color: "#f59e0b" }),
+        ...(nutritionData.fats || { unit: "g", color: "#f59e0b" }),
+        target: targetFats,
         current: todayTotals.fats
       },
       waterMl,
       waterGlasses,
       meals,
+      dailyTargets,
+      ...(cleanWeight.length > 0 ? { weightHistory: cleanWeight } : {}),
       ...(householdPantry ? { householdPantry } : {})
     };
 
@@ -2460,21 +2593,29 @@ export function calculateWeightTrend(weightHistory = [], days = 14) {
 
   const sorted = [...weightHistory]
     .filter(w => w && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => {
+      const ta = new Date(a.date).getTime();
+      const tb = new Date(b.date).getTime();
+      return (isNaN(ta) ? 0 : ta) - (isNaN(tb) ? 0 : tb);
+    });
 
   if (sorted.length === 0) {
     return { changeLbs: 0, startWeight: null, endWeight: null, points: [], sampleCount: 0 };
   }
 
   const filtered = days === 'all' ? sorted : sorted.slice(-Number(days));
-  const startWeight = filtered[0].weightLbs;
-  const endWeight = filtered[filtered.length - 1].weightLbs;
-  const changeLbs = Number((endWeight - startWeight).toFixed(1));
+  if (filtered.length === 0) {
+    return { changeLbs: 0, startWeight: null, endWeight: null, points: [], sampleCount: 0 };
+  }
+  const startWeight = filtered[0]?.weightLbs;
+  const endWeight = filtered[filtered.length - 1]?.weightLbs;
+  const rawDiff = (typeof endWeight === 'number' && typeof startWeight === 'number') ? (endWeight - startWeight) : 0;
+  const changeLbs = Number(rawDiff.toFixed(1)) || 0;
 
   return {
     changeLbs,
-    startWeight,
-    endWeight,
+    startWeight: startWeight ?? null,
+    endWeight: endWeight ?? null,
     points: filtered,
     sampleCount: filtered.length
   };

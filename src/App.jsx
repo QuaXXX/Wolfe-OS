@@ -31,15 +31,34 @@ import {
 // HomeView is kept static for instant first paint on mobile
 import { HomeView } from './components/views/HomeView';
 
-// Code-split heavy views & modals to eliminate initial mobile loading freeze
-const SchoolView = lazy(() => import('./components/views/SchoolView').then(m => ({ default: m.SchoolView })));
-const WorkoutsView = lazy(() => import('./components/views/WorkoutsView').then(m => ({ default: m.WorkoutsView })));
-const NutritionView = lazy(() => import('./components/views/NutritionView').then(m => ({ default: m.NutritionView })));
-const TradingView = lazy(() => import('./components/views/TradingView').then(m => ({ default: m.TradingView })));
-const CalendarView = lazy(() => import('./components/views/CalendarView').then(m => ({ default: m.CalendarView })));
+// High-resilience code-split loader with automatic retry on transient network blip / low memory reload
+function resilientLazy(factory, retries = 2, intervalMs = 400) {
+  return lazy(() => new Promise((resolve, reject) => {
+    const attempt = (remaining) => {
+      factory()
+        .then(resolve)
+        .catch((err) => {
+          if (remaining <= 0) {
+            console.error("View dynamic import failed:", err);
+            reject(err);
+          } else {
+            setTimeout(() => attempt(remaining - 1), intervalMs);
+          }
+        });
+    };
+    attempt(retries);
+  }));
+}
 
-const SettingsModal = lazy(() => import('./components/layout/SettingsModal').then(m => ({ default: m.SettingsModal })));
-const GoogleCalendarModal = lazy(() => import('./components/calendar/GoogleCalendarModal').then(m => ({ default: m.GoogleCalendarModal })));
+// Code-split heavy views & modals to eliminate initial mobile loading freeze
+const SchoolView = resilientLazy(() => import('./components/views/SchoolView').then(m => ({ default: m.SchoolView })));
+const WorkoutsView = resilientLazy(() => import('./components/views/WorkoutsView').then(m => ({ default: m.WorkoutsView })));
+const NutritionView = resilientLazy(() => import('./components/views/NutritionView').then(m => ({ default: m.NutritionView || m.default })));
+const TradingView = resilientLazy(() => import('./components/views/TradingView').then(m => ({ default: m.TradingView })));
+const CalendarView = resilientLazy(() => import('./components/views/CalendarView').then(m => ({ default: m.CalendarView })));
+
+const SettingsModal = resilientLazy(() => import('./components/layout/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const GoogleCalendarModal = resilientLazy(() => import('./components/calendar/GoogleCalendarModal').then(m => ({ default: m.GoogleCalendarModal })));
 
 // Mock Data
 import { 
@@ -63,32 +82,44 @@ class ViewErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     console.error("ViewErrorBoundary caught:", error, info);
   }
+  handleRecoverAndReload = () => {
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) {
+        let parsed = {};
+        try { parsed = JSON.parse(raw); } catch (e) { parsed = {}; }
+        const sanitized = synchronizeNutritionData(parsed);
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(sanitized));
+      }
+    } catch (e) {}
+    window.location.reload();
+  };
   handleResetStorage = () => {
     try {
       localStorage.removeItem('wolfe_nutrition_data');
-      window.location.reload();
-    } catch (e) {
-      window.location.reload();
-    }
+    } catch (e) {}
+    window.location.reload();
   };
   render() {
     if (this.state.hasError) {
+      const isChunkError = /dynamically imported module|loading chunk|failed to fetch/i.test(this.state.error?.message || '');
       return (
-        <div className="max-w-md mx-auto mt-20 p-6 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center space-y-3 shadow-2xl backdrop-blur-xl">
+        <div className="max-w-md mx-auto mt-20 p-6 rounded-3xl bg-[#0f1220]/95 border border-rose-500/30 text-center space-y-3 shadow-2xl backdrop-blur-xl">
           <div className="text-sm font-bold text-rose-200">Something went wrong rendering this view.</div>
           <div className="text-xs text-rose-300/70 font-mono break-all">{this.state.error?.message}</div>
-          <div className="flex items-center justify-center gap-2 pt-2">
+          <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
-              className="px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold border border-rose-500/30 transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/20 transition-all cursor-pointer"
             >
               Try Again
             </button>
             <button
-              onClick={this.handleResetStorage}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/20 transition-all cursor-pointer"
+              onClick={this.handleRecoverAndReload}
+              className="px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-lg transition-all active:scale-95 cursor-pointer"
+              style={{ backgroundColor: 'var(--accent-primary)' }}
             >
-              Clean & Reload
+              {isChunkError ? "Reload & Update" : "Recover & Reload"}
             </button>
           </div>
         </div>
