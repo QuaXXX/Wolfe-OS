@@ -184,11 +184,12 @@ export function extractCourseFromPath(filePath) {
   const parts = filePath.split('/');
   
   // 1. Check if any path segment matches university course code patterns (e.g. FNCE 317, PSYC 203)
-  for (const part of parts) {
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
     const p = part.toLowerCase();
-    if (p === 'school' || p === 'quizzes' || p.endsWith('.pdf') || p.endsWith('.md')) continue;
-    const match = part.match(/([A-Z]{2,6}\s*\d{2,4})/i);
-    if (match) return match[1].toUpperCase().replace(/\s+/, ' ').trim();
+    if (p === 'school' || p === 'quizzes') continue;
+    const match = part.match(/([A-Z]{2,6})\s*(\d{2,4})/i);
+    if (match) return `${match[1].toUpperCase()} ${match[2]}`.trim();
   }
 
   // 2. If under school/ (e.g. school/FNCE 317/Quizzes/doc.md -> parts[1])
@@ -203,8 +204,8 @@ export function extractCourseFromPath(filePath) {
   }
 
   // 3. Regex fallback
-  const fullMatch = filePath.match(/([A-Z]{2,6}\s*\d{2,4})/i);
-  if (fullMatch) return fullMatch[1].toUpperCase().trim();
+  const fullMatch = filePath.match(/([A-Z]{2,6})\s*(\d{2,4})/i);
+  if (fullMatch) return `${fullMatch[1].toUpperCase()} ${fullMatch[2]}`.trim();
 
   return 'Course Material';
 }
@@ -431,10 +432,55 @@ export function getCourseFiles(courseCode, scannedFiles = null) {
   const files = scannedFiles || (getCachedVaultFiles()?.files || []);
   if (!files || files.length === 0 || !courseCode) return [];
   const target = courseCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  
+  // Synonyms map (e.g. FNCE 317 <-> Finance 317)
+  const synonyms = [target];
+  if (target.includes('FNCE')) synonyms.push(target.replace('FNCE', 'FINANCE'));
+  if (target.includes('FINANCE')) synonyms.push(target.replace('FINANCE', 'FNCE'));
+  if (target.includes('BTMA')) synonyms.push(target.replace('BTMA', 'IT'), target.replace('BTMA', 'TECH'));
+  if (target.includes('OPMA')) synonyms.push(target.replace('OPMA', 'OPERATIONS'));
+  if (target.includes('MKTG')) synonyms.push(target.replace('MKTG', 'MARKETING'));
+  if (target.includes('PSYC')) synonyms.push(target.replace('PSYC', 'PSYCHOLOGY'), target.replace('PSYC', 'PSYCH'));
+
   return files.filter(f => {
     const c = (f.course || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const p = (f.path || f.name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    return c.includes(target) || target.includes(c) || p.includes(target);
+    return synonyms.some(s => c.includes(s) || s.includes(c) || p.includes(s));
+  });
+}
+
+/**
+ * Extract formatted sources metadata for a course
+ */
+export function getCourseSourcesMetadata(courseCode, scannedFiles = null) {
+  const files = getCourseFiles(courseCode, scannedFiles);
+  return files.map(f => {
+    const name = f.name || '';
+    const lowerName = name.toLowerCase();
+    const ext = (f.extension || (name.includes('.') ? name.split('.').pop() : '')).toLowerCase();
+    const isSlides = ext.includes('ppt') || lowerName.endsWith('.pptx') || lowerName.endsWith('.ppt');
+    const isPdf = ext.includes('pdf') || lowerName.endsWith('.pdf');
+    const isOutline = lowerName.includes('outline') || lowerName.includes('syllabus');
+
+    const text = f.cachedContent || f.content || '';
+    const slideMatches = text.match(/(?:===|---) Slide \d+ (?:===|---)/g);
+    const slideCount = slideMatches ? slideMatches.length : null;
+
+    let type = 'note';
+    if (isSlides) type = 'pptx';
+    else if (isPdf) type = 'pdf';
+
+    return {
+      name,
+      path: f.path || name,
+      extension: ext,
+      type,
+      isSlides,
+      isPdf,
+      isOutline,
+      slideCount,
+      size: f.size || 0
+    };
   });
 }
 
@@ -472,7 +518,9 @@ export async function getCombinedCourseNotes(courseCode, scannedFiles = null, ma
       } catch {}
     }
     if (content && content.trim().length > 10) {
-      const header = `\n\n=== [Document: ${file.name}] (${file.path || file.name}) ===\n`;
+      const isPptx = (file.name || '').toLowerCase().endsWith('.pptx') || (file.name || '').toLowerCase().endsWith('.ppt');
+      const docType = isPptx ? 'PowerPoint Lecture Slides' : (file.name?.toLowerCase().endsWith('.pdf') ? 'PDF Document' : 'Notes');
+      const header = `\n\n=== [Document: ${file.name}] (Type: ${docType}) ===\n`;
       const added = header + content.trim();
       if (combined.length + added.length > maxTotalChars) {
         const remaining = maxTotalChars - combined.length;

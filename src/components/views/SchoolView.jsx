@@ -15,7 +15,9 @@ import {
   FileText, 
   Loader2, 
   Zap,
-  Sparkles
+  Sparkles,
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GlassCard } from '../common/GlassCard';
@@ -32,8 +34,12 @@ import {
   getCachedVaultFiles, 
   connectObsidianVault, 
   processUploadedFolderFiles, 
-  readVaultFileContent
+  readVaultFileContent,
+  getCourseFiles,
+  getCourseSourcesMetadata,
+  saveCachedVaultFiles
 } from '../../utils/obsidianService';
+import { extractTextFromFile } from '../../utils/documentParser';
 import { streamSearchVaultWithAI } from '../../utils/aiService';
 import { 
   getSavedDecks, 
@@ -315,10 +321,70 @@ export const SchoolView = ({
             courses: scanned.courses,
             lastScanned: new Date().toISOString()
           });
+          // Persist the newly discovered files (including slide decks) to storage
+          await saveCachedVaultFiles(scanned.files, scanned.courses, handle.name);
         }
       }
     } catch (e) {
       console.warn("Vault notice:", e);
+    }
+  };
+
+  const handleRescanCourseFiles = async () => {
+    playSound('click', soundEnabled);
+    const handle = await getVaultHandle();
+    if (handle) {
+      try {
+        const scanned = await scanVaultDirectory(handle);
+        if (scanned && scanned.files.length > 0) {
+          setScannedFiles(scanned.files);
+          setVaultMeta(prev => ({
+            ...prev,
+            connected: true,
+            totalNotes: scanned.files.length,
+            courses: scanned.courses,
+            lastScanned: new Date().toISOString()
+          }));
+          await saveCachedVaultFiles(scanned.files, scanned.courses, handle.name);
+          playSound('success', soundEnabled);
+        }
+      } catch (err) {
+        console.warn("Rescan error:", err);
+      }
+    } else {
+      handleSyncSchoolFolder();
+    }
+  };
+
+  const handleAddCourseSlides = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    playSound('click', soundEnabled);
+    try {
+      const newScanned = [...scannedFiles];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        let text = '';
+        try {
+          text = await extractTextFromFile(file);
+        } catch {}
+        newScanned.push({
+          name: file.name,
+          path: `${activeCourse.code}/Slides/${file.name}`,
+          extension: file.name.split('.').pop().toLowerCase(),
+          course: activeCourse.code,
+          fileObject: file,
+          size: file.size,
+          cachedContent: text
+        });
+      }
+      setScannedFiles(newScanned);
+      await saveCachedVaultFiles(newScanned, vaultMeta.courses || courses.map(c => c.code), vaultMeta.folderName || 'school');
+      playSound('success', soundEnabled);
+    } catch (err) {
+      console.warn("Add slide deck error:", err);
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -332,11 +398,11 @@ export const SchoolView = ({
   const resolvedInstructorInfo = resolveCourseInstructor(activeCourse?.code);
 
   const activeCourseFiles = useMemo(() => {
-    return scannedFiles.filter(f => {
-      const c = (f.course || '').toUpperCase();
-      const target = (activeCourse?.code || '').toUpperCase();
-      return c.includes(target) || target.includes(c) || (f.path || '').toUpperCase().includes(target);
-    });
+    return getCourseFiles(activeCourse?.code, scannedFiles);
+  }, [scannedFiles, activeCourse]);
+
+  const activeSources = useMemo(() => {
+    return getCourseSourcesMetadata(activeCourse?.code, scannedFiles);
   }, [scannedFiles, activeCourse]);
 
   // Filter saved materials for active course
@@ -679,6 +745,60 @@ export const SchoolView = ({
               </div>
             </div>
 
+            {/* Active Course Materials Inventory Bar */}
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5 flex-wrap">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-[80%]">
+                <span className="text-[11px] font-semibold text-slate-400 shrink-0 flex items-center gap-1 mr-1">
+                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Materials ({activeSources.length}):</span>
+                </span>
+                {activeSources.length === 0 ? (
+                  <span className="text-[11px] text-slate-500 italic">No slide decks or notes attached yet</span>
+                ) : (
+                  activeSources.map((src, i) => (
+                    <span 
+                      key={i} 
+                      title={`${src.name} (${src.path})`}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-medium flex items-center gap-1 shrink-0 border ${
+                        src.isSlides 
+                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/25 shadow-sm' 
+                          : src.isPdf 
+                          ? 'bg-blue-500/10 text-blue-300 border-blue-500/25'
+                          : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
+                      }`}
+                    >
+                      <span>{src.isSlides ? '📊' : src.isPdf ? '📄' : '📝'}</span>
+                      <span className="max-w-[140px] truncate">{src.name}</span>
+                      {src.slideCount ? <span className="opacity-70 text-[9px]">({src.slideCount}s)</span> : null}
+                    </span>
+                  ))
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                <label className="px-2 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer">
+                  <Upload className="w-3 h-3 text-slate-400" />
+                  <span>+ Add Slides</span>
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept=".pptx,.ppt,.pdf,.md,.txt" 
+                    className="hidden" 
+                    onChange={handleAddCourseSlides}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleRescanCourseFiles}
+                  title="Rescan course folder for newly added PowerPoint slides"
+                  className="p-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
             {/* Quick Prompt Chips */}
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
@@ -702,13 +822,13 @@ export const SchoolView = ({
             <div className="space-y-2.5 min-h-[160px] max-h-[300px] overflow-y-auto pr-1">
               {chatMessages.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-500">
-                  Ask anything about {activeCourse.code} outlines, concepts, formulas, or grading policies.
+                  Ask anything about {activeCourse.code} lecture slides, powerpoints, formulas, or course outlines.
                 </div>
               ) : (
                 chatMessages.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`p-3 rounded-xl text-xs space-y-1 ${
+                    className={`p-3 rounded-xl text-xs space-y-1.5 ${
                       msg.role === 'user'
                         ? 'bg-white/[0.08] text-white ml-auto max-w-[85%] border border-white/10'
                         : 'bg-white/[0.02] text-slate-200 mr-auto max-w-[95%] border border-white/5'
@@ -727,9 +847,30 @@ export const SchoolView = ({
                     </div>
 
                     {msg.matchedFiles && msg.matchedFiles.length > 0 && (
-                      <div className="pt-1 border-t border-white/5 text-[10px] text-slate-400 flex items-center gap-1 truncate">
-                        <FileText className="w-3 h-3 text-slate-500 shrink-0" />
-                        <span className="truncate">{msg.matchedFiles[0]?.name}</span>
+                      <div className="pt-2 border-t border-white/5 space-y-1">
+                        <div className="text-[10px] font-mono text-slate-400 font-semibold flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-indigo-400 shrink-0" />
+                          <span>Sources Consulted & Used ({msg.matchedFiles.length}):</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {msg.matchedFiles.map((f, i) => (
+                            <span
+                              key={i}
+                              title={`${f.name} — ${f.relevance || 'Referenced material'}`}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-medium flex items-center gap-1 border ${
+                                f.fileType === 'pptx' || f.name?.toLowerCase().endsWith('.pptx') || f.name?.toLowerCase().endsWith('.ppt')
+                                  ? 'bg-amber-500/10 text-amber-200 border-amber-500/25 shadow-sm'
+                                  : f.fileType === 'pdf' || f.name?.toLowerCase().endsWith('.pdf')
+                                  ? 'bg-blue-500/10 text-blue-200 border-blue-500/25'
+                                  : 'bg-emerald-500/10 text-emerald-200 border-emerald-500/25'
+                              }`}
+                            >
+                              <span>{f.fileType === 'pptx' || f.name?.toLowerCase().endsWith('.pptx') || f.name?.toLowerCase().endsWith('.ppt') ? '📊' : f.fileType === 'pdf' || f.name?.toLowerCase().endsWith('.pdf') ? '📄' : '📝'}</span>
+                              <span className="max-w-[150px] truncate">{f.name}</span>
+                              {f.slideCount ? <span className="opacity-70 text-[9px]">({f.slideCount}s)</span> : null}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

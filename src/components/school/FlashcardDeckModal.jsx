@@ -19,7 +19,8 @@ import {
   Check,
   Play,
   Save,
-  FolderSync
+  FolderSync,
+  FileText
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { generateFlashcardsWithAI } from '../../utils/aiService';
@@ -53,6 +54,7 @@ export const FlashcardDeckModal = ({
 
   // Study state
   const [cards, setCards] = useState(hasExistingCards ? initialDeck.cards : []);
+  const [sourcesUsed, setSourcesUsed] = useState(initialDeck?.sourcesUsed || []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -67,6 +69,7 @@ export const FlashcardDeckModal = ({
         setTopic(initialDeck.topic || initialTopic);
         setDeckTitle(initialDeck.title || `${initialDeck.courseCode || 'Course'} Flashcards`);
         setCards(initialDeck.cards);
+        setSourcesUsed(initialDeck.sourcesUsed || []);
         setCurrentDeckId(initialDeck.id);
         setIsConfiguring(false);
         setIsReadyPreview(false);
@@ -75,6 +78,7 @@ export const FlashcardDeckModal = ({
         setDeckTitle(`${initialDeck?.courseCode || initialCourse || 'Course'} Flashcards`);
         setCurrentDeckId(null);
         setCards([]);
+        setSourcesUsed([]);
         setIsConfiguring(true);
         setIsReadyPreview(false);
       }
@@ -114,7 +118,9 @@ export const FlashcardDeckModal = ({
       });
 
       const newCards = deck.cards || [];
+      const usedSources = deck.sourcesUsed || [];
       setCards(newCards);
+      setSourcesUsed(usedSources);
       setDeckTitle(generatedTitle);
 
       const saved = saveDeckToLibrary({
@@ -124,6 +130,7 @@ export const FlashcardDeckModal = ({
         chapterScope: chapterScope.trim(),
         depthMode,
         cards: newCards,
+        sourcesUsed: usedSources,
         masteryPercent: 0
       });
       setCurrentDeckId(saved.id);
@@ -154,6 +161,7 @@ export const FlashcardDeckModal = ({
       chapterScope: chapterScope.trim(),
       depthMode,
       cards,
+      sourcesUsed,
       masteryPercent: 0
     };
 
@@ -444,6 +452,28 @@ export const FlashcardDeckModal = ({
                     {depthMode}
                   </span>
                 </div>
+
+                {sourcesUsed && sourcesUsed.length > 0 && (
+                  <div className="pt-2 flex items-center justify-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-mono text-slate-400 font-semibold flex items-center gap-1">
+                      <FileText className="w-3 h-3 text-indigo-400" />
+                      <span>Sources Used ({sourcesUsed.length}):</span>
+                    </span>
+                    {sourcesUsed.map((src, i) => (
+                      <span 
+                        key={i} 
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border flex items-center gap-1 ${
+                          src.toLowerCase().endsWith('.pptx') || src.toLowerCase().endsWith('.ppt')
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                            : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                        }`}
+                      >
+                        <span>{src.toLowerCase().endsWith('.pptx') || src.toLowerCase().endsWith('.ppt') ? '📊' : '📄'}</span>
+                        <span className="max-w-[140px] truncate">{src}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}
@@ -485,6 +515,31 @@ export const FlashcardDeckModal = ({
                   />
                 </div>
               </div>
+
+              {/* Sources Used Banner */}
+              {sourcesUsed && sourcesUsed.length > 0 && (
+                <div className="px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-mono text-slate-400 font-semibold flex items-center gap-1">
+                    <FileText className="w-3 h-3 text-indigo-400" />
+                    <span>Sources Used ({sourcesUsed.length}):</span>
+                  </span>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {sourcesUsed.map((src, i) => (
+                      <span 
+                        key={i} 
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border flex items-center gap-1 ${
+                          src.toLowerCase().endsWith('.pptx') || src.toLowerCase().endsWith('.ppt')
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                            : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                        }`}
+                      >
+                        <span>{src.toLowerCase().endsWith('.pptx') || src.toLowerCase().endsWith('.ppt') ? '📊' : '📄'}</span>
+                        <span className="max-w-[130px] truncate">{src}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {isGenerating ? (
                 <div className="min-h-[220px] rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col items-center justify-center gap-2.5 p-6 text-center">

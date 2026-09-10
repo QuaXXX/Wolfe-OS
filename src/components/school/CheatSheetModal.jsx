@@ -364,6 +364,22 @@ export const CheatSheetModal = ({
           ) : (
             /* 2. CHEAT SHEET INTERACTIVE VIEWER */
             <div className="flex-1 flex flex-col min-h-0 space-y-3">
+              {/* Sources Used Banner */}
+              {sheetData?.sourcesUsed && sheetData.sourcesUsed.length > 0 && (
+                <div className="px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center gap-1.5 flex-wrap shrink-0">
+                  <span className="text-[10px] font-mono text-slate-400 font-semibold flex items-center gap-1">
+                    <FileText className="w-3 h-3 text-amber-400" />
+                    <span>Sources Used ({sheetData.sourcesUsed.length}):</span>
+                  </span>
+                  {sheetData.sourcesUsed.map((src, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-lg text-[10px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1">
+                      <span>{src.toLowerCase().endsWith('.pptx') || src.toLowerCase().endsWith('.ppt') ? '📊' : '📄'}</span>
+                      <span className="max-w-[160px] truncate">{src}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {/* Search Filter Bar */}
               <div className="flex items-center gap-2 shrink-0">
                 <div className="relative flex-1">

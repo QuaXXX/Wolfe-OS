@@ -1385,6 +1385,10 @@ Return ONLY valid JSON matching this schema:
   try {
     const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 25000);
     if (res && Array.isArray(res.cards) && res.cards.length > 0) {
+      if (!res.sourcesUsed || res.sourcesUsed.length === 0) {
+        const docMatches = [...(notesText || '').matchAll(/(?:\[Document:\s*|Document:\s*)([^\]\n]+)/gi)].map(m => m[1].trim());
+        res.sourcesUsed = Array.from(new Set(docMatches));
+      }
       return res;
     }
   } catch (err) {
@@ -1392,12 +1396,14 @@ Return ONLY valid JSON matching this schema:
   }
 
   // Robust Fallback Deck if offline
+  const fallbackSources = Array.from(new Set([...(notesText || '').matchAll(/(?:\[Document:\s*|Document:\s*)([^\]\n]+)/gi)].map(m => m[1].trim())));
   return {
     title: `${courseCode}: ${topic} Deck`,
     courseCode,
     topic,
     chapterScope: chapterScope || topic,
     depthMode,
+    sourcesUsed: fallbackSources,
     cards: [
       {
         id: "card-fb-1",
@@ -1495,6 +1501,10 @@ Return ONLY valid JSON matching this schema:
   try {
     const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 25000);
     if (res && Array.isArray(res.questions) && res.questions.length > 0) {
+      if (!res.sourcesUsed || res.sourcesUsed.length === 0) {
+        const docMatches = [...(notesText || '').matchAll(/(?:\[Document:\s*|Document:\s*)([^\]\n]+)/gi)].map(m => m[1].trim());
+        res.sourcesUsed = Array.from(new Set(docMatches));
+      }
       return res;
     }
   } catch (err) {
@@ -1502,12 +1512,14 @@ Return ONLY valid JSON matching this schema:
   }
 
   // Fallback Quiz
+  const fallbackSources = Array.from(new Set([...(notesText || '').matchAll(/(?:\[Document:\s*|Document:\s*)([^\]\n]+)/gi)].map(m => m[1].trim())));
   return {
     title: `${courseCode}: ${topic} Practice Exam`,
     courseCode,
     topic,
     chapterScope: chapterScope || topic,
     depthMode,
+    sourcesUsed: fallbackSources,
     questions: [
       {
         id: "q-fb-1",
@@ -1625,6 +1637,10 @@ Return ONLY valid JSON matching this schema:
   try {
     const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 30000);
     if (res && Array.isArray(res.sections) && res.sections.length > 0) {
+      if (!res.sourcesUsed || res.sourcesUsed.length === 0) {
+        const docMatches = [...(notesText || '').matchAll(/(?:\[Document:\s*|Document:\s*)([^\]\n]+)/gi)].map(m => m[1].trim());
+        res.sourcesUsed = Array.from(new Set(docMatches));
+      }
       return res;
     }
   } catch (err) {
@@ -1632,10 +1648,12 @@ Return ONLY valid JSON matching this schema:
   }
 
   // Fallback Cheat Sheet
+  const fallbackSources = Array.from(new Set([...(notesText || '').matchAll(/(?:\[Document:\s*|Document:\s*)([^\]\n]+)/gi)].map(m => m[1].trim())));
   return {
     title: title || `${courseCode} Formula & Quick Reference Sheet`,
     courseCode,
     chapterScope: chapterScope || "Core Principles",
+    sourcesUsed: fallbackSources,
     sections: [
       {
         category: "Key Formulas & Equations",
@@ -1783,11 +1801,13 @@ export function parseNoteMetadataAndLinks(rawContent = '') {
   const frontmatter = {};
   let body = rawContent || '';
 
-  if (rawContent && rawContent.startsWith('---')) {
-    const endIdx = rawContent.indexOf('\n---', 3);
-    if (endIdx !== -1) {
+  // Only parse YAML frontmatter if it begins strictly with --- on its own line
+  if (rawContent && /^---\s*\r?\n/.test(rawContent)) {
+    const endMatch = rawContent.slice(3).match(/\r?\n---\s*(\r?\n|$)/);
+    if (endMatch && endMatch.index !== undefined) {
+      const endIdx = 3 + endMatch.index;
       const yamlChunk = rawContent.slice(3, endIdx).trim();
-      body = rawContent.slice(endIdx + 4).trim();
+      body = rawContent.slice(endIdx + endMatch[0].length).trim();
       yamlChunk.split(/\r?\n/).forEach(line => {
         const colonIdx = line.indexOf(':');
         if (colonIdx !== -1) {
@@ -1812,7 +1832,7 @@ export function parseNoteMetadataAndLinks(rawContent = '') {
 /**
  * Rank and connect vault notes based on query relevance and 1-hop graph traversal
  */
-export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse = null, maxFiles = 6) {
+export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse = null, maxFiles = 8) {
   if (!allFiles || allFiles.length === 0) return [];
 
   const stopWords = new Set(['what', 'is', 'the', 'in', 'my', 'how', 'to', 'for', 'a', 'an', 'and', 'of', 'on', 'with', 'about', 'find', 'show', 'tell', 'me', 'where', 'are', 'does', 'can', 'you']);
@@ -1845,11 +1865,23 @@ export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse
     const lowerTopic = (file.frontmatter?.topic || '').toLowerCase();
     const lowerTags = (file.frontmatter?.tags || '').toLowerCase();
 
-    // Target Course filter match
+    // Target Course filter match (handles variations e.g. "FNCE 317" vs "FNCE317")
     if (targetCourse) {
-      if (lowerCourse.includes(targetCourse.toLowerCase()) || lowerPath.includes(targetCourse.toLowerCase())) {
-        file.score += 25;
+      const cleanTarget = targetCourse.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const cleanCourse = lowerCourse.replace(/[^a-z0-9]/gi, '');
+      const cleanPath = lowerPath.replace(/[^a-z0-9]/gi, '');
+      if (cleanCourse.includes(cleanTarget) || cleanPath.includes(cleanTarget)) {
+        file.score += 30;
       }
+    }
+
+    // Presentation / Slide deck boost for study/conceptual queries
+    const isSlides = lowerName.endsWith('.pptx') || lowerName.endsWith('.ppt') || 
+                    lowerPath.includes('/slides') || lowerPath.includes('\\slides') ||
+                    lowerName.includes('lecture') || lowerName.includes('slide') || 
+                    lowerName.includes('deck') || lowerName.includes('chapter');
+    if (isSlides) {
+      file.score += 22; // Prioritize actual lecture slide presentations over administrative syllabus
     }
 
     // Query token matches
@@ -1859,10 +1891,10 @@ export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse
       if (lowerTags.includes(token)) file.score += 12;
       if (lowerPath.includes(token)) file.score += 10;
 
-      // Count occurrences in body (up to 8 points)
+      // Count occurrences in body (up to 12 points)
       let count = 0;
       let pos = lowerBody.indexOf(token);
-      while (pos !== -1 && count < 8) {
+      while (pos !== -1 && count < 12) {
         count++;
         pos = lowerBody.indexOf(token, pos + token.length);
       }
@@ -1892,6 +1924,26 @@ export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse
   return parsedFiles.slice(0, maxFiles);
 }
 
+export function formatMatchedFilesList(files = []) {
+  return files.map(f => {
+    const ext = (f.extension || '').toLowerCase();
+    const isPptx = ext.includes('ppt') || (f.name || '').toLowerCase().endsWith('.pptx') || (f.name || '').toLowerCase().endsWith('.ppt');
+    const isPdf = ext.includes('pdf') || (f.name || '').toLowerCase().endsWith('.pdf');
+    const text = f.cachedContent || f.content || f.rawText || '';
+    const slideMatch = text.match(/(?:===|---) Slide \d+ (?:===|---)/g);
+    const slideCount = slideMatch ? slideMatch.length : null;
+
+    return {
+      name: f.name,
+      path: f.path || f.name,
+      course: f.course,
+      fileType: isPptx ? 'pptx' : (isPdf ? 'pdf' : 'note'),
+      slideCount,
+      relevance: f.linkedFrom ? `Connected via ${f.linkedFrom}` : (isPptx ? 'Lecture Slides' : (isPdf ? 'Course Document' : 'Notes'))
+    };
+  });
+}
+
 export async function searchVaultWithAI({ query, filesIndex = [], sampleNotes = [] }) {
   const allFiles = (sampleNotes && sampleNotes.length > 0 ? sampleNotes : filesIndex) || [];
   
@@ -1900,49 +1952,52 @@ export async function searchVaultWithAI({ query, filesIndex = [], sampleNotes = 
   const targetCourse = courseMatch ? courseMatch[1].trim().toUpperCase() : null;
 
   // 2. Rank notes with Graph Connectivity & Token Scoring
-  const rankedFiles = rankAndConnectVaultFiles(allFiles, query, targetCourse, 6);
-  const filesToScan = rankedFiles.length > 0 ? rankedFiles : allFiles.slice(0, 5);
+  const rankedFiles = rankAndConnectVaultFiles(allFiles, query, targetCourse, 8);
+  const filesToScan = rankedFiles.length > 0 ? rankedFiles : allFiles.slice(0, 6);
 
   // Build Networked Thought snippets with graph relationship metadata
   const notesSnippet = filesToScan.map(n => {
     const rawText = n.body || n.content || n.cachedContent || '';
-    const snippet = rawText.length > 4000 ? rawText.slice(0, 4000) + "\n...[truncated]" : rawText;
-    let header = `### [[${n.course || 'Course'}/${n.name}]]`;
-    if (n.frontmatter?.type) header += ` (Type: ${n.frontmatter.type})`;
+    const snippet = rawText.length > 4500 ? rawText.slice(0, 4500) + "\n...[truncated]" : rawText;
+    const isPptx = (n.name || '').toLowerCase().endsWith('.pptx') || (n.name || '').toLowerCase().endsWith('.ppt');
+    const isPdf = (n.name || '').toLowerCase().endsWith('.pdf');
+    let header = `### [[${n.course || 'Course'}/${n.name}]] (Type: ${isPptx ? 'PowerPoint Lecture Slides' : (isPdf ? 'PDF Course Document' : 'Lecture Notes')})`;
+    if (n.frontmatter?.type) header += ` (Category: ${n.frontmatter.type})`;
     if (n.linkedFrom) header += ` [🔗 Graph Link: Referenced by ${n.linkedFrom}]`;
     const linksNote = n.outlinks && n.outlinks.length > 0 ? `\n*Connected Links:* ${n.outlinks.slice(0, 5).map(l => `[[${l}]]`).join(', ')}` : '';
-    return `${header}${linksNote}\n${snippet || '(Document outline attached)'}`;
+    return `${header}${linksNote}\n${snippet || '(Document content attached)'}`;
   }).join('\n\n---\n\n');
 
   const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
 
   const prompt = `You are Zach Wolfe's university academic assistant in Wolfe OS.
-Zach has connected his Obsidian Networked Thought Vault.
+Zach has connected his course lecture slides, PowerPoint decks, and syllabus materials.
 
 Question:
 "${cleanUserQuery}"
 
-Relevant Course Materials & Connected Graph Notes:
+Relevant Course Materials, Lecture Slides & Documents:
 ${notesSnippet || "No document text available."}
 
 Guidelines for Response:
 1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points.
-2. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
-3. If formatting formulas or calculations, use crisp LaTeX ($...$).
-4. Keep the response clean, readable, and easy to skim.
+2. CITATIONS & SOURCES: You MUST explicitly mention and cite the specific materials and lecture slide decks you used (e.g., "From **Lecture 03 - Financial Ratios & DuPont.pptx (Slide 2)**..." or "According to the **Course Outline**..."). Zach needs to know which lecture presentations and documents were referenced!
+3. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
+4. If formatting formulas or calculations, use crisp LaTeX ($...$).
+5. Keep the response clean, readable, and easy to skim.
 
 Return ONLY valid JSON matching this schema:
 {
-  "answer": "Concise, structured answer...",
+  "answer": "Concise, structured answer citing specific slides and documents...",
   "matchedFiles": [
     {
-      "name": "Outline.pdf",
-      "path": "FNCE 317/Outline.pdf"
+      "name": "Lecture 03.pptx",
+      "path": "FNCE 317/Slides/Lecture 03.pptx"
     }
   ]
 }`;
 
-  const systemInstruction = "You are a concise, high-speed university academic assistant equipped with an Obsidian Networked Thought Vault. Provide direct, structured answers with [[wikilinks]]. Return only valid JSON.";
+  const systemInstruction = "You are a concise, high-speed university academic assistant equipped with course lecture slides and outlines. Provide direct, structured answers with explicit citations of lecture slide decks and documents. Return only valid JSON.";
 
   try {
     const fastConfig = {
@@ -1954,7 +2009,7 @@ Return ONLY valid JSON matching this schema:
     if (res && (res.answer || res.message)) {
       return {
         answer: cleanAiMessage(res.answer || res.message),
-        matchedFiles: res.matchedFiles || filesToScan.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, course: f.course, relevance: f.linkedFrom ? `Connected via ${f.linkedFrom}` : 'Direct Match' }))
+        matchedFiles: formatMatchedFilesList(filesToScan.slice(0, 6))
       };
     }
   } catch (err) {
@@ -1963,7 +2018,7 @@ Return ONLY valid JSON matching this schema:
 
   return {
     answer: `Analyzed notes for ${targetCourse || 'your classes'}.`,
-    matchedFiles: filesToScan.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, course: f.course, relevance: 'Direct Match' }))
+    matchedFiles: formatMatchedFilesList(filesToScan.slice(0, 6))
   };
 }
 
@@ -1977,37 +2032,40 @@ export async function streamSearchVaultWithAI({ query, filesIndex = [], sampleNo
   const targetCourse = courseMatch ? courseMatch[1].trim().toUpperCase() : null;
 
   // Rank notes with Graph Connectivity & Token Scoring
-  const rankedFiles = rankAndConnectVaultFiles(allFiles, query, targetCourse, 6);
-  const filesToScan = rankedFiles.length > 0 ? rankedFiles : allFiles.slice(0, 5);
+  const rankedFiles = rankAndConnectVaultFiles(allFiles, query, targetCourse, 8);
+  const filesToScan = rankedFiles.length > 0 ? rankedFiles : allFiles.slice(0, 6);
   
   const notesSnippet = filesToScan.map(n => {
     const rawText = n.body || n.content || n.cachedContent || '';
-    const snippet = rawText.length > 4000 ? rawText.slice(0, 4000) + "\n...[truncated]" : rawText;
-    let header = `### [[${n.course || 'Course'}/${n.name}]]`;
-    if (n.frontmatter?.type) header += ` (Type: ${n.frontmatter.type})`;
+    const snippet = rawText.length > 4500 ? rawText.slice(0, 4500) + "\n...[truncated]" : rawText;
+    const isPptx = (n.name || '').toLowerCase().endsWith('.pptx') || (n.name || '').toLowerCase().endsWith('.ppt');
+    const isPdf = (n.name || '').toLowerCase().endsWith('.pdf');
+    let header = `### [[${n.course || 'Course'}/${n.name}]] (Type: ${isPptx ? 'PowerPoint Lecture Slides' : (isPdf ? 'PDF Course Document' : 'Lecture Notes')})`;
+    if (n.frontmatter?.type) header += ` (Category: ${n.frontmatter.type})`;
     if (n.linkedFrom) header += ` [🔗 Graph Link: Referenced by ${n.linkedFrom}]`;
     const linksNote = n.outlinks && n.outlinks.length > 0 ? `\n*Connected Links:* ${n.outlinks.slice(0, 5).map(l => `[[${l}]]`).join(', ')}` : '';
-    return `${header}${linksNote}\n${snippet || '(Document outline attached)'}`;
+    return `${header}${linksNote}\n${snippet || '(Document content attached)'}`;
   }).join('\n\n---\n\n');
 
   const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
 
   const prompt = `You are Zach Wolfe's university academic study partner in Wolfe OS.
-Zach has connected his Obsidian Networked Thought Vault.
+Zach has connected his course lecture slides, PowerPoint decks, and syllabus materials.
 
 Question:
 "${cleanUserQuery}"
 
-Relevant Course Materials & Connected Graph Notes:
+Relevant Course Materials, Lecture Slides & Documents:
 ${notesSnippet || "No document text available."}
 
 Guidelines for Response:
 1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points or brief summary.
-2. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
-3. If formatting formulas or calculations, use crisp LaTeX ($...$).
-4. Keep the response clean, readable, and easy to skim.`;
+2. CITATIONS & SOURCES: You MUST explicitly mention and cite the specific materials and lecture slide decks you used (e.g., "From **Lecture 03 - Financial Ratios & DuPont.pptx (Slide 2)**..." or "According to the **Course Outline**..."). Zach needs to know which lecture presentations and documents were referenced!
+3. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
+4. If formatting formulas or calculations, use crisp LaTeX ($...$).
+5. Keep the response clean, readable, and easy to skim.`;
 
-  const systemInstruction = "You are a concise, high-speed university academic assistant equipped with an Obsidian Networked Thought Vault. Provide direct, structured, factual answers in clean markdown with [[wikilinks]].";
+  const systemInstruction = "You are a concise, high-speed university academic assistant equipped with course lecture slides and outlines. Provide direct, structured, factual answers with explicit citations of lecture slide decks and documents, with LaTeX math and [[wikilinks]].";
 
   const apiKey = DEFAULT_AI_CONFIG.apiKey || API_KEY;
   if (!apiKey) {
@@ -2078,7 +2136,7 @@ Guidelines for Response:
       if (accumulatedText.trim()) {
         return {
           answer: cleanAiMessage(accumulatedText.trim()),
-          matchedFiles: filesToScan.slice(0, 3).map(f => ({ name: f.name, path: f.path || f.name, course: f.course, relevance: f.linkedFrom ? `Connected via ${f.linkedFrom}` : 'Direct Match' }))
+          matchedFiles: formatMatchedFilesList(filesToScan.slice(0, 6))
         };
       }
     } catch (err) {
@@ -2109,7 +2167,7 @@ Extract and structure the following details accurately:
 3. "keyDates": array of important deadlines/exams, e.g. [ { "title": "Midterm 1", "date": "Oct 18", "type": "Exam" } ]
 4. "highYieldConcepts": array of 4-6 essential exam topics/formulas drawn directly from the lecture slides and course notes (include clean LaTeX formulas for quantitative concepts), e.g. [ { "topic": "Time Value of Money", "summary": "Discounting future cash flows", "formula": "$$PV = \\frac{FV}{(1+r)^n}$$" } ]
 5. "examTraps": array of 3 critical tips or common mistakes emphasized in lecture slides or course policy
-6. "overview": 2-3 sentence executive summary of the course focus and goals.
+7. "sourcesUsed": array of specific document, lecture slide, or PowerPoint filenames identified and used in the briefing, e.g. ["Lecture 03 - DuPont.pptx", "FNCE 317 Course Outline.pdf"]
 
 Return ONLY valid JSON matching this schema:
 {
@@ -2118,14 +2176,21 @@ Return ONLY valid JSON matching this schema:
   "gradeBreakdown": [ { "item": "...", "weight": "...", "details": "..." } ],
   "keyDates": [ { "title": "...", "date": "...", "type": "..." } ],
   "highYieldConcepts": [ { "topic": "...", "summary": "...", "formula": "..." } ],
-  "examTraps": [ "...", "..." ]
+  "examTraps": [ "...", "..." ],
+  "sourcesUsed": [ "Lecture 03 - Financial Ratios.pptx", "Course Outline.pdf" ]
 }`;
 
-  const systemInstruction = "You are a university academic analysis engine. Extract course details, grade breakdowns, slide concepts, and high-yield formulas from the course materials and lecture slides accurately. Return only valid JSON.";
+  const systemInstruction = "You are a university academic analysis engine. Extract course details, grade breakdowns, slide concepts, and high-yield formulas from the course materials and lecture slides accurately. Explicitly list the sources and slide decks used. Return only valid JSON.";
 
   try {
     const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 25000);
-    if (res && res.gradeBreakdown) return res;
+    if (res && res.gradeBreakdown) {
+      if (!res.sourcesUsed || res.sourcesUsed.length === 0) {
+        const docMatches = [...snippet.matchAll(/(?:\[Document:\s*|Document:\s*)([^\]\n]+)/gi)].map(m => m[1].trim());
+        res.sourcesUsed = Array.from(new Set(docMatches));
+      }
+      return res;
+    }
   } catch (err) {
     console.warn("Course briefing AI error:", err);
   }

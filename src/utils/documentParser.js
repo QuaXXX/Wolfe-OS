@@ -145,7 +145,7 @@ export async function extractTextFromPptx(fileOrBuffer) {
     let result = '';
     for (const s of slides) {
       if (s.type === 'slide') {
-        result += `\n--- Slide ${s.number} ---\n${s.text}\n`;
+        result += `\n=== Slide ${s.number} ===\n${s.text}\n`;
       } else {
         result += `[Slide Notes: ${s.text}]\n`;
       }
@@ -186,12 +186,13 @@ export async function extractTextFromFile(file) {
   ) {
     try {
       const pptxText = await extractTextFromPptx(file);
-      if (pptxText && pptxText.trim().length > 20) {
+      if (pptxText && pptxText.trim().length > 0) {
         return pptxText;
       }
     } catch (err) {
       console.warn("PPTX parser notice, attempting fallback:", err);
     }
+    return ''; // Never fall through to plain text reader for binary PPTX
   }
 
   // 3. PDF file

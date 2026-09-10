@@ -25,7 +25,10 @@ import {
   connectObsidianVault, 
   processUploadedFolderFiles, 
   readVaultFileContent,
-  extractInstructorFromOutline
+  extractInstructorFromOutline,
+  getCourseFiles,
+  getCombinedCourseNotes,
+  getCourseSourcesMetadata
 } from '../../utils/obsidianService';
 import { 
   generateCourseBriefingWithAI, 
@@ -170,22 +173,8 @@ export const NotebookLMStudyHubModal = ({
   const loadCourseBriefing = async (course) => {
     setIsLoadingBriefing(true);
     try {
-      const filesForCourse = scannedFiles.filter(f => {
-        const c = (f.course || '').toUpperCase();
-        const target = course.toUpperCase();
-        return c.includes(target) || target.includes(c) || (f.path || '').toUpperCase().includes(target);
-      });
-
-      let combinedText = '';
-      for (const file of filesForCourse) {
-        let text = file.cachedContent || '';
-        if (!text) {
-          try {
-            text = await readVaultFileContent(file);
-          } catch {}
-        }
-        if (text) combinedText += `\n\n--- Document: ${file.name} ---\n` + text;
-      }
+      const combinedText = await getCombinedCourseNotes(course, scannedFiles);
+      const sourcesMeta = getCourseSourcesMetadata(course, scannedFiles);
 
       const briefing = await generateCourseBriefingWithAI({
         courseCode: course,
@@ -193,6 +182,9 @@ export const NotebookLMStudyHubModal = ({
       });
 
       if (briefing && briefing.gradeBreakdown) {
+        if (!briefing.sourcesUsed || briefing.sourcesUsed.length === 0) {
+          briefing.sourcesUsed = sourcesMeta.map(s => s.name);
+        }
         setBriefings(prev => ({
           ...prev,
           [course]: briefing
@@ -607,6 +599,29 @@ export const NotebookLMStudyHubModal = ({
                   </div>
                 )}
               </div>
+
+              {/* Sources Consulted & Used Banner */}
+              {currentBriefing.sourcesUsed && currentBriefing.sourcesUsed.length > 0 && (
+                <div className="px-3.5 py-2 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-mono text-slate-400 font-semibold flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Sources Consulted & Used ({currentBriefing.sourcesUsed.length}):</span>
+                  </span>
+                  {currentBriefing.sourcesUsed.map((src, i) => (
+                    <span 
+                      key={i} 
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border flex items-center gap-1 ${
+                        src.toLowerCase().endsWith('.pptx') || src.toLowerCase().endsWith('.ppt')
+                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                          : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                      }`}
+                    >
+                      <span>{src.toLowerCase().endsWith('.pptx') || src.toLowerCase().endsWith('.ppt') ? '📊' : '📄'}</span>
+                      <span className="max-w-[170px] truncate">{src}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Grade Weights Visual Grid */}
               <div className="space-y-2">
