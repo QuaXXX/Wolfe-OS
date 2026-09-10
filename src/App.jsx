@@ -241,6 +241,11 @@ export function App() {
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.getElementById('root')?.setAttribute('data-rendered', 'true');
+      // Temporary: exit fullscreen so top searchbar and permissions are visible
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
     }
   }, []);
 

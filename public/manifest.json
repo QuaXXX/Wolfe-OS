@@ -1,12 +1,12 @@
-﻿{
+{
   "name": "Wolfe OS — Personal Command & Life Operating System",
   "short_name": "Wolfe OS",
   "description": "Next-Generation Personal Operating System for Academics, Trading, Fitness & Daily Command",
   "start_url": "/",
   "scope": "/",
   "id": "/",
-  "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "display": "browser",
+  "display_override": ["browser"],
   "orientation": "portrait-primary",
   "background_color": "#08090d",
   "theme_color": "#08090d",
