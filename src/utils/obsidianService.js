@@ -630,6 +630,30 @@ export function openInObsidianApp(filePath) {
 }
 
 /**
+ * Helper to resolve consistent course folder and subfolder paths for Obsidian notes
+ */
+function resolveObsidianCoursePath(handle, courseCode, subCategory) {
+  const rootName = (handle?.name || '').toLowerCase();
+  const isSchoolFolder = rootName === 'school';
+
+  let courseFolder = 'General';
+  if (courseCode) {
+    const match = courseCode.toUpperCase().match(/([A-Z]{2,6}\s*\d{2,4})/);
+    if (match) {
+      courseFolder = match[1].trim();
+    } else {
+      courseFolder = courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() || 'General';
+    }
+  }
+
+  const subfolder = isSchoolFolder 
+    ? (subCategory ? `${courseFolder}/${subCategory}` : courseFolder)
+    : (subCategory ? `School/${courseFolder}/${subCategory}` : `School/${courseFolder}`);
+
+  return { courseFolder, subfolder };
+}
+
+/**
  * Export quiz results or in-progress quizzes as formatted Markdown notes into Obsidian Vault
  */
 export async function saveQuizToObsidian(quiz) {
@@ -637,21 +661,7 @@ export async function saveQuizToObsidian(quiz) {
     const handle = await getVaultHandle();
     if (!handle) return false;
 
-    const rootName = (handle.name || '').toLowerCase();
-    const isSchoolFolder = rootName === 'school';
-
-    let courseFolder = 'General';
-    if (quiz.courseCode) {
-      const match = quiz.courseCode.toUpperCase().match(/([A-Z]{2,6}\s*\d{2,4})/);
-      if (match) {
-        courseFolder = match[1].trim();
-      } else {
-        courseFolder = quiz.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() || 'General';
-      }
-    }
-
-    // Save directly into {Course}/Quizzes
-    const subfolder = isSchoolFolder ? `${courseFolder}/Quizzes` : `School/${courseFolder}/Quizzes`;
+    const { courseFolder, subfolder } = resolveObsidianCoursePath(handle, quiz.courseCode, 'Quizzes');
     const cleanDate = new Date(quiz.completedAt || quiz.lastUpdated || Date.now()).toISOString().split('T')[0];
     const safeTitle = (quiz.topic || quiz.title || 'Practice Quiz').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Quiz';
     const filename = `${safeTitle} Quiz (${cleanDate})`;
@@ -723,20 +733,7 @@ export async function saveDeckToObsidian(deck) {
     const handle = await getVaultHandle();
     if (!handle) return false;
 
-    const rootName = (handle.name || '').toLowerCase();
-    const isSchoolFolder = rootName === 'school';
-
-    let courseFolder = 'General';
-    if (deck.courseCode) {
-      const match = deck.courseCode.toUpperCase().match(/([A-Z]{2,6}\s*\d{2,4})/);
-      if (match) {
-        courseFolder = match[1].trim();
-      } else {
-        courseFolder = deck.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() || 'General';
-      }
-    }
-
-    const subfolder = isSchoolFolder ? `${courseFolder}/Flashcards` : `School/${courseFolder}/Flashcards`;
+    const { courseFolder, subfolder } = resolveObsidianCoursePath(handle, deck.courseCode, 'Flashcards');
     const cleanDate = new Date(deck.lastStudied || deck.updatedAt || Date.now()).toISOString().split('T')[0];
     const safeTitle = (deck.title || deck.topic || 'Flashcard Deck').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Deck';
     const filename = `${safeTitle} (${cleanDate})`;
@@ -794,20 +791,7 @@ export async function saveCheatSheetToObsidian(sheet) {
     const handle = await getVaultHandle();
     if (!handle) return false;
 
-    const rootName = (handle.name || '').toLowerCase();
-    const isSchoolFolder = rootName === 'school';
-
-    let courseFolder = 'General';
-    if (sheet.courseCode) {
-      const match = sheet.courseCode.toUpperCase().match(/([A-Z]{2,6}\s*\d{2,4})/);
-      if (match) {
-        courseFolder = match[1].trim();
-      } else {
-        courseFolder = sheet.courseCode.replace(/[^A-Za-z0-9\s]/g, '').trim() || 'General';
-      }
-    }
-
-    const subfolder = isSchoolFolder ? `${courseFolder}/Cheat Sheets` : `School/${courseFolder}/Cheat Sheets`;
+    const { courseFolder, subfolder } = resolveObsidianCoursePath(handle, sheet.courseCode, 'Cheat Sheets');
     const cleanDate = new Date(sheet.updatedAt || Date.now()).toISOString().split('T')[0];
     const safeTitle = (sheet.title || 'Formula Sheet').replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Cheat Sheet';
     const filename = `${safeTitle} (${cleanDate})`;

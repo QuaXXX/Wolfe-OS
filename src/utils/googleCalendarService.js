@@ -512,6 +512,16 @@ export async function refreshAccessToken() {
         saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken.trim());
         return data.access_token;
       }
+    } else {
+      const errData = await res.json().catch(() => null);
+      const errStr = JSON.stringify(errData || {});
+      if (errStr.includes('invalid_grant')) {
+        console.warn('Google refresh token revoked/expired (invalid_grant). Clearing invalid credentials.');
+        localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
+        localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
+        localStorage.removeItem(GOOGLE_EXPIRY_KEY);
+        return null;
+      }
     }
   } catch (apiErr) {
     console.debug("Serverless token refresh notice:", apiErr);
@@ -536,6 +546,16 @@ export async function refreshAccessToken() {
         if (data.access_token) {
           saveGoogleToken(data.access_token, data.expires_in || 3600, refreshToken.trim());
           return data.access_token;
+        }
+      } else {
+        const errData = await res.json().catch(() => null);
+        const errStr = JSON.stringify(errData || {});
+        if (errStr.includes('invalid_grant')) {
+          console.warn('Google refresh token revoked/expired (invalid_grant). Clearing invalid credentials.');
+          localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
+          localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
+          localStorage.removeItem(GOOGLE_EXPIRY_KEY);
+          return null;
         }
       }
     } catch (err) {
@@ -678,7 +698,7 @@ export async function authedGoogleFetch(url, options = {}, retryCount = 1) {
   });
 
   if (res.status === 401 && retryCount > 0) {
-    console.log("🔄 Google access token expired (401). Performing automatic background refresh...");
+    console.debug("Google access token expired (401). Performing automatic background refresh...");
     localStorage.removeItem(GOOGLE_EXPIRY_KEY);
     
     // Refresh via serverless endpoint using permanent refresh_token
@@ -1214,7 +1234,7 @@ export async function syncLocalItemsToGoogle(currentItems) {
     return currentItems;
   }
 
-  console.log(`📤 Auto-uploading ${unsyncedItems.length} unsynced local item(s) to Google Calendar...`);
+  console.debug(`Auto-uploading ${unsyncedItems.length} unsynced local item(s) to Google Calendar...`);
   let updatedItems = [...currentItems];
 
   for (const item of unsyncedItems) {

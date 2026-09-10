@@ -770,9 +770,13 @@ async function fetchVaultFromServerless(userKey) {
       if (data.success && data.exists && data.vault) {
         return data.vault;
       }
+      return null;
+    } else {
+      const errData = await res.json().catch(() => null);
+      console.warn(`Serverless vault fetch returned status ${res.status}:`, errData?.error || res.statusText);
     }
   } catch (err) {
-    console.debug("Serverless vault fetch notice:", err.message);
+    console.warn("Serverless vault fetch network error:", err.message);
   }
   return null;
 }
@@ -798,10 +802,13 @@ async function saveVaultToServerless(userKey, vault) {
 
     if (res.ok) {
       const data = await res.json();
-      return data.success;
+      return !!data.success;
+    } else {
+      const errData = await res.json().catch(() => null);
+      console.warn(`Serverless vault save returned status ${res.status}:`, errData?.error || res.statusText);
     }
   } catch (err) {
-    console.debug("Serverless vault save notice:", err.message);
+    console.warn("Serverless vault save network error:", err.message);
   }
   return false;
 }

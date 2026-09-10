@@ -2,8 +2,8 @@
  * Clean Blank Data Store for Wolfe OS
  */
 
-import { getTodayIso, formatDateTitle } from './calendarUtils';
-import { DEFAULT_HOUSEHOLD_PANTRY, DEFAULT_CALIBRATION_TASKS } from './nutritionEngine';
+import { getTodayIso, formatDateTitle } from './calendarUtils.js';
+import { DEFAULT_HOUSEHOLD_PANTRY, DEFAULT_CALIBRATION_TASKS } from './nutritionEngine.js';
 
 export const INITIAL_USER = {
   name: "Zach Wolfe",
@@ -85,11 +85,3 @@ export const INITIAL_CALENDAR_DATA = {
   items: []
 };
 
-export const VOICE_SUGGESTIONS = [
-  { text: "What's on my schedule for today?", category: "Calendar" },
-  { text: "Add deadline: CS 301 project due Friday", category: "Calendar" },
-  { text: "Log 650 calories and 48g protein for lunch", category: "Nutrition" },
-  { text: "Log trade: NVDA Long calls +$850 profit", category: "Trading" },
-  { text: "Log 4 sets of 8 reps Bench Press at 225 lbs", category: "Workouts" },
-  { text: "Schedule deep study block today at 2:00 PM", category: "Calendar" },
-];

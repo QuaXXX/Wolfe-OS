@@ -791,7 +791,7 @@ export function App() {
         for (const item of localItems) {
           // CHECK IF ABORTED BY USER UNDO MID-UPLOAD
           if (activeBatchSyncRef.current !== batchSyncId) {
-            console.log("🛑 Batch sync cancelled mid-upload. Rolling back created Google events...");
+            console.debug("Batch sync cancelled mid-upload. Rolling back created Google events...");
             for (const s of syncedItems) {
               if (s.id && s.isGoogle) {
                 deleteGoogleCalendarEvent(s.id, s.isGoogleTask || s.type === 'task').catch(console.warn);

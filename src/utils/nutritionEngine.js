@@ -9,7 +9,7 @@ import { getTodayIso, addDays } from './calendarUtils.js';
 // ---------------------------------------------------------------------------
 // 1. DEFAULT NUTRITION TARGETS (High Carb, 180g Protein, 3,000-3,500 kcal)
 // ---------------------------------------------------------------------------
-export const DEFAULT_NUTRITION_TARGETS = {
+const DEFAULT_NUTRITION_TARGETS = {
   calories: 3250,      // Midpoint of 3,000 - 3,500 kcal target
   protein: 180,        // 180g Protein (720 kcal)
   carbs: 450,          // 450g Carbs (1,800 kcal) - fuels glycogen & high volume training
@@ -19,13 +19,21 @@ export const DEFAULT_NUTRITION_TARGETS = {
   targetWeightGainLbsPerWeek: 0.75 // 0.5 - 1.0 lb/week target
 };
 
-// Backward compatibility alias
-export const DEFAULT_BULKING_TARGETS = DEFAULT_NUTRITION_TARGETS;
+// Backward compatibility alias (internal only)
+const DEFAULT_BULKING_TARGETS = DEFAULT_NUTRITION_TARGETS;
+
+/**
+ * Utility: Clamps a numeric value between min and max bounds
+ */
+export function clamp(val, min, max) {
+  const num = Number(val) || 0;
+  return Math.min(Math.max(num, min), max);
+}
 
 // ---------------------------------------------------------------------------
 // 2. VERIFIED SPORTS NUTRITION INGREDIENT DATABASE
 // ---------------------------------------------------------------------------
-export const INGREDIENT_DATABASE = [
+const INGREDIENT_DATABASE = [
   {
     regex: /\b(?:chicken\s+breasts?|chicken)\b/i,
     name: "Chicken Breast (Cooked)",
@@ -894,7 +902,7 @@ export function sanitizeHouseholdPantry(householdPantry = []) {
 // ---------------------------------------------------------------------------
 // 4. MEAL SLOTS
 // ---------------------------------------------------------------------------
-export const MEAL_SLOTS = [
+const MEAL_SLOTS = [
   { id: "breakfast", label: "Breakfast", name: "Breakfast", icon: "🍳" },
   { id: "lunch", label: "Lunch", name: "Lunch", icon: "🥗" },
   { id: "dinner", label: "Dinner", name: "Dinner", icon: "🥩" },
@@ -1021,7 +1029,7 @@ export function getAdaptiveSurplusRecommendation(weightHistory = [], currentCalo
   const delta = newestRecent - oldestRecent;
 
   if (delta < 0.2) {
-    const recommendedNewTarget = Math.min(4500, currentCalorieTarget + 250);
+    const recommendedNewTarget = clamp(currentCalorieTarget + 250, 2000, 4500);
     return {
       needsSurplus: true,
       currentWeight: newestRecent,
@@ -1956,7 +1964,7 @@ export function getCalibrationProgress(input = {}) {
   };
 }
 
-export function getCalibratedDishware(kitchenCalibration = {}) {
+function getCalibratedDishware(kitchenCalibration = {}) {
   const tasks = getMergedCalibrationTasks(kitchenCalibration);
   const dishwareTasks = tasks.filter(t => t.category === 'dishware' || t.id.includes('bowl') || t.id.includes('plate'));
 
@@ -2147,7 +2155,7 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 325
 
     const hitCalories = totalsCals >= targetCalories;
     const hitProtein = totalsP >= targetProtein;
-    const pctCalories = targetCalories > 0 ? Math.min(100, Math.round((totalsCals / targetCalories) * 100)) : 0;
+    const pctCalories = targetCalories > 0 ? clamp(Math.round((totalsCals / targetCalories) * 100), 0, 100) : 0;
 
     history.push({
       dateIso: dateIso || '',
