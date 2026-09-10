@@ -31,7 +31,8 @@ import {
   generateCourseBriefingWithAI, 
   searchVaultWithAI 
 } from '../../utils/aiService';
-import { FormattedAiText } from '../common/FormattedAiText';
+import { FormattedAiText, renderInlineContent } from '../common/FormattedAiText';
+import { MathRenderer } from '../common/MathRenderer';
 import { playSound } from '../../utils/soundFX';
 
 export const NotebookLMStudyHubModal = ({ 
@@ -678,11 +679,9 @@ export const NotebookLMStudyHubModal = ({
                       <span className="w-2 h-2 rounded-sm bg-amber-400" />
                       <span>{concept.topic}</span>
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed font-sans">{concept.summary}</p>
+                    <p className="text-xs text-slate-300 leading-relaxed font-sans">{renderInlineContent(concept.summary)}</p>
                     {concept.formula && (
-                      <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 text-amber-300 font-mono text-xs overflow-x-auto">
-                        {concept.formula}
-                      </div>
+                      <MathRenderer math={concept.formula} displayMode={true} />
                     )}
                   </div>
                 ))}

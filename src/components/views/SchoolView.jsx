@@ -1081,6 +1081,7 @@ export const SchoolView = ({
         initialCourse={selectedDeckForStudy?.courseCode || activeCourse?.code || "School"}
         initialTopic={selectedDeckForStudy?.topic || "Exam High-Yield Concepts"}
         initialDeck={selectedDeckForStudy}
+        scannedFiles={scannedFiles}
         soundEnabled={soundEnabled}
       />
 
@@ -1093,6 +1094,7 @@ export const SchoolView = ({
         initialCourse={selectedQuizForStudy?.courseCode || activeCourse?.code || "School"}
         initialTopic={selectedQuizForStudy?.topic || "Exam Practice Questions"}
         initialQuiz={selectedQuizForStudy}
+        scannedFiles={scannedFiles}
         soundEnabled={soundEnabled}
       />
 
@@ -1104,6 +1106,7 @@ export const SchoolView = ({
         }}
         initialCourse={selectedSheetForStudy?.courseCode || activeCourse?.code || "School"}
         initialSheet={selectedSheetForStudy}
+        scannedFiles={scannedFiles}
         soundEnabled={soundEnabled}
       />
 

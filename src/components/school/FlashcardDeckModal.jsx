@@ -24,8 +24,9 @@ import {
 import confetti from 'canvas-confetti';
 import { generateFlashcardsWithAI } from '../../utils/aiService';
 import { saveDeckToLibrary, updateDeckCardRating } from '../../utils/studyStorage';
-import { getCachedVaultFiles, saveDeckToObsidian } from '../../utils/obsidianService';
+import { getCachedVaultFiles, saveDeckToObsidian, getCombinedCourseNotes } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
+import { renderInlineContent } from '../common/FormattedAiText';
 
 export const FlashcardDeckModal = ({ 
   isOpen, 
@@ -34,6 +35,7 @@ export const FlashcardDeckModal = ({
   initialTopic = "Exam High-Yield Concepts", 
   initialDeck = null, 
   courseNotes = "", 
+  scannedFiles = null,
   soundEnabled = true 
 }) => {
   // Wizard / Setup state
@@ -97,16 +99,7 @@ export const FlashcardDeckModal = ({
     try {
       let notes = courseNotes || '';
       if (!notes) {
-        const cached = getCachedVaultFiles();
-        if (cached && cached.files) {
-          const matched = cached.files.find(f => 
-            (f.course || '').toUpperCase().includes(courseCode.toUpperCase()) || 
-            (f.path || '').toUpperCase().includes(courseCode.toUpperCase())
-          );
-          if (matched) {
-            notes = matched.cachedContent || '';
-          }
-        }
+        notes = await getCombinedCourseNotes(courseCode, scannedFiles);
       }
 
       const generatedTitle = deckTitle.trim() || `${courseCode.trim()} ${chapterScope.trim() || topic.trim()} Flashcards`;
@@ -551,13 +544,13 @@ export const FlashcardDeckModal = ({
                     </div>
 
                     <div className="my-auto py-4 text-center">
-                      <p className="text-xs sm:text-sm font-semibold text-slate-100 leading-relaxed font-sans">
-                        {isFlipped ? currentCard?.back : currentCard?.front}
-                      </p>
+                      <div className="text-xs sm:text-sm font-semibold text-slate-100 leading-relaxed font-sans">
+                        {renderInlineContent(isFlipped ? currentCard?.back : currentCard?.front)}
+                      </div>
                       {isFlipped && currentCard?.yieldReason && (
-                        <p className="text-[11px] text-slate-400 font-mono mt-2 italic">
-                          💡 Exam Note: {currentCard.yieldReason}
-                        </p>
+                        <div className="text-[11px] text-slate-400 font-mono mt-2 italic">
+                          💡 Exam Note: {renderInlineContent(currentCard.yieldReason)}
+                        </div>
                       )}
                     </div>
 

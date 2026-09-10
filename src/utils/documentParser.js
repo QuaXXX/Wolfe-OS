@@ -28,7 +28,138 @@ async function getPdfJsLib() {
 }
 
 /**
- * Extract plain text from an uploaded File (PDF, TXT, MD, CSV)
+ * Extract slide text and speaker notes from a PowerPoint (.pptx) presentation
+ * Parses the OpenXML ZIP structure directly using standard browser APIs without external dependencies.
+ */
+export async function extractTextFromPptx(fileOrBuffer) {
+  try {
+    let uint8;
+    if (fileOrBuffer instanceof ArrayBuffer) {
+      uint8 = new Uint8Array(fileOrBuffer);
+    } else if (ArrayBuffer.isView(fileOrBuffer)) {
+      uint8 = new Uint8Array(fileOrBuffer.buffer, fileOrBuffer.byteOffset, fileOrBuffer.byteLength);
+    } else if (fileOrBuffer && typeof fileOrBuffer.arrayBuffer === 'function') {
+      const buffer = await fileOrBuffer.arrayBuffer();
+      uint8 = new Uint8Array(buffer);
+    } else {
+      return '';
+    }
+
+    const view = new DataView(uint8.buffer, uint8.byteOffset, uint8.byteLength);
+
+    // 1. Locate End of Central Directory (EOCD) signature: 0x06054b50
+    let eocdOffset = -1;
+    for (let i = uint8.length - 22; i >= 0; i--) {
+      if (view.getUint32(i, true) === 0x06054b50) {
+        eocdOffset = i;
+        break;
+      }
+    }
+
+    const slides = [];
+
+    if (eocdOffset !== -1) {
+      const cdSize = view.getUint32(eocdOffset + 12, true);
+      const cdOffset = view.getUint32(eocdOffset + 16, true);
+      let p = cdOffset;
+      const cdEnd = cdOffset + cdSize;
+
+      while (p < cdEnd && p + 46 <= uint8.length) {
+        if (view.getUint32(p, true) !== 0x02014b50) break;
+
+        const compMethod = view.getUint16(p + 10, true);
+        const compSize = view.getUint32(p + 20, true);
+        const fnLen = view.getUint16(p + 28, true);
+        const extraLen = view.getUint16(p + 30, true);
+        const commentLen = view.getUint16(p + 32, true);
+        const localHeaderOffset = view.getUint32(p + 42, true);
+
+        const fnBytes = uint8.subarray(p + 46, p + 46 + fnLen);
+        const filename = new TextDecoder('utf-8', { fatal: false }).decode(fnBytes);
+
+        // Target slide XML and notes XML (e.g. ppt/slides/slide1.xml, ppt/notesSlides/notesSlide1.xml)
+        const isSlide = /^ppt\/slides\/slide\d+\.xml$/i.test(filename);
+        const isNotes = /^ppt\/notesSlides\/notesSlide\d+\.xml$/i.test(filename);
+
+        if ((isSlide || isNotes) && localHeaderOffset + 30 <= uint8.length) {
+          const localFnLen = view.getUint16(localHeaderOffset + 26, true);
+          const localExtraLen = view.getUint16(localHeaderOffset + 28, true);
+          const dataOffset = localHeaderOffset + 30 + localFnLen + localExtraLen;
+          const compressedData = uint8.subarray(dataOffset, dataOffset + compSize);
+
+          try {
+            let xmlText = '';
+            if (compMethod === 8 && typeof DecompressionStream !== 'undefined') {
+              const ds = new DecompressionStream('deflate-raw');
+              const writer = ds.writable.getWriter();
+              writer.write(compressedData);
+              writer.close();
+              xmlText = await new Response(ds.readable).text();
+            } else if (compMethod === 0) {
+              xmlText = new TextDecoder('utf-8', { fatal: false }).decode(compressedData);
+            }
+
+            if (xmlText) {
+              const textMatches = [...xmlText.matchAll(/<a:t[^>]*>([^<]+)<\/a:t>/g)].map(m => m[1]);
+              const slideText = textMatches.join(' ').replace(/\s+/g, ' ').trim();
+              if (slideText) {
+                const numMatch = filename.match(/\d+/);
+                const slideNum = numMatch ? parseInt(numMatch[0], 10) : slides.length + 1;
+                slides.push({
+                  number: slideNum,
+                  type: isNotes ? 'notes' : 'slide',
+                  text: slideText
+                });
+              }
+            }
+          } catch (e) {
+            // Non-blocking per slide
+          }
+        }
+
+        p += 46 + fnLen + extraLen + commentLen;
+      }
+    }
+
+    // Fallback: If zip parsing didn't find slides (e.g. older .ppt format or non-standard zip), extract text tokens
+    if (slides.length === 0) {
+      const rawString = new TextDecoder('utf-8', { fatal: false }).decode(uint8);
+      const textMatches = [...rawString.matchAll(/<a:t[^>]*>([^<]+)<\/a:t>/g)].map(m => m[1]);
+      if (textMatches.length > 0) {
+        return textMatches.join('\n').trim();
+      }
+
+      // Legacy PPT binary string regex search (runs of ASCII printable characters)
+      const asciiMatches = rawString.match(/[A-Za-z0-9\s.,!?:;\-()/%$+]{6,}/g) || [];
+      const cleanAscii = asciiMatches
+        .filter(m => !m.includes('xml') && !m.includes('schema') && !m.includes('http') && m.trim().length > 10)
+        .slice(0, 100);
+      if (cleanAscii.length > 0) {
+        return cleanAscii.join('\n').trim();
+      }
+    }
+
+    // Sort slides in natural order
+    slides.sort((a, b) => a.number - b.number);
+
+    let result = '';
+    for (const s of slides) {
+      if (s.type === 'slide') {
+        result += `\n--- Slide ${s.number} ---\n${s.text}\n`;
+      } else {
+        result += `[Slide Notes: ${s.text}]\n`;
+      }
+    }
+
+    return result.trim();
+  } catch (err) {
+    console.warn("PPTX text extraction warning:", err);
+    return '';
+  }
+}
+
+/**
+ * Extract plain text from an uploaded File (PDF, PPTX, PPT, TXT, MD, CSV)
  */
 export async function extractTextFromFile(file) {
   if (!file) throw new Error("No file provided");
@@ -46,7 +177,24 @@ export async function extractTextFromFile(file) {
     });
   }
 
-  // 2. PDF file
+  // 2. PowerPoint Presentations (.pptx, .ppt)
+  if (
+    fileName.endsWith('.pptx') || 
+    fileName.endsWith('.ppt') || 
+    fileType.includes('presentation') || 
+    fileType.includes('powerpoint')
+  ) {
+    try {
+      const pptxText = await extractTextFromPptx(file);
+      if (pptxText && pptxText.trim().length > 20) {
+        return pptxText;
+      }
+    } catch (err) {
+      console.warn("PPTX parser notice, attempting fallback:", err);
+    }
+  }
+
+  // 3. PDF file
   if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
     try {
       const pdfjsLib = await getPdfJsLib();
@@ -77,7 +225,7 @@ export async function extractTextFromFile(file) {
     }
   }
 
-  // 3. Fallback text read
+  // 4. Fallback text read
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve(e.target.result || '');

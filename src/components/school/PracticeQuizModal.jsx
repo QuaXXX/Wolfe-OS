@@ -25,8 +25,9 @@ import {
 import confetti from 'canvas-confetti';
 import { generatePracticeQuizWithAI } from '../../utils/aiService';
 import { saveQuizResult, saveActiveQuizProgress } from '../../utils/studyStorage';
-import { getCachedVaultFiles, saveQuizToObsidian } from '../../utils/obsidianService';
+import { getCachedVaultFiles, saveQuizToObsidian, getCombinedCourseNotes } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
+import { renderInlineContent } from '../common/FormattedAiText';
 
 export const PracticeQuizModal = ({ 
   isOpen, 
@@ -36,6 +37,7 @@ export const PracticeQuizModal = ({
   initialQuestions = null, 
   initialQuiz = null, 
   courseNotes = "", 
+  scannedFiles = null,
   soundEnabled = true 
 }) => {
   // Wizard / Setup State
@@ -123,16 +125,7 @@ export const PracticeQuizModal = ({
     try {
       let notes = courseNotes || '';
       if (!notes) {
-        const cached = getCachedVaultFiles();
-        if (cached && cached.files) {
-          const matched = cached.files.find(f => 
-            (f.course || '').toUpperCase().includes(courseCode.toUpperCase()) || 
-            (f.path || '').toUpperCase().includes(courseCode.toUpperCase())
-          );
-          if (matched) {
-            notes = matched.cachedContent || '';
-          }
-        }
+        notes = await getCombinedCourseNotes(courseCode, scannedFiles);
       }
 
       const generatedTitle = quizTitle.trim() || `${courseCode.trim()} ${chapterScope.trim() || topic.trim()} Quiz`;
@@ -636,9 +629,9 @@ export const PracticeQuizModal = ({
                       )}
                     </div>
 
-                    <p className="text-xs sm:text-sm font-semibold text-slate-100 leading-relaxed font-sans">
-                      {currentQuestion?.question}
-                    </p>
+                    <div className="text-xs sm:text-sm font-semibold text-slate-100 leading-relaxed font-sans">
+                      {renderInlineContent(currentQuestion?.question)}
+                    </div>
 
                     {showHint && currentQuestion?.hint && (
                       <motion.div
@@ -646,7 +639,7 @@ export const PracticeQuizModal = ({
                         animate={{ opacity: 1, height: 'auto' }}
                         className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs font-sans"
                       >
-                        💡 {currentQuestion.hint}
+                        💡 {renderInlineContent(currentQuestion.hint)}
                       </motion.div>
                     )}
                   </div>
@@ -684,7 +677,7 @@ export const PracticeQuizModal = ({
                           <span className="w-4 h-4 rounded bg-black/40 flex items-center justify-center font-mono text-[10px] shrink-0 font-bold">
                             {String.fromCharCode(65 + idx)}
                           </span>
-                          <span className="leading-relaxed font-sans">{opt}</span>
+                          <span className="leading-relaxed font-sans flex-1">{renderInlineContent(opt)}</span>
                           {isAnswerSubmitted && isCorrect && (
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-auto shrink-0 mt-0.5" />
                           )}
@@ -707,9 +700,9 @@ export const PracticeQuizModal = ({
                         <BookOpen className="w-3.5 h-3.5 text-slate-400" />
                         <span>Explanation</span>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        {currentQuestion?.explanation}
-                      </p>
+                      <div className="text-xs text-slate-300 leading-relaxed">
+                        {renderInlineContent(currentQuestion?.explanation)}
+                      </div>
                     </motion.div>
                   )}
 

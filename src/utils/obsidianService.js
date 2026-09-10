@@ -227,6 +227,7 @@ export async function processUploadedFolderFiles(fileList) {
 
     const lowerName = file.name.toLowerCase();
     const isDoc = lowerName.endsWith('.md') || lowerName.endsWith('.pdf') || lowerName.endsWith('.txt') || 
+                  lowerName.endsWith('.pptx') || lowerName.endsWith('.ppt') ||
                   lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerName.endsWith('.canvas') || 
                   lowerName.endsWith('.csv') || lowerName.endsWith('.html') || lowerName.endsWith('.rtf') || 
                   !file.name.includes('.');
@@ -309,6 +310,7 @@ export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
         const lowerName = entry.name.toLowerCase();
         // Support any study file format
         const isDoc = lowerName.endsWith('.md') || lowerName.endsWith('.txt') || lowerName.endsWith('.pdf') || 
+                      lowerName.endsWith('.pptx') || lowerName.endsWith('.ppt') ||
                       lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerName.endsWith('.canvas') || 
                       lowerName.endsWith('.csv') || lowerName.endsWith('.html') || lowerName.endsWith('.rtf') ||
                       !entry.name.includes('.');
@@ -420,6 +422,71 @@ export async function findCourseOutlineContent(scannedFiles = [], courseQuery = 
   }
 
   return null;
+}
+
+/**
+ * Find all files belonging to a specific course (lecture notes, slides, PowerPoints, outlines, PDFs)
+ */
+export function getCourseFiles(courseCode, scannedFiles = null) {
+  const files = scannedFiles || (getCachedVaultFiles()?.files || []);
+  if (!files || files.length === 0 || !courseCode) return [];
+  const target = courseCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return files.filter(f => {
+    const c = (f.course || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const p = (f.path || f.name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return c.includes(target) || target.includes(c) || p.includes(target);
+  });
+}
+
+/**
+ * Aggregates all course documents (PowerPoint slides, lecture notes, study guides, outlines)
+ * into a rich, comprehensive context block for AI quiz, flashcard, and cheat sheet generation.
+ * Prioritizes actual lecture content and slides over syllabus metadata.
+ */
+export async function getCombinedCourseNotes(courseCode, scannedFiles = null, maxTotalChars = 40000) {
+  const courseFiles = getCourseFiles(courseCode, scannedFiles);
+  if (!courseFiles || courseFiles.length === 0) return '';
+
+  // Sort files so that lecture notes, slides, and PowerPoints appear first, followed by outlines
+  const sortedFiles = [...courseFiles].sort((a, b) => {
+    const aName = (a.name || a.path || '').toLowerCase();
+    const bName = (b.name || b.path || '').toLowerCase();
+    const aIsOutline = aName.includes('outline') || aName.includes('syllabus');
+    const bIsOutline = bName.includes('outline') || bName.includes('syllabus');
+    const aIsSlides = aName.endsWith('.pptx') || aName.endsWith('.ppt') || aName.includes('slide') || aName.includes('lecture') || aName.includes('powerpoint');
+    const bIsSlides = bName.endsWith('.pptx') || bName.endsWith('.ppt') || bName.includes('slide') || bName.includes('lecture') || bName.includes('powerpoint');
+
+    if (aIsSlides && !bIsSlides) return -1;
+    if (!aIsSlides && bIsSlides) return 1;
+    if (aIsOutline && !bIsOutline) return 1;
+    if (!aIsOutline && bIsOutline) return -1;
+    return 0;
+  });
+
+  let combined = '';
+  for (const file of sortedFiles) {
+    let content = file.cachedContent || '';
+    if (!content) {
+      try {
+        content = await readVaultFileContent(file);
+      } catch {}
+    }
+    if (content && content.trim().length > 10) {
+      const header = `\n\n=== [Document: ${file.name}] (${file.path || file.name}) ===\n`;
+      const added = header + content.trim();
+      if (combined.length + added.length > maxTotalChars) {
+        const remaining = maxTotalChars - combined.length;
+        if (remaining > 200) {
+          combined += added.slice(0, remaining) + '\n... [truncated]';
+        }
+        break;
+      } else {
+        combined += added;
+      }
+    }
+  }
+
+  return combined.trim();
 }
 
 /**

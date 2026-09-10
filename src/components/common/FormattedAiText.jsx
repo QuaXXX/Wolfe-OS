@@ -1,41 +1,17 @@
 import React, { useMemo } from 'react';
+import { MathRenderer } from './MathRenderer';
+
+import { cleanAiMessage } from '../../utils/mathUtils.js';
+
+export { cleanAiMessage };
 
 /**
- * Normalizes AI output text:
- * - Strips redundant surrounding quotes
- * - Fixes duplicated / nested double quotes: ""Text"" -> "Text"
- * - Fixes escaped quotes: \"\" -> "
- * - Strips empty quote artifacts: e.g. 'at "" for today' -> 'today'
- * - Cleans stray unclosed formatting tokens
- */
-export function cleanAiMessage(raw) {
-  if (!raw || typeof raw !== 'string') return '';
-  let text = raw.trim();
-
-  // 1. Strip outermost redundant surrounding quotes (single or doubled): e.g. ""Text"" -> Text or "Text" -> Text
-  text = text.replace(/^["'`“‘]{1,2}([\s\S]*?)["'`”’]{1,2}$/, '$1').trim();
-
-  // 2. Fix duplicated/nested quotes: ""Text"" -> "Text", \"\" -> "
-  text = text.replace(/""([^"]+?)""/g, '"$1"');
-  text = text.replace(/\\"+/g, '"');
-  text = text.replace(/""+/g, '"');
-
-  // 3. Fix empty quotes artifact: e.g. 'at "" for today' or 'purge ""'
-  text = text.replace(/\s*""\s*/g, ' ');
-
-  // 4. Fix accidental quotes before/after punctuation: e.g. " ," -> ","
-  text = text.replace(/"\s+([,.?!])/g, '$1');
-
-  return text.trim();
-}
-
-/**
- * Splits inline string into formatted spans (wikilinks, markdown links, bold, italic, code, text)
+ * Splits inline string into formatted spans (math, wikilinks, markdown links, bold, italic, code, text)
  */
 export function renderInlineContent(text) {
   if (!text) return null;
-  // Regex: matches [[wikilinks]], [markdown](links), **bold**, __bold__, `code`, *italic*, _italic_
-  const tokenRegex = /(\[\[[^\]]+?\]\]|\[[^\]]+?\]\([^)]+?\)|(?:\*\*[^*]+?\*\*|__[^_]+?__|`[^`]+?`|\*[^*]+?\*|_[^_]+?_))/g;
+  // Regex: matches $$math$$, $math$, \[math\], \(math\), [[wikilinks]], [markdown](links), **bold**, __bold__, `code`, *italic*, _italic_
+  const tokenRegex = /(\$\$[\s\S]+?\$\$|\$(?!\s)[^$\n]+?(?<!\s)\$|\\\[[\s\S]+?\\\]|\\\([^\n]+?\\\)|\[\[[^\]]+?\]\]|\[[^\]]+?\]\([^)]+?\)|(?:\*\*[^*]+?\*\*|__[^_]+?__|`[^`]+?`|\*[^*]+?\*|_[^_]+?_))/g;
   const parts = [];
   let lastIdx = 0;
   let match;
@@ -47,8 +23,20 @@ export function renderInlineContent(text) {
     const token = match[0];
     const key = `token-${match.index}`;
 
+    // 0. LaTeX Block Math $$...$$ or \[...\]
+    if ((token.startsWith('$$') && token.endsWith('$$') && token.length >= 4) || (token.startsWith('\\[') && token.endsWith('\\]') && token.length >= 4)) {
+      parts.push(
+        <MathRenderer key={key} math={token} displayMode={true} />
+      );
+    }
+    // 0b. LaTeX Inline Math $...$ or \(...\)
+    else if ((token.startsWith('$') && token.endsWith('$') && token.length >= 2) || (token.startsWith('\\(') && token.endsWith('\\)') && token.length >= 4)) {
+      parts.push(
+        <MathRenderer key={key} math={token} displayMode={false} />
+      );
+    }
     // 1. Obsidian [[Wikilink]] or [[Target|Alias]]
-    if (token.startsWith('[[') && token.endsWith(']]')) {
+    else if (token.startsWith('[[') && token.endsWith(']]')) {
       const inner = token.slice(2, -2).trim();
       const [targetRaw, aliasRaw] = inner.split('|');
       const target = (targetRaw || '').trim();
@@ -160,6 +148,40 @@ function parseMarkdownBlocks(rawText) {
       continue;
     }
 
+    // Math block: $$ ... $$ or \[ ... \]
+    if (trimmed.startsWith('$$') || trimmed.startsWith('\\[')) {
+      if (currentList) {
+        blocks.push(currentList);
+        currentList = null;
+      }
+      const isBracket = trimmed.startsWith('\\[');
+      const closeDelim = isBracket ? '\\]' : '$$';
+      const openLen = 2;
+      
+      let mathContent = trimmed.slice(openLen);
+      if (mathContent.endsWith(closeDelim) && mathContent.length >= closeDelim.length) {
+        mathContent = mathContent.slice(0, -closeDelim.length).trim();
+        blocks.push({ type: 'math_block', math: mathContent });
+        continue;
+      }
+      
+      // Multiline math block
+      let j = i + 1;
+      while (j < lines.length) {
+        const l = lines[j].trim();
+        if (l.endsWith(closeDelim)) {
+          mathContent += '\n' + l.slice(0, -closeDelim.length);
+          i = j;
+          break;
+        } else {
+          mathContent += '\n' + lines[j];
+        }
+        j++;
+      }
+      blocks.push({ type: 'math_block', math: mathContent.trim() });
+      continue;
+    }
+
     // Header: ### Heading or ## Heading or # Heading
     const headerMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
     if (headerMatch) {
@@ -245,6 +267,12 @@ export const FormattedAiText = ({ text, inline = false, className = '' }) => {
   return (
     <div className={`space-y-2 select-text ${className}`}>
       {blocks.map((block, bIdx) => {
+        if (block.type === 'math_block') {
+          return (
+            <MathRenderer key={bIdx} math={block.math} displayMode={true} />
+          );
+        }
+
         if (block.type === 'header') {
           return (
             <div 

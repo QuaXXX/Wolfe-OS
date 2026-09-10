@@ -1348,7 +1348,7 @@ Depth Mode: ${depthMode} (${depthInstruction})
 
 Course Notes & Context:
 """
-${notesText ? notesText.slice(0, 12000) : `Core concepts, definitions, formulas, and high-frequency exam questions for ${courseCode} on: ${scopeDesc}.`}
+${notesText ? notesText.slice(0, 30000) : `Core concepts, definitions, formulas, and high-frequency exam questions for ${courseCode} on: ${scopeDesc}.`}
 """
 
 Generate exactly ${count} active-recall flashcards designed for maximum long-term memory retention and exam mastery.
@@ -1452,9 +1452,9 @@ export async function generatePracticeQuizWithAI({
 Target Scope: ${scopeDesc}
 Depth Mode: ${depthMode} (${depthInstruction})
 
-Course Notes & Material:
+Course Notes, Lecture Slides & Documents:
 """
-${notesText ? notesText.slice(0, 12000) : `Key exam problems, calculation scenarios, and conceptual definitions for ${courseCode} on: ${scopeDesc}.`}
+${notesText ? notesText.slice(0, 30000) : `Key exam problems, calculation scenarios, and conceptual definitions for ${courseCode} on: ${scopeDesc}.`}
 """
 
 Generate exactly ${count} realistic multiple-choice exam questions that test deep understanding rather than shallow trivia.
@@ -1560,14 +1560,14 @@ CUSTOM SCOPE & TOPICS REQUESTED:
 - Focus Scope / Chapters: ${chapterScope}
 - Requested Modules: ${modules.join(', ')}
 
-COURSE NOTES, OUTLINE & STUDY MATERIAL:
+COURSE NOTES, LECTURE SLIDES & STUDY MATERIAL:
 """
-${notesText ? notesText.slice(0, 18000) : `Standard ${courseCode} curriculum: Core formulas, definitions, decision frameworks, calculation steps, and exam traps.`}
+${notesText ? notesText.slice(0, 35000) : `Standard ${courseCode} curriculum: Core formulas, definitions, decision frameworks, calculation steps, and exam traps.`}
 """
 
 STRICT INSTRUCTIONS:
-1. Extract and synthesize all critical formulas, variable breakdowns, decision rules, definitions, and tricky exam traps strictly relevant to ${courseCode} and the scope "${chapterScope}".
-2. Include exact mathematical formulas (clean text or LaTeX), clearly defining every single variable (e.g. "E = Market Value of Equity, Rd = Pre-tax Cost of Debt").
+1. Extract and synthesize all critical formulas, variable breakdowns, decision rules, definitions, and tricky exam traps directly from the lecture slides, course materials, and the scope "${chapterScope}".
+2. Include exact mathematical formulas (clean mathematical notation or LaTeX e.g. "$$ROE = \\frac{\\text{Net Income}}{\\text{Sales}} \\times \\dots$$"), clearly defining every single variable (e.g. "E = Market Value of Equity, Rd = Pre-tax Cost of Debt").
 3. Include critical decision criteria (e.g. "Accept project if NPV > 0", "Choose supplier with lowest Total Cost of Ownership").
 4. Highlight common student exam mistakes and how to avoid them.
 5. Organize into clear, logical sections.
@@ -2095,20 +2095,20 @@ Guidelines for Response:
  */
 export async function generateCourseBriefingWithAI({ courseCode, courseName = '', syllabusText = '' }) {
   const cleanCode = courseCode || "Course";
-  const snippet = (syllabusText || '').slice(0, 15000);
+  const snippet = (syllabusText || '').slice(0, 35000);
 
   const prompt = `You are Zach Wolfe's personal university study assistant (NotebookLM engine).
-Synthesize a comprehensive, high-yield academic briefing for the course "${cleanCode} ${courseName}" from the following course outline/syllabus text.
+Synthesize a comprehensive, high-yield academic briefing for the course "${cleanCode} ${courseName}" from the following course lecture slides, PowerPoint decks, study notes, and syllabus materials.
 
-Syllabus Text:
-${snippet || "No syllabus text available."}
+Course Lecture Slides, Notes & Documents:
+${snippet || "No course document text available."}
 
 Extract and structure the following details accurately:
 1. "instructor": { "name": "...", "email": "...", "officeHours": "...", "section": "..." }
 2. "gradeBreakdown": array of grading components with percentage weights, e.g. [ { "item": "Midterm Exam 1", "weight": "25%", "details": "Covers chapters 1-4" }, { "item": "Final Exam", "weight": "40%", "details": "Registrar scheduled, cumulative" } ]
 3. "keyDates": array of important deadlines/exams, e.g. [ { "title": "Midterm 1", "date": "Oct 18", "type": "Exam" } ]
-4. "highYieldConcepts": array of 4-6 essential exam topics/formulas with LaTeX formulas if mathematical, e.g. [ { "topic": "Time Value of Money", "summary": "Discounting future cash flows", "formula": "$PV = \\frac{FV}{(1+r)^n}$" } ]
-5. "examTraps": array of 3 critical tips or common mistakes mentioned in syllabus or topic area
+4. "highYieldConcepts": array of 4-6 essential exam topics/formulas drawn directly from the lecture slides and course notes (include clean LaTeX formulas for quantitative concepts), e.g. [ { "topic": "Time Value of Money", "summary": "Discounting future cash flows", "formula": "$$PV = \\frac{FV}{(1+r)^n}$$" } ]
+5. "examTraps": array of 3 critical tips or common mistakes emphasized in lecture slides or course policy
 6. "overview": 2-3 sentence executive summary of the course focus and goals.
 
 Return ONLY valid JSON matching this schema:
@@ -2121,7 +2121,7 @@ Return ONLY valid JSON matching this schema:
   "examTraps": [ "...", "..." ]
 }`;
 
-  const systemInstruction = "You are a university academic analysis engine. Extract course details, grade breakdowns, and high-yield concepts from the syllabus accurately. Return only valid JSON.";
+  const systemInstruction = "You are a university academic analysis engine. Extract course details, grade breakdowns, slide concepts, and high-yield formulas from the course materials and lecture slides accurately. Return only valid JSON.";
 
   try {
     const res = await callGemini(prompt, systemInstruction, DEFAULT_AI_CONFIG, 25000);

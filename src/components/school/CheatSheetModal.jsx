@@ -21,8 +21,10 @@ import {
 } from 'lucide-react';
 import { generateCheatSheetWithAI } from '../../utils/aiService';
 import { saveCheatSheetToLibrary } from '../../utils/studyStorage';
-import { getCachedVaultFiles, saveCheatSheetToObsidian } from '../../utils/obsidianService';
+import { getCachedVaultFiles, saveCheatSheetToObsidian, getCombinedCourseNotes } from '../../utils/obsidianService';
 import { playSound } from '../../utils/soundFX';
+import { MathRenderer } from '../common/MathRenderer';
+import { renderInlineContent } from '../common/FormattedAiText';
 
 export const CheatSheetModal = ({ 
   isOpen, 
@@ -30,6 +32,7 @@ export const CheatSheetModal = ({
   initialCourse = "", 
   initialSheet = null, 
   courseNotes = "", 
+  scannedFiles = null,
   soundEnabled = true 
 }) => {
   // Wizard Setup state
@@ -85,16 +88,7 @@ export const CheatSheetModal = ({
     try {
       let notes = courseNotes || '';
       if (!notes) {
-        const cached = getCachedVaultFiles();
-        if (cached && cached.files) {
-          const matched = cached.files.find(f => 
-            (f.course || '').toUpperCase().includes(courseCode.toUpperCase()) || 
-            (f.path || '').toUpperCase().includes(courseCode.toUpperCase())
-          );
-          if (matched) {
-            notes = matched.cachedContent || '';
-          }
-        }
+        notes = await getCombinedCourseNotes(courseCode, scannedFiles);
       }
 
       const generatedTitle = sheetTitle.trim() || `${courseCode.trim()} ${chapterScope.trim() || 'Core'} Formula Sheet`;
@@ -417,17 +411,15 @@ export const CheatSheetModal = ({
                                 <div className="text-xs font-bold text-white flex items-center justify-between">
                                   <span>{item.name}</span>
                                 </div>
-                                <div className="p-2 rounded-lg bg-black/40 border border-white/5 font-mono text-xs text-amber-200 tracking-wide break-all">
-                                  {item.formula}
-                                </div>
+                                <MathRenderer math={item.formula} displayMode={true} />
                                 {item.variables && (
                                   <div className="text-[11px] text-slate-300 leading-relaxed">
-                                    <strong className="text-slate-400">Variables:</strong> {item.variables}
+                                    <strong className="text-slate-400">Variables:</strong> {renderInlineContent(item.variables)}
                                   </div>
                                 )}
                                 {item.notes && (
                                   <div className="text-[10px] text-slate-400 italic">
-                                    💡 {item.notes}
+                                    💡 {renderInlineContent(item.notes)}
                                   </div>
                                 )}
                               </>
@@ -437,12 +429,12 @@ export const CheatSheetModal = ({
                             {item.rule && (
                               <>
                                 <div className="text-xs font-bold text-white">{item.name || "Decision Rule"}</div>
-                                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200">
-                                  {item.rule}
+                                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200 leading-relaxed">
+                                  {renderInlineContent(item.rule)}
                                 </div>
                                 {item.notes && (
                                   <div className="text-[11px] text-slate-300 mt-1">
-                                    {item.notes}
+                                    {renderInlineContent(item.notes)}
                                   </div>
                                 )}
                               </>
@@ -451,9 +443,9 @@ export const CheatSheetModal = ({
                             {/* 3. Definition */}
                             {item.term && (
                               <>
-                                <div className="text-xs font-bold text-white">{item.term}</div>
+                                <div className="text-xs font-bold text-white">{renderInlineContent(item.term)}</div>
                                 <div className="text-xs text-slate-300 leading-relaxed">
-                                  {item.definition}
+                                  {renderInlineContent(item.definition)}
                                 </div>
                               </>
                             )}
@@ -462,11 +454,11 @@ export const CheatSheetModal = ({
                             {item.trap && (
                               <>
                                 <div className="text-xs font-bold text-rose-300 flex items-center gap-1">
-                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                                  <span>Trap: {item.trap}</span>
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                  <span>Trap: {renderInlineContent(item.trap)}</span>
                                 </div>
-                                <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-200">
-                                  <strong>How to avoid:</strong> {item.correction}
+                                <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-200 leading-relaxed">
+                                  <strong>How to avoid:</strong> {renderInlineContent(item.correction)}
                                 </div>
                               </>
                             )}
