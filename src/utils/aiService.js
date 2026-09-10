@@ -2226,6 +2226,7 @@ ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
    - Cooked White/Jasmine Rice: ~205 kcal, 4.2g protein, 45g carbs per cup.
    - Bun / Dinner Roll (~50g): ~130 kcal, 4g protein, 24g carbs, 1.5g fats.
    - Veggies / Mixed Vegetables: ~35 kcal, 2g protein, 7g carbs, 0.2g fats per 100g (~35 kcal per cup).
+   - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
    - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (260 kcal, 18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~485 kcal, ~39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). NEVER output 91g protein for a household protein shake!
    - ATWATER ENERGY CONSISTENCY: Every item and total calories MUST align with: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
 
@@ -2332,6 +2333,21 @@ Return ONLY valid JSON matching this schema:
                   { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
                 ];
                 parsed.notes = "Calibrated to verified sports nutrition ground truth (485 kcal, 39g protein)";
+              }
+
+              const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(parsed.name || '') ||
+                (parsed.items.length === 1 && parsed.items.some(it => /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(it.name || '')));
+
+              if (isCannedSalmon && parsed.items.length <= 1 && (parsed.protein !== 40 || parsed.calories !== 200)) {
+                parsed.name = "Canned Salmon";
+                parsed.calories = 200;
+                parsed.protein = 40;
+                parsed.carbs = 0;
+                parsed.fats = 4;
+                parsed.items = [
+                  { name: "Canned Salmon", portion: "1 can (150g)", calories: 200, protein: 40, carbs: 0, fats: 4 }
+                ];
+                parsed.notes = "Calibrated to verified sports nutrition ground truth (200 kcal, 40g protein per can)";
               }
 
               return {
@@ -2446,6 +2462,7 @@ ${pantryPrompt ? `${pantryPrompt}\n` : ''}
 
 5. CONSERVATIVE UNDERESTIMATION MANDATE:
    - When uncertain about portion size or cooking oil, ALWAYS err on conservative underestimation.
+   - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
    - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (260 kcal, 18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~485 kcal, ~39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). If the user mentions 'protein shake', 'smoothie', or 'protein smoothie', default to 1 scoop vegan powder + 2 cups milk + 1 banana = ~39g protein, NEVER 91g protein!
    - Atwater energy consistency: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
 
@@ -2518,6 +2535,21 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
                   { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
                 ];
                 parsed.notes = "Calibrated to verified sports nutrition ground truth (485 kcal, 39g protein)";
+              }
+
+              const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(parsed.name || '') ||
+                (parsed.items.length === 1 && parsed.items.some(it => /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(it.name || '')));
+
+              if (isCannedSalmon && parsed.items.length <= 1 && (parsed.protein !== 40 || parsed.calories !== 200)) {
+                parsed.name = "Canned Salmon";
+                parsed.calories = 200;
+                parsed.protein = 40;
+                parsed.carbs = 0;
+                parsed.fats = 4;
+                parsed.items = [
+                  { name: "Canned Salmon", portion: "1 can (150g)", calories: 200, protein: 40, carbs: 0, fats: 4 }
+                ];
+                parsed.notes = "Calibrated to verified sports nutrition ground truth (200 kcal, 40g protein per can)";
               }
 
               const totalCals = parsed.calories || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats);

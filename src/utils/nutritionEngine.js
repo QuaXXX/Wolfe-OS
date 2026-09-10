@@ -86,12 +86,32 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
+    regex: /\b(?:canned\s+salmon|can\s+of\s+salmon|salmon\s+can|wild\s+salmon\s+can)\b/i,
+    name: "Canned Salmon",
+    defaultUnit: "can",
+    defaultQty: 1,
+    perUnit: {
+      can: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      cans: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      tin: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      tins: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      serving: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      servings: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      g: { calories: 1.33, protein: 0.267, carbs: 0, fats: 0.027 },
+      oz: { calories: 38, protein: 7.6, carbs: 0, fats: 0.76 }
+    }
+  },
+  {
     regex: /\b(?:salmon)\b/i,
     name: "Atlantic Salmon (Cooked)",
     defaultUnit: "oz",
     defaultQty: 6,
     per100g: { calories: 206, protein: 22, carbs: 0, fats: 12 },
     perUnit: {
+      can: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      cans: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      tin: { calories: 200, protein: 40, carbs: 0, fats: 4 },
+      tins: { calories: 200, protein: 40, carbs: 0, fats: 4 },
       oz: { calories: 58, protein: 6.2, carbs: 0, fats: 3.4 },
       g: { calories: 2.06, protein: 0.22, carbs: 0, fats: 0.12 }
     }
@@ -722,6 +742,17 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     icon: "🥩"
   },
   {
+    id: "staple-canned-salmon",
+    name: "Canned Salmon",
+    portion: "1 can (150g)",
+    calories: 200,
+    protein: 40,
+    carbs: 0,
+    fats: 4,
+    category: "Protein",
+    icon: "🐟"
+  },
+  {
     id: "staple-rice",
     name: "White Rice",
     portion: "1.5 cups cooked",
@@ -805,6 +836,22 @@ export function sanitizeHouseholdPantry(householdPantry = []) {
             { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
             { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
           ]
+        };
+      }
+    }
+    if (s && (s.id === 'staple-canned-salmon' || /canned\s+salmon|can\s+of\s+salmon/i.test(s.name || ''))) {
+      if (s.protein !== 40 || s.calories !== 200) {
+        return {
+          ...s,
+          id: s.id || 'staple-canned-salmon',
+          name: "Canned Salmon",
+          portion: "1 can (150g)",
+          calories: 200,
+          protein: 40,
+          carbs: 0,
+          fats: 4,
+          category: "Protein",
+          icon: "🐟"
         };
       }
     }
@@ -1409,6 +1456,10 @@ export function parseMealDescription(text, options = {}) {
 
     if (/\bbowls?\b/i.test(clause) && !unit) unit = 'bowl';
     if (/\bplates?\b/i.test(clause) && !unit) unit = 'plate';
+    if (!unit && /\b(?:can|tin)\s+of\b/i.test(clause)) {
+      unit = 'can';
+      if (qty === null) qty = 1;
+    }
 
     // User calibrated milk
     if (/\b(?:milk|glass\s+of\s+milk|cup\s+of\s+milk)\b/i.test(clause) && !/\b(?:fairlife|soy|almond|oat\s+milk)\b/i.test(clause)) {
@@ -1690,6 +1741,24 @@ export function createMealEntry({
       { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
       { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
       { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
+    ];
+  }
+
+  // Safety calibration: a single can of salmon is strictly 200 cals / 40g protein
+  const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(finalName) ||
+    (finalItems.length === 1 && finalItems.some(it => {
+      const itName = typeof it === 'string' ? it : it?.name || '';
+      return /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(itName);
+    }));
+
+  if (isCannedSalmon && (p !== 40 || finalCals !== 200) && finalItems.length <= 1) {
+    finalName = "Canned Salmon";
+    finalCals = 200;
+    p = 40;
+    c = 0;
+    f = 4;
+    finalItems = [
+      { name: "Canned Salmon", portion: "1 can", calories: 200, protein: 40, carbs: 0, fats: 4 }
     ];
   }
 
@@ -2174,6 +2243,30 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
         notes: "Calibrated accurate smoothie macros (2c milk [18g P] + 1 scoop vegan powder [20g P] + 1 banana [1.3g P] = ~39g protein)"
       };
     }
+
+    // 2.65 Reconcile past canned salmon meals to 200 cals / 40g P
+    const isCannedSalmonMeal = (m.name && /^(?:1\s+)?(?:can\s+of\s+salmon|canned\s+salmon|salmon\s+can)$/i.test(m.name)) ||
+      (Array.isArray(m.items) && m.items.length === 1 && m.items.some(it => {
+        const itName = typeof it === 'string' ? it : it?.name || '';
+        return /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(itName);
+      }));
+
+    if (isCannedSalmonMeal && (m.protein !== 40 || m.calories !== 200)) {
+      wasModified = true;
+      return {
+        ...m,
+        name: "Canned Salmon",
+        calories: 200,
+        protein: 40,
+        carbs: 0,
+        fats: 4,
+        items: [
+          { name: "Canned Salmon", portion: "1 can (150g)", calories: 200, protein: 40, carbs: 0, fats: 4 }
+        ],
+        notes: "Calibrated accurate canned salmon macros (200 kcal, 40g protein per can)"
+      };
+    }
+
     return m;
   }).filter(Boolean);
 
