@@ -11,35 +11,60 @@ export function getTodayIso() {
 }
 
 export function formatDateTitle(dateIso) {
-  if (!dateIso) return '';
-  const [y, m, d] = dateIso.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  });
+  if (!dateIso || typeof dateIso !== 'string') return '';
+  try {
+    const parts = dateIso.split('-');
+    if (parts.length < 3) return dateIso;
+    const [y, m, d] = parts.map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return dateIso;
+    const date = new Date(y, m - 1, d);
+    if (isNaN(date.getTime())) return dateIso;
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return dateIso || '';
+  }
 }
 
 export function formatShortDate(dateIso) {
-  if (!dateIso) return '';
-  const [y, m, d] = dateIso.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric'
-  });
+  if (!dateIso || typeof dateIso !== 'string') return '';
+  try {
+    const parts = dateIso.split('-');
+    if (parts.length < 3) return dateIso;
+    const [y, m, d] = parts.map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return dateIso;
+    const date = new Date(y, m - 1, d);
+    if (isNaN(date.getTime())) return dateIso;
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (e) {
+    return dateIso || '';
+  }
 }
 
 export function addDays(dateIso, n) {
-  const [y, m, d] = dateIso.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  date.setDate(date.getDate() + n);
-  const newY = date.getFullYear();
-  const newM = String(date.getMonth() + 1).padStart(2, '0');
-  const newD = String(date.getDate()).padStart(2, '0');
-  return `${newY}-${newM}-${newD}`;
+  if (!dateIso || typeof dateIso !== 'string') return getTodayIso();
+  try {
+    const parts = dateIso.split('-');
+    if (parts.length < 3) return getTodayIso();
+    const [y, m, d] = parts.map(Number);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return getTodayIso();
+    const date = new Date(y, m - 1, d);
+    if (isNaN(date.getTime())) return getTodayIso();
+    date.setDate(date.getDate() + (Number(n) || 0));
+    const newY = date.getFullYear();
+    const newM = String(date.getMonth() + 1).padStart(2, '0');
+    const newD = String(date.getDate()).padStart(2, '0');
+    return `${newY}-${newM}-${newD}`;
+  } catch (e) {
+    return getTodayIso();
+  }
 }
 
 /**

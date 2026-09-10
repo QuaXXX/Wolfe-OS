@@ -115,22 +115,26 @@ const NutritionViewInner = ({
 
   // Side-Scrollable Day Window: 30 days before today up to 3 days ahead, calculated strictly in local timezone
   const dayWindow = useMemo(() => {
-    const days = [];
-    const base = new Date();
-    for (let i = -30; i <= 3; i++) {
-      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const dayNum = String(d.getDate()).padStart(2, '0');
-      const dateIso = `${y}-${m}-${dayNum}`;
-      days.push({
-        dateIso,
-        dayNumber: d.getDate(),
-        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
-        monthName: d.toLocaleDateString('en-US', { month: 'short' })
-      });
+    try {
+      const days = [];
+      const base = new Date();
+      for (let i = -30; i <= 3; i++) {
+        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dayNum = String(d.getDate()).padStart(2, '0');
+        const dateIso = `${y}-${m}-${dayNum}`;
+        days.push({
+          dateIso,
+          dayNumber: d.getDate(),
+          dayName: d.toLocaleDateString('en-US', { weekday: 'short' }) || 'Day',
+          monthName: d.toLocaleDateString('en-US', { month: 'short' }) || ''
+        });
+      }
+      return days;
+    } catch (e) {
+      return [];
     }
-    return days;
   }, [currentTodayIso]);
 
   // Ensure view starts at the very top on mount
@@ -1482,7 +1486,7 @@ const NutritionViewInner = ({
                 <span>{formatDateTitle(selectedDate)}</span>
               </span>
               <div className="text-[10px] font-mono text-slate-400">
-                {selectedDateMeals.length} logged • {dailyTotals.calories} kcal ({dailyTotals.protein}g P)
+                {selectedDateMeals.length} logged • {dailyTotals?.calories || 0} kcal ({dailyTotals?.protein || 0}g P)
               </div>
             </div>
           </div>
@@ -1532,7 +1536,7 @@ const NutritionViewInner = ({
             const dayTargetCal = (typeof dayTarget === 'number'
               ? dayTarget
               : dayTarget?.calories) || targetCalories;
-            const hitGoal = dayTotals.calories >= dayTargetCal;
+            const hitGoal = (dayTotals?.calories || 0) >= dayTargetCal;
 
             return (
               <button
@@ -1566,9 +1570,9 @@ const NutritionViewInner = ({
                 
                 {/* Calorie status badge */}
                 <div className="text-[10px] font-mono mt-0.5">
-                  {dayTotals.calories > 0 ? (
+                  {(dayTotals?.calories || 0) > 0 ? (
                     <span className={`font-bold ${hitGoal ? 'text-emerald-400' : 'text-slate-300'}`}>
-                      {dayTotals.calories >= 1000 ? `${(dayTotals.calories / 1000).toFixed(1)}k` : dayTotals.calories}
+                      {(dayTotals?.calories || 0) >= 1000 ? `${((dayTotals?.calories || 0) / 1000).toFixed(1)}k` : (dayTotals?.calories || 0)}
                       {hitGoal && ' ✓'}
                     </span>
                   ) : (
@@ -1625,11 +1629,11 @@ const NutritionViewInner = ({
 
           {/* Period Aggregate Summary Bar */}
           {(() => {
-            const loggedDays = nutritionHistory.filter(h => h.calories > 0);
-            const hitDays = nutritionHistory.filter(h => h.hitCalories);
-            const avgCalories = loggedDays.length > 0 ? Math.round(loggedDays.reduce((acc, h) => acc + h.calories, 0) / loggedDays.length) : 0;
-            const avgProtein = loggedDays.length > 0 ? Math.round(loggedDays.reduce((acc, h) => acc + h.protein, 0) / loggedDays.length) : 0;
-            const hitRate = Math.round((hitDays.length / calorieHistoryRange) * 100);
+            const loggedDays = (nutritionHistory || []).filter(h => h && (h.calories || 0) > 0);
+            const hitDays = (nutritionHistory || []).filter(h => h && h.hitCalories);
+            const avgCalories = loggedDays.length > 0 ? Math.round(loggedDays.reduce((acc, h) => acc + (h?.calories || 0), 0) / loggedDays.length) : 0;
+            const avgProtein = loggedDays.length > 0 ? Math.round(loggedDays.reduce((acc, h) => acc + (h?.protein || 0), 0) / loggedDays.length) : 0;
+            const hitRate = Math.round((hitDays.length / (calorieHistoryRange || 1)) * 100);
 
             return (
               <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-white/[0.02] border border-white/10 text-center font-mono">
@@ -1666,24 +1670,28 @@ const NutritionViewInner = ({
             </div>
 
             <div className="flex items-end gap-1 sm:gap-1.5 h-28 pt-4 pb-1 overflow-x-auto scrollbar-none">
-              {nutritionHistory.map((h) => {
+              {(nutritionHistory || []).map((h, hIdx) => {
+                if (!h) return null;
                 const isSelected = h.dateIso === selectedDate;
                 const maxChartCal = Math.max(4000, targetCalories * 1.25);
-                const heightPct = Math.min(100, Math.max(6, Math.round((h.calories / maxChartCal) * 100)));
-                const hitGoal = h.hitCalories;
+                const hCalories = Number(h.calories) || 0;
+                const heightPct = Math.min(100, Math.max(6, Math.round((hCalories / maxChartCal) * 100)));
+                const hitGoal = !!h.hitCalories;
+                const dayInitial = (h.dayName && typeof h.dayName === 'string') ? (h.dayName[0] || 'D') : 'D';
+                const dateSlice = (h.dateIso && typeof h.dateIso === 'string') ? h.dateIso.slice(8) : '';
 
                 return (
                   <button
-                    key={h.dateIso}
+                    key={h.dateIso || `hist-bar-${hIdx}`}
                     type="button"
                     onClick={() => {
                       playSound('click', soundEnabled);
-                      setSelectedDate(h.dateIso);
+                      if (h.dateIso) setSelectedDate(h.dateIso);
                     }}
                     className={`flex-1 min-w-[18px] sm:min-w-[24px] h-full flex flex-col justify-end items-center group cursor-pointer transition-transform ${
                       isSelected ? 'scale-105' : 'hover:opacity-100 opacity-85'
                     }`}
-                    title={`${h.dateTitle}: ${h.calories} kcal (${h.protein}g P)`}
+                    title={`${h.dateTitle || h.dateIso}: ${hCalories} kcal (${h.protein || 0}g P)`}
                   >
                     <div 
                       className={`w-full rounded-t-lg transition-all ${
@@ -1693,7 +1701,7 @@ const NutritionViewInner = ({
                       } ${
                         hitGoal 
                           ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]' 
-                          : h.calories > 0 
+                          : hCalories > 0 
                             ? 'bg-amber-400/80' 
                             : 'bg-white/10'
                       }`}
@@ -1702,7 +1710,7 @@ const NutritionViewInner = ({
                     <span className={`text-[8px] sm:text-[9px] font-mono mt-1 whitespace-nowrap ${
                       isSelected ? 'text-white font-bold' : 'text-slate-500 group-hover:text-slate-300'
                     }`}>
-                      {h.dayName[0]}{h.dateIso.slice(8)}
+                      {dayInitial}{dateSlice}
                     </span>
                   </button>
                 );
@@ -1712,14 +1720,15 @@ const NutritionViewInner = ({
 
           {/* Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 max-h-64 overflow-y-auto pr-0.5">
-            {nutritionHistory.map((h) => {
+            {(nutritionHistory || []).map((h, hIdx) => {
+              if (!h) return null;
               const isSelected = h.dateIso === selectedDate;
               return (
                 <div
-                  key={h.dateIso}
+                  key={h.dateIso || `hist-card-${hIdx}`}
                   onClick={() => {
                     playSound('click', soundEnabled);
-                    setSelectedDate(h.dateIso);
+                    if (h.dateIso) setSelectedDate(h.dateIso);
                   }}
                   className={`p-3 rounded-2xl border transition-all cursor-pointer ${
                     isSelected
@@ -1728,14 +1737,14 @@ const NutritionViewInner = ({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white">{h.dateTitle}</span>
+                    <span className="text-xs font-bold text-white">{h.dateTitle || h.dateIso}</span>
                     {h.hitCalories ? (
                       <span className="px-1.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold flex items-center gap-1">
                         <CheckCheck className="w-3 h-3" /> Hit Goal
                       </span>
-                    ) : h.calories > 0 ? (
+                    ) : (h.calories || 0) > 0 ? (
                       <span className="px-1.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 text-[9px] font-mono font-bold">
-                        {h.pctCalories}%
+                        {h.pctCalories || 0}%
                       </span>
                     ) : (
                       <span className="text-[10px] font-mono text-slate-500">No Logs</span>
@@ -1746,18 +1755,18 @@ const NutritionViewInner = ({
                     <div className="flex justify-between text-[11px]">
                       <span className="text-slate-400">Calories:</span>
                       <span className={`font-bold ${h.hitCalories ? 'text-emerald-400' : 'text-white'}`}>
-                        {h.calories} / {h.targetCalories}
+                        {h.calories || 0} / {h.targetCalories || 0}
                       </span>
                     </div>
                     <div className="w-full h-1.5 bg-black/40 rounded-md overflow-hidden">
                       <div 
                         className={`h-full rounded-md transition-all ${h.hitCalories ? 'bg-emerald-400' : 'bg-amber-400'}`}
-                        style={{ width: `${h.pctCalories}%` }}
+                        style={{ width: `${Math.min(100, Math.max(0, h.pctCalories || 0))}%` }}
                       />
                     </div>
                     <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
-                      <span>Protein: <strong className="text-white">{h.protein}g</strong> / {h.targetProtein}g</span>
-                      <span>{h.mealCount} meals</span>
+                      <span>Protein: <strong className="text-white">{h.protein || 0}g</strong> / {h.targetProtein || 0}g</span>
+                      <span>{h.mealCount || 0} meals</span>
                     </div>
                   </div>
                 </div>

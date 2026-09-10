@@ -207,7 +207,7 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:oats|rolled\s+oats|oatmeal)\b/i,
+    regex: /\b(?:rolled\s+oats|oatmeal|oats(?!\s*(?:and|&)?\s*honey)(?!\s*bar))\b/i,
     name: "Rolled Oats (Dry)",
     defaultUnit: "cups",
     defaultQty: 1,
@@ -433,18 +433,33 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:granola\s+bars?|nature\s+valley|chewy\s+bars?|oats\s+(?:and|&)\s+honey\s+bars?)\b/i,
+    regex: /\b(?:nature\s+valley(?:[\s_]+(?:granola\s+)?bars?)?|nature\s+valley[\s_]+(?:oats[\s_]+(?:and|&)?[\s_]*honey|sweet[\s_]+(?:and|&)?[\s_]*salty|crunchy)|oats[_\s]+(?:and|&)[_\s]+honey(?:\s+granola)?\s+bars?)\b/i,
+    name: "Nature Valley Bar",
+    defaultUnit: "bar",
+    defaultQty: 1,
+    perUnit: {
+      bar: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      bars: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      pouch: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      pouches: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      pack: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      packs: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      g: { calories: 4.85, protein: 0.1, carbs: 0.66, fats: 0.21 }
+    }
+  },
+  {
+    regex: /\b(?:granola\s+bars?|chewy\s+bars?|oats\s+(?:and|&)\s+honey\s+bars?)\b/i,
     name: "Granola Bar (Oats & Honey)",
     defaultUnit: "bar",
     defaultQty: 1,
     perUnit: {
-      bar: { calories: 190, protein: 4, carbs: 29, fats: 7 },
-      bars: { calories: 190, protein: 4, carbs: 29, fats: 7 },
-      pouch: { calories: 190, protein: 4, carbs: 29, fats: 7 },
-      pouches: { calories: 190, protein: 4, carbs: 29, fats: 7 },
-      pack: { calories: 190, protein: 4, carbs: 29, fats: 7 },
-      packs: { calories: 190, protein: 4, carbs: 29, fats: 7 },
-      g: { calories: 4.52, protein: 0.095, carbs: 0.69, fats: 0.166 }
+      bar: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      bars: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      pouch: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      pouches: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      pack: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      packs: { calories: 170, protein: 3.5, carbs: 23, fats: 7.5 },
+      g: { calories: 4.85, protein: 0.1, carbs: 0.66, fats: 0.21 }
     }
   },
   {
@@ -798,12 +813,12 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
   },
   {
     id: "staple-granola-bar",
-    name: "Granola Bar",
-    portion: "1 bar / pouch (42g)",
-    calories: 190,
-    protein: 4,
-    carbs: 29,
-    fats: 7,
+    name: "Nature Valley Bar",
+    portion: "1 bar / pouch (35g)",
+    calories: 170,
+    protein: 3.5,
+    carbs: 23,
+    fats: 7.5,
     category: "Snacks",
     icon: "🍫"
   }
@@ -812,6 +827,7 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
 /**
  * Validates and sanitizes household pantry staples against calibrated ground truth.
  * Ensures the household protein shake is strictly 485 kcal / 39g P (1 scoop vegan powder, 2 cups milk, 1 banana).
+ * Ensures Nature Valley bar is calibrated to 170 kcal / 3.5g P.
  */
 export function sanitizeHouseholdPantry(householdPantry = []) {
   if (!Array.isArray(householdPantry) || householdPantry.length === 0) {
@@ -852,6 +868,22 @@ export function sanitizeHouseholdPantry(householdPantry = []) {
           fats: 4,
           category: "Protein",
           icon: "🐟"
+        };
+      }
+    }
+    if (s && (s.id === 'staple-granola-bar' || /nature\s*valley|granola\s*bar/i.test(s.name || ''))) {
+      if (s.calories === 190 || s.protein === 4 || /190/i.test(s.portion || '') || /42g/i.test(s.portion || '')) {
+        return {
+          ...s,
+          id: s.id || 'staple-granola-bar',
+          name: "Nature Valley Bar",
+          portion: "1 bar / pouch (35g)",
+          calories: 170,
+          protein: 3.5,
+          carbs: 23,
+          fats: 7.5,
+          category: "Snacks",
+          icon: "🍫"
         };
       }
     }
@@ -1337,6 +1369,10 @@ export function parseMealDescription(text, options = {}) {
     .replace(/^(?:i\s+)?(?:had|ate|eating|logged?|drank|consumed)\s+/i, '')
     .replace(/\s+(?:for\s+(?:breakfast|lunch|dinner|snack|post-workout|meal))\b/i, '')
     .replace(/(?:scale\s+(?:reads?|says?)?|weighs?|total\s+weight\s+is?|gross)?\s*\d+(?:\.\d+)?\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+|main\s+|dinner\s+)?(?:bowl|plate)\s*(?:with|and|of)?/i, '')
+    .replace(/\boats\s+and\s+honey\b/gi, 'oats_and_honey')
+    .replace(/\bsweet\s+and\s+salty\b/gi, 'sweet_and_salty')
+    .replace(/\bmac(?:aroni)?\s+and\s+cheese\b/gi, 'mac_and_cheese')
+    .replace(/\bpeanut\s+butter\s+and\s+jelly\b/gi, 'peanut_butter_and_jelly')
     .trim();
 
   // Extract carrier dish if user used "with", "containing", or "made with" (e.g. "protein smoothie with 2 cups of milk, 1 banana and 1 scoop of vegan protein powder")
@@ -1378,7 +1414,8 @@ export function parseMealDescription(text, options = {}) {
 
   const matchedItems = [];
 
-  for (const clause of rawClauses) {
+  for (const rawClause of rawClauses) {
+    const clause = rawClause.replace(/_/g, ' ');
     // Custom smoothie / shake
     if (/\b(?:protein\s+(?:shake|smoothie)|smoothie|my\s+shake|canadian\s+protein\s+shake)\b/i.test(clause)) {
       let mult = 1;
@@ -1497,9 +1534,9 @@ export function parseMealDescription(text, options = {}) {
         name: matchedPantryItem.name,
         portion: usedQty === 1 ? (matchedPantryItem.portion || '1 serving') : `${usedQty} servings`,
         calories: Math.round((matchedPantryItem.calories || 0) * usedQty),
-        protein: Math.round((matchedPantryItem.protein || 0) * usedQty),
-        carbs: Math.round((matchedPantryItem.carbs || 0) * usedQty),
-        fats: Math.round((matchedPantryItem.fats || 0) * usedQty)
+        protein: Number(((matchedPantryItem.protein || 0) * usedQty).toFixed(1)),
+        carbs: Number(((matchedPantryItem.carbs || 0) * usedQty).toFixed(1)),
+        fats: Number(((matchedPantryItem.fats || 0) * usedQty).toFixed(1))
       });
       continue;
     }
@@ -1590,15 +1627,15 @@ export function parseMealDescription(text, options = {}) {
       } else if (matchedFood.perUnit && matchedFood.perUnit[usedUnit]) {
         const r = matchedFood.perUnit[usedUnit];
         itemCals = Math.round(r.calories * usedQty);
-        itemP = Math.round(r.protein * usedQty);
-        itemC = Math.round(r.carbs * usedQty);
-        itemF = Math.round(r.fats * usedQty);
+        itemP = Number((r.protein * usedQty).toFixed(1));
+        itemC = Number((r.carbs * usedQty).toFixed(1));
+        itemF = Number((r.fats * usedQty).toFixed(1));
       } else if (matchedFood.perUnit && matchedFood.perUnit[matchedFood.defaultUnit]) {
         const r = matchedFood.perUnit[matchedFood.defaultUnit];
         itemCals = Math.round(r.calories * usedQty);
-        itemP = Math.round(r.protein * usedQty);
-        itemC = Math.round(r.carbs * usedQty);
-        itemF = Math.round(r.fats * usedQty);
+        itemP = Number((r.protein * usedQty).toFixed(1));
+        itemC = Number((r.carbs * usedQty).toFixed(1));
+        itemF = Number((r.fats * usedQty).toFixed(1));
       }
 
       matchedItems.push({
@@ -1659,10 +1696,10 @@ export function parseMealDescription(text, options = {}) {
     }
   }
 
-  const totalCalories = matchedItems.reduce((acc, it) => acc + it.calories, 0);
-  const totalProtein = matchedItems.reduce((acc, it) => acc + it.protein, 0);
-  const totalCarbs = matchedItems.reduce((acc, it) => acc + it.carbs, 0);
-  const totalFats = matchedItems.reduce((acc, it) => acc + it.fats, 0);
+  const totalCalories = Math.round(matchedItems.reduce((acc, it) => acc + (it.calories || 0), 0));
+  const totalProtein = Number(matchedItems.reduce((acc, it) => acc + (it.protein || 0), 0).toFixed(1));
+  const totalCarbs = Number(matchedItems.reduce((acc, it) => acc + (it.carbs || 0), 0).toFixed(1));
+  const totalFats = Number(matchedItems.reduce((acc, it) => acc + (it.fats || 0), 0).toFixed(1));
 
   const cleanItemNames = matchedItems.map(m => m.name.replace(/\s*\([^)]*\)/, ''));
   let title = '';
@@ -1759,6 +1796,24 @@ export function createMealEntry({
     f = 4;
     finalItems = [
       { name: "Canned Salmon", portion: "1 can", calories: 200, protein: 40, carbs: 0, fats: 4 }
+    ];
+  }
+
+  // Safety calibration: a single Nature Valley bar / granola bar is strictly 170 cals / 3.5g protein
+  const isNatureValleyBar = /nature\s*valley|oats\s*(?:and|&)\s*honey\s*bar/i.test(finalName) ||
+    (finalItems.length === 1 && finalItems.some(it => {
+      const itName = typeof it === 'string' ? it : it?.name || '';
+      return /nature\s*valley|oats\s*(?:and|&)\s*honey\s*bar/i.test(itName);
+    }));
+
+  if (isNatureValleyBar && (finalCals === 190 || finalCals === 0 || !finalCals) && finalItems.length <= 1) {
+    finalName = finalName.includes("Nature Valley") ? finalName : "Nature Valley Bar";
+    finalCals = 170;
+    p = 3.5;
+    c = 23;
+    f = 7.5;
+    finalItems = [
+      { name: "Nature Valley Bar", portion: "1 bar / pouch (35g)", calories: 170, protein: 3.5, carbs: 23, fats: 7.5 }
     ];
   }
 
@@ -2070,26 +2125,41 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 325
     const targetFats = Number(dayFats) || 80;
 
     const isToday = i === 0;
-    const [y, m, d] = dateIso.split('-').map(Number);
-    const dObj = new Date(y, m - 1, d);
-    const dayName = dObj.toLocaleDateString('en-US', { weekday: 'short' });
-    const monthDay = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    let dayName = 'Day';
+    let monthDay = dateIso || '';
+    try {
+      const parts = (dateIso || '').split('-');
+      if (parts.length >= 3) {
+        const [y, m, d] = parts.map(Number);
+        const dObj = new Date(y, m - 1, d);
+        if (!isNaN(dObj.getTime())) {
+          dayName = dObj.toLocaleDateString('en-US', { weekday: 'short' });
+          monthDay = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+      }
+    } catch (e) {}
     
-    const hitCalories = totals.calories >= targetCalories;
-    const hitProtein = totals.protein >= targetProtein;
-    const pctCalories = targetCalories > 0 ? Math.min(100, Math.round((totals.calories / targetCalories) * 100)) : 0;
+    const totalsCals = Number(totals?.calories) || 0;
+    const totalsP = Number(totals?.protein) || 0;
+    const totalsC = Number(totals?.carbs) || 0;
+    const totalsF = Number(totals?.fats) || 0;
+    const totalsCount = Number(totals?.mealCount) || 0;
+
+    const hitCalories = totalsCals >= targetCalories;
+    const hitProtein = totalsP >= targetProtein;
+    const pctCalories = targetCalories > 0 ? Math.min(100, Math.round((totalsCals / targetCalories) * 100)) : 0;
 
     history.push({
-      dateIso,
+      dateIso: dateIso || '',
       dateTitle: `${dayName}, ${monthDay}`,
-      dayName,
-      monthDay,
+      dayName: dayName || 'Day',
+      monthDay: monthDay || '',
       isToday,
-      calories: totals.calories,
-      protein: totals.protein,
-      carbs: totals.carbs,
-      fats: totals.fats,
-      mealCount: totals.mealCount,
+      calories: totalsCals,
+      protein: totalsP,
+      carbs: totalsC,
+      fats: totalsF,
+      mealCount: totalsCount,
       targetCalories,
       targetProtein,
       targetCarbs,
@@ -2264,6 +2334,29 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
           { name: "Canned Salmon", portion: "1 can (150g)", calories: 200, protein: 40, carbs: 0, fats: 4 }
         ],
         notes: "Calibrated accurate canned salmon macros (200 kcal, 40g protein per can)"
+      };
+    }
+
+    // 2.66 Reconcile past Nature Valley bar meals to 170 cals / 3.5g P
+    const isNatureValleyMeal = (m.name && /^(?:1\s+)?(?:nature\s*valley|granola\s*bar|oats\s*(?:and|&)\s*honey\s*bar)(?:\s+bar)?$/i.test(m.name)) ||
+      (Array.isArray(m.items) && m.items.length === 1 && m.items.some(it => {
+        const itName = typeof it === 'string' ? it : it?.name || '';
+        return /nature\s*valley|granola\s*bar|oats\s*(?:and|&)\s*honey\s*bar/i.test(itName);
+      }));
+
+    if (isNatureValleyMeal && m.calories === 190) {
+      wasModified = true;
+      return {
+        ...m,
+        name: m.name.includes("Nature Valley") ? m.name : "Nature Valley Bar",
+        calories: 170,
+        protein: 3.5,
+        carbs: 23,
+        fats: 7.5,
+        items: [
+          { name: "Nature Valley Bar", portion: "1 bar / pouch (35g)", calories: 170, protein: 3.5, carbs: 23, fats: 7.5 }
+        ],
+        notes: "Calibrated accurate Nature Valley bar macros (170 kcal, 3.5g protein, 23g carbs, 7.5g fats)"
       };
     }
 
