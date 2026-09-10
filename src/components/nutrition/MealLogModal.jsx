@@ -11,7 +11,8 @@ import {
   AlertCircle, 
   CheckCircle2, 
   X, 
-  Flame 
+  Flame,
+  SwitchCamera 
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { createMealEntry } from '../../utils/nutritionEngine.js';
@@ -39,6 +40,28 @@ export const MealLogModal = ({
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
+  const [isLiveCameraActive, setIsLiveCameraActive] = useState(false);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState('environment');
+
+  const stopLiveCamera = () => {
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      try {
+        videoRef.current.srcObject = null;
+      } catch (e) {}
+    }
+    setIsLiveCameraActive(false);
+    setIsStartingCamera(false);
+  };
 
   // Sync state & cleanup on modal open/close
   useEffect(() => {
@@ -48,9 +71,13 @@ export const MealLogModal = ({
     } else {
       resetAllStates();
     }
+    return () => {
+      stopLiveCamera();
+    };
   }, [isOpen]);
 
   const resetAllStates = () => {
+    stopLiveCamera();
     setImageDescription('');
     setImageBase64(null);
     setIsAnalyzingImage(false);
@@ -60,13 +87,143 @@ export const MealLogModal = ({
 
   /**
    * Triggers native mobile camera intent directly via <input capture="environment" />
-   * Bypasses browser permission limits and avoids black screen WebRTC locks.
+   * Used as fallback if in-app WebRTC stream is blocked by system permissions.
    */
   const triggerNativeCamera = () => {
     playSound('click', soundEnabled);
+    stopLiveCamera();
     setImageAnalysisError(null);
     if (cameraInputRef.current) {
       cameraInputRef.current.click();
+    }
+  };
+
+  /**
+   * Starts live in-app camera viewfinder inside the modal.
+   * Keeps browser focused and alive, completely preventing mobile OS task-kill/reload.
+   */
+  const startLiveCamera = async (facing = cameraFacingMode) => {
+    playSound('click', soundEnabled);
+    setImageAnalysisError(null);
+
+    // Release any previous camera stream
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      streamRef.current = null;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      triggerNativeCamera();
+      return;
+    }
+
+    setIsStartingCamera(true);
+    setIsLiveCameraActive(true);
+
+    try {
+      const constraints = {
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
+        },
+        audio: false
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn('Live camera play error:', playErr);
+        }
+      }
+      setIsStartingCamera(false);
+    } catch (err) {
+      console.warn('getUserMedia error, falling back:', err);
+      stopLiveCamera();
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        setImageAnalysisError('Camera access denied. Please enable camera permission in your browser or select a photo from Gallery.');
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        setImageAnalysisError('No camera found on this device. Please select a photo from Gallery.');
+      } else {
+        setImageAnalysisError('Could not start live camera viewfinder. You can use Gallery or the system camera option.');
+      }
+    }
+  };
+
+  const toggleCameraFacing = async () => {
+    const nextFacing = cameraFacingMode === 'environment' ? 'user' : 'environment';
+    setCameraFacingMode(nextFacing);
+    if (isLiveCameraActive) {
+      await startLiveCamera(nextFacing);
+    }
+  };
+
+  /**
+   * Captures the current video frame into a downsampled, compressed JPEG.
+   * Immediately stops the camera stream to free hardware resources.
+   */
+  const captureLiveFrame = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    playSound('click', soundEnabled);
+
+    try {
+      const naturalWidth = video.videoWidth || 1280;
+      const naturalHeight = video.videoHeight || 720;
+      const maxDimension = 1024;
+
+      let targetWidth = naturalWidth;
+      let targetHeight = naturalHeight;
+
+      if (naturalWidth > maxDimension || naturalHeight > maxDimension) {
+        if (naturalWidth > naturalHeight) {
+          targetHeight = Math.round((naturalHeight * maxDimension) / naturalWidth);
+          targetWidth = maxDimension;
+        } else {
+          targetWidth = Math.round((naturalWidth * maxDimension) / naturalHeight);
+          targetHeight = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('Canvas context unavailable');
+      }
+
+      if (cameraFacingMode === 'user') {
+        ctx.translate(targetWidth, 0);
+        ctx.scale(-1, 1);
+      }
+
+      ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+      const base64 = canvas.toDataURL('image/jpeg', 0.8);
+
+      // Stop camera stream immediately to release hardware and memory
+      stopLiveCamera();
+
+      // Free canvas
+      canvas.width = 0;
+      canvas.height = 0;
+
+      setImageBase64(base64);
+      setImageMimeType('image/jpeg');
+      setImageAnalysisError(null);
+      playSound('success', soundEnabled);
+    } catch (err) {
+      console.error('Frame capture error:', err);
+      setImageAnalysisError('Could not capture frame. Please try again or choose from Gallery.');
     }
   };
 
@@ -425,7 +582,66 @@ export const MealLogModal = ({
           <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
             {/* Viewport / Image Capture */}
             <div className="relative rounded-2xl bg-black/60 border border-white/10 overflow-hidden">
-              {imageBase64 ? (
+              {isLiveCameraActive ? (
+                <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">
+                  <video
+                    ref={(el) => {
+                      videoRef.current = el;
+                      if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                        el.srcObject = streamRef.current;
+                        el.play().catch(e => console.warn('Camera play warning:', e));
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+
+                  {isStartingCamera && (
+                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-2 text-white text-xs font-semibold">
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Starting camera...</span>
+                    </div>
+                  )}
+
+                  {/* Top Viewfinder Controls: Flip Camera & Close */}
+                  <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={toggleCameraFacing}
+                      className="p-2 rounded-xl bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md cursor-pointer transition-all active:scale-95"
+                      title="Flip camera"
+                    >
+                      <SwitchCamera className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={stopLiveCamera}
+                      className="p-2 rounded-xl bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md cursor-pointer transition-all active:scale-95"
+                      title="Close viewfinder"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Bottom Shutter Button */}
+                  <div className="absolute bottom-3 inset-x-0 flex items-center justify-center pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={captureLiveFrame}
+                      disabled={isStartingCamera}
+                      className="w-14 h-14 rounded-full bg-white border-4 border-black/40 shadow-2xl flex items-center justify-center cursor-pointer transition-all active:scale-90 hover:scale-105"
+                      title="Snap photo"
+                    >
+                      <div className="w-10 h-10 rounded-full border-2 border-slate-900 flex items-center justify-center" style={{ backgroundColor: 'var(--accent-primary)' }}>
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              ) : imageBase64 ? (
                 <div className="relative aspect-video w-full bg-black flex items-center justify-center">
                   <img
                     src={imageBase64}
@@ -436,6 +652,7 @@ export const MealLogModal = ({
                     type="button"
                     onClick={() => {
                       playSound('click', soundEnabled);
+                      stopLiveCamera();
                       setImageBase64(null);
                       setAnalyzedMeal(null);
                     }}
@@ -453,7 +670,7 @@ export const MealLogModal = ({
                   <div>
                     <h4 className="text-sm font-bold text-white">Snap Meal or Nutrition Label</h4>
                     <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                      Take a live photo with your phone camera or select an existing picture from your gallery.
+                      Take a live photo or select an existing picture from your gallery to calculate macros.
                     </p>
                   </div>
 
@@ -462,10 +679,10 @@ export const MealLogModal = ({
                     {/* Primary 1-Tap Live Photo */}
                     <button
                       type="button"
-                      onClick={triggerNativeCamera}
+                      onClick={() => startLiveCamera()}
                       className="flex-1 py-3 px-4 rounded-2xl text-white font-bold text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                       style={{ backgroundColor: 'var(--accent-primary)' }}
-                      title="Take a live photo using your phone camera"
+                      title="Take a live photo directly in app"
                     >
                       <Camera className="w-4 h-4 text-white" />
                       <span>Take Live Photo</span>
@@ -485,10 +702,16 @@ export const MealLogModal = ({
                     </button>
                   </div>
 
-                  {/* Micro-hint for mobile devices under memory constraint */}
-                  <p className="text-[10px] text-slate-500 font-mono text-center pt-0.5">
-                    Tip: If Live Camera triggers a low memory prompt on your device, use Gallery to select the photo.
-                  </p>
+                  {/* Fallback to system camera app if preferred */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={triggerNativeCamera}
+                      className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors underline cursor-pointer"
+                    >
+                      Or use system camera app
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

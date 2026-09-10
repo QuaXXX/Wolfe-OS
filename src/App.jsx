@@ -213,7 +213,24 @@ const DEFAULT_SETTINGS = {
 };
 
 export function App() {
-  const [activeView, setActiveView] = useState('home');
+  const [activeView, setActiveView] = useState(() => {
+    try {
+      const saved = safeGetItem('wolfe_active_view');
+      const validViews = ['home', 'school', 'workouts', 'nutrition', 'trading', 'calendar'];
+      if (saved && validViews.includes(saved)) {
+        return saved;
+      }
+    } catch (e) {}
+    return 'home';
+  });
+
+  // Persist active view so mobile browser tab discards or camera redirects don't kick user out
+  useEffect(() => {
+    try {
+      safeSetItem('wolfe_active_view', activeView);
+    } catch (e) {}
+  }, [activeView]);
+
   const [slideDirection, setSlideDirection] = useState(0); // -1 for left, 1 for right
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isGCalModalOpen, setIsGCalModalOpen] = useState(false);
