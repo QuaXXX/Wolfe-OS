@@ -148,7 +148,7 @@ export const MealLogModal = ({
       console.warn('getUserMedia error, falling back:', err);
       stopLiveCamera();
       if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setImageAnalysisError('Camera access denied. Please enable camera permission in your browser or select a photo from Gallery.');
+        setImageAnalysisError('Camera is blocked. To unblock: 1) In Chrome, tap 3 dots > Settings > Site settings > Camera > Allow this site, OR 2) Long-press the app icon on home screen > App info > Permissions > Camera > Allow.');
       } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
         setImageAnalysisError('No camera found on this device. Please select a photo from Gallery.');
       } else {
