@@ -241,11 +241,6 @@ export function App() {
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.getElementById('root')?.setAttribute('data-rendered', 'true');
-      // Temporary: exit fullscreen so top searchbar and permissions are visible
-      if (document.fullscreenElement || document.webkitFullscreenElement) {
-        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      }
     }
   }, []);
 
@@ -1359,36 +1354,6 @@ export function App() {
     >
       {/* Background Interactive Ambient Glow */}
       <BackgroundGlow accentHue={settings.accentHue} />
-
-      {/* Temporary Mobile Search Bar / Permission Helper Banner */}
-      <div className="bg-amber-950/90 border-b border-amber-500/40 text-amber-200 px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2 z-50 shadow-md">
-        <div className="flex items-center gap-1.5 font-medium">
-          <span>📱 Camera & Permissions:</span>
-          <span className="text-amber-300/90 font-mono text-[11px]">Need Chrome search bar?</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              try {
-                if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-              } catch (e) {}
-            }}
-            className="px-2.5 py-1 rounded-lg bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 font-semibold text-[11px] cursor-pointer active:scale-95"
-          >
-            Exit Fullscreen
-          </button>
-          <a
-            href={typeof window !== 'undefined' ? window.location.href : '#'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] cursor-pointer flex items-center gap-1 active:scale-95"
-          >
-            Open in Chrome Tab ↗
-          </a>
-        </div>
-      </div>
 
       {/* Top Application Bar */}
       <TopBar 
