@@ -1976,7 +1976,10 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
 
   const todayIso = activeDateIso || getTodayIso();
   const yesterdayIso = addDays(todayIso, -1);
-  let meals = Array.isArray(nutritionData.meals) ? [...nutritionData.meals] : [];
+  // Ensure meals array only contains valid non-null objects
+  let meals = Array.isArray(nutritionData.meals) 
+    ? nutritionData.meals.filter(m => m && typeof m === 'object')
+    : [];
   let wasModified = false;
 
   // 1. One-time legacy flag preservation (ensure migration is marked completed so it never touches data)
@@ -2002,6 +2005,7 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
 
   // 2. Permanent Invariant: Ensure every single meal has an explicit, non-null date string
   meals = meals.map(m => {
+    if (!m) return null;
     if (!m.date) {
       wasModified = true;
       let derivedDate = null;
@@ -2022,14 +2026,15 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       };
     }
     return m;
-  });
+  }).filter(Boolean);
 
   // 2.5 Reconcile any past bun meals that were overestimated due to non-partitioned fillings
   meals = meals.map(m => {
+    if (!m) return null;
     const isSuspectBun = 
       (m.name && /bun/i.test(m.name) && (/beef/i.test(m.name) || /veggie/i.test(m.name) || /70g/i.test(m.name) || /insides?/i.test(m.name))) ||
       (Array.isArray(m.items) && m.items.some(it => {
-        const itName = typeof it === 'string' ? it : it.name || '';
+        const itName = typeof it === 'string' ? it : it?.name || '';
         return /bun/i.test(itName) || (/beef/i.test(itName) && /70g/i.test(itName));
       }));
 
@@ -2051,10 +2056,19 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       };
     }
     return m;
-  });
+  }).filter(Boolean);
+
+  // Sanitize weightHistory if present
+  if (Array.isArray(nutritionData.weightHistory)) {
+    const cleanWeight = nutritionData.weightHistory.filter(w => w && typeof w === 'object' && w.date && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs));
+    if (cleanWeight.length !== nutritionData.weightHistory.length) {
+      nutritionData.weightHistory = cleanWeight;
+      wasModified = true;
+    }
+  }
 
   // 3. Calculate consumption strictly from meals logged for TODAY (todayIso)
-  const todayMeals = meals.filter(m => m.date === todayIso);
+  const todayMeals = meals.filter(m => m && m.date === todayIso);
   const todayTotals = aggregateDailyNutrition(todayMeals);
 
   // 4. Daily Water Reset: Reset water on new day

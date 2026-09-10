@@ -63,18 +63,34 @@ class ViewErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     console.error("ViewErrorBoundary caught:", error, info);
   }
+  handleResetStorage = () => {
+    try {
+      localStorage.removeItem('wolfe_nutrition_data');
+      window.location.reload();
+    } catch (e) {
+      window.location.reload();
+    }
+  };
   render() {
     if (this.state.hasError) {
       return (
-        <div className="max-w-md mx-auto mt-20 p-6 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center space-y-3">
+        <div className="max-w-md mx-auto mt-20 p-6 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center space-y-3 shadow-2xl backdrop-blur-xl">
           <div className="text-sm font-bold text-rose-200">Something went wrong rendering this view.</div>
           <div className="text-xs text-rose-300/70 font-mono break-all">{this.state.error?.message}</div>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold border border-rose-500/30 transition-all"
-          >
-            Try Again
-          </button>
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold border border-rose-500/30 transition-all cursor-pointer"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={this.handleResetStorage}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/20 transition-all cursor-pointer"
+            >
+              Clean & Reload
+            </button>
+          </div>
         </div>
       );
     }

@@ -43,12 +43,13 @@ export const KitchenCalibrationModal = ({
   const [isBrandSearchOpen, setIsBrandSearchOpen] = useState(false);
 
   const availableTabs = useMemo(() => {
-    const dishwareTasks = tasks.filter(t => t.category === 'dishware');
-    const staplesTasks = tasks.filter(t => t.category === 'staples');
-    const recipeTasks = tasks.filter(t => t.category === 'recipes');
+    const validTasks = (Array.isArray(tasks) ? tasks : []).filter(t => t && typeof t === 'object');
+    const dishwareTasks = validTasks.filter(t => t.category === 'dishware');
+    const staplesTasks = validTasks.filter(t => t.category === 'staples');
+    const recipeTasks = validTasks.filter(t => t.category === 'recipes');
 
     const tabs = [
-      { id: 'all', label: `All (${tasks.filter(t => t.completed).length}/${tasks.length})` }
+      { id: 'all', label: `All (${validTasks.filter(t => t.completed).length}/${validTasks.length})` }
     ];
     if (dishwareTasks.length > 0) {
       tabs.push({ id: 'dishware', label: `🥣 Dishware (${dishwareTasks.filter(t => t.completed).length}/${dishwareTasks.length})` });

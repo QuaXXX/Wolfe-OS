@@ -117,14 +117,15 @@ export const MealLogModal = ({
   const [manualItems, setManualItems] = useState('');
 
   const displayPantry = useMemo(() => {
-    return (householdPantry && householdPantry.length > 0) 
+    const raw = (Array.isArray(householdPantry) && householdPantry.length > 0) 
       ? householdPantry 
       : DEFAULT_HOUSEHOLD_PANTRY;
+    return (raw || []).filter(s => s && typeof s === 'object' && s.id);
   }, [householdPantry]);
 
   const filteredPantry = useMemo(() => {
     if (pantryCategory === 'all') return displayPantry;
-    return displayPantry.filter(s => (s.category || '').toLowerCase() === pantryCategory.toLowerCase());
+    return displayPantry.filter(s => s && (s.category || '').toLowerCase() === pantryCategory.toLowerCase());
   }, [displayPantry, pantryCategory]);
 
   // Sync state & cleanup on modal open/close

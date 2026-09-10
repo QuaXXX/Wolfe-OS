@@ -53,7 +53,7 @@ import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
 import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush, syncFullOsWithCloud } from '../../utils/cloudSyncEngine.js';
 
-export const NutritionView = ({ 
+const NutritionViewInner = ({ 
   nutritionData, 
   setNutritionData, 
   settings = {},
@@ -135,13 +135,15 @@ export const NutritionView = ({
 
   // Auto-center selected day card in horizontal carousel
   useEffect(() => {
-    if (selectedDayCardRef.current) {
-      selectedDayCardRef.current.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest'
-      });
-    }
+    try {
+      if (selectedDayCardRef.current && typeof selectedDayCardRef.current.scrollIntoView === 'function') {
+        selectedDayCardRef.current.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest'
+        });
+      }
+    } catch (e) {}
   }, [selectedDate]);
 
   // Synchronize nutrition on mount and date rollover to guarantee proper day boundaries
@@ -149,11 +151,15 @@ export const NutritionView = ({
     const safeData = (nutritionData && typeof nutritionData === 'object') ? nutritionData : {};
     const synced = synchronizeNutritionData(safeData, currentTodayIso);
     if (
-      synced.currentDate !== safeData.currentDate ||
-      synced.consumedCalories !== safeData.consumedCalories ||
-      (synced.meals || []).length !== (safeData.meals || []).length
+      synced && (
+        synced.currentDate !== safeData.currentDate ||
+        synced.consumedCalories !== safeData.consumedCalories ||
+        (synced.meals || []).length !== (safeData.meals || []).length
+      )
     ) {
-      setNutritionData(synced);
+      if (typeof setNutritionData === 'function') {
+        setNutritionData(synced);
+      }
       try {
         localStorage.setItem('wolfe_nutrition_data', JSON.stringify(synced));
       } catch (e) {}
@@ -197,17 +203,30 @@ export const NutritionView = ({
 
   // Destructure state from nutritionData with bulletproof safe fallbacks
   const safeNutritionData = (nutritionData && typeof nutritionData === 'object') ? nutritionData : {};
-  const targetCalories = safeNutritionData.targetCalories || 3250;
-  const targetProtein = safeNutritionData.protein?.target || 180;
-  const targetCarbs = safeNutritionData.carbs?.target || 450;
-  const targetFats = safeNutritionData.fats?.target || 80;
-  const targetWaterMl = safeNutritionData.targetWaterMl || 3500;
-  const waterMl = safeNutritionData.waterMl || 0;
-  const meals = Array.isArray(safeNutritionData.meals) ? safeNutritionData.meals : [];
-  const weightHistory = Array.isArray(safeNutritionData.weightHistory) ? safeNutritionData.weightHistory : [];
-  const householdPantry = (Array.isArray(safeNutritionData.householdPantry) && safeNutritionData.householdPantry.length > 0) 
+  const targetCalories = Number(safeNutritionData.targetCalories) || 3250;
+  const targetProtein = Number(safeNutritionData.protein?.target) || 180;
+  const targetCarbs = Number(safeNutritionData.carbs?.target) || 450;
+  const targetFats = Number(safeNutritionData.fats?.target) || 80;
+  const targetWaterMl = Number(safeNutritionData.targetWaterMl) || 3500;
+  const waterMl = Number(safeNutritionData.waterMl) || 0;
+
+  const rawMeals = Array.isArray(safeNutritionData.meals) ? safeNutritionData.meals : [];
+  const meals = useMemo(() => {
+    return rawMeals.filter(m => m && typeof m === 'object' && m.date);
+  }, [rawMeals]);
+
+  const rawWeightHistory = Array.isArray(safeNutritionData.weightHistory) ? safeNutritionData.weightHistory : [];
+  const weightHistory = useMemo(() => {
+    return rawWeightHistory.filter(w => w && typeof w === 'object' && w.date && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs));
+  }, [rawWeightHistory]);
+
+  const rawPantry = (Array.isArray(safeNutritionData.householdPantry) && safeNutritionData.householdPantry.length > 0) 
     ? safeNutritionData.householdPantry 
     : DEFAULT_HOUSEHOLD_PANTRY;
+  const householdPantry = useMemo(() => {
+    return (rawPantry || []).filter(s => s && typeof s === 'object' && s.id);
+  }, [rawPantry]);
+
   const dailyTargets = (safeNutritionData.dailyTargets && typeof safeNutritionData.dailyTargets === 'object')
     ? safeNutritionData.dailyTargets 
     : {};
@@ -297,14 +316,19 @@ export const NutritionView = ({
         'staple-rice',
         'staple-pb'
       ];
-      return householdPantry.filter(s => commonIds.includes(s.id) || s.category === 'Common' || s.category === 'Protein' || s.category === 'Fruit' || s.category === 'Snacks').slice(0, 10);
+      return householdPantry.filter(s => s && (commonIds.includes(s.id) || s.category === 'Common' || s.category === 'Protein' || s.category === 'Fruit' || s.category === 'Snacks')).slice(0, 10);
     }
-    return householdPantry.filter(s => (s.category || '').toLowerCase() === pantryCategory.toLowerCase());
+    return householdPantry.filter(s => s && (s.category || '').toLowerCase() === pantryCategory.toLowerCase());
   }, [householdPantry, pantryCategory]);
 
   const latestWeightLog = useMemo(() => {
     if (!weightHistory.length) return null;
-    return [...weightHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    const sorted = [...weightHistory].sort((a, b) => {
+      const tb = new Date(b.date).getTime();
+      const ta = new Date(a.date).getTime();
+      return (isNaN(tb) ? 0 : tb) - (isNaN(ta) ? 0 : ta);
+    });
+    return sorted[0] || null;
   }, [weightHistory]);
 
   // Handlers for logging
@@ -321,19 +345,20 @@ export const NutritionView = ({
     markLocalMutation();
 
     setNutritionData(prev => {
-      const existingMeals = (prev.meals || []).filter(m => m.id !== stampedMeal.id);
+      const safePrev = (prev && typeof prev === 'object') ? prev : {};
+      const existingMeals = (safePrev.meals || []).filter(m => m && m.id !== stampedMeal.id);
       const nextMeals = [stampedMeal, ...existingMeals];
       // Today's total strictly from meals logged for currentTodayIso
-      const todayMeals = nextMeals.filter(m => m.date === currentTodayIso);
+      const todayMeals = nextMeals.filter(m => m && m.date === currentTodayIso);
       const todayTotals = aggregateDailyNutrition(todayMeals);
 
       const nextData = {
-        ...prev,
+        ...safePrev,
         currentDate: currentTodayIso,
         consumedCalories: todayTotals.calories,
-        protein: { ...(prev.protein || {}), current: todayTotals.protein },
-        carbs: { ...(prev.carbs || {}), current: todayTotals.carbs },
-        fats: { ...(prev.fats || {}), current: todayTotals.fats },
+        protein: { ...(safePrev.protein || {}), current: todayTotals.protein },
+        carbs: { ...(safePrev.carbs || {}), current: todayTotals.carbs },
+        fats: { ...(safePrev.fats || {}), current: todayTotals.fats },
         meals: nextMeals
       };
       try {
@@ -351,16 +376,17 @@ export const NutritionView = ({
     markLocalMutation();
 
     setNutritionData(prev => {
-      const nextMeals = (prev.meals || []).filter(m => m.id !== mealId);
-      const todayMeals = nextMeals.filter(m => m.date === currentTodayIso);
+      const safePrev = (prev && typeof prev === 'object') ? prev : {};
+      const nextMeals = (safePrev.meals || []).filter(m => m && m.id !== mealId);
+      const todayMeals = nextMeals.filter(m => m && m.date === currentTodayIso);
       const todayTotals = aggregateDailyNutrition(todayMeals);
 
       const nextData = {
-        ...prev,
+        ...safePrev,
         consumedCalories: todayTotals.calories,
-        protein: { ...(prev.protein || {}), current: todayTotals.protein },
-        carbs: { ...(prev.carbs || {}), current: todayTotals.carbs },
-        fats: { ...(prev.fats || {}), current: todayTotals.fats },
+        protein: { ...(safePrev.protein || {}), current: todayTotals.protein },
+        carbs: { ...(safePrev.carbs || {}), current: todayTotals.carbs },
+        fats: { ...(safePrev.fats || {}), current: todayTotals.fats },
         meals: nextMeals
       };
       try {
@@ -535,9 +561,10 @@ export const NutritionView = ({
     markLocalMutation();
 
     setNutritionData(prev => {
-      const existing = (prev.weightHistory || []).filter(w => w.date !== weightEntry.date);
+      const safePrev = (prev && typeof prev === 'object') ? prev : {};
+      const existing = (safePrev.weightHistory || []).filter(w => w && w.date !== weightEntry?.date);
       const nextData = {
-        ...prev,
+        ...safePrev,
         weightHistory: [weightEntry, ...existing]
       };
       try {
@@ -554,9 +581,10 @@ export const NutritionView = ({
     markLocalMutation();
 
     setNutritionData(prev => {
+      const safePrev = (prev && typeof prev === 'object') ? prev : {};
       const nextData = {
-        ...prev,
-        weightHistory: (prev.weightHistory || []).filter(w => w.id !== idOrDate && w.date !== idOrDate)
+        ...safePrev,
+        weightHistory: (safePrev.weightHistory || []).filter(w => w && w.id !== idOrDate && w.date !== idOrDate)
       };
       try {
         localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
@@ -680,9 +708,10 @@ export const NutritionView = ({
     markLocalMutation();
 
     setNutritionData(prev => {
+      const safePrev = (prev && typeof prev === 'object') ? prev : {};
       const nextData = {
-        ...prev,
-        householdPantry: (prev.householdPantry || []).filter(s => s.id !== stapleId)
+        ...safePrev,
+        householdPantry: (safePrev.householdPantry || []).filter(s => s && s.id !== stapleId)
       };
       try {
         localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
@@ -909,11 +938,12 @@ export const NutritionView = ({
           {dayWindow.map((day) => {
             const isSelected = day.dateIso === selectedDate;
             const isToday = day.dateIso === todayIso;
-            const dayMeals = (meals || []).filter(m => m.date === day.dateIso);
+            const dayMeals = (meals || []).filter(m => m && m.date === day.dateIso);
             const dayTotals = aggregateDailyNutrition(dayMeals);
-            const dayTargetCal = (typeof dailyTargets[day.dateIso] === 'number'
-              ? dailyTargets[day.dateIso]
-              : dailyTargets[day.dateIso]?.calories) || targetCalories;
+            const dayTarget = dailyTargets ? dailyTargets[day.dateIso] : null;
+            const dayTargetCal = (typeof dayTarget === 'number'
+              ? dayTarget
+              : dayTarget?.calories) || targetCalories;
             const hitGoal = dayTotals.calories >= dayTargetCal;
 
             return (
@@ -1314,7 +1344,7 @@ export const NutritionView = ({
             <div className="flex items-baseline justify-between pt-1">
               <div>
                 <span className="text-2xl font-bold font-mono text-white">
-                  {latestWeightLog ? `${latestWeightLog.weightLbs}` : '—'}
+                  {latestWeightLog?.weightLbs != null ? `${latestWeightLog.weightLbs}` : '—'}
                 </span>
                 <span className="text-xs text-slate-400 font-mono ml-1">lbs</span>
               </div>
@@ -1485,9 +1515,10 @@ export const NutritionView = ({
 
         {selectedDateMeals.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {selectedDateMeals.map((meal) => {
+            {selectedDateMeals.map((meal, mIdx) => {
+              if (!meal) return null;
               return (
-                <GlassCard key={meal.id} hoverEffect={false} className="p-4 flex flex-col justify-between space-y-3">
+                <GlassCard key={meal.id || `meal-${mIdx}`} hoverEffect={false} className="p-4 flex flex-col justify-between space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-base shrink-0">
@@ -1495,7 +1526,7 @@ export const NutritionView = ({
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white">{meal.name}</span>
+                          <span className="text-xs font-bold text-white">{meal.name || 'Meal'}</span>
                         </div>
                         {meal.time && (
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
@@ -1508,8 +1539,8 @@ export const NutritionView = ({
 
                     <div className="flex items-center gap-2">
                       <div className="text-right font-mono">
-                        <div className="text-sm font-bold text-white">{meal.calories} kcal</div>
-                        <div className="text-[10px] text-emerald-400 font-semibold">{meal.protein}g Protein</div>
+                        <div className="text-sm font-bold text-white">{meal.calories || 0} kcal</div>
+                        <div className="text-[10px] text-emerald-400 font-semibold">{meal.protein || 0}g Protein</div>
                       </div>
 
                       <button
@@ -1522,10 +1553,10 @@ export const NutritionView = ({
                     </div>
                   </div>
 
-                  {meal.items && meal.items.length > 0 && (
+                  {Array.isArray(meal.items) && meal.items.length > 0 && (
                     <div className="text-[11px] text-slate-300 font-mono bg-black/40 p-2 rounded-xl border border-white/5 space-y-0.5">
                       {meal.items.map((it, idx) => (
-                        <div key={idx} className="truncate">• {it}</div>
+                        <div key={idx} className="truncate">• {typeof it === 'string' ? it : (it?.name || `${it?.portion || ''} item`)}</div>
                       ))}
                     </div>
                   )}
@@ -1620,24 +1651,27 @@ export const NutritionView = ({
 
         {/* Minimal Action Chips: Icon + Name + Plus button (No macro clutter) */}
         <div className="flex items-center gap-2 flex-wrap">
-          {filteredPantry.map((staple) => (
-            <button
-              key={staple.id}
-              type="button"
-              onClick={() => handleQuickLogStaple(staple)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm hover:border-white/20 group"
-              title={`Tap to log ${staple.name} into ${selectedDate === todayIso ? 'Today' : selectedDate}`}
-            >
-              <span className="text-base">{staple.icon || '🍽️'}</span>
-              <span>{staple.name}</span>
-              <div 
-                className="w-5 h-5 rounded-lg flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
-                style={{ backgroundColor: 'var(--accent-primary)' }}
+          {filteredPantry.map((staple, sIdx) => {
+            if (!staple) return null;
+            return (
+              <button
+                key={staple.id || `staple-${sIdx}`}
+                type="button"
+                onClick={() => handleQuickLogStaple(staple)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm hover:border-white/20 group"
+                title={`Tap to log ${staple.name || 'item'} into ${selectedDate === todayIso ? 'Today' : selectedDate}`}
               >
-                <Plus className="w-3.5 h-3.5" strokeWidth={3} />
-              </div>
-            </button>
-          ))}
+                <span className="text-base">{staple.icon || '🍽️'}</span>
+                <span>{staple.name || 'Item'}</span>
+                <div 
+                  className="w-5 h-5 rounded-lg flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                >
+                  <Plus className="w-3.5 h-3.5" strokeWidth={3} />
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -1826,3 +1860,73 @@ export const NutritionView = ({
     </div>
   );
 };
+
+// Resilient Internal Error Boundary for Nutrition View
+class NutritionErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("NutritionErrorBoundary caught:", error, info);
+  }
+  handleRepair = () => {
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      const parsed = raw ? JSON.parse(raw) : {};
+      const sanitized = synchronizeNutritionData(parsed);
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(sanitized));
+      if (typeof this.props.onRepair === 'function') {
+        this.props.onRepair(sanitized);
+      }
+      this.setState({ hasError: false, error: null });
+    } catch (e) {
+      this.setState({ hasError: false, error: null });
+    }
+  };
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="max-w-md mx-auto mt-16 p-6 rounded-3xl bg-[#0f1220]/95 border border-rose-500/30 text-center space-y-4 shadow-2xl backdrop-blur-xl">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-400">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-white">Nutrition View Auto-Recovery</h3>
+            <p className="text-xs text-rose-300/80 font-mono break-all">
+              {this.state.error?.message || "An unexpected error occurred while rendering nutrition."}
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-all cursor-pointer"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={this.handleRepair}
+              className="px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-lg transition-all active:scale-95 cursor-pointer"
+              style={{ backgroundColor: 'var(--accent-primary)' }}
+            >
+              Sanitize & Recover Data
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export const NutritionView = (props) => {
+  return (
+    <NutritionErrorBoundary onRepair={props.setNutritionData}>
+      <NutritionViewInner {...props} />
+    </NutritionErrorBoundary>
+  );
+};
+

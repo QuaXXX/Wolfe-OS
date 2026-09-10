@@ -40,9 +40,13 @@ export const WeightTrackerModal = ({
 
   if (!isOpen) return null;
 
-  const sortedHistory = [...weightHistory]
-    .filter(w => w && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sortedHistory = (Array.isArray(weightHistory) ? weightHistory : [])
+    .filter(w => w && w.date && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
+    .sort((a, b) => {
+      const tb = new Date(b.date).getTime();
+      const ta = new Date(a.date).getTime();
+      return (isNaN(tb) ? 0 : tb) - (isNaN(ta) ? 0 : ta);
+    });
 
   const trend = calculateWeightTrend(weightHistory, weightSpan);
   const movingAvg = calculateMovingAverageWeight(weightHistory, weightSpan === 'all' ? 30 : Number(weightSpan));
@@ -51,7 +55,7 @@ export const WeightTrackerModal = ({
   const latestWeighIn = sortedHistory[0];
 
   // SVG Chart points calculation
-  const chartPoints = (trend?.points || []).slice(-15);
+  const chartPoints = (trend?.points || []).filter(p => p && typeof p.weightLbs === 'number' && !isNaN(p.weightLbs)).slice(-15);
   const minWeight = chartPoints.length > 0 ? Math.min(...chartPoints.map(p => p.weightLbs)) - 0.5 : 180;
   const maxWeight = chartPoints.length > 0 ? Math.max(...chartPoints.map(p => p.weightLbs)) + 0.5 : 190;
   const weightRange = Math.max(1, maxWeight - minWeight);
