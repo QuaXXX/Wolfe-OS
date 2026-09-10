@@ -504,7 +504,8 @@ const NutritionViewInner = ({
         setTimeout(() => setQuickAddFeedback(null), 3500);
       } else {
         playSound('click', soundEnabled);
-        setIsMealModalOpen(true);
+        setQuickAddFeedback("Could not recognize meal. Try specifying portions or snap with Camera.");
+        setTimeout(() => setQuickAddFeedback(null), 4000);
       }
     } catch (err) {
       const local = parseMealDescription(text, { kitchenCalibration: safeNutritionData?.kitchenCalibration, householdPantry });
@@ -526,7 +527,8 @@ const NutritionViewInner = ({
         setTimeout(() => setQuickAddFeedback(null), 3500);
       } else {
         playSound('click', soundEnabled);
-        setIsMealModalOpen(true);
+        setQuickAddFeedback("Could not recognize meal. Try specifying portions or snap with Camera.");
+        setTimeout(() => setQuickAddFeedback(null), 4000);
       }
     } finally {
       setIsQuickAnalyzing(false);
@@ -888,30 +890,6 @@ const NutritionViewInner = ({
             <span>{isHistoryExpanded ? 'Hide History' : '7-Day History'}</span>
           </button>
 
-          {/* Hardware & Dish Calibration Pill */}
-          <button
-            onClick={() => {
-              playSound('click', soundEnabled);
-              setIsCalibrationModalOpen(true);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
-              calibrationProgress.isAllCompleted
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
-            }`}
-            title="Calibrate your dishware dimensions so AI vision estimates exact portion sizes"
-          >
-            <Ruler className={`w-3.5 h-3.5 ${calibrationProgress.isAllCompleted ? 'text-emerald-400' : 'text-indigo-400'}`} />
-            <span>
-              {calibrationProgress.isAllCompleted 
-                ? 'Hardware Calibrated' 
-                : `Calibrate: ${calibrationProgress.completed}/${calibrationProgress.total || 2}`}
-            </span>
-            {calibrationProgress.isAllCompleted && (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />
-            )}
-          </button>
-
           {/* Morning Weight Tracker */}
           <button
             onClick={() => {
@@ -924,7 +902,7 @@ const NutritionViewInner = ({
             <span>Morning Weight</span>
           </button>
 
-          {/* One Primary Log Food Modal */}
+          {/* Camera AI Scan Modal */}
           <button
             onClick={() => {
               playSound('click', soundEnabled);
@@ -932,9 +910,10 @@ const NutritionViewInner = ({
             }}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
             style={{ backgroundColor: 'var(--accent-primary)' }}
+            title="Snap meal with camera or select from gallery"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Log Food</span>
+            <Camera className="w-3.5 h-3.5" />
+            <span>Camera</span>
           </button>
         </div>
       </div>
@@ -1048,6 +1027,73 @@ const NutritionViewInner = ({
             );
           })}
         </div>
+      </div>
+
+      {/* Quick Add Input Bar (Voice or Instant Text) - Moved to Top */}
+      <div className="flex flex-col gap-2">
+        <div className="relative flex items-center gap-2 p-1.5 sm:p-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-2 flex-1 px-2.5 py-1">
+            <UtensilsCrossed className="w-4 h-4 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              value={quickAddText}
+              onChange={(e) => setQuickAddText(e.target.value)}
+              disabled={isQuickAnalyzing}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleQuickAddSubmit();
+                }
+              }}
+              placeholder={isQuickAnalyzing ? "AI analyzing meal..." : 'Quick log: "1 peanutbutter toast", "chipotle bowl no cheese", "2 eggs and apple"...'}
+              className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
+            />
+          </div>
+
+          {/* Voice Speech Recognition Button */}
+          <button
+            type="button"
+            onClick={handleToggleVoiceQuickAdd}
+            disabled={isQuickAnalyzing}
+            className={`p-2 rounded-xl border transition-all cursor-pointer disabled:opacity-40 ${
+              isVoiceListening 
+                ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse' 
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-400 hover:text-white'
+            }`}
+            title={isVoiceListening ? "Listening... click to stop" : "Speak meal to log (e.g. '1 peanutbutter toast')"}
+          >
+            {isVoiceListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
+
+          {/* Add Button */}
+          <button
+            type="button"
+            onClick={handleQuickAddSubmit}
+            disabled={!quickAddText.trim() || isQuickAnalyzing}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--accent-primary)' }}
+          >
+            {isQuickAnalyzing ? (
+              <>
+                <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                <span>AI Analyzing...</span>
+              </>
+            ) : (
+              <>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Quick Add Feedback Toast */}
+        {quickAddFeedback && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium">
+            <Check className="w-3.5 h-3.5 shrink-0" />
+            <span>{quickAddFeedback}</span>
+          </div>
+        )}
       </div>
 
       {/* MULTI-WEEK CONSISTENCY & HISTORY LOOKBACK CARD (Expandable) */}
@@ -1449,72 +1495,6 @@ const NutritionViewInner = ({
         </div>
       </div>
 
-      {/* Quick Add Input Bar (Voice or Instant Text) */}
-      <div className="flex flex-col gap-2">
-        <div className="relative flex items-center gap-2 p-1.5 sm:p-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-2 flex-1 px-2.5 py-1">
-            <UtensilsCrossed className="w-4 h-4 text-slate-400 shrink-0" />
-            <input
-              type="text"
-              value={quickAddText}
-              onChange={(e) => setQuickAddText(e.target.value)}
-              disabled={isQuickAnalyzing}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleQuickAddSubmit();
-                }
-              }}
-              placeholder={isQuickAnalyzing ? "AI analyzing meal..." : 'Quick log: "1 peanutbutter toast", "chipotle bowl no cheese", "2 eggs and apple"...'}
-              className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
-            />
-          </div>
-
-          {/* Voice Speech Recognition Button */}
-          <button
-            type="button"
-            onClick={handleToggleVoiceQuickAdd}
-            disabled={isQuickAnalyzing}
-            className={`p-2 rounded-xl border transition-all cursor-pointer disabled:opacity-40 ${
-              isVoiceListening 
-                ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse' 
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-400 hover:text-white'
-            }`}
-            title={isVoiceListening ? "Listening... click to stop" : "Speak meal to log (e.g. '1 peanutbutter toast')"}
-          >
-            {isVoiceListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-          </button>
-
-          {/* Add Button */}
-          <button
-            type="button"
-            onClick={handleQuickAddSubmit}
-            disabled={!quickAddText.trim() || isQuickAnalyzing}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--accent-primary)' }}
-          >
-            {isQuickAnalyzing ? (
-              <>
-                <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-300" />
-                <span>AI Analyzing...</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Quick Add Feedback Toast */}
-        {quickAddFeedback && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium">
-            <Check className="w-3.5 h-3.5 shrink-0" />
-            <span>{quickAddFeedback}</span>
-          </div>
-        )}
-      </div>
 
       {/* 2. ADAPTIVE SURPLUS BANNER (Appears if weight stalls) */}
       {surplusRecommendation.needsSurplus && (
@@ -1564,9 +1544,10 @@ const NutritionViewInner = ({
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
             style={{ backgroundColor: 'var(--accent-primary)' }}
+            title="Snap meal with camera or select from gallery"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Log Food</span>
+            <Camera className="w-3.5 h-3.5" />
+            <span>Camera</span>
           </button>
         </div>
 
@@ -1671,7 +1652,7 @@ const NutritionViewInner = ({
             </div>
             <div className="text-xs font-bold text-white">{selectedDate === todayIso ? "No Meals Logged Today" : `No Meals Logged for ${formatDateTitle(selectedDate)}`}</div>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-              Tap any household staple below or click "Log Food" to upload an image, talk to add, or quick log.
+              Use the Quick Add bar above, tap a pantry staple, or tap Camera to snap a photo.
             </p>
           </GlassCard>
         )}
