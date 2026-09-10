@@ -65,9 +65,10 @@ export const HomeView = ({
     ? (Number(weightDiff) >= 0 ? `+${weightDiff}` : `${weightDiff}`)
     : null;
 
-  const todayTargetCals = nutritionData?.dailyTargets?.[todayIso]?.calories || nutritionData?.targetCalories || 3250;
-  const todayTargetProtein = nutritionData?.dailyTargets?.[todayIso]?.protein || nutritionData?.protein?.target || 180;
-  const todayTargetCarbs = nutritionData?.dailyTargets?.[todayIso]?.carbs || nutritionData?.carbs?.target || 450;
+  const rawTodayTarget = nutritionData?.dailyTargets?.[todayIso];
+  const todayTargetCals = (typeof rawTodayTarget === 'number' ? rawTodayTarget : rawTodayTarget?.calories) || nutritionData?.targetCalories || 3250;
+  const todayTargetProtein = (typeof rawTodayTarget === 'object' && rawTodayTarget !== null ? rawTodayTarget.protein : null) || nutritionData?.protein?.target || 180;
+  const todayTargetCarbs = (typeof rawTodayTarget === 'object' && rawTodayTarget !== null ? rawTodayTarget.carbs : null) || nutritionData?.carbs?.target || 450;
 
   const osData = {
     schoolData,
@@ -340,7 +341,146 @@ export const HomeView = ({
         </GlassCard>
       )}
 
-      {/* 3. Upper Grid: Trading & School */}
+      {/* 3. Physical Performance: Nutrition & Workouts */}
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3' : 'gap-5'}`}>
+        {/* Nutrition */}
+        {vm.nutrition !== false && (
+          <GlassCard 
+            onClick={() => {
+              playSound('click', soundEnabled);
+              onNavigate('nutrition');
+            }}
+            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
+          >
+            <div>
+              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
+                <div className="flex items-center gap-2.5">
+                  <div 
+                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
+                  >
+                    <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
+                  </div>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Nutrition
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isCompact && (
+                    <span className="text-xs font-mono font-bold text-white">
+                      {nutritionData?.consumedCalories || 0} / {todayTargetCals} kcal
+                    </span>
+                  )}
+                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
+                </div>
+              </div>
+
+              {!isCompact ? (
+                <>
+                  <div className="my-2">
+                    <div className="flex items-baseline justify-between">
+                      <div className="text-2xl font-mono font-bold text-white tracking-tight">
+                        {nutritionData?.consumedCalories || 0} <span className="text-xs font-normal text-slate-500">/ {todayTargetCals} kcal</span>
+                      </div>
+                      {latestWeight && (
+                        <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          ⚖️ {latestWeight} lbs {weightChangeStr ? `(${weightChangeStr})` : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
+                      <span>Protein: <span className="font-mono text-slate-200 font-semibold">{nutritionData?.protein?.current || 0}g / {todayTargetProtein}g</span></span>
+                      <span className="font-mono text-slate-400">Carbs: {nutritionData?.carbs?.current || 0}g / {todayTargetCarbs}g</span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg my-2 overflow-hidden">
+                    <div 
+                      className="h-full rounded-lg transition-all duration-500" 
+                      style={{ 
+                        width: `${Math.min(100, Math.round(((nutritionData?.consumedCalories || 0) / (todayTargetCals || 1)) * 100))}%`,
+                        backgroundColor: 'var(--accent-primary)'
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-white/[0.04] font-mono">
+                    <span>Water: {Math.round((nutritionData?.waterMl || 0) / 1000 * 10) / 10}L / 3.5L</span>
+                    <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} kcal left</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04]">
+                  <span>P: {nutritionData?.protein?.current || 0}/{todayTargetProtein}g</span>
+                  <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} left</span>
+                </div>
+              )}
+            </div>
+          </GlassCard>
+        )}
+
+        {/* Workouts */}
+        {vm.workouts !== false && (
+          <GlassCard 
+            onClick={() => {
+              playSound('click', soundEnabled);
+              onNavigate('workouts');
+            }}
+            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
+          >
+            <div>
+              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
+                <div className="flex items-center gap-2.5">
+                  <div 
+                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
+                  >
+                    <Dumbbell className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
+                  </div>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Workouts
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isCompact && (
+                    <span className="text-xs font-semibold text-white">
+                      {workoutData.todayWorkout || 'Rest Day'}
+                    </span>
+                  )}
+                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
+                </div>
+              </div>
+
+              {!isCompact ? (
+                <div className="my-2">
+                  <div className="text-sm font-bold text-white">
+                    {workoutData.todayWorkout || 'Rest Day'}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    Target: {workoutData.completedDaysThisWeek || 0} of {workoutData.targetDaysThisWeek || 5} sessions complete
+                  </div>
+                  
+                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg mt-2.5 overflow-hidden">
+                    <div 
+                      className="h-full rounded-lg transition-all duration-300" 
+                      style={{ 
+                        width: `${Math.min(100, ((workoutData.completedDaysThisWeek || 0) / (workoutData.targetDaysThisWeek || 5)) * 100)}%`,
+                        backgroundColor: 'var(--accent-primary)'
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
+                  <span>Week: {workoutData.completedDaysThisWeek || 0}/{workoutData.targetDaysThisWeek || 5} Complete</span>
+                  <span>Vol: {workoutData.weeklyVolumeLbs || '0 lbs'}</span>
+                </div>
+              )}
+            </div>
+          </GlassCard>
+        )}
+      </div>
+
+      {/* 4. Focus & Execution: Day Trading & School */}
       <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3' : 'gap-5'}`}>
         
         {/* Day Trading */}
@@ -478,146 +618,6 @@ export const HomeView = ({
               ) : (
                 <div className="text-[11px] text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
                   {schoolData.courses.length} Active Courses
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        )}
-      </div>
-
-      {/* 4. Lower Grid: Workouts & Nutrition */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3' : 'gap-5'}`}>
-        
-        {/* Workouts */}
-        {vm.workouts !== false && (
-          <GlassCard 
-            onClick={() => {
-              playSound('click', soundEnabled);
-              onNavigate('workouts');
-            }}
-            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
-          >
-            <div>
-              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2.5">
-                  <div 
-                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                  >
-                    <Dumbbell className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
-                  </div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Workouts
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isCompact && (
-                    <span className="text-xs font-semibold text-white">
-                      {workoutData.todayWorkout || 'Rest Day'}
-                    </span>
-                  )}
-                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
-                </div>
-              </div>
-
-              {!isCompact ? (
-                <div className="my-2">
-                  <div className="text-sm font-bold text-white">
-                    {workoutData.todayWorkout || 'Rest Day'}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    Target: {workoutData.completedDaysThisWeek || 0} of {workoutData.targetDaysThisWeek || 5} sessions complete
-                  </div>
-                  
-                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg mt-2.5 overflow-hidden">
-                    <div 
-                      className="h-full rounded-lg transition-all duration-300" 
-                      style={{ 
-                        width: `${Math.min(100, ((workoutData.completedDaysThisWeek || 0) / (workoutData.targetDaysThisWeek || 5)) * 100)}%`,
-                        backgroundColor: 'var(--accent-primary)'
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
-                  <span>Week: {workoutData.completedDaysThisWeek || 0}/{workoutData.targetDaysThisWeek || 5} Complete</span>
-                  <span>Vol: {workoutData.weeklyVolumeLbs || '0 lbs'}</span>
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        )}
-
-        {/* Nutrition */}
-        {vm.nutrition !== false && (
-          <GlassCard 
-            onClick={() => {
-              playSound('click', soundEnabled);
-              onNavigate('nutrition');
-            }}
-            className={`flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
-          >
-            <div>
-              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2.5">
-                  <div 
-                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                  >
-                    <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
-                  </div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Nutrition
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isCompact && (
-                    <span className="text-xs font-mono font-bold text-white">
-                      {nutritionData?.consumedCalories || 0} / {todayTargetCals} kcal
-                    </span>
-                  )}
-                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
-                </div>
-              </div>
-
-              {!isCompact ? (
-                <>
-                  <div className="my-2">
-                    <div className="flex items-baseline justify-between">
-                      <div className="text-2xl font-mono font-bold text-white tracking-tight">
-                        {nutritionData?.consumedCalories || 0} <span className="text-xs font-normal text-slate-500">/ {todayTargetCals} kcal</span>
-                      </div>
-                      {latestWeight && (
-                        <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                          ⚖️ {latestWeight} lbs {weightChangeStr ? `(${weightChangeStr})` : ''}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
-                      <span>Protein: <span className="font-mono text-slate-200 font-semibold">{nutritionData?.protein?.current || 0}g / {todayTargetProtein}g</span></span>
-                      <span className="font-mono text-slate-400">Carbs: {nutritionData?.carbs?.current || 0}g / {todayTargetCarbs}g</span>
-                    </div>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg my-2 overflow-hidden">
-                    <div 
-                      className="h-full rounded-lg transition-all duration-500" 
-                      style={{ 
-                        width: `${Math.min(100, Math.round(((nutritionData?.consumedCalories || 0) / (todayTargetCals || 1)) * 100))}%`,
-                        backgroundColor: 'var(--accent-primary)'
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-white/[0.04] font-mono">
-                    <span>Water: {Math.round((nutritionData?.waterMl || 0) / 1000 * 10) / 10}L / 3.5L</span>
-                    <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} kcal left</span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04]">
-                  <span>P: {nutritionData?.protein?.current || 0}/{todayTargetProtein}g</span>
-                  <span className="text-slate-300">{Math.max(0, todayTargetCals - (nutritionData?.consumedCalories || 0))} left</span>
                 </div>
               )}
             </div>

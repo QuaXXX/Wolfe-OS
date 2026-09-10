@@ -1896,11 +1896,16 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 325
     const totals = aggregateDailyNutrition(dayMeals);
 
     // Look up historical target for this specific day, falling back to default target
-    const dayTarget = dailyTargets?.[dateIso] || {};
-    const targetCalories = Number(dayTarget.calories) || Number(defaultTargetCalories) || 3250;
-    const targetProtein = Number(dayTarget.protein) || Number(defaultTargetProtein) || 180;
-    const targetCarbs = Number(dayTarget.carbs) || 450;
-    const targetFats = Number(dayTarget.fats) || 80;
+    const dayTarget = (dailyTargets && typeof dailyTargets === 'object') ? dailyTargets[dateIso] : null;
+    const dayCals = typeof dayTarget === 'number' ? dayTarget : (typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.calories : null);
+    const dayProtein = typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.protein : null;
+    const dayCarbs = typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.carbs : null;
+    const dayFats = typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.fats : null;
+
+    const targetCalories = Number(dayCals) || Number(defaultTargetCalories) || 3250;
+    const targetProtein = Number(dayProtein) || Number(defaultTargetProtein) || 180;
+    const targetCarbs = Number(dayCarbs) || 450;
+    const targetFats = Number(dayFats) || 80;
 
     const isToday = i === 0;
     const [y, m, d] = dateIso.split('-').map(Number);
@@ -1910,7 +1915,7 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 325
     
     const hitCalories = totals.calories >= targetCalories;
     const hitProtein = totals.protein >= targetProtein;
-    const pctCalories = Math.min(100, Math.round((totals.calories / targetCalories) * 100));
+    const pctCalories = targetCalories > 0 ? Math.min(100, Math.round((totals.calories / targetCalories) * 100)) : 0;
 
     history.push({
       dateIso,
@@ -1941,12 +1946,22 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 325
  */
 export function getTargetForDate(nutritionData, dateIso) {
   const targetIso = dateIso || getTodayIso();
-  const specific = nutritionData?.dailyTargets?.[targetIso];
+  const specific = (nutritionData?.dailyTargets && typeof nutritionData.dailyTargets === 'object')
+    ? nutritionData.dailyTargets[targetIso]
+    : null;
+
+  const specificCals = typeof specific === 'number' 
+    ? specific 
+    : (typeof specific === 'object' && specific !== null ? specific.calories : null);
+  const specificProtein = typeof specific === 'object' && specific !== null ? specific.protein : null;
+  const specificCarbs = typeof specific === 'object' && specific !== null ? specific.carbs : null;
+  const specificFats = typeof specific === 'object' && specific !== null ? specific.fats : null;
+
   return {
-    calories: Number(specific?.calories) || Number(nutritionData?.targetCalories) || 3250,
-    protein: Number(specific?.protein) || Number(nutritionData?.protein?.target) || 180,
-    carbs: Number(specific?.carbs) || Number(nutritionData?.carbs?.target) || 450,
-    fats: Number(specific?.fats) || Number(nutritionData?.fats?.target) || 80
+    calories: Number(specificCals) || Number(nutritionData?.targetCalories) || 3250,
+    protein: Number(specificProtein) || Number(nutritionData?.protein?.target) || 180,
+    carbs: Number(specificCarbs) || Number(nutritionData?.carbs?.target) || 450,
+    fats: Number(specificFats) || Number(nutritionData?.fats?.target) || 80
   };
 }
 
