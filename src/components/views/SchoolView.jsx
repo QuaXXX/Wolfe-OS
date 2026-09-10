@@ -335,12 +335,21 @@ export const SchoolView = ({
     const handle = await getVaultHandle();
     if (handle) {
       try {
+        const hasPerm = await verifyHandlePermission(handle, false);
+        if (!hasPerm && handle.requestPermission) {
+          const res = await handle.requestPermission({ mode: 'read' });
+          if (res !== 'granted') {
+            handleSyncSchoolFolder();
+            return;
+          }
+        }
         const scanned = await scanVaultDirectory(handle);
         if (scanned && scanned.files.length > 0) {
           setScannedFiles(scanned.files);
           setVaultMeta(prev => ({
             ...prev,
             connected: true,
+            folderName: handle.name,
             totalNotes: scanned.files.length,
             courses: scanned.courses,
             lastScanned: new Date().toISOString()
@@ -350,6 +359,7 @@ export const SchoolView = ({
         }
       } catch (err) {
         console.warn("Rescan error:", err);
+        handleSyncSchoolFolder();
       }
     } else {
       handleSyncSchoolFolder();
@@ -776,25 +786,14 @@ export const SchoolView = ({
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                <label className="px-2 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer">
-                  <Upload className="w-3 h-3 text-slate-400" />
-                  <span>+ Add Slides</span>
-                  <input 
-                    type="file" 
-                    multiple 
-                    accept=".pptx,.ppt,.pdf,.md,.txt" 
-                    className="hidden" 
-                    onChange={handleAddCourseSlides}
-                  />
-                </label>
-
                 <button
                   type="button"
                   onClick={handleRescanCourseFiles}
-                  title="Rescan course folder for newly added PowerPoint slides"
-                  className="p-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
+                  title="Rescan and sync all PowerPoint slides, outlines, and notes from your course folder"
+                  className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-[11px] font-medium flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
                 >
-                  <RefreshCw className="w-3 h-3" />
+                  <RefreshCw className="w-3 h-3 text-slate-400" />
+                  <span>Sync Folder</span>
                 </button>
               </div>
             </div>

@@ -75,11 +75,12 @@ export async function extractTextFromPptx(fileOrBuffer) {
         const localHeaderOffset = view.getUint32(p + 42, true);
 
         const fnBytes = uint8.subarray(p + 46, p + 46 + fnLen);
-        const filename = new TextDecoder('utf-8', { fatal: false }).decode(fnBytes);
+        const rawFilename = new TextDecoder('utf-8', { fatal: false }).decode(fnBytes);
+        const filename = rawFilename.replace(/\\/g, '/').replace(/^\//, '');
 
         // Target slide XML and notes XML (e.g. ppt/slides/slide1.xml, ppt/notesSlides/notesSlide1.xml)
-        const isSlide = /^ppt\/slides\/slide\d+\.xml$/i.test(filename);
-        const isNotes = /^ppt\/notesSlides\/notesSlide\d+\.xml$/i.test(filename);
+        const isSlide = /(?:^|\/)ppt\/slides\/slide\d+\.xml$/i.test(filename);
+        const isNotes = /(?:^|\/)ppt\/notesSlides\/notesSlide\d+\.xml$/i.test(filename);
 
         if ((isSlide || isNotes) && localHeaderOffset + 30 <= uint8.length) {
           const localFnLen = view.getUint16(localHeaderOffset + 26, true);
@@ -100,11 +101,24 @@ export async function extractTextFromPptx(fileOrBuffer) {
             }
 
             if (xmlText) {
-              const textMatches = [...xmlText.matchAll(/<a:t[^>]*>([^<]+)<\/a:t>/g)].map(m => m[1]);
-              const slideText = textMatches.join(' ').replace(/\s+/g, ' ').trim();
+              // Group text by paragraphs <a:p> to preserve natural slide structure
+              let slideText = '';
+              const paragraphs = [...xmlText.matchAll(/<a:p[^>]*>(.*?)<\/a:p>/gs)];
+              if (paragraphs.length > 0) {
+                slideText = paragraphs
+                  .map(p => [...p[1].matchAll(/<a:t[^>]*>([^<]+)<\/a:t>/g)].map(m => m[1]).join(''))
+                  .filter(line => line && line.trim().length > 0)
+                  .join('\n')
+                  .trim();
+              }
+              if (!slideText) {
+                const textMatches = [...xmlText.matchAll(/<a:t[^>]*>([^<]+)<\/a:t>/g)].map(m => m[1]);
+                slideText = textMatches.join(' ').replace(/\s+/g, ' ').trim();
+              }
+
               if (slideText) {
-                const numMatch = filename.match(/\d+/);
-                const slideNum = numMatch ? parseInt(numMatch[0], 10) : slides.length + 1;
+                const numMatch = filename.match(/(\d+)\.xml$/i);
+                const slideNum = numMatch ? parseInt(numMatch[1], 10) : slides.length + 1;
                 slides.push({
                   number: slideNum,
                   type: isNotes ? 'notes' : 'slide',

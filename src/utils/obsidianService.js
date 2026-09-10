@@ -211,6 +211,73 @@ export function extractCourseFromPath(filePath) {
 }
 
 /**
+ * Intelligently propagates detected course codes to sibling slides, presentations, and notes
+ * in the same folder or directory tree, so lecture decks are never left as generic "Course Material".
+ */
+export function propagateCourseContextToFiles(files = []) {
+  if (!files || files.length === 0) return files;
+
+  // 1. Inspect outline / document text for course codes if not already detected
+  for (const f of files) {
+    if (!f.course || f.course === 'Course Material') {
+      const text = f.cachedContent || f.content || '';
+      if (text) {
+        const info = extractInstructorFromOutline(text);
+        if (info && info.course) {
+          f.course = info.course;
+        }
+      }
+    }
+  }
+
+  // 2. Identify directories and their courses
+  // e.g. "FNCE 317/Slides/Lecture 1.pptx" has ancestor directories "FNCE 317" and "FNCE 317/Slides"
+  const dirCourseMap = new Map();
+  for (const f of files) {
+    if (f.course && f.course !== 'Course Material') {
+      const normalizedPath = (f.path || f.name).replace(/\\/g, '/');
+      const parts = normalizedPath.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        const dirPath = parts.slice(0, i).join('/');
+        if (!dirCourseMap.has(dirPath)) {
+          dirCourseMap.set(dirPath, f.course);
+        }
+      }
+    }
+  }
+
+  // 3. Propagate course to unassigned sibling files in the same directory/subtree
+  for (const f of files) {
+    if (!f.course || f.course === 'Course Material') {
+      const normalizedPath = (f.path || f.name).replace(/\\/g, '/');
+      const parts = normalizedPath.split('/');
+      for (let i = parts.length - 1; i >= 1; i--) {
+        const dirPath = parts.slice(0, i).join('/');
+        if (dirCourseMap.has(dirPath)) {
+          f.course = dirCourseMap.get(dirPath);
+          break;
+        }
+      }
+    }
+  }
+
+  // 4. Global single-course vault inference:
+  // If the vault has files and exactly ONE course code is detected across all files,
+  // then any unassigned slide decks or documents must belong to that course!
+  const detectedCourses = Array.from(new Set(files.map(f => f.course).filter(c => c && c !== 'Course Material')));
+  if (detectedCourses.length === 1) {
+    const singleCourse = detectedCourses[0];
+    for (const f of files) {
+      if (!f.course || f.course === 'Course Material') {
+        f.course = singleCourse;
+      }
+    }
+  }
+
+  return files;
+}
+
+/**
  * Universal HTML5 FileList processor for folder selection (works across ALL browsers & mobile)
  */
 export async function processUploadedFolderFiles(fileList) {
@@ -221,7 +288,7 @@ export async function processUploadedFolderFiles(fileList) {
 
   for (let i = 0; i < fileList.length; i++) {
     const file = fileList[i];
-    const rawPath = file.webkitRelativePath || file.name;
+    const rawPath = (file.webkitRelativePath || file.name).replace(/\\/g, '/');
     
     // Skip hidden files (.obsidian, .git, .DS_Store)
     if (rawPath.split('/').some(part => part.startsWith('.'))) continue;
@@ -254,6 +321,13 @@ export async function processUploadedFolderFiles(fileList) {
     });
   }
 
+  propagateCourseContextToFiles(files);
+  for (const f of files) {
+    if (f.course && f.course !== 'Course Material') {
+      coursesSet.add(f.course);
+    }
+  }
+
   const courses = Array.from(coursesSet);
   const meta = {
     connected: true,
@@ -274,6 +348,11 @@ export async function processUploadedFolderFiles(fileList) {
 export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
   const files = [];
   const coursesSet = new Set();
+  const rootPrefix = pathPrefix || (dirHandle?.name && dirHandle.name.toLowerCase() !== 'school' ? dirHandle.name : '');
+  if (rootPrefix) {
+    const rootCourse = extractCourseFromPath(rootPrefix);
+    if (rootCourse && rootCourse !== 'Course Material') coursesSet.add(rootCourse);
+  }
 
   async function traverse(currentHandle, currentPath) {
     let entriesIterable = null;
@@ -304,7 +383,8 @@ export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
         // Detect course folder name
         const folderName = entry.name.trim();
         if (folderName.toLowerCase() !== 'school') {
-          coursesSet.add(folderName);
+          const detectedFolderCourse = extractCourseFromPath(folderName);
+          coursesSet.add(detectedFolderCourse && detectedFolderCourse !== 'Course Material' ? detectedFolderCourse : folderName);
         }
         await traverse(entry, entryPath);
       } else if (entry.kind === 'file') {
@@ -340,9 +420,16 @@ export async function scanVaultDirectory(dirHandle, pathPrefix = '') {
   }
 
   try {
-    await traverse(dirHandle, pathPrefix);
+    await traverse(dirHandle, rootPrefix);
   } catch (err) {
     console.warn("Vault scan error:", err);
+  }
+
+  propagateCourseContextToFiles(files);
+  for (const f of files) {
+    if (f.course && f.course !== 'Course Material') {
+      coursesSet.add(f.course);
+    }
   }
 
   const courses = Array.from(coursesSet);
@@ -435,18 +522,69 @@ export function getCourseFiles(courseCode, scannedFiles = null) {
   
   // Synonyms map (e.g. FNCE 317 <-> Finance 317)
   const synonyms = [target];
-  if (target.includes('FNCE')) synonyms.push(target.replace('FNCE', 'FINANCE'));
-  if (target.includes('FINANCE')) synonyms.push(target.replace('FINANCE', 'FNCE'));
-  if (target.includes('BTMA')) synonyms.push(target.replace('BTMA', 'IT'), target.replace('BTMA', 'TECH'));
-  if (target.includes('OPMA')) synonyms.push(target.replace('OPMA', 'OPERATIONS'));
-  if (target.includes('MKTG')) synonyms.push(target.replace('MKTG', 'MARKETING'));
-  if (target.includes('PSYC')) synonyms.push(target.replace('PSYC', 'PSYCHOLOGY'), target.replace('PSYC', 'PSYCH'));
+  if (target.includes('FNCE')) synonyms.push(target.replace('FNCE', 'FINANCE'), 'FNCE', 'FINANCE');
+  if (target.includes('FINANCE')) synonyms.push(target.replace('FINANCE', 'FNCE'), 'FINANCE', 'FNCE');
+  if (target.includes('BTMA')) synonyms.push(target.replace('BTMA', 'IT'), target.replace('BTMA', 'TECH'), 'BTMA');
+  if (target.includes('OPMA')) synonyms.push(target.replace('OPMA', 'OPERATIONS'), 'OPMA', 'OPERATIONS');
+  if (target.includes('MKTG')) synonyms.push(target.replace('MKTG', 'MARKETING'), 'MKTG', 'MARKETING');
+  if (target.includes('PSYC')) synonyms.push(target.replace('PSYC', 'PSYCHOLOGY'), target.replace('PSYC', 'PSYCH'), 'PSYC');
 
-  return files.filter(f => {
+  // Instructor keywords map
+  const instructorKeywords = [];
+  if (target.includes('FNCE')) instructorKeywords.push('HOLLOWAY', 'PERROT');
+  if (target.includes('OPMA')) instructorKeywords.push('SABOURI', 'ALIREZA');
+  if (target.includes('BTMA')) instructorKeywords.push('SAAR', 'MICHAEL');
+  if (target.includes('MKTG')) instructorKeywords.push('LIU', 'QIAO');
+  if (target.includes('PSYC')) instructorKeywords.push('KERTESZ', 'RONA');
+
+  // 1. Direct course matches
+  const directMatches = files.filter(f => {
     const c = (f.course || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const p = (f.path || f.name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     return synonyms.some(s => c.includes(s) || s.includes(c) || p.includes(s));
   });
+
+  // 2. Identify all directory paths containing direct matches
+  const matchedDirs = new Set(
+    directMatches.map(f => (f.path || f.name).replace(/\\/g, '/').split('/').slice(0, -1).join('/')).filter(Boolean)
+  );
+
+  // Check how many courses are present in the vault
+  const allDetectedCourses = new Set(
+    files.map(f => (f.course || '').toUpperCase().replace(/[^A-Z0-9]/g, '')).filter(c => c && c !== 'COURSEMATERIAL')
+  );
+  const isOnlyCourseInVault = allDetectedCourses.size <= 1;
+
+  // 3. Match sibling files (especially slide decks) in the same directory or subtree
+  const result = files.filter(f => {
+    if (directMatches.includes(f)) return true;
+
+    const lowerName = (f.name || '').toLowerCase();
+    const ext = (f.extension || (f.name.includes('.') ? f.name.split('.').pop() : '')).toLowerCase();
+    const isSlides = ext.includes('ppt') || lowerName.endsWith('.pptx') || lowerName.endsWith('.ppt') || lowerName.includes('slide') || lowerName.includes('lecture');
+    const fDir = (f.path || f.name).replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+    const inMatchedDir = Array.from(matchedDirs).some(d => fDir === d || fDir.startsWith(`${d}/`));
+
+    // Sibling slides in the same directory/subtree, or if only 1 course exists in the whole vault
+    if (isSlides && (inMatchedDir || isOnlyCourseInVault)) {
+      return true;
+    }
+
+    // Unassigned notes/documents in matched directory
+    if (inMatchedDir && (!f.course || f.course === 'Course Material')) {
+      return true;
+    }
+
+    // Text content matches instructor name or course synonym
+    const text = (f.cachedContent || f.content || '').toUpperCase();
+    if (text && (synonyms.some(s => text.includes(s)) || instructorKeywords.some(k => text.includes(k)))) {
+      return true;
+    }
+
+    return false;
+  });
+
+  return result.length > 0 ? result : directMatches;
 }
 
 /**

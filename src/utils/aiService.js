@@ -1870,7 +1870,7 @@ export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse
       const cleanTarget = targetCourse.replace(/[^a-z0-9]/gi, '').toLowerCase();
       const cleanCourse = lowerCourse.replace(/[^a-z0-9]/gi, '');
       const cleanPath = lowerPath.replace(/[^a-z0-9]/gi, '');
-      if (cleanCourse.includes(cleanTarget) || cleanPath.includes(cleanTarget)) {
+      if (cleanCourse.includes(cleanTarget) || cleanPath.includes(cleanTarget) || cleanCourse === '' || cleanCourse === 'course' || cleanCourse === 'coursematerial') {
         file.score += 30;
       }
     }
@@ -1881,7 +1881,16 @@ export function rankAndConnectVaultFiles(allFiles = [], query = '', targetCourse
                     lowerName.includes('lecture') || lowerName.includes('slide') || 
                     lowerName.includes('deck') || lowerName.includes('chapter');
     if (isSlides) {
-      file.score += 22; // Prioritize actual lecture slide presentations over administrative syllabus
+      file.score += 25; // Prioritize actual lecture slide presentations over administrative syllabus
+    }
+
+    // De-prioritize course outlines / syllabi on conceptual study questions
+    const isOutline = lowerName.includes('outline') || lowerName.includes('syllabus');
+    const isConceptualQuery = queryTokens.some(t => 
+      ['concept', 'formula', 'ratio', 'dupont', 'npv', 'irr', 'wacc', 'capm', 'valuation', 'exam', 'quiz', 'definition', 'chapter', 'lecture', 'problem', 'solve', 'how', 'why', 'what', 'rule'].includes(t)
+    );
+    if (isConceptualQuery && isOutline) {
+      file.score -= 8;
     }
 
     // Query token matches
