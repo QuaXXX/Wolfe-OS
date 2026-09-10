@@ -133,14 +133,26 @@ const NutritionViewInner = ({
     return days;
   }, [currentTodayIso]);
 
-  // Auto-center selected day card in horizontal carousel
+  // Ensure view starts at the very top on mount
   useEffect(() => {
     try {
-      if (selectedDayCardRef.current && typeof selectedDayCardRef.current.scrollIntoView === 'function') {
-        selectedDayCardRef.current.scrollIntoView({
-          behavior: 'smooth',
-          inline: 'center',
-          block: 'nearest'
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    } catch (e) {}
+  }, []);
+
+  // Auto-center selected day card inside its horizontal carousel only (never scrolling the page)
+  useEffect(() => {
+    try {
+      if (selectedDayCardRef.current && dayScrollRef.current) {
+        const card = selectedDayCardRef.current;
+        const container = dayScrollRef.current;
+        const cardLeft = card.offsetLeft;
+        const cardWidth = card.offsetWidth;
+        const containerWidth = container.offsetWidth;
+        const targetScrollLeft = cardLeft - (containerWidth / 2) + (cardWidth / 2);
+        container.scrollTo({
+          left: Math.max(0, targetScrollLeft),
+          behavior: 'smooth'
         });
       }
     } catch (e) {}
