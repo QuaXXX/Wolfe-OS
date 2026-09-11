@@ -384,16 +384,33 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:whole\s+milk|milk)\b/i,
-    name: "Milk",
+    regex: /\b(?:whole\s+milk|3\.25%\s+milk|homo(?:genized)?\s+milk)\b/i,
+    name: "Whole Milk (3.25%)",
     defaultUnit: "cups",
     defaultQty: 1,
+    per100g: { calories: 61, protein: 3.2, carbs: 4.8, fats: 3.3 },
     perUnit: {
-      cup: { calories: 130, protein: 9, carbs: 12, fats: 5 },
-      cups: { calories: 130, protein: 9, carbs: 12, fats: 5 },
-      glass: { calories: 130, protein: 9, carbs: 12, fats: 5 },
-      glasses: { calories: 130, protein: 9, carbs: 12, fats: 5 },
-      oz: { calories: 16.25, protein: 1.125, carbs: 1.5, fats: 0.625 }
+      cup: { calories: 149, protein: 8, carbs: 12, fats: 8 },
+      cups: { calories: 149, protein: 8, carbs: 12, fats: 8 },
+      glass: { calories: 149, protein: 8, carbs: 12, fats: 8 },
+      glasses: { calories: 149, protein: 8, carbs: 12, fats: 8 },
+      oz: { calories: 18.6, protein: 1.0, carbs: 1.5, fats: 1.0 },
+      g: { calories: 0.61, protein: 0.032, carbs: 0.048, fats: 0.033 }
+    }
+  },
+  {
+    regex: /\b(?:milk|2%\s+milk|reduced\s+fat\s+milk|normal\s+milk|standard\s+milk)\b/i,
+    name: "Milk (Normal / 2%)",
+    defaultUnit: "cups",
+    defaultQty: 1,
+    per100g: { calories: 50, protein: 3.3, carbs: 4.8, fats: 2.0 },
+    perUnit: {
+      cup: { calories: 120, protein: 8, carbs: 11.5, fats: 4.8 },
+      cups: { calories: 120, protein: 8, carbs: 11.5, fats: 4.8 },
+      glass: { calories: 120, protein: 8, carbs: 11.5, fats: 4.8 },
+      glasses: { calories: 120, protein: 8, carbs: 11.5, fats: 4.8 },
+      oz: { calories: 15, protein: 1.0, carbs: 1.4, fats: 0.6 },
+      g: { calories: 0.50, protein: 0.033, carbs: 0.048, fats: 0.02 }
     }
   },
   {
@@ -747,10 +764,10 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     id: "staple-milk",
     name: "Milk",
     portion: "1 cup / glass (250 ml)",
-    calories: 130,
-    protein: 9,
-    carbs: 12,
-    fats: 5,
+    calories: 120,
+    protein: 8,
+    carbs: 11.5,
+    fats: 4.8,
     category: "Dairy",
     icon: "🥛"
   },
@@ -929,6 +946,22 @@ export function sanitizeHouseholdPantry(householdPantry = []) {
         };
       }
     }
+    if (s && (s.id === 'staple-milk' || (/^milk$/i.test(s.name || '') && !/fairlife|whole/i.test(s.name || '')))) {
+      if (s.calories > 120 || s.protein > 8) {
+        return {
+          ...s,
+          id: s.id || 'staple-milk',
+          name: "Milk",
+          portion: "1 cup / glass (250 ml)",
+          calories: 120,
+          protein: 8,
+          carbs: 11.5,
+          fats: 4.8,
+          category: "Dairy",
+          icon: "🥛"
+        };
+      }
+    }
     return s;
   });
 }
@@ -1027,6 +1060,83 @@ export function calibrateBoneInMeats(items = []) {
 
     return item;
   });
+}
+
+/**
+ * Calibrates milk items to ensure standard/normal milk (2% reduced fat) is represented
+ * accurately at 120 kcal and 8g protein per cup (250ml / 244g), avoiding over-inflation
+ * from whole milk (150 kcal) or higher protein values.
+ * If whole milk is specifically requested, retains whole milk benchmarks.
+ */
+export function calibrateMilk(items = []) {
+  if (!Array.isArray(items)) return items;
+
+  return items.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const name = String(item.name || '').toLowerCase();
+    const portion = String(item.portion || '').toLowerCase();
+
+    // Check if it's generic/standard milk
+    const isMilk = /\bmilk\b/i.test(name) || /\bmilk\b/i.test(portion);
+    const isSpecialty = /\b(?:whole\s+milk|3\.25%|homo(?:genized)?|fairlife|soy|almond|oat|coconut|cashew|goat)\b/i.test(name) ||
+      /\b(?:whole\s+milk|3\.25%|homo(?:genized)?|fairlife|soy|almond|oat|coconut|cashew|goat)\b/i.test(portion);
+
+    if (isMilk && !isSpecialty) {
+      // Determine cups or volume
+      const cupMatch = portion.match(/(\d+(?:\.\d+)?)\s*cups?/i) || name.match(/(\d+(?:\.\d+)?)\s*cups?/i);
+      const glassMatch = portion.match(/(\d+(?:\.\d+)?)\s*glass(?:es)?/i) || name.match(/(\d+(?:\.\d+)?)\s*glass(?:es)?/i);
+      const mlMatch = portion.match(/(\d+(?:\.\d+)?)\s*ml\b/i) || name.match(/(\d+(?:\.\d+)?)\s*ml\b/i);
+      const gMatch = portion.match(/(\d+(?:\.\d+)?)\s*g\b/i) || name.match(/(\d+(?:\.\d+)?)\s*g\b/i);
+      const ozMatch = portion.match(/(\d+(?:\.\d+)?)\s*oz\b/i) || name.match(/(\d+(?:\.\d+)?)\s*oz\b/i);
+
+      let cups = 1;
+      if (cupMatch) {
+        cups = parseFloat(cupMatch[1]) || 1;
+      } else if (glassMatch) {
+        cups = parseFloat(glassMatch[1]) || 1;
+      } else if (mlMatch) {
+        cups = (parseFloat(mlMatch[1]) || 250) / 250;
+      } else if (gMatch) {
+        cups = (parseFloat(gMatch[1]) || 244) / 244;
+      } else if (ozMatch) {
+        cups = (parseFloat(ozMatch[1]) || 8) / 8;
+      }
+
+      // Normal milk (2% reduced fat): 120 kcal, 8g protein, 11.5g carbs, 4.8g fats per cup
+      // Conservative round-down: floor decimals so the user never overestimates
+      const standardCals = Math.floor(120 * cups);
+      const standardProtein = Math.floor(8 * cups * 10) / 10;
+      const standardCarbs = Math.floor(11.5 * cups * 10) / 10;
+      const standardFats = Math.floor(4.8 * cups * 10) / 10;
+
+      const curCals = Number(item.calories) || 0;
+      const curProtein = Number(item.protein) || 0;
+
+      // If calories or protein are inflated beyond normal milk (e.g. >122 cals or >8.2g protein per cup)
+      if (curCals > standardCals * 1.05 || curProtein > standardProtein * 1.05) {
+        return {
+          ...item,
+          name: item.name.includes("Normal") || item.name.includes("2%") ? item.name : "Milk (Normal / 2%)",
+          portion: item.portion || `${cups} ${cups === 1 ? 'cup' : 'cups'} (250ml)`,
+          calories: standardCals,
+          protein: standardProtein,
+          carbs: standardCarbs,
+          fats: standardFats
+        };
+      }
+    }
+
+    return item;
+  });
+}
+
+/**
+ * Universal calibration safeguard across all items:
+ * Calibrates bone-in meats (deducting bone refuse) and milk (enforcing normal 2% milk benchmarks).
+ */
+export function calibrateMealItems(items = []) {
+  if (!Array.isArray(items)) return items;
+  return calibrateMilk(calibrateBoneInMeats(items));
 }
 
 // ---------------------------------------------------------------------------
@@ -1646,16 +1756,21 @@ export function parseMealDescription(text, options = {}) {
       if (qty === null) qty = 1;
     }
 
-    // User calibrated milk
-    if (/\b(?:milk|glass\s+of\s+milk|cup\s+of\s+milk)\b/i.test(clause) && !/\b(?:fairlife|soy|almond|oat\s+milk)\b/i.test(clause)) {
+    // User calibrated milk (Default: Normal 2% milk, conservative 120 kcal / 8g P per cup)
+    if (/\b(?:milk|glass\s+of\s+milk|cup\s+of\s+milk)\b/i.test(clause) && !/\b(?:fairlife|soy|almond|oat|coconut|cashew)\s+milk\b/i.test(clause)) {
       const usedQty = (qty !== null && !isNaN(qty)) ? qty : 1;
+      const isWhole = /\b(?:whole|3\.25%|homo(?:genized)?)\b/i.test(clause);
+      const calsPerCup = isWhole ? 149 : 120;
+      const proteinPerCup = 8;
+      const carbsPerCup = isWhole ? 12 : 11.5;
+      const fatsPerCup = isWhole ? 8 : 4.8;
       matchedItems.push({
-        name: 'Milk (User Calibrated)',
+        name: isWhole ? 'Whole Milk (3.25%)' : 'Milk (Normal / 2%)',
         portion: `${usedQty} ${usedQty === 1 ? 'cup / glass' : 'cups / glasses'} (250ml)`,
-        calories: Math.round(130 * usedQty),
-        protein: Math.round(9 * usedQty),
-        carbs: Math.round(12 * usedQty),
-        fats: Math.round(5 * usedQty)
+        calories: Math.floor(calsPerCup * usedQty),
+        protein: Math.floor(proteinPerCup * usedQty * 10) / 10,
+        carbs: Math.floor(carbsPerCup * usedQty * 10) / 10,
+        fats: Math.floor(fatsPerCup * usedQty * 10) / 10
       });
       continue;
     }
@@ -1740,12 +1855,12 @@ export function parseMealDescription(text, options = {}) {
         portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (${bowlVol}ml capacity)`;
 
         if (matchedFood.name === 'Cereal') {
-          // A full bowl of cereal incorporates 2 cups cereal + 1 cup calibrated milk
-          itemCals = Math.round(350 * bowlCount * volScale);
-          itemP = Math.round(14 * bowlCount * volScale);
-          itemC = Math.round(60 * bowlCount * volScale);
-          itemF = Math.round(7 * bowlCount * volScale);
-          portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (Cereal + Calibrated Milk)`;
+          // A full bowl of cereal incorporates 2 cups cereal + 1 cup normal milk (120 kcal, 8g P)
+          itemCals = Math.floor(340 * bowlCount * volScale);
+          itemP = Math.floor(13 * bowlCount * volScale);
+          itemC = Math.floor(60 * bowlCount * volScale);
+          itemF = Math.floor(6.8 * bowlCount * volScale);
+          portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (Cereal + Normal Milk)`;
         } else if (matchedFood.perUnit && matchedFood.perUnit.bowl) {
           const r = matchedFood.perUnit.bowl;
           itemCals = Math.round(r.calories * bowlCount * volScale);
@@ -1913,15 +2028,24 @@ export function createMealEntry({
   fats = 0,
   items = []
 }) {
-  let p = Math.max(0, Math.round(Number(protein) || 0));
-  let c = Math.max(0, Math.round(Number(carbs) || 0));
-  let f = Math.max(0, Math.round(Number(fats) || 0));
+  let p = Math.max(0, Number(protein) || 0);
+  let c = Math.max(0, Number(carbs) || 0);
+  let f = Math.max(0, Number(fats) || 0);
+  let finalItems = Array.isArray(items) ? items : [items].filter(Boolean);
+  finalItems = calibrateMealItems(finalItems);
+
+  if (finalItems.length === 1 && typeof finalItems[0] === 'object') {
+    const singleIt = finalItems[0];
+    if (singleIt.calories != null && !isNaN(singleIt.calories)) calories = singleIt.calories;
+    if (singleIt.protein != null && !isNaN(singleIt.protein)) p = singleIt.protein;
+    if (singleIt.carbs != null && !isNaN(singleIt.carbs)) c = singleIt.carbs;
+    if (singleIt.fats != null && !isNaN(singleIt.fats)) f = singleIt.fats;
+  }
   
   const calculatedCals = calculateCaloriesFromMacros(p, c, f);
-  const rawCals = Math.max(0, Math.round(Number(calories) || 0));
+  const rawCals = Math.max(0, Math.floor(Number(calories) || 0));
   let finalCals = rawCals > 0 ? rawCals : calculatedCals;
   let finalName = (name || "Logged Meal").trim();
-  let finalItems = Array.isArray(items) ? items : [items].filter(Boolean);
 
   // Safety calibration: a single household protein shake / smoothie with Canadian Protein vegan powder is ~39g P / 485 kcal, never 91g
   const isSmoothie = /protein\s*(?:shake|smoothie)|smoothie/i.test(finalName) ||
@@ -2248,6 +2372,8 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
   lines.push("CONTAINERS, SNACK BOWLS & OTHER DISHES: If food is pictured in meal prep containers, small snack bowls, glass storage containers, or cups without custom calibration, dynamically estimate the vessel dimensions and portion volume from visual cues and context.");
   lines.push("CRITICAL: When the photo shows one of the user's calibrated primary vessels (plate or primary bowl), apply the measured diameter as the physical ground-truth scale ruler to calculate food volume rather than guessing generic portion sizes.");
   lines.push("FINE-GRAINED 0.1 CUP RESOLUTION: Avoid coarse 0.5, 1.0, or 1.5 cup rounding. Measure cup portions in 0.1 cup intervals (e.g. 0.3 cup, 0.7 cup, 0.8 cup, 1.1 cups, 1.2 cups). If uncertain between intervals, round down to the nearest 0.1 cup or whole number.");
+  lines.push("CONSERVATIVE ESTIMATION & NON-INFLATION MANDATE: Never over-inflate numbers for protein or calories. When estimating calories, protein, or portions, ALWAYS ROUND DOWN if uncertain so the user never overestimates their nutritional intake.");
+  lines.push("NORMAL MILK DEFAULT: When 'milk' is mentioned or pictured without qualification, assume standard/normal 2% milk (120 kcal, 8g protein per cup/250ml), NOT whole milk (150 kcal).");
   lines.push("BONE-IN MEATS REFUSE RULE: Gross/as-served weight includes inedible bone (~40% on chicken drumsticks, ~46% on wings). Calculate calories and protein strictly on the ~60% edible meat, never treating total bone weight as edible meat.");
   return lines.join("\n");
 }
@@ -2486,9 +2612,9 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       return String(it);
     }).filter(Boolean);
 
-    cleanItems = calibrateBoneInMeats(cleanItems);
-    const hasCalibratedBoneIn = cleanItems.some(it => typeof it === 'object' && it?.portion && it.portion.includes('bone'));
-    if (hasCalibratedBoneIn && cleanItems.length === 1 && typeof cleanItems[0] === 'object') {
+    cleanItems = calibrateMealItems(cleanItems);
+    const hasCalibratedItem = cleanItems.some(it => typeof it === 'object' && ((it?.portion && it.portion.includes('bone')) || (it?.name && it.name.includes('Normal / 2%'))));
+    if (hasCalibratedItem && cleanItems.length === 1 && typeof cleanItems[0] === 'object') {
       calories = cleanItems[0].calories;
       protein = cleanItems[0].protein;
       carbs = cleanItems[0].carbs;
@@ -2569,7 +2695,31 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       };
     }
 
-    // 2.6 Reconcile past overestimated protein smoothie meals (e.g. 91g protein / 755 kcal or >50g protein from a single smoothie)
+    // 2.61 Reconcile past generic milk meals where 1 cup of plain milk was assigned inflated macros (>=130 cals or >=9g protein)
+    const isSuspectMilk = 
+      (m.name && /\bmilk\b/i.test(m.name) && !/\b(?:whole|fairlife|soy|almond|oat|smoothie|shake)\b/i.test(m.name)) ||
+      (Array.isArray(m.items) && m.items.length === 1 && m.items.some(it => {
+        const itName = typeof it === 'string' ? it : it?.name || '';
+        return /\bmilk\b/i.test(itName) && !/\b(?:whole|fairlife|soy|almond|oat|smoothie|shake)\b/i.test(itName);
+      }));
+
+    if (isSuspectMilk && (m.protein >= 9 || m.calories >= 130) && (!m.items || m.items.length <= 1)) {
+      wasModified = true;
+      return {
+        ...m,
+        name: "Milk (Normal / 2%)",
+        calories: 120,
+        protein: 8,
+        carbs: 11.5,
+        fats: 4.8,
+        items: [
+          { name: "Milk (Normal / 2%)", portion: "1 cup / glass (250ml)", calories: 120, protein: 8, carbs: 11.5, fats: 4.8 }
+        ],
+        notes: "Calibrated to standard normal milk (120 kcal, 8g protein per cup)"
+      };
+    }
+
+    // 2.62 Reconcile past overestimated protein smoothie meals (e.g. 91g protein / 755 kcal or >50g protein from a single smoothie)
     const isSuspectSmoothie = 
       (m.name && /smoothie|shake/i.test(m.name)) ||
       (Array.isArray(m.items) && m.items.some(it => {

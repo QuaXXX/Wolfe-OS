@@ -17,7 +17,7 @@ import {
   getOpenPositions 
 } from './tradingStorage.js';
 import { getPaperPositions } from './hermesPaperTrader.js';
-import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt, calibrateBoneInMeats } from './nutritionEngine.js';
+import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt, calibrateBoneInMeats, calibrateMealItems } from './nutritionEngine.js';
 import { getVaultMetadata, getCachedVaultFiles } from './obsidianService.js';
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
@@ -2301,7 +2301,11 @@ ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
    - Bun / Dinner Roll (~50g): ~130 kcal, 4g protein, 24g carbs, 1.5g fats.
    - Veggies / Mixed Vegetables: ~35 kcal, 2g protein, 7g carbs, 0.2g fats per 100g (~35 kcal per cup).
    - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
-   - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (260 kcal, 18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~485 kcal, ~39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). NEVER output 91g protein for a household protein shake!
+   - Milk (Normal / Standard Household Milk):
+     * DEFAULT TO NORMAL MILK: When the user mentions or shows "milk" (e.g. "milk", "glass of milk", "cup of milk", "milk in oatmeal"), treat it as STANDARD / NORMAL MILK (2% reduced fat: ~120 kcal, 8g protein, 11.5g carbs, ~4.8g fats per 1 cup / 240-250ml).
+     * NEVER assume whole milk (~150 kcal) unless explicitly specified ("whole milk", "3.25%").
+     * NEVER assign 9g, 10g, or more protein to 1 cup of standard milk (it is strictly 8g protein).
+   - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (240-260 kcal, 16-18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~465-485 kcal, ~37-39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). NEVER output 91g protein for a household protein shake!
    - Nature Valley Bar / Granola Bar: Exactly 170 kcal, ~3.5g protein, 23g carbs, 7.5g fats per bar / pouch. Calibrate strictly to 170 kcal (NEVER default to 190 kcal).
    - Bone-In Meats (Chicken Drumsticks, Wings, Bone-in Thighs, Ribs, T-Bone):
      * CRITICAL BONE REFUSE RULE: Gross / as-served weight includes inedible bones and cartilage which provide ZERO calories and ZERO protein.
@@ -2317,8 +2321,9 @@ ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
     - Partition the specified weight across the inner components (e.g. for 70g beef & veggies: ~60% beef = 42g [~80 kcal, 11g P], ~40% veggies = 28g [~10 kcal, 1g P], totaling exactly 70g insides). NEVER double the weight to 70g beef AND 70g veggies!
     - Include the outer bread/bun container (1 bun ~50g = ~130 kcal). Total for a bun with 70g beef & veggies insides is ~220 kcal, NOT >350 kcal.
 
-4c. CONSERVATIVE UNDERESTIMATION MANDATE:
-    - Wolfe OS Principle: When uncertain about cooking oils, dressings, portion sizes, or exact cuts, ALWAYS err on conservative underestimation rather than inflating calories.
+4c. CONSERVATIVE UNDERESTIMATION & ROUND-DOWN MANDATE:
+    - Wolfe OS Principle: Never over-inflate numbers for protein or calories. The user tracks diligently and relies on numbers never being artificially inflated, so they do not get a false sense of hitting their targets.
+    - ROUND DOWN POLICY: When estimating portions, volumes, calories, or protein, ALWAYS ROUND DOWN if there is any fractional ambiguity (e.g. round 14.8g protein down to 14g; round 235 kcal down to 230 kcal; round 0.75 cup down to 0.7 cup). Never round up numbers for protein or calories.
     - Do NOT inject hidden butter, oils, or sugars unless visibly oily or explicitly stated by the user.
 
 4d. HIGH-PRECISION VOLUME ESTIMATION (0.1 CUP INTERVALS):
@@ -2459,13 +2464,14 @@ Return ONLY valid JSON matching this schema:
                 return it;
               });
 
-              parsed.items = calibrateBoneInMeats(parsed.items || []);
-              if (parsed.items.some(it => String(it?.portion || '').includes('bone'))) {
-                parsed.calories = parsed.items.reduce((s, it) => s + (it.calories || 0), 0);
-                parsed.protein = Number(parsed.items.reduce((s, it) => s + (it.protein || 0), 0).toFixed(1));
-                parsed.carbs = Number(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0).toFixed(1));
-                parsed.fats = Number(parsed.items.reduce((s, it) => s + (it.fats || 0), 0).toFixed(1));
-                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated to verified USDA bone refuse ground truth (~40% bone on drumstick)";
+              parsed.items = calibrateMealItems(parsed.items || []);
+              const hasCalibrated = parsed.items.some(it => String(it?.portion || '').includes('bone') || (it?.name && it.name.includes('Normal / 2%')));
+              if (hasCalibrated) {
+                parsed.calories = Math.floor(parsed.items.reduce((s, it) => s + (it.calories || 0), 0));
+                parsed.protein = Math.floor(parsed.items.reduce((s, it) => s + (it.protein || 0), 0) * 10) / 10;
+                parsed.carbs = Math.floor(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0) * 10) / 10;
+                parsed.fats = Math.floor(parsed.items.reduce((s, it) => s + (it.fats || 0), 0) * 10) / 10;
+                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated against verified clinical ground truth";
               }
 
               return {
@@ -2579,9 +2585,13 @@ ${pantryPrompt ? `${pantryPrompt}\n` : ''}
    - Determine the slot: "breakfast", "lunch", "dinner", or "snack" based on keywords or context (default: "meal").
 
 5. CONSERVATIVE UNDERESTIMATION & GROUND-TRUTH MACROS:
-   - When uncertain about portion size or cooking oil, ALWAYS err on conservative underestimation.
+   - Wolfe OS Principle: Never over-inflate numbers for protein or calories. When estimating calories, protein, or portion sizes, ALWAYS ROUND DOWN if uncertain so the user never overestimates their nutritional intake.
+   - Milk (Standard / Normal Household Milk):
+     * DEFAULT TO NORMAL MILK: When the user mentions "milk" (e.g. "milk", "glass of milk", "cup of milk", "milk in coffee/cereal"), treat it as STANDARD / NORMAL MILK (2% reduced fat: ~120 kcal, 8g protein, 11.5g carbs, ~4.8g fats per 1 cup / 240-250ml).
+     * NEVER assume whole milk (~150 kcal) unless explicitly specified ("whole milk", "3.25%").
+     * NEVER assign 9g, 10g, or more protein to 1 cup of standard milk (it is strictly 8g protein).
    - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
-   - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (260 kcal, 18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~485 kcal, ~39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). If the user mentions 'protein shake', 'smoothie', or 'protein smoothie', default to 1 scoop vegan powder + 2 cups milk + 1 banana = ~39g protein, NEVER 91g protein!
+   - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (240-260 kcal, 16-18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~465-485 kcal, ~37-39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). If the user mentions 'protein shake', 'smoothie', or 'protein smoothie', default to 1 scoop vegan powder + 2 cups milk + 1 banana = ~37-39g protein, NEVER 91g protein!
    - Nature Valley Bar / Granola Bar: Exactly 170 kcal, ~3.5g protein, 23g carbs, 7.5g fats per bar / pouch. Calibrate strictly to 170 kcal (NEVER default to 190 kcal).
    - Bone-In Meats (Chicken Drumsticks, Wings, Bone-in Thighs, Ribs, T-Bone):
      * CRITICAL BONE REFUSE RULE: Gross / as-served weight includes inedible bones and cartilage which provide ZERO calories and ZERO protein.
@@ -2705,13 +2715,14 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
                 return it;
               });
 
-              parsed.items = calibrateBoneInMeats(parsed.items || []);
-              if (parsed.items.some(it => String(it?.portion || '').includes('bone'))) {
-                parsed.calories = parsed.items.reduce((s, it) => s + (it.calories || 0), 0);
-                parsed.protein = Number(parsed.items.reduce((s, it) => s + (it.protein || 0), 0).toFixed(1));
-                parsed.carbs = Number(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0).toFixed(1));
-                parsed.fats = Number(parsed.items.reduce((s, it) => s + (it.fats || 0), 0).toFixed(1));
-                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated to verified USDA bone refuse ground truth (~40% bone on drumstick)";
+              parsed.items = calibrateMealItems(parsed.items || []);
+              const hasCalibrated = parsed.items.some(it => String(it?.portion || '').includes('bone') || (it?.name && it.name.includes('Normal / 2%')));
+              if (hasCalibrated) {
+                parsed.calories = Math.floor(parsed.items.reduce((s, it) => s + (it.calories || 0), 0));
+                parsed.protein = Math.floor(parsed.items.reduce((s, it) => s + (it.protein || 0), 0) * 10) / 10;
+                parsed.carbs = Math.floor(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0) * 10) / 10;
+                parsed.fats = Math.floor(parsed.items.reduce((s, it) => s + (it.fats || 0), 0) * 10) / 10;
+                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated against verified clinical ground truth";
               }
 
               const totalCals = parsed.calories || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats);
