@@ -17,7 +17,7 @@ import {
   getOpenPositions 
 } from './tradingStorage.js';
 import { getPaperPositions } from './hermesPaperTrader.js';
-import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt } from './nutritionEngine.js';
+import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt, calibrateBoneInMeats } from './nutritionEngine.js';
 import { getVaultMetadata, getCachedVaultFiles } from './obsidianService.js';
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
@@ -2303,6 +2303,12 @@ ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
    - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
    - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (260 kcal, 18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~485 kcal, ~39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). NEVER output 91g protein for a household protein shake!
    - Nature Valley Bar / Granola Bar: Exactly 170 kcal, ~3.5g protein, 23g carbs, 7.5g fats per bar / pouch. Calibrate strictly to 170 kcal (NEVER default to 190 kcal).
+   - Bone-In Meats (Chicken Drumsticks, Wings, Bone-in Thighs, Ribs, T-Bone):
+     * CRITICAL BONE REFUSE RULE: Gross / as-served weight includes inedible bones and cartilage which provide ZERO calories and ZERO protein.
+     * Chicken Drumsticks: ~40% bone refuse (only ~60% is edible meat + skin). A 70g drumstick (as served with bone) has only ~42g edible meat = ~78 kcal, ~10.5g protein, ~3.8g fats. NEVER assign 15g protein to a 70g bone-in drumstick (that mistakenly counts the bone weight as meat)!
+     * Chicken Wings: ~46% bone refuse (only ~54% is edible meat + skin). A 48g wing as served has ~26g edible meat = ~65 kcal, ~6.5g protein, ~4.2g fats.
+     * Chicken Thigh (Bone-in): ~30% bone refuse. A 130g bone-in thigh has ~91g edible meat = ~180 kcal, ~22g protein, ~10g fats.
+     * Label portion clearly: e.g. "1 drumstick (~70g gross, ~42g edible meat)" or "70g bone-in drumstick (~42g meat)".
    - ATWATER ENERGY CONSISTENCY: Every item and total calories MUST align with: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
 
 4b. COMPOUND FILLINGS & INSIDES PARTITIONING (WEIGHT CONSERVATION RULE):
@@ -2315,9 +2321,14 @@ ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
     - Wolfe OS Principle: When uncertain about cooking oils, dressings, portion sizes, or exact cuts, ALWAYS err on conservative underestimation rather than inflating calories.
     - Do NOT inject hidden butter, oils, or sugars unless visibly oily or explicitly stated by the user.
 
+4d. HIGH-PRECISION VOLUME ESTIMATION (0.1 CUP INTERVALS):
+    - AVOID coarse rounding to 0.5, 1.0, or 1.5 cups! Real food servings are rarely exact half or whole cups.
+    - Measure and state cup volumes at granular 0.1 cup precision (e.g. "0.3 cup", "0.6 cup", "0.7 cup", "0.8 cup", "1.1 cups", "1.2 cups", "1.3 cups", "1.4 cups").
+    - CONSERVATIVE ROUND-DOWN MANDATE: If uncertain between intervals or volume, ALWAYS round down to the nearest lower 0.1 interval or nearest 1 (e.g., if visually between 1.2 and 1.3 cups, choose 1.2 cups; if uncertain between a fraction and a whole amount, round down to the lower tenth or nearest 1). Never overestimate volume.
+
 5. Output itemized breakdown:
-   - "name": Clean item name (e.g. "Cooked Quinoa", "Low-fat Cottage Cheese", "Steamed Kale", "Chickpeas", "Sweet Potato")
-   - "portion": Realistic portion (e.g. "1 cup", "0.5 cup", "1 medium", "1 slice")
+   - "name": Clean item name (e.g. "Cooked Quinoa", "Low-fat Cottage Cheese", "Steamed Kale", "Chicken Drumstick (Bone-In)")
+   - "portion": Realistic, high-precision portion (e.g. "0.8 cup (145g)", "1.2 cups (180g)", "1 drumstick (~70g gross, ~42g edible meat)", "1 slice")
    - "calories": Number
    - "protein": Grams
    - "carbs": Grams
@@ -2448,6 +2459,15 @@ Return ONLY valid JSON matching this schema:
                 return it;
               });
 
+              parsed.items = calibrateBoneInMeats(parsed.items || []);
+              if (parsed.items.some(it => String(it?.portion || '').includes('bone'))) {
+                parsed.calories = parsed.items.reduce((s, it) => s + (it.calories || 0), 0);
+                parsed.protein = Number(parsed.items.reduce((s, it) => s + (it.protein || 0), 0).toFixed(1));
+                parsed.carbs = Number(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0).toFixed(1));
+                parsed.fats = Number(parsed.items.reduce((s, it) => s + (it.fats || 0), 0).toFixed(1));
+                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated to verified USDA bone refuse ground truth (~40% bone on drumstick)";
+              }
+
               return {
                 hasFood: true,
                 name: parsed.name || "Analyzed Meal",
@@ -2536,7 +2556,7 @@ KEY INTELLIGENCE RULES:
 1. MULTIPLE ITEMS & SIDES:
    - Identify EVERY distinct item mentioned in the meal (mains, sides, beverages, sauces, toppings, dressings, snacks).
    - Each item must have its own accurate macro breakdown (calories, protein, carbs, fats) based on clinical USDA benchmarks.
-   - Example: "200g chicken breast, 1.5 cups white rice, 1 cup steamed broccoli, and 1 tbsp olive oil" -> 4 distinct items.
+   - Example: "200g chicken breast, 1.2 cups white rice, 0.8 cup steamed broccoli, and 1 tbsp olive oil" -> 4 distinct items.
 
 2. EXTRA INFORMATION, MODIFIERS & PARTIAL CONSUMPTION:
    - Partial Consumption & Fractions: If the user indicates they did not finish everything (e.g. "only ate half", "left a third of the rice", "ate 3/4 of the burger"):
@@ -2558,12 +2578,23 @@ ${pantryPrompt ? `${pantryPrompt}\n` : ''}
 4. MEAL SLOT & TIME INFERENCE:
    - Determine the slot: "breakfast", "lunch", "dinner", or "snack" based on keywords or context (default: "meal").
 
-5. CONSERVATIVE UNDERESTIMATION MANDATE:
+5. CONSERVATIVE UNDERESTIMATION & GROUND-TRUTH MACROS:
    - When uncertain about portion size or cooking oil, ALWAYS err on conservative underestimation.
    - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
    - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (260 kcal, 18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~485 kcal, ~39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). If the user mentions 'protein shake', 'smoothie', or 'protein smoothie', default to 1 scoop vegan powder + 2 cups milk + 1 banana = ~39g protein, NEVER 91g protein!
    - Nature Valley Bar / Granola Bar: Exactly 170 kcal, ~3.5g protein, 23g carbs, 7.5g fats per bar / pouch. Calibrate strictly to 170 kcal (NEVER default to 190 kcal).
+   - Bone-In Meats (Chicken Drumsticks, Wings, Bone-in Thighs, Ribs, T-Bone):
+     * CRITICAL BONE REFUSE RULE: Gross / as-served weight includes inedible bones and cartilage which provide ZERO calories and ZERO protein.
+     * Chicken Drumsticks: ~40% bone refuse (only ~60% is edible meat + skin). A 70g drumstick (as served with bone) has only ~42g edible meat = ~78 kcal, ~10.5g protein, ~3.8g fats. NEVER assign 15g protein to a 70g bone-in drumstick (that mistakenly counts the bone weight as meat)!
+     * Chicken Wings: ~46% bone refuse (only ~54% is edible meat + skin). A 48g wing as served has ~26g edible meat = ~65 kcal, ~6.5g protein, ~4.2g fats.
+     * Chicken Thigh (Bone-in): ~30% bone refuse. A 130g bone-in thigh has ~91g edible meat = ~180 kcal, ~22g protein, ~10g fats.
+     * Label portion clearly: e.g. "1 drumstick (~70g gross, ~42g edible meat)" or "70g bone-in drumstick (~42g meat)".
    - Atwater energy consistency: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
+
+5b. HIGH-PRECISION VOLUME ESTIMATION (0.1 CUP INTERVALS):
+    - AVOID coarse rounding to 0.5, 1.0, or 1.5 cups! Real food servings are rarely exact half or whole cups.
+    - Measure and state cup volumes at granular 0.1 cup precision (e.g. "0.3 cup", "0.6 cup", "0.7 cup", "0.8 cup", "1.1 cups", "1.2 cups", "1.3 cups", "1.4 cups").
+    - CONSERVATIVE ROUND-DOWN MANDATE: If uncertain between intervals or volume, ALWAYS round down to the nearest lower 0.1 interval or nearest 1 (e.g., if visually between 1.2 and 1.3 cups, choose 1.2 cups; if uncertain between a fraction and a whole amount, round down to the lower tenth or nearest 1). Never overestimate volume.
 
 OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
 {
@@ -2573,7 +2604,7 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
   "items": [
     {
       "name": "Clean Ingredient Name",
-      "portion": "Explicit Portion (e.g. 200g, 1 cup, 1 tbsp)",
+      "portion": "Explicit Portion (e.g. 180g, 1.2 cups, 0.8 cup, 1 drumstick (~70g gross, ~42g meat))",
       "calories": 330,
       "protein": 62,
       "carbs": 0,
@@ -2673,6 +2704,15 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
                 }
                 return it;
               });
+
+              parsed.items = calibrateBoneInMeats(parsed.items || []);
+              if (parsed.items.some(it => String(it?.portion || '').includes('bone'))) {
+                parsed.calories = parsed.items.reduce((s, it) => s + (it.calories || 0), 0);
+                parsed.protein = Number(parsed.items.reduce((s, it) => s + (it.protein || 0), 0).toFixed(1));
+                parsed.carbs = Number(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0).toFixed(1));
+                parsed.fats = Number(parsed.items.reduce((s, it) => s + (it.fats || 0), 0).toFixed(1));
+                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated to verified USDA bone refuse ground truth (~40% bone on drumstick)";
+              }
 
               const totalCals = parsed.calories || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats);
               return {

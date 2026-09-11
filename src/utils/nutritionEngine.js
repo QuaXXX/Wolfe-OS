@@ -33,7 +33,41 @@ export function clamp(val, min, max) {
 // ---------------------------------------------------------------------------
 // 2. VERIFIED SPORTS NUTRITION INGREDIENT DATABASE
 // ---------------------------------------------------------------------------
-const INGREDIENT_DATABASE = [
+export const INGREDIENT_DATABASE = [
+  {
+    regex: /\b(?:chicken\s+drumsticks?|drumsticks?|chicken\s+legs?)\b/i,
+    name: "Chicken Drumstick (Bone-In, Cooked)",
+    defaultUnit: "drumstick",
+    defaultQty: 1,
+    // Per 100g GROSS weight (with bone, ~40% bone refuse, ~60g edible meat):
+    per100g: { calories: 110, protein: 15, carbs: 0, fats: 5.5 },
+    perUnit: {
+      drumstick: { calories: 80, protein: 10.5, carbs: 0, fats: 3.8 },
+      drumsticks: { calories: 80, protein: 10.5, carbs: 0, fats: 3.8 },
+      leg: { calories: 110, protein: 15, carbs: 0, fats: 5.5 },
+      legs: { calories: 110, protein: 15, carbs: 0, fats: 5.5 },
+      piece: { calories: 80, protein: 10.5, carbs: 0, fats: 3.8 },
+      pieces: { calories: 80, protein: 10.5, carbs: 0, fats: 3.8 },
+      g: { calories: 1.10, protein: 0.15, carbs: 0, fats: 0.055 },
+      oz: { calories: 31, protein: 4.25, carbs: 0, fats: 1.55 }
+    }
+  },
+  {
+    regex: /\b(?:chicken\s+wings?|wings?)\b/i,
+    name: "Chicken Wings (Bone-In, Cooked)",
+    defaultUnit: "wing",
+    defaultQty: 2,
+    // Per 100g GROSS weight (with bone, ~46% bone refuse, ~54g edible meat):
+    per100g: { calories: 135, protein: 13.5, carbs: 0, fats: 8.8 },
+    perUnit: {
+      wing: { calories: 65, protein: 6.5, carbs: 0, fats: 4.2 },
+      wings: { calories: 65, protein: 6.5, carbs: 0, fats: 4.2 },
+      piece: { calories: 65, protein: 6.5, carbs: 0, fats: 4.2 },
+      pieces: { calories: 65, protein: 6.5, carbs: 0, fats: 4.2 },
+      g: { calories: 1.35, protein: 0.135, carbs: 0, fats: 0.088 },
+      oz: { calories: 38, protein: 3.8, carbs: 0, fats: 2.5 }
+    }
+  },
   {
     regex: /\b(?:chicken\s+breasts?|chicken)\b/i,
     name: "Chicken Breast (Cooked)",
@@ -899,6 +933,102 @@ export function sanitizeHouseholdPantry(householdPantry = []) {
   });
 }
 
+/**
+ * Calibrates bone-in meats (e.g. chicken drumsticks, chicken wings) to account for
+ * inedible bone refuse (~40-46% of gross weight).
+ * Prevents over-reporting protein (e.g. 15g on a 70g drumstick when actual meat is ~42g / ~10.5g P).
+ */
+export function calibrateBoneInMeats(items = []) {
+  if (!Array.isArray(items)) return items;
+
+  return items.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const name = String(item.name || '').toLowerCase();
+    const portion = String(item.portion || '').toLowerCase();
+
+    // 1. Chicken Drumsticks / Legs (Bone-In)
+    const isDrumstick = /\b(?:chicken\s+)?(?:drumsticks?|legs?)\b/i.test(name) || /\b(?:chicken\s+)?(?:drumsticks?|legs?)\b/i.test(portion);
+    const isBoneless = /\bboneless|meat\s+only|skinless\s+boneless\b/i.test(name) || /\bboneless\b/i.test(portion);
+
+    if (isDrumstick && !isBoneless) {
+      const gramMatch = portion.match(/(\d+(?:\.\d+)?)\s*g\b/i) || name.match(/(\d+(?:\.\d+)?)\s*g\b/i);
+      const countMatch = portion.match(/(\d+(?:\.\d+)?)\s*(?:drumsticks?|legs?|pieces?)/i) || name.match(/(\d+(?:\.\d+)?)\s*(?:drumsticks?|legs?|pieces?)/i);
+
+      let grossGrams = null;
+      if (gramMatch) {
+        grossGrams = parseFloat(gramMatch[1]);
+      } else if (countMatch) {
+        const count = parseFloat(countMatch[1]) || 1;
+        grossGrams = count * 75;
+      } else if (!gramMatch && !countMatch) {
+        grossGrams = 75; // standard medium drumstick
+      }
+
+      if (grossGrams && grossGrams > 0) {
+        // USDA standard: ~40% bone refuse in chicken drumsticks
+        const edibleGrams = grossGrams * 0.60;
+        const trueProtein = Number((edibleGrams * 0.25).toFixed(1)); // ~10.5g P for 70g
+        const trueCalories = Math.round(edibleGrams * 1.85);          // ~78 kcal for 70g
+        const trueFats = Number((edibleGrams * 0.09).toFixed(1));     // ~3.8g F for 70g
+
+        // If protein was calculated on gross weight without deducting bone (e.g. >1.15x true protein, like 15g vs 10.5g)
+        const curProtein = Number(item.protein) || 0;
+        if (curProtein > trueProtein * 1.15) {
+          return {
+            ...item,
+            name: item.name.includes('Bone-In') ? item.name : `${item.name} (Bone-In)`,
+            portion: `${grossGrams}g gross (~${Math.round(edibleGrams)}g edible meat, 40% bone)`,
+            calories: trueCalories,
+            protein: trueProtein,
+            carbs: 0,
+            fats: trueFats
+          };
+        }
+      }
+    }
+
+    // 2. Chicken Wings (Bone-In)
+    const isWing = /\b(?:chicken\s+)?(?:wings?)\b/i.test(name) || /\b(?:chicken\s+)?(?:wings?)\b/i.test(portion);
+    if (isWing && !isBoneless) {
+      const gramMatch = portion.match(/(\d+(?:\.\d+)?)\s*g\b/i) || name.match(/(\d+(?:\.\d+)?)\s*g\b/i);
+      const countMatch = portion.match(/(\d+(?:\.\d+)?)\s*(?:wings?|pieces?)/i) || name.match(/(\d+(?:\.\d+)?)\s*(?:wings?|pieces?)/i);
+
+      let grossGrams = null;
+      if (gramMatch) {
+        grossGrams = parseFloat(gramMatch[1]);
+      } else if (countMatch) {
+        const count = parseFloat(countMatch[1]) || 1;
+        grossGrams = count * 48;
+      } else if (!gramMatch && !countMatch) {
+        grossGrams = 48;
+      }
+
+      if (grossGrams && grossGrams > 0) {
+        // USDA standard: ~46% bone refuse in chicken wings
+        const edibleGrams = grossGrams * 0.54;
+        const trueProtein = Number((edibleGrams * 0.25).toFixed(1)); // ~6.5g P for 48g
+        const trueCalories = Math.round(edibleGrams * 2.4);
+        const trueFats = Number((edibleGrams * 0.16).toFixed(1));
+
+        const curProtein = Number(item.protein) || 0;
+        if (curProtein > trueProtein * 1.15) {
+          return {
+            ...item,
+            name: item.name.includes('Bone-In') ? item.name : `${item.name} (Bone-In)`,
+            portion: `${grossGrams}g gross (~${Math.round(edibleGrams)}g edible meat, 46% bone)`,
+            calories: trueCalories,
+            protein: trueProtein,
+            carbs: 0,
+            fats: trueFats
+          };
+        }
+      }
+    }
+
+    return item;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 4. MEAL SLOTS
 // ---------------------------------------------------------------------------
@@ -1548,13 +1678,27 @@ export function parseMealDescription(text, options = {}) {
 
     if (matchedPantryItem) {
       const usedQty = (qty !== null && !isNaN(qty)) ? qty : 1;
+      let scale = usedQty;
+      let portionStr = usedQty === 1 ? (matchedPantryItem.portion || '1 serving') : `${usedQty} servings`;
+
+      // If user specified cups and staple has a base cup volume (e.g. "1.5 cups cooked")
+      const isCupUnit = unit && /^cups?$/i.test(unit);
+      if (isCupUnit) {
+        const stapleCupMatch = (matchedPantryItem.portion || '').match(/(\d+(?:\.\d+)?)\s*cups?/i);
+        if (stapleCupMatch) {
+          const baseCups = parseFloat(stapleCupMatch[1]) || 1;
+          scale = usedQty / baseCups;
+          portionStr = `${usedQty} ${usedQty === 1 ? 'cup' : 'cups'}`;
+        }
+      }
+
       matchedItems.push({
         name: matchedPantryItem.name,
-        portion: usedQty === 1 ? (matchedPantryItem.portion || '1 serving') : `${usedQty} servings`,
-        calories: Math.round((matchedPantryItem.calories || 0) * usedQty),
-        protein: Number(((matchedPantryItem.protein || 0) * usedQty).toFixed(1)),
-        carbs: Number(((matchedPantryItem.carbs || 0) * usedQty).toFixed(1)),
-        fats: Number(((matchedPantryItem.fats || 0) * usedQty).toFixed(1))
+        portion: portionStr,
+        calories: Math.round((matchedPantryItem.calories || 0) * scale),
+        protein: Number(((matchedPantryItem.protein || 0) * scale).toFixed(1)),
+        carbs: Number(((matchedPantryItem.carbs || 0) * scale).toFixed(1)),
+        fats: Number(((matchedPantryItem.fats || 0) * scale).toFixed(1))
       });
       continue;
     }
@@ -2103,6 +2247,8 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
 
   lines.push("CONTAINERS, SNACK BOWLS & OTHER DISHES: If food is pictured in meal prep containers, small snack bowls, glass storage containers, or cups without custom calibration, dynamically estimate the vessel dimensions and portion volume from visual cues and context.");
   lines.push("CRITICAL: When the photo shows one of the user's calibrated primary vessels (plate or primary bowl), apply the measured diameter as the physical ground-truth scale ruler to calculate food volume rather than guessing generic portion sizes.");
+  lines.push("FINE-GRAINED 0.1 CUP RESOLUTION: Avoid coarse 0.5, 1.0, or 1.5 cup rounding. Measure cup portions in 0.1 cup intervals (e.g. 0.3 cup, 0.7 cup, 0.8 cup, 1.1 cups, 1.2 cups). If uncertain between intervals, round down to the nearest 0.1 cup or whole number.");
+  lines.push("BONE-IN MEATS REFUSE RULE: Gross/as-served weight includes inedible bone (~40% on chicken drumsticks, ~46% on wings). Calculate calories and protein strictly on the ~60% edible meat, never treating total bone weight as edible meat.");
   return lines.join("\n");
 }
 
@@ -2307,9 +2453,9 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       return isNaN(parsed) ? 0 : parsed;
     };
 
-    const protein = Math.max(0, Math.round(extractNum(m.protein)));
-    const carbs = Math.max(0, Math.round(extractNum(m.carbs)));
-    const fats = Math.max(0, Math.round(extractNum(m.fats)));
+    let protein = Math.max(0, Math.round(extractNum(m.protein)));
+    let carbs = Math.max(0, Math.round(extractNum(m.carbs)));
+    let fats = Math.max(0, Math.round(extractNum(m.fats)));
     let calories = Math.max(0, Math.round(extractNum(m.calories)));
     if (calories === 0 && (protein > 0 || carbs > 0 || fats > 0)) {
       calories = calculateCaloriesFromMacros(protein, carbs, fats);
@@ -2339,6 +2485,16 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       }
       return String(it);
     }).filter(Boolean);
+
+    cleanItems = calibrateBoneInMeats(cleanItems);
+    const hasCalibratedBoneIn = cleanItems.some(it => typeof it === 'object' && it?.portion && it.portion.includes('bone'));
+    if (hasCalibratedBoneIn && cleanItems.length === 1 && typeof cleanItems[0] === 'object') {
+      calories = cleanItems[0].calories;
+      protein = cleanItems[0].protein;
+      carbs = cleanItems[0].carbs;
+      fats = cleanItems[0].fats;
+      wasModified = true;
+    }
 
     if (
       m.id !== id ||
@@ -2379,17 +2535,37 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       wasModified = true;
       return {
         ...m,
-        name: "Bun with 70g Insides (Beef & Veggies)",
+        name: "Bun with Beef & Veggie Insides (Calibrated)",
         calories: 220,
-        protein: 16,
+        protein: 15,
         carbs: 26,
         fats: 6,
         items: [
-          { name: "Bun / Roll (~50g)", portion: "1 bun", calories: 130, protein: 4, carbs: 24, fats: 1.5 },
-          { name: "Lean Ground Beef (90/10)", portion: "42g inside filling (60%)", calories: 80, protein: 11, carbs: 0, fats: 4 },
-          { name: "Veggies / Mixed Vegetables", portion: "28g inside filling (40%)", calories: 10, protein: 1, carbs: 2, fats: 0.1 }
-        ],
-        notes: "Calibrated accurate filling partition (42g beef + 28g veggies = 70g insides)"
+          { name: "Bun / Dinner Roll", portion: "1 roll (50g)", calories: 130, protein: 4, carbs: 24, fats: 1.5 },
+          { name: "Ground Beef Inside Filling", portion: "42g", calories: 80, protein: 11, carbs: 0, fats: 4.2 },
+          { name: "Vegetables Inside Filling", portion: "28g", calories: 10, protein: 0.5, carbs: 2, fats: 0.1 }
+        ]
+      };
+    }
+
+    // 2.6 Reconcile any past chicken drumstick meals where ~70g was mistakenly assigned 15g protein without bone refuse deduction
+    const isSuspectDrumstick = 
+      (m.name && /\b(?:drumsticks?|chicken\s+legs?)\b/i.test(m.name)) ||
+      (Array.isArray(m.items) && m.items.some(it => {
+        const itName = typeof it === 'string' ? it : it?.name || '';
+        return /\b(?:drumsticks?|chicken\s+legs?)\b/i.test(itName);
+      }));
+
+    if (isSuspectDrumstick && m.protein >= 14 && (m.name.includes('70g') || (m.items && m.items.some(it => String(it.portion || '').includes('70g'))))) {
+      wasModified = true;
+      return {
+        ...m,
+        name: m.name.includes('Bone-In') ? m.name : `${m.name} (Bone-In)`,
+        items: calibrateBoneInMeats(m.items || [{ name: "Chicken Drumstick (Bone-In)", portion: "70g gross (~42g edible meat, 40% bone)", calories: 78, protein: 10.5, carbs: 0, fats: 3.8 }]),
+        calories: 78,
+        protein: 10.5,
+        carbs: 0,
+        fats: 3.8
       };
     }
 
