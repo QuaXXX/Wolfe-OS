@@ -864,21 +864,31 @@ export function importFullOsState(vault) {
 /**
  * Fetch remote vault from serverless API (/api/sync)
  */
-async function fetchVaultFromServerless(userKey) {
+async function fetchVaultFromServerless(userKey, since = null) {
   try {
     const token = await getValidAccessToken();
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`/api/sync?user_id=${encodeURIComponent(userKey)}`, {
+    let url = `/api/sync?user_id=${encodeURIComponent(userKey)}`;
+    if (since && typeof since === 'number' && since > 0) {
+      url += `&since=${encodeURIComponent(since)}`;
+    }
+
+    const res = await fetch(url, {
       method: 'GET',
       headers
     });
 
     if (res.ok) {
       const data = await res.json();
-      if (data.success && data.exists && data.vault) {
-        return data.vault;
+      if (data.success && data.exists) {
+        if (data.modified === false) {
+          return { unmodified: true, lastUpdated: data.lastModified };
+        }
+        if (data.vault) {
+          return data.vault;
+        }
       }
       return null;
     } else {
@@ -912,6 +922,13 @@ async function saveVaultToServerless(userKey, vault) {
 
     if (res.ok) {
       const data = await res.json();
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          const ch = new BroadcastChannel('wolfe_cloud_sync_bus');
+          ch.postMessage({ type: 'VAULT_PUSHED', timestamp: Date.now() });
+          ch.close();
+        } catch (e) {}
+      }
       return !!data.success;
     } else {
       const errData = await res.json().catch(() => null);
@@ -1121,15 +1138,47 @@ export async function syncFullOsWithCloud(options = {}) {
         return { success: true, mode: 'pushed', vault: enrichedLocal };
       }
 
+      // Check last known remote timestamp to pass since parameter
+      const meta = readStorageJson(SYNC_KEYS.CLOUD_META, {});
+      const sinceTimestamp = meta?.lastRemoteVaultUpdated || 0;
+
       // 2. Fetch Remote Cloud Vault (Serverless primary + Google Calendar backup)
-      let remoteVault = await fetchVaultFromServerless(userKey);
+      let remoteVault = await fetchVaultFromServerless(userKey, sinceTimestamp);
       if (!remoteVault && isGoogleCalendarConnected()) {
         remoteVault = await fetchVaultFromGoogleCalendar();
+      }
+
+      // 2b. Efficient Conditional GET Handshake: If remote is unmodified and local didn't mutate, exit early
+      if (remoteVault?.unmodified) {
+        if (!isLocalMutationRecent(12000)) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+              detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
+            }));
+          }
+          return { success: true, mode: 'unmodified', lastSyncedAt: Date.now() };
+        } else {
+          // Local mutation occurred while remote was untouched -> push local directly
+          const enrichedLocal = { ...localVault, lastUpdated: Date.now() };
+          await saveVaultToServerless(userKey, enrichedLocal);
+          if (isGoogleCalendarConnected()) {
+            saveVaultToGoogleCalendar(enrichedLocal).catch(() => {});
+          }
+          writeStorageJson(SYNC_KEYS.CLOUD_META, {
+            lastRemoteVaultUpdated: enrichedLocal.lastUpdated,
+            lastSyncedAt: Date.now()
+          });
+          return { success: true, mode: 'pushed', vault: enrichedLocal };
+        }
       }
 
       // 3. Force Pull: Replace local with remote if remote exists
       if (forcePull && remoteVault) {
         importFullOsState(remoteVault);
+        writeStorageJson(SYNC_KEYS.CLOUD_META, {
+          lastRemoteVaultUpdated: remoteVault.lastUpdated || Date.now(),
+          lastSyncedAt: Date.now()
+        });
         return { success: true, mode: 'pulled', vault: remoteVault };
       }
 
@@ -1151,6 +1200,11 @@ export async function syncFullOsWithCloud(options = {}) {
       if (isGoogleCalendarConnected()) {
         saveVaultToGoogleCalendar(finalVault).catch(() => {});
       }
+
+      writeStorageJson(SYNC_KEYS.CLOUD_META, {
+        lastRemoteVaultUpdated: finalVault.lastUpdated || Date.now(),
+        lastSyncedAt: Date.now()
+      });
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
@@ -1183,7 +1237,7 @@ export async function syncFullOsWithCloud(options = {}) {
         hasQueuedSync = false;
         setTimeout(() => {
           syncFullOsWithCloud({ forcePush: false }).catch(() => {});
-        }, 60);
+        }, 50);
       }
     }
   })();
@@ -1192,11 +1246,11 @@ export async function syncFullOsWithCloud(options = {}) {
 }
 
 /**
- * Debounced Auto-Push: Debounces local changes by 2.5s to prevent excessive network calls
+ * Debounced Auto-Push: Debounces rapid local edits to prevent network spam
  */
 let debouncePushTimer = null;
 
-export function triggerDebouncedCloudPush(delayMs = 2500) {
+export function triggerDebouncedCloudPush(delayMs = 250) {
   if (isApplyingRemoteSync) return;
   if (typeof window === 'undefined') return;
 
@@ -1214,11 +1268,11 @@ export function triggerDebouncedCloudPush(delayMs = 2500) {
 
 /**
  * Immediate Cloud Push: Sends immediate signal on item additions/deletions
- * Confirms change on cloud serverless vault with low latency (150ms)
+ * Confirms change on cloud serverless vault with ultra-low latency (50ms)
  */
 let immediatePushTimer = null;
 
-export function triggerImmediateCloudPush(delayMs = 150) {
+export function triggerImmediateCloudPush(delayMs = 50) {
   if (typeof window === 'undefined') return;
 
   if (debouncePushTimer) {

@@ -517,7 +517,7 @@ export function App() {
     };
   }, []);
 
-  // Save changes to localStorage and debounced auto-push to cloud (suppressed on inbound sync)
+  // Save changes to localStorage and instant auto-push to cloud (suppressed on inbound sync)
   useEffect(() => {
     safeSetItem('wolfe_calendar_data', JSON.stringify(calendarData));
     safeSetItem('wolfe_school_data', JSON.stringify(schoolData));
@@ -527,7 +527,7 @@ export function App() {
     safeSetItem('wolfe_settings', JSON.stringify(settings));
 
     if (!isApplyingInboundSyncRef.current) {
-      triggerDebouncedCloudPush(2500);
+      triggerImmediateCloudPush(80);
     }
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
 
@@ -677,14 +677,63 @@ export function App() {
     }
   }, [activeView]);
 
-  // Periodic active background sync: checks quietly every 25 seconds while tab is open
+  // Fast adaptive background sync: checks every 4.5s while tab is visible, plus on focus/interaction/broadcast
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(5000)) {
+    let lastThrottledSync = 0;
+    const triggerResponsiveSync = () => {
+      const now = Date.now();
+      if (now - lastThrottledSync < 3000) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(3500)) {
+        lastThrottledSync = now;
         syncFullOsWithCloud({ forcePush: false }).catch(() => {});
       }
-    }, 25000);
-    return () => clearInterval(interval);
+    };
+
+    const interval = setInterval(triggerResponsiveSync, 4500);
+
+    // Instant sync on window focus or visibility
+    const handleFocus = () => triggerResponsiveSync();
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        triggerResponsiveSync();
+      }
+    };
+
+    // Responsive sync on user interaction (when picking up device or touching screen)
+    const handleUserInteraction = () => triggerResponsiveSync();
+
+    // Cross-tab / same-origin broadcast channel listener for 0ms sync
+    let channel = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        channel = new BroadcastChannel('wolfe_cloud_sync_bus');
+        channel.onmessage = (msg) => {
+          if (msg?.data?.type === 'VAULT_PUSHED') {
+            syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+          }
+        };
+      } catch (e) {}
+    }
+
+    window.addEventListener('focus', handleFocus);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+      window.addEventListener('pointerdown', handleUserInteraction, { passive: true });
+      window.addEventListener('keydown', handleUserInteraction, { passive: true });
+    }
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+        window.removeEventListener('pointerdown', handleUserInteraction);
+        window.removeEventListener('keydown', handleUserInteraction);
+      }
+      if (channel) {
+        try { channel.close(); } catch (e) {}
+      }
+    };
   }, []);
 
   // Relaxed Google Calendar sync: checks every 5 minutes if Google is connected

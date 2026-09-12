@@ -195,12 +195,27 @@ export default async function handler(req, res) {
       });
     }
 
+    const sinceParam = urlObj.searchParams.get('since');
+    const sinceTimestamp = sinceParam ? parseInt(sinceParam, 10) : 0;
+    const vaultLastUpdated = vault.lastUpdated || 0;
+
+    if (sinceTimestamp > 0 && vaultLastUpdated > 0 && vaultLastUpdated <= sinceTimestamp) {
+      return res.status(200).json({
+        success: true,
+        exists: true,
+        modified: false,
+        userKey,
+        lastModified: vaultLastUpdated
+      });
+    }
+
     return res.status(200).json({
       success: true,
       exists: true,
+      modified: true,
       userKey,
       vault,
-      lastModified: vault.lastUpdated || Date.now()
+      lastModified: vaultLastUpdated || Date.now()
     });
   }
 

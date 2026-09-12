@@ -196,12 +196,12 @@ const NutritionViewInner = ({
     };
     window.addEventListener('wolfe-cloud-sync-status', handleSyncStatus);
 
-    // Active cross-device sync poll while user is viewing nutrition
+    // Active cross-device sync poll while user is viewing nutrition (3.5s adaptive poll)
     const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(4000)) {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(3500)) {
         syncFullOsWithCloud({ forcePush: false }).catch(() => {});
       }
-    }, 20000);
+    }, 3500);
 
     return () => {
       window.removeEventListener('wolfe-cloud-sync-status', handleSyncStatus);
@@ -380,30 +380,6 @@ const NutritionViewInner = ({
       updatedAt: Date.now()
     };
 
-    // Safety calibration: single protein shake / smoothie should never exceed normal limits (~39g P / 485 kcal)
-    const isSmoothie = /protein\s*(?:shake|smoothie)|smoothie/i.test(stampedMeal.name || '') ||
-      (Array.isArray(stampedMeal.items) && stampedMeal.items.some(it => {
-        const itName = typeof it === 'string' ? it : it?.name || '';
-        return /protein\s*(?:shake|smoothie)|smoothie/i.test(itName) || (/vegan.*protein/i.test(itName) && (it?.protein >= 50));
-      }));
-
-    if (isSmoothie && (stampedMeal.protein >= 55 || stampedMeal.calories >= 650)) {
-      stampedMeal = {
-        ...stampedMeal,
-        name: "Protein Shake (Milk, Banana & Canadian Protein Vegan Powder)",
-        calories: 485,
-        protein: 39,
-        carbs: 54,
-        fats: 12,
-        items: [
-          { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
-          { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
-          { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
-        ],
-        notes: "Calibrated to verified sports nutrition ground truth (485 kcal, 39g protein)"
-      };
-    }
-
     if (stampedMeal?.id) recordAdditionOrUpdate(stampedMeal.id);
     markLocalMutation();
 
@@ -526,7 +502,7 @@ const NutritionViewInner = ({
         const meal = createMealEntry({
           date: selectedDate,
           name: parsed.name,
-          slot: parsed.slot || 'meal',
+          slot: 'meal',
           calories: parsed.calories,
           protein: parsed.protein,
           carbs: parsed.carbs,
@@ -535,8 +511,7 @@ const NutritionViewInner = ({
         });
         handleLogMeal(meal);
         setQuickAddText('');
-        const slotBadge = (parsed.slot && parsed.slot !== 'meal') ? ` [${parsed.slot.toUpperCase()}]` : '';
-        setQuickAddFeedback(`Logged${slotBadge}: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
+        setQuickAddFeedback(`Logged: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
         setTimeout(() => setQuickAddFeedback(null), 3500);
       } else {
         playSound('click', soundEnabled);
@@ -550,7 +525,7 @@ const NutritionViewInner = ({
         const meal = createMealEntry({
           date: selectedDate,
           name: local.name,
-          slot: local.slot || 'meal',
+          slot: 'meal',
           calories: local.calories,
           protein: local.protein,
           carbs: local.carbs,
@@ -615,7 +590,7 @@ const NutritionViewInner = ({
               const meal = createMealEntry({
                 date: selectedDate,
                 name: parsed.name,
-                slot: parsed.slot || 'meal',
+                slot: 'meal',
                 calories: parsed.calories,
                 protein: parsed.protein,
                 carbs: parsed.carbs,
@@ -624,8 +599,7 @@ const NutritionViewInner = ({
               });
               handleLogMeal(meal);
               setQuickAddText('');
-              const slotBadge = (parsed.slot && parsed.slot !== 'meal') ? ` [${parsed.slot.toUpperCase()}]` : '';
-              setQuickAddFeedback(`Logged${slotBadge}: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
+              setQuickAddFeedback(`Logged: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
               setTimeout(() => setQuickAddFeedback(null), 3500);
             }
           } catch (err) {
@@ -912,12 +886,29 @@ const NutritionViewInner = ({
     playSound('click', soundEnabled);
     const nextMl = Math.max(0, Math.min(6000, waterMl + deltaMl));
     const glasses = Math.round(nextMl / 250);
-    setNutritionData(prev => ({
-      ...prev,
+    recordAdditionOrUpdate('water_daily_' + currentTodayIso);
+    markLocalMutation();
+
+    let currentNut = safeNutritionData || {};
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) currentNut = JSON.parse(raw);
+    } catch (e) {}
+
+    const nextData = {
+      ...currentNut,
       waterMl: nextMl,
       waterGlasses: glasses,
-      waterDate: currentTodayIso
-    }));
+      waterDate: currentTodayIso,
+      updatedAt: Date.now()
+    };
+    try {
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+    } catch (e) {}
+
+    setNutritionData(nextData);
+    triggerImmediateCloudPush(50);
+
     if (nextMl >= targetWaterMl && waterMl < targetWaterMl) {
       playSound('success', soundEnabled);
     }

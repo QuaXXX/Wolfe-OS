@@ -2409,23 +2409,6 @@ Return ONLY valid JSON matching this schema:
               };
             }
             if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-              const isSmoothie = /protein\s*(?:shake|smoothie)|smoothie/i.test(parsed.name || '') ||
-                parsed.items.some(it => /protein\s*(?:shake|smoothie)|smoothie/i.test(it.name || '') || (/vegan.*protein/i.test(it.name || '') && (it.protein >= 50)));
-
-              if (isSmoothie && (parsed.protein >= 55 || parsed.calories >= 650)) {
-                parsed.name = "Protein Shake (Milk, Banana & Canadian Protein Vegan Powder)";
-                parsed.calories = 485;
-                parsed.protein = 39;
-                parsed.carbs = 54;
-                parsed.fats = 12;
-                parsed.items = [
-                  { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
-                  { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
-                  { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
-                ];
-                parsed.notes = "Calibrated to verified sports nutrition ground truth (485 kcal, 39g protein)";
-              }
-
               const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(parsed.name || '') ||
                 (parsed.items.length === 1 && parsed.items.some(it => /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(it.name || '')));
 
@@ -2581,10 +2564,7 @@ ${pantryPrompt ? `${pantryPrompt}\n` : ''}
    - When a compound filling is mentioned (e.g. "bun with 70g insides of beef and veggies"):
      Distribute the 70g total filling across the inner ingredients (e.g. 42g beef [80 kcal, 11g P] + 28g veggies [10 kcal, 1g P] = 70g) plus 1 bun (~130 kcal) = 220 kcal, NEVER doubling the filling.
 
-4. MEAL SLOT & TIME INFERENCE:
-   - Determine the slot: "breakfast", "lunch", "dinner", or "snack" based on keywords or context (default: "meal").
-
-5. CONSERVATIVE UNDERESTIMATION & GROUND-TRUTH MACROS:
+4. CONSERVATIVE UNDERESTIMATION & GROUND-TRUTH MACROS:
    - Wolfe OS Principle: Never over-inflate numbers for protein or calories. When estimating calories, protein, or portion sizes, ALWAYS ROUND DOWN if uncertain so the user never overestimates their nutritional intake.
    - Milk (Standard / Normal Household Milk):
      * DEFAULT TO NORMAL MILK: When the user mentions "milk" (e.g. "milk", "glass of milk", "cup of milk", "milk in coffee/cereal"), treat it as STANDARD / NORMAL MILK (2% reduced fat: ~120 kcal, 8g protein, 11.5g carbs, ~4.8g fats per 1 cup / 240-250ml).
@@ -2610,7 +2590,7 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
 {
   "hasFood": true,
   "name": "Concise Descriptive Title (e.g. Grilled Chicken, White Rice & Steamed Broccoli)",
-  "slot": "lunch",
+  "slot": "meal",
   "items": [
     {
       "name": "Clean Ingredient Name",
@@ -2659,24 +2639,6 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
           if (rawText) {
             const parsed = safeParseJson(rawText);
             if (parsed && parsed.hasFood !== false && Array.isArray(parsed.items) && parsed.items.length > 0) {
-              // Safety calibration: clamp any smoothie / protein shake output that Gemini might have inflated
-              const isSmoothie = /protein\s*(?:shake|smoothie)|smoothie/i.test(parsed.name || '') ||
-                parsed.items.some(it => /protein\s*(?:shake|smoothie)|smoothie/i.test(it.name || '') || (/vegan.*protein/i.test(it.name || '') && (it.protein >= 50)));
-
-              if (isSmoothie && (parsed.protein >= 55 || parsed.calories >= 650)) {
-                parsed.name = "Protein Shake (Milk, Banana & Canadian Protein Vegan Powder)";
-                parsed.calories = 485;
-                parsed.protein = 39;
-                parsed.carbs = 54;
-                parsed.fats = 12;
-                parsed.items = [
-                  { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
-                  { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
-                  { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
-                ];
-                parsed.notes = "Calibrated to verified sports nutrition ground truth (485 kcal, 39g protein)";
-              }
-
               const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(parsed.name || '') ||
                 (parsed.items.length === 1 && parsed.items.some(it => /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(it.name || '')));
 

@@ -455,7 +455,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
         const mealEntry = createMealEntry({
           date: todayIso,
           name: parsedMeal.name,
-          slot: text.includes('breakfast') ? 'breakfast' : text.includes('dinner') ? 'dinner' : text.includes('snack') ? 'snack' : 'lunch',
+          slot: 'meal',
           calories: parsedMeal.calories,
           protein: parsedMeal.protein,
           carbs: parsedMeal.carbs,
@@ -514,7 +514,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       const mealEntry = createMealEntry({
         date: todayIso,
         name: directMeal.name,
-        slot: 'lunch',
+        slot: 'meal',
         calories: directMeal.calories,
         protein: directMeal.protein,
         carbs: directMeal.carbs,

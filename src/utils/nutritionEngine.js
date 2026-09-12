@@ -128,6 +128,19 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
+    regex: /\b(?:costco\s+hot\s*dog|costho\s+hot\s*dog|hot\s*dog|hotdog|frankfurter)\b/i,
+    name: "Costco Hot Dog (Beef Frank & Bun)",
+    defaultUnit: "hot dog",
+    defaultQty: 1,
+    perUnit: {
+      "hot dog": { calories: 570, protein: 24, carbs: 46, fats: 33 },
+      "hotdog": { calories: 570, protein: 24, carbs: 46, fats: 33 },
+      "dog": { calories: 570, protein: 24, carbs: 46, fats: 33 },
+      "item": { calories: 570, protein: 24, carbs: 46, fats: 33 },
+      "serving": { calories: 570, protein: 24, carbs: 46, fats: 33 }
+    }
+  },
+  {
     regex: /\b(?:canned\s+salmon|can\s+of\s+salmon|salmon\s+can|wild\s+salmon\s+can)\b/i,
     name: "Canned Salmon",
     defaultUnit: "can",
@@ -1550,16 +1563,7 @@ export function parseMealDescription(text, options = {}) {
   }
 
   // 3. Clause extraction & Context Intelligence
-  let detectedSlot = 'meal';
-  if (/\b(?:breakfast|morning\s+meal|pre-workout)\b/i.test(cleanText)) {
-    detectedSlot = 'breakfast';
-  } else if (/\b(?:lunch|midday\s+meal)\b/i.test(cleanText)) {
-    detectedSlot = 'lunch';
-  } else if (/\b(?:dinner|supper|evening\s+meal)\b/i.test(cleanText)) {
-    detectedSlot = 'dinner';
-  } else if (/\b(?:snack|post-workout|postworkout|shake|dessert)\b/i.test(cleanText)) {
-    detectedSlot = 'snack';
-  }
+  const detectedSlot = 'meal';
 
   // Pre-process exclusions: e.g. "no cheese", "without sour cream", "hold the dressing", "skip mayo"
   const excludedIngredients = [];
@@ -2046,26 +2050,6 @@ export function createMealEntry({
   const rawCals = Math.max(0, Math.floor(Number(calories) || 0));
   let finalCals = rawCals > 0 ? rawCals : calculatedCals;
   let finalName = (name || "Logged Meal").trim();
-
-  // Safety calibration: a single household protein shake / smoothie with Canadian Protein vegan powder is ~39g P / 485 kcal, never 91g
-  const isSmoothie = /protein\s*(?:shake|smoothie)|smoothie/i.test(finalName) ||
-    finalItems.some(it => {
-      const itName = typeof it === 'string' ? it : it?.name || '';
-      return /protein\s*(?:shake|smoothie)|smoothie/i.test(itName) || (/vegan.*protein/i.test(itName) && (it?.protein >= 60));
-    });
-
-  if (isSmoothie && (p >= 60 || finalCals >= 650)) {
-    finalName = "Protein Shake (Milk, Banana & Vegan Protein Powder)";
-    finalCals = 485;
-    p = 39;
-    c = 54;
-    f = 12;
-    finalItems = [
-      { name: "Milk", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
-      { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
-      { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
-    ];
-  }
 
   // Safety calibration: a single can of salmon is strictly 200 cals / 40g protein
   const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(finalName) ||
@@ -2650,34 +2634,10 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     };
   }).filter(Boolean);
 
-  // 2.5 Reconcile any past bun meals that were overestimated due to non-partitioned fillings
+  // 2.6 Reconcile any past chicken drumstick meals where ~70g was mistakenly assigned 15g protein without bone refuse deduction
   meals = meals.map(m => {
     if (!m) return null;
-    const isSuspectBun = 
-      (m.name && /bun/i.test(m.name) && (/beef/i.test(m.name) || /veggie/i.test(m.name) || /70g/i.test(m.name) || /insides?/i.test(m.name))) ||
-      (Array.isArray(m.items) && m.items.some(it => {
-        const itName = typeof it === 'string' ? it : it?.name || '';
-        return /bun/i.test(itName) || (/beef/i.test(itName) && /70g/i.test(itName));
-      }));
 
-    if (isSuspectBun && m.calories > 290) {
-      wasModified = true;
-      return {
-        ...m,
-        name: "Bun with Beef & Veggie Insides (Calibrated)",
-        calories: 220,
-        protein: 15,
-        carbs: 26,
-        fats: 6,
-        items: [
-          { name: "Bun / Dinner Roll", portion: "1 roll (50g)", calories: 130, protein: 4, carbs: 24, fats: 1.5 },
-          { name: "Ground Beef Inside Filling", portion: "42g", calories: 80, protein: 11, carbs: 0, fats: 4.2 },
-          { name: "Vegetables Inside Filling", portion: "28g", calories: 10, protein: 0.5, carbs: 2, fats: 0.1 }
-        ]
-      };
-    }
-
-    // 2.6 Reconcile any past chicken drumstick meals where ~70g was mistakenly assigned 15g protein without bone refuse deduction
     const isSuspectDrumstick = 
       (m.name && /\b(?:drumsticks?|chicken\s+legs?)\b/i.test(m.name)) ||
       (Array.isArray(m.items) && m.items.some(it => {
@@ -2719,32 +2679,6 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
           { name: "Milk (Normal / 2%)", portion: "1 cup / glass (250ml)", calories: 120, protein: 8, carbs: 11.5, fats: 4.8 }
         ],
         notes: "Calibrated to standard normal milk (120 kcal, 8g protein per cup)"
-      };
-    }
-
-    // 2.62 Reconcile past overestimated protein smoothie meals (e.g. 91g protein / 755 kcal or >50g protein from a single smoothie)
-    const isSuspectSmoothie = 
-      (m.name && /smoothie|shake/i.test(m.name)) ||
-      (Array.isArray(m.items) && m.items.some(it => {
-        const itName = typeof it === 'string' ? it : it?.name || '';
-        return /smoothie|shake/i.test(itName) || (/vegan.*protein/i.test(itName) && (it?.protein >= 50));
-      }));
-
-    if (isSuspectSmoothie && (m.protein >= 55 || m.calories >= 650)) {
-      wasModified = true;
-      return {
-        ...m,
-        name: "Protein Shake (Milk, Banana & Canadian Protein Vegan Powder)",
-        calories: 485,
-        protein: 39,
-        carbs: 54,
-        fats: 12,
-        items: [
-          { name: "Milk (User Calibrated)", portion: "2 cups / glasses (250ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
-          { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
-          { name: "Banana", portion: "1 banana (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
-        ],
-        notes: "Calibrated accurate smoothie macros (2c milk [18g P] + 1 scoop vegan powder [20g P] + 1 banana [1.3g P] = ~39g protein)"
       };
     }
 
