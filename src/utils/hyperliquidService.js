@@ -3,7 +3,7 @@
  * Directly interfaces with Hyperliquid's official API endpoints for zero-middleware execution.
  */
 
-import { getTradingConfig, logWebhookSignal, saveOpenPositions, getOpenPositions } from './tradingStorage.js';
+import { getTradingConfig, logWebhookSignal, saveOpenPositions, getOpenPositions, logCompletedTrade } from './tradingStorage.js';
 
 // Hyperliquid Official API Endpoints
 const HYPERLIQUID_MAINNET_API = 'https://api.hyperliquid.xyz/info';
@@ -322,8 +322,7 @@ export async function executeHyperliquidSignal(signal) {
         status: 'CLOSED'
       };
 
-      const history = getTradeHistory();
-      saveTradeHistory([historyRecord, ...history]);
+      logCompletedTrade(historyRecord);
     }
 
     const logEntry = logWebhookSignal({

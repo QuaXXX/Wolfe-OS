@@ -51,7 +51,7 @@ import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
-import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush, syncFullOsWithCloud } from '../../utils/cloudSyncEngine.js';
+import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush, syncFullOsWithCloud, isLocalMutationRecent } from '../../utils/cloudSyncEngine.js';
 
 const NutritionViewInner = ({ 
   nutritionData, 

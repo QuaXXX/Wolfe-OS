@@ -37,7 +37,8 @@ import {
   readVaultFileContent,
   getCourseFiles,
   getCourseSourcesMetadata,
-  saveCachedVaultFiles
+  saveCachedVaultFiles,
+  verifyHandlePermission
 } from '../../utils/obsidianService';
 import { extractTextFromFile } from '../../utils/documentParser';
 import { streamSearchVaultWithAI } from '../../utils/aiService';

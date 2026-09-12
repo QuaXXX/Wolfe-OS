@@ -251,8 +251,8 @@ export const CompactVoiceWidget = forwardRef(({
       }
 
       // Optional Text-To-Speech
-      if (aiConfig?.voiceResponse && 'speechSynthesis' in window && response?.message) {
-        const utterance = new SpeechSynthesisUtterance(response.message);
+      if (aiConfig?.voiceResponse && typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window && response?.message) {
+        const utterance = new window.SpeechSynthesisUtterance(response.message);
         utterance.rate = 1.05;
         window.speechSynthesis.speak(utterance);
       }

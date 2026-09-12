@@ -8,7 +8,7 @@ import { ComingSoonModal } from './components/common/ComingSoonModal';
 import { UndoActionPopup } from './components/common/UndoActionPopup';
 import { playSound } from './utils/soundFX';
 import { getTodayIso, formatDateTitle, addDays, reconcileCalendarItems, isCalendarOutOfSync } from './utils/calendarUtils';
-import { synchronizeNutritionData } from './utils/nutritionEngine.js';
+import { synchronizeNutritionData, aggregateDailyNutrition } from './utils/nutritionEngine.js';
 import { 
   isGoogleCalendarConnected, 
   fetchGoogleCalendarEvents,

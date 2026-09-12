@@ -66,6 +66,7 @@ export const buildSystemPrompt = (osData) => {
   const carbsConsumed = osData?.nutritionData?.consumedCarbs || 0;
   const carbsTarget = osData?.nutritionData?.targetCarbs || 300;
   const fatConsumed = osData?.nutritionData?.consumedFat || 0;
+  const fatTarget = osData?.nutritionData?.targetFats || osData?.nutritionData?.fats?.target || 80;
   const todayIsoBrief = getTodayIso();
   const loggedMeals = (osData?.nutritionData?.meals || []).filter(m => m?.date === todayIsoBrief);
 
@@ -1011,7 +1012,7 @@ export async function processVoiceOrTextCommand(
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       type: item.type || 'event',
       title: cleanTitle,
-      date: item.date || targetDate || todayIso,
+      date: item.date || todayIso,
       time: isAllDay ? 'All Day' : `${startTime || '03:00 PM'} - ${endTime || '04:00 PM'}`,
       isAllDay,
       category: item.category || 'General',

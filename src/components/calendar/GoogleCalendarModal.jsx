@@ -215,6 +215,46 @@ export const GoogleCalendarModal = ({
     }
   };
 
+  const handleSaveCustomCreds = (e) => {
+    e?.preventDefault();
+    if (typeof localStorage !== 'undefined') {
+      if (customClientId.trim()) {
+        localStorage.setItem('wolfe_gcal_client_id', customClientId.trim());
+      } else {
+        localStorage.removeItem('wolfe_gcal_client_id');
+      }
+      if (customClientSecret.trim()) {
+        localStorage.setItem('wolfe_gcal_client_secret', customClientSecret.trim());
+      } else {
+        localStorage.removeItem('wolfe_gcal_client_secret');
+      }
+    }
+    setSavedNotice(true);
+    setTimeout(() => setSavedNotice(false), 3000);
+  };
+
+  const handleManualTokenSubmit = async (e) => {
+    e?.preventDefault();
+    if (!manualToken.trim()) return;
+    setIsSyncing(true);
+    setError(null);
+    try {
+      const trimmed = manualToken.trim();
+      saveGoogleToken(trimmed);
+      refreshStatus();
+      setManualToken('');
+      setSyncMessage("Google token saved successfully!");
+      if (onSyncNow) {
+        await onSyncNow();
+      }
+    } catch (err) {
+      console.warn("Manual token submit error:", err);
+      setError(err.message || "Failed to save manual token.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const modalContent = (
     <AnimatePresence>
       <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-4 select-none">
