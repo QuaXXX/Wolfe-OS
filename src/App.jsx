@@ -340,9 +340,9 @@ export function App() {
         return prev;
       });
 
-      // Proactively pull cloud sync on desktop tab return/focus (throttled by 10s)
+      // Proactively pull cloud sync on tab return/focus (throttled by 3s)
       const now = Date.now();
-      if (now - lastFocusCloudPullRef.current > 10000 && isGoogleCalendarConnected()) {
+      if (now - lastFocusCloudPullRef.current > 3000) {
         lastFocusCloudPullRef.current = now;
         syncFullOsWithCloud({ forcePush: false }).catch(err => {
           console.debug("Focus cloud sync pull notice:", err.message);
@@ -369,29 +369,118 @@ export function App() {
     const handleSyncApplied = (e) => {
       const vault = e.detail?.vault;
       if (!vault) return;
-      // If user recently made an explicit local deletion/addition, don't let a stale inbound packet clobber it
-      if (isLocalMutationRecent(6000)) return;
-
       isApplyingInboundSyncRef.current = true;
       if (vault.nutrition) {
         setNutritionData(prev => {
+          const tombstones = vault._tombstones || {};
+          const isTomb = (id) => Boolean(id && tombstones[String(id)]);
+
+          const incomingMeals = Array.isArray(vault.nutrition?.meals) ? vault.nutrition.meals : [];
           const existingMeals = Array.isArray(prev?.meals) ? prev.meals : [];
-          const inboundMeals = Array.isArray(vault.nutrition?.meals) ? vault.nutrition.meals : [];
           const mealMap = new Map();
-          for (const m of existingMeals) {
-            if (m && m.id) mealMap.set(m.id, m);
+
+          // 1. Add inbound meals that are not tombstoned
+          for (const m of incomingMeals) {
+            if (m && m.id && !isTomb(m.id)) {
+              mealMap.set(m.id, m);
+            }
           }
-          for (const m of inboundMeals) {
-            if (m && m.id) {
+
+          // 2. Union with local meals: any meal not explicitly tombstoned is permanently preserved
+          for (const m of existingMeals) {
+            if (m && m.id && !isTomb(m.id)) {
               const prevM = mealMap.get(m.id);
-              if (!prevM || (m.updatedAt || 0) >= (prevM.updatedAt || 0)) {
+              if (!prevM) {
                 mealMap.set(m.id, m);
+              } else {
+                const localTime = m.updatedAt || m.createdAt || 0;
+                const remoteTime = prevM.updatedAt || prevM.createdAt || 0;
+                if (localTime >= remoteTime) {
+                  mealMap.set(m.id, { ...prevM, ...m });
+                } else {
+                  mealMap.set(m.id, { ...m, ...prevM });
+                }
               }
             }
           }
+
+          const getMealSortTime = (m) => {
+            if (m?.createdAt && typeof m.createdAt === 'number') return m.createdAt;
+            if (m?.updatedAt && typeof m.updatedAt === 'number') return m.updatedAt;
+            if (m?.id && typeof m.id === 'string') {
+              const parts = m.id.split('-');
+              const ts = parseInt(parts[1], 10);
+              if (!isNaN(ts) && ts > 1000000) return ts;
+            }
+            return 0;
+          };
+          const finalMeals = Array.from(mealMap.values()).sort((a, b) => getMealSortTime(b) - getMealSortTime(a));
+
+          // 3. Union weight logs seamlessly across devices (purging tombstoned, newest timestamp wins)
+          const incomingWeight = Array.isArray(vault.nutrition?.weightHistory)
+            ? vault.nutrition.weightHistory
+            : (Array.isArray(vault.nutrition?.weightLogs) ? vault.nutrition.weightLogs : []);
+          const existingWeight = Array.isArray(prev?.weightHistory)
+            ? prev.weightHistory
+            : (Array.isArray(prev?.weightLogs) ? prev.weightLogs : []);
+          const weightMap = new Map();
+
+          incomingWeight.forEach(w => {
+            if (!w) return;
+            const k = w.id || w.date;
+            if (!isTomb(k) && !isTomb(w.id) && !isTomb(w.date)) {
+              const wVal = w.weightLbs ?? w.weight ?? 0;
+              weightMap.set(k, { ...w, weightLbs: wVal, weight: wVal });
+            }
+          });
+
+          existingWeight.forEach(w => {
+            if (!w) return;
+            const k = w.id || w.date;
+            if (!isTomb(k) && !isTomb(w.id) && !isTomb(w.date)) {
+              const wVal = w.weightLbs ?? w.weight ?? 0;
+              const cleanW = { ...w, weightLbs: wVal, weight: wVal };
+              const prevW = weightMap.get(k);
+              if (!prevW) {
+                weightMap.set(k, cleanW);
+              } else {
+                const localTime = cleanW.updatedAt || cleanW.createdAt || new Date(cleanW.date).getTime() || 0;
+                const remoteTime = prevW.updatedAt || prevW.createdAt || new Date(prevW.date).getTime() || 0;
+                if (localTime >= remoteTime) {
+                  weightMap.set(k, { ...prevW, ...cleanW });
+                } else {
+                  weightMap.set(k, { ...cleanW, ...prevW });
+                }
+              }
+            }
+          });
+
+          const finalWeight = Array.from(weightMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          const todayIso = getTodayIso();
+          const todayMeals = finalMeals.filter(m => m && m.date === todayIso);
+          const todayTotals = aggregateDailyNutrition(todayMeals);
+
           const mergedNutrition = {
+            ...prev,
             ...vault.nutrition,
-            meals: Array.from(mealMap.values())
+            currentDate: todayIso,
+            consumedCalories: todayTotals.calories,
+            protein: {
+              ...(vault.nutrition?.protein || prev?.protein || { target: 180, unit: "g", color: "#6366f1" }),
+              current: todayTotals.protein
+            },
+            carbs: {
+              ...(vault.nutrition?.carbs || prev?.carbs || { target: 450, unit: "g", color: "#06b6d4" }),
+              current: todayTotals.carbs
+            },
+            fats: {
+              ...(vault.nutrition?.fats || prev?.fats || { target: 80, unit: "g", color: "#f59e0b" }),
+              current: todayTotals.fats
+            },
+            meals: finalMeals,
+            weightHistory: finalWeight,
+            weightLogs: finalWeight
           };
           return synchronizeNutritionData(mergedNutrition);
         });
@@ -416,7 +505,7 @@ export function App() {
       } else if (e.detail?.status === 'syncing') {
         setSyncStatus('syncing');
       } else if (e.detail?.status === 'failed') {
-        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'synced');
       }
     };
 
@@ -437,7 +526,7 @@ export function App() {
     safeSetItem('wolfe_trading_data', JSON.stringify(tradingData));
     safeSetItem('wolfe_settings', JSON.stringify(settings));
 
-    if (!isApplyingInboundSyncRef.current && isGoogleCalendarConnected()) {
+    if (!isApplyingInboundSyncRef.current) {
       triggerDebouncedCloudPush(2500);
     }
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
@@ -578,17 +667,27 @@ export function App() {
           setIsSyncingGoogle(false);
         }
       })();
-    } else if (activeView === 'nutrition' && isGoogleCalendarConnected()) {
+    } else if (activeView === 'nutrition') {
       // Fast proactive cloud vault pull when user navigates into nutrition
       const now = Date.now();
-      if (now - lastMainScreenFetchRef.current >= 4000) {
+      if (now - lastMainScreenFetchRef.current >= 3000) {
         lastMainScreenFetchRef.current = now;
         syncFullOsWithCloud({ forcePush: false }).catch(() => {});
       }
     }
   }, [activeView]);
 
-  // Relaxed background sync: checks quietly once every 5 minutes ONLY if connected
+  // Periodic active background sync: checks quietly every 25 seconds while tab is open
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(5000)) {
+        syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+      }
+    }, 25000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Relaxed Google Calendar sync: checks every 5 minutes if Google is connected
   useEffect(() => {
     if (!isGoogleCalendarConnected()) return;
     const interval = setInterval(() => {

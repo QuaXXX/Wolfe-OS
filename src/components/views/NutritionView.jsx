@@ -182,10 +182,31 @@ const NutritionViewInner = ({
     }
   }, [currentTodayIso]);
 
-  // Proactively pull fresh meals from cloud on NutritionView mount
+  // Proactively pull fresh meals from cloud on NutritionView mount and listen for sync events
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   useEffect(() => {
     syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+
+    const handleSyncStatus = (e) => {
+      if (e.detail?.status === 'syncing') {
+        setIsSyncingCloud(true);
+      } else {
+        setTimeout(() => setIsSyncingCloud(false), 500);
+      }
+    };
+    window.addEventListener('wolfe-cloud-sync-status', handleSyncStatus);
+
+    // Active cross-device sync poll while user is viewing nutrition
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(4000)) {
+        syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+      }
+    }, 20000);
+
+    return () => {
+      window.removeEventListener('wolfe-cloud-sync-status', handleSyncStatus);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleTriggerCloudSync = async () => {
@@ -631,22 +652,40 @@ const NutritionViewInner = ({
   };
 
   const handleLogWeight = (weightEntry) => {
-    if (weightEntry?.id || weightEntry?.date) recordAdditionOrUpdate(weightEntry.id || weightEntry.date);
+    if (weightEntry?.id) recordAdditionOrUpdate(weightEntry.id);
+    if (weightEntry?.date) recordAdditionOrUpdate(weightEntry.date);
     markLocalMutation();
 
-    setNutritionData(prev => {
-      const safePrev = (prev && typeof prev === 'object') ? prev : {};
-      const existing = (safePrev.weightHistory || []).filter(w => w && w.date !== weightEntry?.date);
-      const nextData = {
-        ...safePrev,
-        weightHistory: [weightEntry, ...existing]
-      };
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-      } catch (e) {}
-      return nextData;
-    });
+    let currentNut = safeNutritionData || {};
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) currentNut = JSON.parse(raw);
+    } catch (e) {}
 
+    const rawExisting = Array.isArray(currentNut.weightHistory)
+      ? currentNut.weightHistory
+      : (Array.isArray(currentNut.weightLogs) ? currentNut.weightLogs : []);
+    const existing = rawExisting.filter(w => w && w.date !== weightEntry?.date && w.id !== weightEntry?.id);
+    const wVal = weightEntry?.weightLbs ?? weightEntry?.weight ?? 0;
+    const cleanEntry = {
+      ...weightEntry,
+      weightLbs: wVal,
+      weight: wVal,
+      createdAt: weightEntry?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    const nextWeight = [cleanEntry, ...existing];
+    const nextData = {
+      ...currentNut,
+      weightHistory: nextWeight,
+      weightLogs: nextWeight,
+      updatedAt: Date.now()
+    };
+    try {
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+    } catch (e) {}
+
+    setNutritionData(nextData);
     triggerImmediateCloudPush(80);
   };
 
@@ -654,18 +693,27 @@ const NutritionViewInner = ({
     recordDeletion(idOrDate);
     markLocalMutation();
 
-    setNutritionData(prev => {
-      const safePrev = (prev && typeof prev === 'object') ? prev : {};
-      const nextData = {
-        ...safePrev,
-        weightHistory: (safePrev.weightHistory || []).filter(w => w && w.id !== idOrDate && w.date !== idOrDate)
-      };
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-      } catch (e) {}
-      return nextData;
-    });
+    let currentNut = safeNutritionData || {};
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) currentNut = JSON.parse(raw);
+    } catch (e) {}
 
+    const rawExisting = Array.isArray(currentNut.weightHistory)
+      ? currentNut.weightHistory
+      : (Array.isArray(currentNut.weightLogs) ? currentNut.weightLogs : []);
+    const nextWeight = rawExisting.filter(w => w && w.id !== idOrDate && w.date !== idOrDate);
+    const nextData = {
+      ...currentNut,
+      weightHistory: nextWeight,
+      weightLogs: nextWeight,
+      updatedAt: Date.now()
+    };
+    try {
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+    } catch (e) {}
+
+    setNutritionData(nextData);
     triggerImmediateCloudPush(80);
   };
 
@@ -680,24 +728,30 @@ const NutritionViewInner = ({
   const handleApplySurplus = (newTarget) => {
     playSound('success', soundEnabled);
     markLocalMutation();
-    setNutritionData(prev => {
-      const nextData = {
-        ...prev,
-        targetCalories: newTarget,
-        dailyTargets: {
-          ...(prev.dailyTargets || {}),
-          [selectedDate]: {
-            ...getTargetForDate(prev, selectedDate),
-            calories: newTarget
-          }
-        },
-        updatedAt: Date.now()
-      };
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-      } catch (e) {}
-      return nextData;
-    });
+
+    let currentNut = safeNutritionData || {};
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) currentNut = JSON.parse(raw);
+    } catch (e) {}
+
+    const nextData = {
+      ...currentNut,
+      targetCalories: newTarget,
+      dailyTargets: {
+        ...(currentNut.dailyTargets || {}),
+        [selectedDate]: {
+          ...getTargetForDate(currentNut, selectedDate),
+          calories: newTarget
+        }
+      },
+      updatedAt: Date.now()
+    };
+    try {
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+    } catch (e) {}
+
+    setNutritionData(nextData);
     triggerImmediateCloudPush(80);
   };
 
@@ -711,36 +765,41 @@ const NutritionViewInner = ({
     const newFats = parseInt(customFats, 10) || activeTargetFats;
 
     markLocalMutation();
-    setNutritionData(prev => {
-      const updatedDailyTargets = {
-        ...(prev.dailyTargets || {}),
-        [selectedDate]: {
-          calories: newTargetCals,
-          protein: newProtein,
-          carbs: newCarbs,
-          fats: newFats
-        }
-      };
 
-      const shouldApplyAsDefault = applyAsDefault || selectedDate === currentTodayIso;
+    let currentNut = safeNutritionData || {};
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) currentNut = JSON.parse(raw);
+    } catch (e) {}
 
-      const nextData = {
-        ...prev,
-        dailyTargets: updatedDailyTargets,
-        ...(shouldApplyAsDefault ? {
-          targetCalories: newTargetCals,
-          protein: { ...(prev.protein || {}), target: newProtein },
-          carbs: { ...(prev.carbs || {}), target: newCarbs },
-          fats: { ...(prev.fats || {}), target: newFats }
-        } : {}),
-        updatedAt: Date.now()
-      };
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-      } catch (err) {}
-      return nextData;
-    });
+    const updatedDailyTargets = {
+      ...(currentNut.dailyTargets || {}),
+      [selectedDate]: {
+        calories: newTargetCals,
+        protein: newProtein,
+        carbs: newCarbs,
+        fats: newFats
+      }
+    };
 
+    const shouldApplyAsDefault = applyAsDefault || selectedDate === currentTodayIso;
+
+    const nextData = {
+      ...currentNut,
+      dailyTargets: updatedDailyTargets,
+      ...(shouldApplyAsDefault ? {
+        targetCalories: newTargetCals,
+        protein: { ...(currentNut.protein || {}), target: newProtein },
+        carbs: { ...(currentNut.carbs || {}), target: newCarbs },
+        fats: { ...(currentNut.fats || {}), target: newFats }
+      } : {}),
+      updatedAt: Date.now()
+    };
+    try {
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+    } catch (err) {}
+
+    setNutritionData(nextData);
     triggerImmediateCloudPush(80);
     setIsTargetModalOpen(false);
   };
@@ -763,17 +822,23 @@ const NutritionViewInner = ({
     if (staple?.id) recordAdditionOrUpdate(staple.id);
     markLocalMutation();
 
-    setNutritionData(prev => {
-      const nextData = {
-        ...prev,
-        householdPantry: [staple, ...(prev.householdPantry || [])]
-      };
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-      } catch (e) {}
-      return nextData;
-    });
+    let currentNut = safeNutritionData || {};
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) currentNut = JSON.parse(raw);
+    } catch (e) {}
 
+    const existingStaples = (currentNut.householdPantry || []).filter(s => s && s.id !== staple?.id);
+    const nextData = {
+      ...currentNut,
+      householdPantry: [staple, ...existingStaples],
+      updatedAt: Date.now()
+    };
+    try {
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+    } catch (e) {}
+
+    setNutritionData(nextData);
     triggerImmediateCloudPush(80);
   };
 
@@ -781,18 +846,22 @@ const NutritionViewInner = ({
     recordDeletion(stapleId);
     markLocalMutation();
 
-    setNutritionData(prev => {
-      const safePrev = (prev && typeof prev === 'object') ? prev : {};
-      const nextData = {
-        ...safePrev,
-        householdPantry: (safePrev.householdPantry || []).filter(s => s && s.id !== stapleId)
-      };
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-      } catch (e) {}
-      return nextData;
-    });
+    let currentNut = safeNutritionData || {};
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) currentNut = JSON.parse(raw);
+    } catch (e) {}
 
+    const nextData = {
+      ...currentNut,
+      householdPantry: (currentNut.householdPantry || []).filter(s => s && s.id !== stapleId),
+      updatedAt: Date.now()
+    };
+    try {
+      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+    } catch (e) {}
+
+    setNutritionData(nextData);
     triggerImmediateCloudPush(80);
   };
 

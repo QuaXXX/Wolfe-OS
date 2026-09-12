@@ -2134,6 +2134,9 @@ export function createWeightLogEntry(weightLbs, dateIso = null, notes = "") {
     date: dateIso || getTodayIso(),
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     weightLbs: weight,
+    weight: weight,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     notes: (notes || "").trim()
   };
 }
@@ -2794,14 +2797,37 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     return m;
   }).filter(Boolean);
 
-  // Sanitize weightHistory if present
-  let cleanWeight = [];
-  if (Array.isArray(nutritionData.weightHistory)) {
-    cleanWeight = nutritionData.weightHistory.filter(w => w && typeof w === 'object' && typeof w.date === 'string' && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs));
-    if (cleanWeight.length !== nutritionData.weightHistory.length) {
-      nutritionData.weightHistory = cleanWeight;
-      wasModified = true;
-    }
+  // Sanitize weightHistory and weightLogs seamlessly
+  const rawWeightList = Array.isArray(nutritionData.weightHistory)
+    ? nutritionData.weightHistory
+    : (Array.isArray(nutritionData.weightLogs) ? nutritionData.weightLogs : []);
+
+  let cleanWeight = rawWeightList.map(w => {
+    if (!w || typeof w !== 'object') return null;
+    const rawVal = w.weightLbs ?? w.weight;
+    const numVal = typeof rawVal === 'number' ? rawVal : parseFloat(rawVal);
+    if (isNaN(numVal) || numVal <= 0) return null;
+    const dateStr = typeof w.date === 'string' ? w.date : getTodayIso();
+    const idStr = w.id || `weight-${new Date(dateStr).getTime() || Date.now()}`;
+    return {
+      ...w,
+      id: idStr,
+      date: dateStr,
+      weightLbs: numVal,
+      weight: numVal,
+      createdAt: w.createdAt || (new Date(dateStr).getTime() || Date.now()),
+      updatedAt: w.updatedAt || Date.now()
+    };
+  }).filter(Boolean);
+
+  if (
+    !Array.isArray(nutritionData.weightHistory) ||
+    !Array.isArray(nutritionData.weightLogs) ||
+    cleanWeight.length !== rawWeightList.length
+  ) {
+    nutritionData.weightHistory = cleanWeight;
+    nutritionData.weightLogs = cleanWeight;
+    wasModified = true;
   }
 
   // 2.7 Ensure householdPantry is fully sanitized and calibrated (e.g. 485 kcal / 39g P)
@@ -2892,7 +2918,8 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       waterGlasses,
       meals,
       dailyTargets,
-      ...(cleanWeight.length > 0 ? { weightHistory: cleanWeight } : {}),
+      weightHistory: cleanWeight,
+      weightLogs: cleanWeight,
       ...(householdPantry ? { householdPantry } : {})
     };
 

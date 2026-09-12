@@ -11,6 +11,7 @@
 
 import { 
   getGoogleAccount, 
+  saveGoogleAccount,
   isGoogleCalendarConnected, 
   getValidAccessToken, 
   authedGoogleFetch,
@@ -149,7 +150,20 @@ export function exportFullOsState() {
 
   const settings = readStorageJson(SYNC_KEYS.SETTINGS) || readStorageJson(SYNC_KEYS.SETTINGS_FALLBACK) || {};
   const calendar = readStorageJson(SYNC_KEYS.CALENDAR) || readStorageJson(SYNC_KEYS.CALENDAR_FALLBACK) || { items: [] };
-  const nutrition = readStorageJson(SYNC_KEYS.NUTRITION) || {};
+  const rawNutrition = readStorageJson(SYNC_KEYS.NUTRITION) || {};
+  const rawWeight = Array.isArray(rawNutrition.weightHistory) 
+    ? rawNutrition.weightHistory 
+    : (Array.isArray(rawNutrition.weightLogs) ? rawNutrition.weightLogs : []);
+  const normalizedWeight = rawWeight.map(w => {
+    if (!w) return null;
+    const wVal = w.weightLbs ?? w.weight ?? 0;
+    return { ...w, weightLbs: wVal, weight: wVal };
+  }).filter(Boolean);
+  const nutrition = {
+    ...rawNutrition,
+    weightHistory: normalizedWeight,
+    weightLogs: normalizedWeight
+  };
   const workouts = readStorageJson(SYNC_KEYS.WORKOUTS) || {};
   const trading = readStorageJson(SYNC_KEYS.TRADING) || {};
   const school = readStorageJson(SYNC_KEYS.SCHOOL) || {};
@@ -247,7 +261,7 @@ export function mergeOsState(localVault, remoteVault) {
   const localNut = localVault.nutrition || {};
   const remoteNut = remoteVault.nutrition || {};
 
-  // Merge meals by ID (purging tombstoned)
+  // Merge meals by ID (purging tombstoned, newest timestamp wins on conflict)
   const mealMap = new Map();
   (remoteNut.meals || []).forEach(m => {
     if (!m) return;
@@ -262,7 +276,18 @@ export function mergeOsState(localVault, remoteVault) {
     const mealId = m.id || `${m.date || getTodayIso()}-${m.name || 'meal'}-${m.calories || 0}`;
     const cleanMeal = m.id ? m : { ...m, id: mealId };
     if (!isTombstoned(cleanMeal.id, cleanMeal.updatedAt || cleanMeal.createdAt || cleanMeal.time)) {
-      mealMap.set(cleanMeal.id, { ...(mealMap.get(cleanMeal.id) || {}), ...cleanMeal });
+      const existing = mealMap.get(cleanMeal.id);
+      if (!existing) {
+        mealMap.set(cleanMeal.id, cleanMeal);
+      } else {
+        const localTime = cleanMeal.updatedAt || cleanMeal.createdAt || 0;
+        const remoteTime = existing.updatedAt || existing.createdAt || 0;
+        if (localTime >= remoteTime) {
+          mealMap.set(cleanMeal.id, { ...existing, ...cleanMeal });
+        } else {
+          mealMap.set(cleanMeal.id, { ...cleanMeal, ...existing });
+        }
+      }
     }
   });
   const getMealSortTime = (m) => {
@@ -277,18 +302,42 @@ export function mergeOsState(localVault, remoteVault) {
   };
   const mergedMeals = Array.from(mealMap.values()).sort((a, b) => getMealSortTime(b) - getMealSortTime(a));
 
-  // Merge weight logs by date/id (purging tombstoned)
+  // Merge weight logs by date/id (purging tombstoned), normalizing weightHistory and weightLogs seamlessly
   const weightMap = new Map();
-  (remoteNut.weightLogs || []).forEach(w => {
+  const remoteWeightRaw = Array.isArray(remoteNut.weightHistory) 
+    ? remoteNut.weightHistory 
+    : (Array.isArray(remoteNut.weightLogs) ? remoteNut.weightLogs : []);
+  const localWeightRaw = Array.isArray(localNut.weightHistory) 
+    ? localNut.weightHistory 
+    : (Array.isArray(localNut.weightLogs) ? localNut.weightLogs : []);
+
+  remoteWeightRaw.forEach(w => {
+    if (!w) return;
     const k = w.id || w.date;
-    if (!isTombstoned(k, w.updatedAt || new Date(w.date).getTime())) {
-      weightMap.set(k, w);
+    const wVal = w.weightLbs ?? w.weight ?? 0;
+    const cleanW = { ...w, weightLbs: wVal, weight: wVal };
+    if (!isTombstoned(k, cleanW.updatedAt || new Date(cleanW.date).getTime())) {
+      weightMap.set(k, cleanW);
     }
   });
-  (localNut.weightLogs || []).forEach(w => {
+  localWeightRaw.forEach(w => {
+    if (!w) return;
     const k = w.id || w.date;
-    if (!isTombstoned(k, w.updatedAt || new Date(w.date).getTime())) {
-      weightMap.set(k, { ...(weightMap.get(k) || {}), ...w });
+    const wVal = w.weightLbs ?? w.weight ?? 0;
+    const cleanW = { ...w, weightLbs: wVal, weight: wVal };
+    if (!isTombstoned(k, cleanW.updatedAt || new Date(cleanW.date).getTime())) {
+      const existing = weightMap.get(k);
+      if (!existing) {
+        weightMap.set(k, cleanW);
+      } else {
+        const localTime = cleanW.updatedAt || new Date(cleanW.date).getTime() || 0;
+        const remoteTime = existing.updatedAt || new Date(existing.date).getTime() || 0;
+        if (localTime >= remoteTime) {
+          weightMap.set(k, { ...existing, ...cleanW });
+        } else {
+          weightMap.set(k, { ...cleanW, ...existing });
+        }
+      }
     }
   });
   const mergedWeightLogs = Array.from(weightMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -425,8 +474,9 @@ export function mergeOsState(localVault, remoteVault) {
     dailyTargets: mergedDailyTargets,
     updatedAt: Math.max(localNutUpdated, remoteNutUpdated, Date.now()),
     meals: mergedMeals,
+    weightHistory: mergedWeightLogs,
     weightLogs: mergedWeightLogs,
-    householdPantry: mergedPantry.length > 0 ? mergedPantry : baseNut.householdPantry,
+    householdPantry: mergedPantry.length > 0 ? mergedPantry : (baseNut.householdPantry || []),
     kitchenCalibration: mergedCalibration
   };
 
@@ -579,6 +629,17 @@ export function importFullOsState(vault) {
   const activeTombstones = { ...getTombstones(), ...(vault._tombstones || {}) };
   saveTombstones(activeTombstones);
 
+  // Auto-link Google Account from incoming vault so secondary devices adopt identical identity
+  if (vault.googleAccount?.email && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem('wolfe_user_email', vault.googleAccount.email);
+      const existingAcc = getGoogleAccount();
+      if (!existingAcc || !existingAcc.email) {
+        saveGoogleAccount(vault.googleAccount);
+      }
+    } catch (e) {}
+  }
+
   const isTomb = (id, updatedAt) => {
     if (!id) return false;
     const tombTime = activeTombstones[String(id)];
@@ -587,7 +648,7 @@ export function importFullOsState(vault) {
     return itemTime <= tombTime;
   };
 
-  // Read current local meals so newly added local meals are NEVER dropped by incoming sync
+  // Read current local meals and weight so newly added local entries are NEVER dropped by incoming sync
   const currentLocalNutrition = readStorageJson(SYNC_KEYS.NUTRITION) || {};
   const currentLocalMeals = Array.isArray(currentLocalNutrition.meals) ? currentLocalNutrition.meals : [];
 
@@ -610,7 +671,18 @@ export function importFullOsState(vault) {
       const mId = m.id || `${m.date || getTodayIso()}-${m.name || 'meal'}-${m.calories || 0}`;
       const cleanM = m.id ? m : { ...m, id: mId };
       if (!isTomb(cleanM.id, cleanM.updatedAt || cleanM.createdAt || cleanM.time)) {
-        mealMap.set(cleanM.id, { ...(mealMap.get(cleanM.id) || {}), ...cleanM });
+        const existing = mealMap.get(cleanM.id);
+        if (!existing) {
+          mealMap.set(cleanM.id, cleanM);
+        } else {
+          const localTime = cleanM.updatedAt || cleanM.createdAt || 0;
+          const remoteTime = existing.updatedAt || existing.createdAt || 0;
+          if (localTime >= remoteTime) {
+            mealMap.set(cleanM.id, { ...existing, ...cleanM });
+          } else {
+            mealMap.set(cleanM.id, { ...cleanM, ...existing });
+          }
+        }
       }
     });
 
@@ -629,6 +701,43 @@ export function importFullOsState(vault) {
     const todayMeals = finalCleanMeals.filter(m => m.date === todayIso);
     const todayTotals = aggregateDailyNutrition(todayMeals);
 
+    // Union weight logs across local and incoming
+    const incomingWeightRaw = (Array.isArray(vault.nutrition.weightHistory) ? vault.nutrition.weightHistory : (Array.isArray(vault.nutrition.weightLogs) ? vault.nutrition.weightLogs : []));
+    const localWeightRaw = (Array.isArray(currentLocalNutrition.weightHistory) ? currentLocalNutrition.weightHistory : (Array.isArray(currentLocalNutrition.weightLogs) ? currentLocalNutrition.weightLogs : []));
+    const weightMap = new Map();
+
+    incomingWeightRaw.forEach(w => {
+      if (!w) return;
+      const k = w.id || w.date;
+      if (!isTomb(k, w.updatedAt) && !isTomb(w.id, w.updatedAt) && !isTomb(w.date, w.updatedAt)) {
+        const wVal = w.weightLbs ?? w.weight ?? 0;
+        weightMap.set(k, { ...w, weightLbs: wVal, weight: wVal });
+      }
+    });
+
+    localWeightRaw.forEach(w => {
+      if (!w) return;
+      const k = w.id || w.date;
+      if (!isTomb(k, w.updatedAt) && !isTomb(w.id, w.updatedAt) && !isTomb(w.date, w.updatedAt)) {
+        const wVal = w.weightLbs ?? w.weight ?? 0;
+        const cleanW = { ...w, weightLbs: wVal, weight: wVal };
+        const existing = weightMap.get(k);
+        if (!existing) {
+          weightMap.set(k, cleanW);
+        } else {
+          const localTime = cleanW.updatedAt || cleanW.createdAt || new Date(cleanW.date).getTime() || 0;
+          const remoteTime = existing.updatedAt || existing.createdAt || new Date(existing.date).getTime() || 0;
+          if (localTime >= remoteTime) {
+            weightMap.set(k, { ...existing, ...cleanW });
+          } else {
+            weightMap.set(k, { ...cleanW, ...existing });
+          }
+        }
+      }
+    });
+
+    const finalCleanWeight = Array.from(weightMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+
     cleanNutrition = {
       ...vault.nutrition,
       currentDate: todayIso,
@@ -646,8 +755,9 @@ export function importFullOsState(vault) {
         current: todayTotals.fats
       },
       meals: finalCleanMeals,
-      weightLogs: (vault.nutrition.weightLogs || []).filter(w => !isTomb(w.id, w.updatedAt) && !isTomb(w.date, w.updatedAt)),
-      householdPantry: (vault.nutrition.householdPantry || []).filter(s => !isTomb(s.id, s.updatedAt) && !isTomb(s.name?.toLowerCase(), s.updatedAt)),
+      weightHistory: finalCleanWeight,
+      weightLogs: finalCleanWeight,
+      householdPantry: (vault.nutrition.householdPantry || []).filter(s => s && !isTomb(s.id, s.updatedAt) && !isTomb(s.name?.toLowerCase(), s.updatedAt)),
       kitchenCalibration: vault.nutrition.kitchenCalibration ? {
         ...vault.nutrition.kitchenCalibration,
         tasks: (vault.nutrition.kitchenCalibration.tasks || []).filter(t => !isTomb(t.id, t.completedAt))
@@ -881,9 +991,10 @@ export function pruneVaultForCalendarBackup(vault) {
           return cleanMeal;
         });
       }
-      if (Array.isArray(cloned.nutrition.weightLogs)) {
-        cloned.nutrition.weightLogs = cloned.nutrition.weightLogs.slice(-90);
-      }
+      const rawW = Array.isArray(cloned.nutrition.weightHistory) ? cloned.nutrition.weightHistory : (Array.isArray(cloned.nutrition.weightLogs) ? cloned.nutrition.weightLogs : []);
+      const prunedW = rawW.slice(-90);
+      cloned.nutrition.weightHistory = prunedW;
+      cloned.nutrition.weightLogs = prunedW;
     }
 
     // Prune calendar items to 200 items
@@ -988,10 +1099,6 @@ export async function syncFullOsWithCloud(options = {}) {
   }
 
   activeSyncPromise = (async () => {
-    if (!isGoogleCalendarConnected()) {
-      return { success: false, reason: 'google_account_not_connected' };
-    }
-
     // Notify starting sync
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
@@ -1007,14 +1114,16 @@ export async function syncFullOsWithCloud(options = {}) {
       if (forcePush) {
         const enrichedLocal = { ...localVault, lastUpdated: Date.now() };
         await saveVaultToServerless(userKey, enrichedLocal);
-        saveVaultToGoogleCalendar(enrichedLocal).catch(() => {});
+        if (isGoogleCalendarConnected()) {
+          saveVaultToGoogleCalendar(enrichedLocal).catch(() => {});
+        }
         importFullOsState(enrichedLocal);
         return { success: true, mode: 'pushed', vault: enrichedLocal };
       }
 
-      // 2. Fetch Remote Cloud Vault (Serverless + Google Calendar Fallback)
+      // 2. Fetch Remote Cloud Vault (Serverless primary + Google Calendar backup)
       let remoteVault = await fetchVaultFromServerless(userKey);
-      if (!remoteVault) {
+      if (!remoteVault && isGoogleCalendarConnected()) {
         remoteVault = await fetchVaultFromGoogleCalendar();
       }
 
@@ -1039,7 +1148,9 @@ export async function syncFullOsWithCloud(options = {}) {
 
       // Save merged master vault back to cloud (both serverless and Google Calendar)
       await saveVaultToServerless(userKey, finalVault);
-      saveVaultToGoogleCalendar(finalVault).catch(() => {});
+      if (isGoogleCalendarConnected()) {
+        saveVaultToGoogleCalendar(finalVault).catch(() => {});
+      }
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
@@ -1086,7 +1197,6 @@ export async function syncFullOsWithCloud(options = {}) {
 let debouncePushTimer = null;
 
 export function triggerDebouncedCloudPush(delayMs = 2500) {
-  if (!isGoogleCalendarConnected()) return;
   if (isApplyingRemoteSync) return;
   if (typeof window === 'undefined') return;
 
@@ -1095,7 +1205,7 @@ export function triggerDebouncedCloudPush(delayMs = 2500) {
   }
 
   debouncePushTimer = setTimeout(() => {
-    if (isApplyingRemoteSync || !isGoogleCalendarConnected()) return;
+    if (isApplyingRemoteSync) return;
     syncFullOsWithCloud({ forcePush: false }).catch(err => {
       console.debug("Debounced cloud push notice:", err.message);
     });
@@ -1109,7 +1219,6 @@ export function triggerDebouncedCloudPush(delayMs = 2500) {
 let immediatePushTimer = null;
 
 export function triggerImmediateCloudPush(delayMs = 150) {
-  if (!isGoogleCalendarConnected()) return;
   if (typeof window === 'undefined') return;
 
   if (debouncePushTimer) {
@@ -1121,7 +1230,6 @@ export function triggerImmediateCloudPush(delayMs = 150) {
   }
 
   immediatePushTimer = setTimeout(() => {
-    if (!isGoogleCalendarConnected()) return;
     syncFullOsWithCloud({ forcePush: false }).catch(err => {
       console.debug("Immediate cloud push notice:", err.message);
     });

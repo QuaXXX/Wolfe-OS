@@ -112,14 +112,19 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     let vault = null;
 
-    // Helper to find vault across all candidate keys
+    // Helper to find vault across all candidate keys, selecting the most recent version
     const findVault = (sourceMapOrObj) => {
+      let newest = null;
       for (const k of candidateKeys) {
         if (!k) continue;
         const val = sourceMapOrObj instanceof Map ? sourceMapOrObj.get(k) : sourceMapOrObj[k];
-        if (val) return val;
+        if (val) {
+          if (!newest || (val.lastUpdated || 0) > (newest.lastUpdated || 0)) {
+            newest = val;
+          }
+        }
       }
-      return null;
+      return newest;
     };
 
     // 1. Check in-memory store
@@ -132,11 +137,22 @@ export default async function handler(req, res) {
       if (!vault && queryUserId && fileVaults[queryUserId]) {
         vault = fileVaults[queryUserId];
       }
-      // If still no vault and only 1 vault exists in dev storage, return that vault
+      // If still no vault, find best match across dev storage
       if (!vault) {
-        const keys = Object.keys(fileVaults);
-        if (keys.length === 1) {
-          vault = fileVaults[keys[0]];
+        const entries = Object.entries(fileVaults);
+        if (entries.length > 0) {
+          if (tokenEmail || queryUserId) {
+            const needle = sanitizeUserId(tokenEmail || queryUserId).toLowerCase();
+            const matched = entries.find(([k, v]) => 
+              k.toLowerCase().includes(needle) || 
+              (v?.googleAccount?.email && sanitizeUserId(v.googleAccount.email).toLowerCase().includes(needle))
+            );
+            if (matched) vault = matched[1];
+          }
+          if (!vault) {
+            entries.sort((a, b) => (b[1]?.lastUpdated || 0) - (a[1]?.lastUpdated || 0));
+            vault = entries[0][1];
+          }
         }
       }
       if (vault) {
@@ -208,8 +224,46 @@ export default async function handler(req, res) {
 
     const targetUserId = sanitizeUserId(body?.userId || verifiedUserId || 'primary_user');
     
-    // Existing vault in memory or dev file
-    const existingVault = memoryStore.get(targetUserId) || loadDevVaults()[targetUserId] || null;
+    // Existing vault in memory, dev file, or KV across candidate keys
+    const fileVaults = loadDevVaults();
+    let existingVault = null;
+    for (const k of [targetUserId, ...candidateKeys]) {
+      if (k && (memoryStore.has(k) || fileVaults[k])) {
+        existingVault = memoryStore.get(k) || fileVaults[k];
+        break;
+      }
+    }
+    if (!existingVault) {
+      const entries = Object.entries(fileVaults);
+      if (entries.length > 0) {
+        entries.sort((a, b) => (b[1]?.lastUpdated || 0) - (a[1]?.lastUpdated || 0));
+        existingVault = entries[0][1];
+      }
+    }
+
+    const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+    const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    if (!existingVault && kvUrl && kvToken) {
+      for (const k of [targetUserId, ...candidateKeys]) {
+        if (!k) continue;
+        try {
+          const kvRes = await fetch(`${kvUrl}/get/wolfe_vault_${encodeURIComponent(k)}`, {
+            headers: { Authorization: `Bearer ${kvToken}` }
+          });
+          if (kvRes.ok) {
+            const kvData = await kvRes.json();
+            if (kvData && kvData.result) {
+              existingVault = typeof kvData.result === 'string' ? JSON.parse(kvData.result) : kvData.result;
+              if (existingVault) break;
+            }
+          }
+        } catch (kvErr) {
+          // Best-effort KV fetch
+        }
+      }
+    }
+
     const mergedTombstones = {
       ...(existingVault?._tombstones || {}),
       ...(payloadVault._tombstones || {})
@@ -223,11 +277,15 @@ export default async function handler(req, res) {
       return itemTime <= tombTime;
     };
 
-    // Intelligently merge meals between existing server vault and incoming payload
+    // Intelligently merge nutrition (meals, weightHistory/logs, pantry, dailyTargets)
     let finalMeals = [];
+    let finalWeight = [];
+    let finalPantry = [];
+    let finalDailyTargets = {};
+
     if (payloadVault.nutrition || existingVault?.nutrition) {
+      // 1. Merge meals
       const mealMap = new Map();
-      // 1. Existing meals
       (existingVault?.nutrition?.meals || []).forEach(m => {
         if (!m) return;
         const mId = m.id || `${m.date}-${m.name}-${m.calories}`;
@@ -236,13 +294,23 @@ export default async function handler(req, res) {
           mealMap.set(cleanM.id, cleanM);
         }
       });
-      // 2. Incoming payload meals
       (payloadVault.nutrition?.meals || []).forEach(m => {
         if (!m) return;
         const mId = m.id || `${m.date}-${m.name}-${m.calories}`;
         const cleanM = m.id ? m : { ...m, id: mId };
         if (!isTomb(cleanM.id, cleanM.updatedAt || cleanM.createdAt || cleanM.time)) {
-          mealMap.set(cleanM.id, { ...(mealMap.get(cleanM.id) || {}), ...cleanM });
+          const existingM = mealMap.get(cleanM.id);
+          if (!existingM) {
+            mealMap.set(cleanM.id, cleanM);
+          } else {
+            const incomingTime = cleanM.updatedAt || cleanM.createdAt || 0;
+            const existingTime = existingM.updatedAt || existingM.createdAt || 0;
+            if (incomingTime >= existingTime) {
+              mealMap.set(cleanM.id, { ...existingM, ...cleanM });
+            } else {
+              mealMap.set(cleanM.id, { ...cleanM, ...existingM });
+            }
+          }
         }
       });
       const getMealSortTime = (m) => {
@@ -256,15 +324,83 @@ export default async function handler(req, res) {
         return 0;
       };
       finalMeals = Array.from(mealMap.values()).sort((a, b) => getMealSortTime(b) - getMealSortTime(a));
+
+      // 2. Merge weightHistory / weightLogs
+      const weightMap = new Map();
+      const existingWeight = Array.isArray(existingVault?.nutrition?.weightHistory)
+        ? existingVault.nutrition.weightHistory
+        : (Array.isArray(existingVault?.nutrition?.weightLogs) ? existingVault.nutrition.weightLogs : []);
+      const payloadWeight = Array.isArray(payloadVault.nutrition?.weightHistory)
+        ? payloadVault.nutrition.weightHistory
+        : (Array.isArray(payloadVault.nutrition?.weightLogs) ? payloadVault.nutrition.weightLogs : []);
+
+      existingWeight.forEach(w => {
+        if (!w) return;
+        const k = w.id || w.date;
+        const wVal = w.weightLbs ?? w.weight ?? 0;
+        const cleanW = { ...w, weightLbs: wVal, weight: wVal };
+        if (!isTomb(k, cleanW.updatedAt || new Date(cleanW.date).getTime())) {
+          weightMap.set(k, cleanW);
+        }
+      });
+      payloadWeight.forEach(w => {
+        if (!w) return;
+        const k = w.id || w.date;
+        const wVal = w.weightLbs ?? w.weight ?? 0;
+        const cleanW = { ...w, weightLbs: wVal, weight: wVal };
+        if (!isTomb(k, cleanW.updatedAt || new Date(cleanW.date).getTime())) {
+          const existingW = weightMap.get(k);
+          if (!existingW) {
+            weightMap.set(k, cleanW);
+          } else {
+            const incomingTime = cleanW.updatedAt || new Date(cleanW.date).getTime() || 0;
+            const existingTime = existingW.updatedAt || new Date(existingW.date).getTime() || 0;
+            if (incomingTime >= existingTime) {
+              weightMap.set(k, { ...existingW, ...cleanW });
+            } else {
+              weightMap.set(k, { ...cleanW, ...existingW });
+            }
+          }
+        }
+      });
+      finalWeight = Array.from(weightMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // 3. Merge household pantry
+      const pantryMap = new Map();
+      (existingVault?.nutrition?.householdPantry || []).forEach(p => {
+        if (!p) return;
+        const k = p.id || p.name?.toLowerCase();
+        if (!isTomb(k, p.updatedAt) && !isTomb(p.id, p.updatedAt)) {
+          pantryMap.set(k, p);
+        }
+      });
+      (payloadVault.nutrition?.householdPantry || []).forEach(p => {
+        if (!p) return;
+        const k = p.id || p.name?.toLowerCase();
+        if (!isTomb(k, p.updatedAt) && !isTomb(p.id, p.updatedAt)) {
+          pantryMap.set(k, { ...(pantryMap.get(k) || {}), ...p });
+        }
+      });
+      finalPantry = Array.from(pantryMap.values());
+
+      // 4. Merge dailyTargets
+      finalDailyTargets = {
+        ...(existingVault?.nutrition?.dailyTargets || {}),
+        ...(payloadVault.nutrition?.dailyTargets || {})
+      };
     }
 
-    // Purge tombstoned items from the incoming payload
-    const sanitizedNutrition = payloadVault.nutrition ? {
-      ...payloadVault.nutrition,
+    const payloadNut = payloadVault.nutrition || {};
+    const sanitizedNutrition = (payloadVault.nutrition || existingVault?.nutrition) ? {
+      ...(existingVault?.nutrition || {}),
+      ...payloadNut,
       meals: finalMeals,
-      weightLogs: (payloadVault.nutrition.weightLogs || []).filter(w => !isTomb(w.id, w.updatedAt) && !isTomb(w.date, w.updatedAt)),
-      householdPantry: (payloadVault.nutrition.householdPantry || []).filter(s => !isTomb(s.id, s.updatedAt) && !isTomb(s.name?.toLowerCase(), s.updatedAt))
-    } : payloadVault.nutrition;
+      weightHistory: finalWeight,
+      weightLogs: finalWeight,
+      householdPantry: finalPantry,
+      dailyTargets: finalDailyTargets,
+      updatedAt: Math.max(payloadNut.updatedAt || 0, existingVault?.nutrition?.updatedAt || 0, Date.now())
+    } : null;
 
     const sanitizedWorkouts = payloadVault.workouts ? {
       ...payloadVault.workouts,
@@ -291,6 +427,7 @@ export default async function handler(req, res) {
 
     const enrichedVault = {
       ...payloadVault,
+      googleAccount: payloadVault.googleAccount || existingVault?.googleAccount || null,
       _tombstones: mergedTombstones,
       nutrition: sanitizedNutrition,
       workouts: sanitizedWorkouts,
@@ -301,19 +438,21 @@ export default async function handler(req, res) {
       serverSyncedAt: new Date().toISOString()
     };
 
-    // 1. Update in-memory store across all candidate keys
-    const writeKeys = Array.from(new Set([targetUserId, ...candidateKeys].filter(Boolean)));
+    // 1. Update in-memory store across all candidate keys and user identity aliases
+    const writeKeys = Array.from(new Set([
+      targetUserId,
+      'primary_user',
+      payloadVault.googleAccount?.email ? sanitizeUserId(`user_${payloadVault.googleAccount.email}`) : null,
+      existingVault?.googleAccount?.email ? sanitizeUserId(`user_${existingVault.googleAccount.email}`) : null,
+      ...candidateKeys
+    ].filter(Boolean)));
     writeKeys.forEach(k => memoryStore.set(k, enrichedVault));
 
     // 2. Update local dev storage file across keys
-    const fileVaults = loadDevVaults();
     writeKeys.forEach(k => { fileVaults[k] = enrichedVault; });
     saveDevVaults(fileVaults);
 
     // 3. Update Vercel KV / Upstash Redis if configured
-    const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-    const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-
     if (kvUrl && kvToken) {
       for (const k of writeKeys) {
         try {
