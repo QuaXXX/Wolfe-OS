@@ -985,6 +985,12 @@ export function App() {
         let completedCount = 0;
 
         for (const item of localItems) {
+          if (item.isGoogle) {
+            completedCount++;
+            syncedItems.push(item);
+            continue;
+          }
+
           // CHECK IF ABORTED BY USER UNDO MID-UPLOAD
           if (activeBatchSyncRef.current !== batchSyncId) {
             console.debug("Batch sync cancelled mid-upload. Rolling back created Google events...");

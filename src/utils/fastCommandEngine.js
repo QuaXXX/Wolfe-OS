@@ -1,4 +1,5 @@
 import { getTodayIso, addDays } from './calendarUtils.js';
+import { parseCalendarCommand } from './calendarParser.js';
 import { 
   updateGoogleTaskStatus, 
   clearGoogleTasks,
@@ -380,6 +381,43 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
         targetView: "calendar"
       };
     }
+  }
+
+  // ==========================================
+  // 3.5 CALENDAR SCHEDULING (Natural Language Event, Deadline, Task, Reminder)
+  // ==========================================
+  const parsedCalendarItem = parseCalendarCommand(rawText, todayIso);
+  if (parsedCalendarItem) {
+    const newItem = {
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      ...parsedCalendarItem
+    };
+
+    if (onEventCreated) {
+      onEventCreated(newItem);
+    } else if (osData?.onEventCreated) {
+      osData.onEventCreated(newItem);
+    } else if (setCalendarData) {
+      setCalendarData(prev => ({
+        ...prev,
+        items: [newItem, ...prev.items.filter(it => it.id !== newItem.id)]
+      }));
+      recordAdditionOrUpdate(newItem.id);
+    }
+
+    const timeLabel = newItem.isAllDay ? 'All Day' : newItem.time;
+    const dateLabel = newItem.date === todayIso ? 'today' : (newItem.date === addDays(todayIso, 1) ? 'tomorrow' : newItem.date);
+    const typeLabel = newItem.type === 'deadline' ? 'Deadline' : (newItem.type === 'task' ? 'Task' : (newItem.type === 'reminder' ? 'Reminder' : 'Event'));
+
+    return {
+      handled: true,
+      title: `📅 ${typeLabel} Added`,
+      message: `Added "${newItem.title}" for ${dateLabel} (${timeLabel}) to your calendar.`,
+      targetView: "calendar",
+      actionLabel: "View Calendar",
+      actionType: "CREATE_CALENDAR_ITEM",
+      calendarItem: newItem
+    };
   }
 
   // ==========================================

@@ -10,6 +10,13 @@ import {
 } from './googleCalendarService.js';
 import { getTodayIso, addDays, formatDateTitle } from './calendarUtils.js';
 import { 
+  parseCalendarCommand, 
+  parseTargetDate, 
+  normalizeCalendarDate, 
+  extractCleanTitle,
+  parseTimeToMinutes 
+} from './calendarParser.js';
+import { 
   getSavedHermesBriefs, 
   getTradeJournal, 
   calculateTradingStats, 
@@ -170,7 +177,13 @@ ${vaultFiles.length > 0 ? `- Indexed Vault Notes: ${vaultFiles.slice(0, 10).map(
 SYSTEM INTERACTION DIRECTIVES:
 - You have 100% full situational awareness of Zach's entire operational cockpit across all 6 hubs.
 - When Zach asks about his trades, his schedule, his schoolwork, notes, or his workouts, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
-- When creating or modifying schedule items, extract clean titles without conversational filler.
+- CALENDAR & SCHEDULING MANDATE:
+  • When asked to add, create, schedule, or log an event, deadline, task, reminder, exam, meeting, or workout, ALWAYS set "actionType": "CREATE_CALENDAR_ITEM" (or "BATCH_CREATE_CALENDAR_ITEMS" for multiple).
+  • Set "date" strictly to "YYYY-MM-DD" formatted string (Today is ${todayIso}, tomorrow is ${addDays(todayIso, 1)}).
+  • Clean Entity Title: Strip all command verbs ("add", "schedule", "create"), relative dates ("today", "tomorrow", "next Monday"), prepositions ("at", "for", "on"), and time markers ("at 5pm", "from 2 to 4pm"). Example: "Add gym tomorrow at 5pm" -> title: "Gym", date: "${addDays(todayIso, 1)}", startTime: "05:00 PM", endTime: "06:00 PM".
+  • For deadlines/exams: type: "deadline", isAllDay: true, priority: "urgent" (exams, midterms, finals, project submissions, assignment due dates).
+  • For timed events: type: "event", startTime: "HH:MM AM/PM", endTime: "HH:MM AM/PM", isAllDay: false (meetings, classes, workouts, dinners, doctor appointments).
+  • For tasks/reminders: type: "task" or "reminder", isAllDay: true.
 - FORMATTING MANDATE: Present responses with executive polish. Never output escaped or doubled quote artifacts (avoid \"\" or \"\"\"). Never wrap your whole message in outer quotes. Use clean bullet points and bold headers (**Heading:**) for multi-point answers.
 - WIKILINK & NETWORKED THOUGHT MANDATE: When referencing courses, study notes, formula sheets, trading setups, or calendar dates, use Obsidian [[wikilink]] syntax (e.g. [[FNCE 317]], [[WACC]], [[Trading/Playbook]], [[Daily/${todayIso}]]). Wolfe OS converts these into interactive clickable buttons.
 
@@ -242,19 +255,7 @@ export function cleanAiMessage(raw) {
 }
 
 function cleanTitleString(raw) {
-  if (!raw) return "New Item";
-  let str = raw.trim()
-    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
-    .replace(/^(add|schedule|create|put|set|book|log|delete|remove|cancel|clear)\s+/i, '')
-    .replace(/^(a|an|the|my)\s+/i, '')
-    .replace(/^(deadline|task|reminder|event|meeting|workout|calendar)\s+(that|for|to)?\s*/i, '')
-    .replace(/^(that\s+i\s+have\s+(a|an)?|that\s+i\s+need\s+to|to\s+do\s+my|to\s+study\s+for)\s*/i, '')
-    .replace(/\s+(today|tomorrow|at\s+\d{1,2}(:\d{2})?\s*(am|pm)?|on\s+[a-z]+)\s*$/i, '')
-    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
-    .trim();
-
-  if (str.length === 0) return "New Item";
-  return str.charAt(0).toUpperCase() + str.slice(1);
+  return extractCleanTitle(raw);
 }
 
 function computeEndHour(startTimeStr) {
@@ -276,42 +277,7 @@ function computeEndHour(startTimeStr) {
 }
 
 function parseTargetDateFromText(text, todayIso) {
-  const lower = (text || '').toLowerCase();
-  if (lower.includes('all') && (lower.includes('days') || lower.includes('events') || lower.includes('everything') || lower.includes('calendar') || lower.includes('schedule'))) {
-    return 'ALL';
-  }
-  if (lower.includes('tomorrow')) {
-    return addDays(todayIso, 1);
-  }
-  if (lower.includes('yesterday')) {
-    return addDays(todayIso, -1);
-  }
-  if (lower.includes('today')) {
-    return todayIso;
-  }
-  
-  // Try month regex (e.g. "august 31", "sept 2", "oct 14")
-  const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
-  const mMatch = lower.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})/i);
-  if (mMatch) {
-    const m = months[mMatch[1].slice(0, 3).toLowerCase()];
-    const d = String(mMatch[2]).padStart(2, '0');
-    const y = todayIso.split('-')[0];
-    return `${y}-${m}-${d}`;
-  }
-
-  // Try day of week (e.g. "monday", "friday")
-  const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  for (let i = 0; i < daysOfWeek.length; i++) {
-    if (lower.includes(daysOfWeek[i])) {
-      const currentD = new Date().getDay();
-      let diff = i - currentD;
-      if (diff <= 0) diff += 7;
-      return addDays(todayIso, diff);
-    }
-  }
-
-  return todayIso;
+  return parseTargetDate(text, todayIso);
 }
 
 /**
@@ -537,7 +503,7 @@ export async function callGemini(prompt, systemInstruction, config, timeoutMs = 
 /**
  * Intelligent Local Fallback Engine
  */
-function directFallbackAnswer(prompt, osData, history = []) {
+export function directFallbackAnswer(prompt, osData, history = []) {
   const lower = (prompt || '').toLowerCase().trim();
   const todayIso = getTodayIso();
   const targetDate = parseTargetDateFromText(lower, todayIso);
@@ -589,6 +555,39 @@ function directFallbackAnswer(prompt, osData, history = []) {
       actionType: "DELETE_SPECIFIC_ITEM",
       itemTitle: cleanTitle,
       targetDate: targetDate || "ANY"
+    };
+  }
+
+  // Calendar Scheduling / Add Command Fallback
+  const calCmd = parseCalendarCommand(prompt, todayIso);
+  if (calCmd && calCmd.isCalendarCommand) {
+    const isDeadline = calCmd.type === 'deadline';
+    const isTaskOrReminder = calCmd.type === 'task' || calCmd.type === 'reminder';
+    const timeLabel = calCmd.isAllDay ? 'All Day' : calCmd.time;
+    const dateLabel = calCmd.date === todayIso ? 'today' : (calCmd.date === addDays(todayIso, 1) ? 'tomorrow' : calCmd.date);
+
+    return {
+      title: isDeadline ? "🚨 Deadline Added" : (calCmd.type === 'task' ? "📋 Task Created" : (calCmd.type === 'reminder' ? "⏰ Reminder Set" : "📅 Event Scheduled")),
+      message: isDeadline 
+        ? `Added hard deadline: "${calCmd.title}" on ${calCmd.date}. (Pinned in red at the top of your day).`
+        : isTaskOrReminder
+          ? `Added ${calCmd.type}: "${calCmd.title}" for ${dateLabel}.`
+          : `Added event "${calCmd.title}" on ${dateLabel} (${timeLabel}).`,
+      targetView: "calendar",
+      actionLabel: "View Calendar",
+      actionType: "CREATE_CALENDAR_ITEM",
+      calendarItem: {
+        type: calCmd.type,
+        title: calCmd.title,
+        date: calCmd.date,
+        startTime: calCmd.startTime,
+        endTime: calCmd.endTime,
+        time: calCmd.time,
+        isAllDay: calCmd.isAllDay,
+        category: calCmd.category,
+        priority: calCmd.priority,
+        completed: false
+      }
     };
   }
 
@@ -664,50 +663,6 @@ function directFallbackAnswer(prompt, osData, history = []) {
         startTime: startStr,
         endTime: endStr,
         isAllDay: false,
-        category: "General",
-        priority: "normal"
-      }
-    };
-  }
-
-  // Deadlines
-  if (lower.includes('deadline') || lower.includes('due') || lower.includes('exam') || lower.includes('finals')) {
-    const cleanTitle = cleanTitleString(prompt);
-    return {
-      title: "Deadline Added",
-      message: `Added hard deadline: "${cleanTitle}" on ${targetDate}. (Pinned in red at the top of your date).`,
-      targetView: "calendar",
-      actionLabel: "View Calendar",
-      actionType: "CREATE_CALENDAR_ITEM",
-      calendarItem: {
-        type: "deadline",
-        title: cleanTitle,
-        date: targetDate,
-        startTime: "All Day",
-        endTime: "All Day",
-        isAllDay: true,
-        category: "School",
-        priority: "urgent"
-      }
-    };
-  }
-
-  // Tasks
-  if (lower.includes('task') || lower.startsWith('todo') || lower.includes('to do')) {
-    const cleanTitle = cleanTitleString(prompt);
-    return {
-      title: "Task Created",
-      message: `Added task: "${cleanTitle}" for ${targetDate}.`,
-      targetView: "calendar",
-      actionLabel: "View Tasks",
-      actionType: "CREATE_CALENDAR_ITEM",
-      calendarItem: {
-        type: "task",
-        title: cleanTitle,
-        date: targetDate,
-        startTime: "All Day",
-        endTime: "All Day",
-        isAllDay: true,
         category: "General",
         priority: "normal"
       }
@@ -943,7 +898,8 @@ export async function processVoiceOrTextCommand(
     for (const item of rawList) {
       const isDeadline = item.type === 'deadline';
       const isAllDay = item.isAllDay || isDeadline || item.type === 'task' || !item.startTime || item.startTime === 'All Day';
-      const cleanTitle = cleanTitleString(item.title);
+      const cleanTitle = extractCleanTitle(item.title || prompt);
+      const normalizedDate = normalizeCalendarDate(item.date, todayIso);
 
       let startTime = item.startTime;
       let endTime = item.endTime;
@@ -958,7 +914,7 @@ export async function processVoiceOrTextCommand(
         id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         type: item.type || (isDeadline ? 'deadline' : 'event'),
         title: cleanTitle,
-        date: item.date || todayIso,
+        date: normalizedDate,
         time: isAllDay ? 'All Day' : `${startTime || '03:00 PM'} - ${endTime || '04:00 PM'}`,
         isAllDay,
         category: item.category || 'School',
@@ -997,7 +953,8 @@ export async function processVoiceOrTextCommand(
     const item = response.calendarItem;
     const isDeadline = item.type === 'deadline';
     const isAllDay = item.isAllDay || isDeadline || item.type === 'task' || !item.startTime || item.startTime === 'All Day';
-    const cleanTitle = cleanTitleString(item.title);
+    const cleanTitle = extractCleanTitle(item.title || prompt);
+    const normalizedDate = normalizeCalendarDate(item.date, todayIso);
 
     let startTime = item.startTime;
     let endTime = item.endTime;
@@ -1012,7 +969,7 @@ export async function processVoiceOrTextCommand(
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       type: item.type || 'event',
       title: cleanTitle,
-      date: item.date || todayIso,
+      date: normalizedDate,
       time: isAllDay ? 'All Day' : `${startTime || '03:00 PM'} - ${endTime || '04:00 PM'}`,
       isAllDay,
       category: item.category || 'General',

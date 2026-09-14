@@ -24,6 +24,7 @@ import {
   getMonthGrid,
   GOOGLE_COLOR_MAP
 } from '../../utils/calendarUtils';
+import { parseTimeToMinutes } from '../../utils/calendarParser';
 import { SyllabusIngestionModal } from '../school/SyllabusIngestionModal';
 import { isGoogleCalendarConnected } from '../../utils/googleCalendarService';
 
@@ -43,10 +44,8 @@ export const CalendarView = ({
 }) => {
   const todayIso = getTodayIso();
   const [selectedDate, setSelectedDate] = useState(todayIso);
+  const [currentMonthDate, setCurrentMonthDate] = useState(todayIso); // YYYY-MM-DD representing view month
   const [viewMode, setViewMode] = useState('day'); // 'day' or 'month'
-  
-  // Month grid navigation state
-  const [currentMonthDate, setCurrentMonthDate] = useState(todayIso);
   
   // Quick Add Item Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -62,7 +61,9 @@ export const CalendarView = ({
   const items = calendarData?.items || [];
   const selectedDayItems = items.filter(it => it.date === selectedDate);
   const selectedDayDeadlines = selectedDayItems.filter(it => it.type === 'deadline');
-  const selectedDayTimedEvents = selectedDayItems.filter(it => it.type === 'event');
+  const selectedDayTimedEvents = selectedDayItems
+    .filter(it => it.type === 'event')
+    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
   
   // Incomplete tasks flow to the top; completed tasks flow to the bottom
   const selectedDayTasks = selectedDayItems
@@ -744,7 +745,9 @@ export const CalendarView = ({
               {monthGrid.map((cell, idx) => {
                 const dayItems = items.filter(it => it.date === cell.dateIso);
                 const dayDeadlines = dayItems.filter(it => it.type === 'deadline');
-                const dayTimedEvents = dayItems.filter(it => it.type === 'event');
+                const dayTimedEvents = dayItems
+                  .filter(it => it.type === 'event')
+                  .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
                 const dayTasks = dayItems.filter(it => it.type === 'task' || it.type === 'reminder');
                 const isSelected = cell.dateIso === selectedDate;
 
