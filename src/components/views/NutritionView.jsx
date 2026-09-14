@@ -182,10 +182,18 @@ const NutritionViewInner = ({
     }
   }, [currentTodayIso]);
 
-  // Proactively pull fresh meals from cloud on NutritionView mount and listen for sync events
+  // Listen for sync events & handle manual cloud sync
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState(null); // 'synced' | 'error' | null
+
   useEffect(() => {
-    syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+    const handleSyncApplied = (e) => {
+      const freshNutrition = e.detail?.vault?.nutrition;
+      if (freshNutrition && typeof setNutritionData === 'function') {
+        setNutritionData(freshNutrition);
+      }
+    };
+    window.addEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
 
     const handleSyncStatus = (e) => {
       if (e.detail?.status === 'syncing') {
@@ -196,28 +204,49 @@ const NutritionViewInner = ({
     };
     window.addEventListener('wolfe-cloud-sync-status', handleSyncStatus);
 
-    // Active cross-device sync poll while user is viewing nutrition (3.5s adaptive poll)
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(3500)) {
-        syncFullOsWithCloud({ forcePush: false }).catch(() => {});
-      }
-    }, 3500);
-
     return () => {
+      window.removeEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
       window.removeEventListener('wolfe-cloud-sync-status', handleSyncStatus);
-      clearInterval(interval);
     };
-  }, []);
+  }, [setNutritionData]);
 
   const handleTriggerCloudSync = async () => {
     playSound('click', soundEnabled);
     setIsSyncingCloud(true);
+    setSyncFeedback(null);
     try {
-      await syncFullOsWithCloud({ forcePush: false });
+      // Execute a guaranteed bidirectional force sync bypassing conditional caching
+      const res = await syncFullOsWithCloud({ forceSync: true, silent: false });
+      if (res && res.success) {
+        if (res.vault?.nutrition && typeof setNutritionData === 'function') {
+          setNutritionData(res.vault.nutrition);
+        } else {
+          try {
+            const raw = localStorage.getItem('wolfe_nutrition_data');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof setNutritionData === 'function') {
+                setNutritionData(parsed);
+              }
+            }
+          } catch (e) {}
+        }
+        playSound('success', soundEnabled);
+        setSyncFeedback('synced');
+        const mealCount = (res.vault?.nutrition?.meals || meals || []).length;
+        setQuickAddFeedback(`Cloud synced: ${mealCount} meals synchronized`);
+        setTimeout(() => setQuickAddFeedback(null), 3000);
+        setTimeout(() => setSyncFeedback(null), 2500);
+      } else {
+        setSyncFeedback('error');
+        setTimeout(() => setSyncFeedback(null), 3000);
+      }
     } catch (e) {
-      console.debug("Manual nutrition cloud sync notice:", e);
+      console.warn("Manual nutrition cloud sync notice:", e);
+      setSyncFeedback('error');
+      setTimeout(() => setSyncFeedback(null), 3000);
     } finally {
-      setTimeout(() => setIsSyncingCloud(false), 700);
+      setIsSyncingCloud(false);
     }
   };
 
@@ -972,13 +1001,33 @@ const NutritionViewInner = ({
           <button
             onClick={handleTriggerCloudSync}
             disabled={isSyncingCloud}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10 ${
-              isSyncingCloud ? 'opacity-70 ring-1 ring-sky-400/30' : ''
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
+              syncFeedback === 'synced'
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 ring-1 ring-emerald-500/20'
+                : syncFeedback === 'error'
+                ? 'bg-rose-500/15 border-rose-500/30 text-rose-300 ring-1 ring-rose-500/20'
+                : isSyncingCloud
+                ? 'bg-sky-500/15 border-sky-500/30 text-sky-300 ring-1 ring-sky-400/30 opacity-80'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
             }`}
             title="Sync nutrition data across your phone and computer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isSyncingCloud ? 'animate-spin' : ''}`} />
-            <span>{isSyncingCloud ? 'Syncing...' : 'Sync Cloud'}</span>
+            {syncFeedback === 'synced' ? (
+              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            ) : syncFeedback === 'error' ? (
+              <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            ) : (
+              <RefreshCw className={`w-3.5 h-3.5 text-sky-400 shrink-0 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+            )}
+            <span>
+              {isSyncingCloud
+                ? 'Syncing...'
+                : syncFeedback === 'synced'
+                ? 'Synced'
+                : syncFeedback === 'error'
+                ? 'Sync Failed'
+                : 'Sync Cloud'}
+            </span>
           </button>
 
           {/* Consistency Lookback Toggle Button */}

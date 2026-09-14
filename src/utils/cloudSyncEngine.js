@@ -1108,7 +1108,7 @@ let activeSyncPromise = null;
 let hasQueuedSync = false;
 
 export async function syncFullOsWithCloud(options = {}) {
-  const { forcePush = false, forcePull = false } = options;
+  const { forcePush = false, forcePull = false, forceSync = false, silent = false } = options;
 
   if (activeSyncPromise) {
     hasQueuedSync = true;
@@ -1116,8 +1116,8 @@ export async function syncFullOsWithCloud(options = {}) {
   }
 
   activeSyncPromise = (async () => {
-    // Notify starting sync
-    if (typeof window !== 'undefined') {
+    // Notify starting sync (skip if silent background check to avoid UI flickering)
+    if (typeof window !== 'undefined' && !silent) {
       window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
         detail: { status: 'syncing', timestamp: Date.now() }
       }));
@@ -1135,12 +1135,23 @@ export async function syncFullOsWithCloud(options = {}) {
           saveVaultToGoogleCalendar(enrichedLocal).catch(() => {});
         }
         importFullOsState(enrichedLocal);
+        writeStorageJson(SYNC_KEYS.CLOUD_META, {
+          lastRemoteVaultUpdated: enrichedLocal.lastUpdated,
+          lastSyncedAt: Date.now(),
+          status: 'synced',
+          deviceId: getOrCreateDeviceId()
+        });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+            detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
+          }));
+        }
         return { success: true, mode: 'pushed', vault: enrichedLocal };
       }
 
-      // Check last known remote timestamp to pass since parameter
+      // Check last known remote timestamp to pass since parameter (bypassed if forceSync)
       const meta = readStorageJson(SYNC_KEYS.CLOUD_META, {});
-      const sinceTimestamp = meta?.lastRemoteVaultUpdated || 0;
+      const sinceTimestamp = forceSync ? 0 : (meta?.lastRemoteVaultUpdated || 0);
 
       // 2. Fetch Remote Cloud Vault (Serverless primary + Google Calendar backup)
       let remoteVault = await fetchVaultFromServerless(userKey, sinceTimestamp);
@@ -1148,10 +1159,10 @@ export async function syncFullOsWithCloud(options = {}) {
         remoteVault = await fetchVaultFromGoogleCalendar();
       }
 
-      // 2b. Efficient Conditional GET Handshake: If remote is unmodified and local didn't mutate, exit early
-      if (remoteVault?.unmodified) {
-        if (!isLocalMutationRecent(12000)) {
-          if (typeof window !== 'undefined') {
+      // 2b. Efficient Conditional GET Handshake: If remote is unmodified and not forceSync
+      if (remoteVault?.unmodified && !forceSync) {
+        if (!isLocalMutationRecent(15000)) {
+          if (typeof window !== 'undefined' && !silent) {
             window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
               detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
             }));
@@ -1166,8 +1177,15 @@ export async function syncFullOsWithCloud(options = {}) {
           }
           writeStorageJson(SYNC_KEYS.CLOUD_META, {
             lastRemoteVaultUpdated: enrichedLocal.lastUpdated,
-            lastSyncedAt: Date.now()
+            lastSyncedAt: Date.now(),
+            status: 'synced',
+            deviceId: getOrCreateDeviceId()
           });
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+              detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
+            }));
+          }
           return { success: true, mode: 'pushed', vault: enrichedLocal };
         }
       }
@@ -1177,18 +1195,25 @@ export async function syncFullOsWithCloud(options = {}) {
         importFullOsState(remoteVault);
         writeStorageJson(SYNC_KEYS.CLOUD_META, {
           lastRemoteVaultUpdated: remoteVault.lastUpdated || Date.now(),
-          lastSyncedAt: Date.now()
+          lastSyncedAt: Date.now(),
+          status: 'synced',
+          deviceId: getOrCreateDeviceId()
         });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+            detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
+          }));
+        }
         return { success: true, mode: 'pulled', vault: remoteVault };
       }
 
-      // 4. Standard 2-Way Sync
+      // 4. Standard 2-Way Sync / Force Sync
       let finalVault;
-      if (remoteVault) {
+      if (remoteVault && !remoteVault.unmodified) {
         // Both exist: merge intelligently with tombstone guarantees
         finalVault = mergeOsState(localVault, remoteVault);
       } else {
-        // First device initial seed: push local up
+        // First device initial seed or remote unmodified: push local up
         finalVault = { ...localVault, lastUpdated: Date.now() };
       }
 
@@ -1203,7 +1228,9 @@ export async function syncFullOsWithCloud(options = {}) {
 
       writeStorageJson(SYNC_KEYS.CLOUD_META, {
         lastRemoteVaultUpdated: finalVault.lastUpdated || Date.now(),
-        lastSyncedAt: Date.now()
+        lastSyncedAt: Date.now(),
+        status: 'synced',
+        deviceId: getOrCreateDeviceId()
       });
 
       if (typeof window !== 'undefined') {
@@ -1225,7 +1252,7 @@ export async function syncFullOsWithCloud(options = {}) {
       };
     } catch (err) {
       console.warn("Cloud sync engine notice:", err);
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && !silent) {
         window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
           detail: { status: 'failed', error: err.message, timestamp: Date.now() }
         }));
@@ -1236,8 +1263,8 @@ export async function syncFullOsWithCloud(options = {}) {
       if (hasQueuedSync) {
         hasQueuedSync = false;
         setTimeout(() => {
-          syncFullOsWithCloud({ forcePush: false }).catch(() => {});
-        }, 50);
+          syncFullOsWithCloud({ forcePush: false, silent: true }).catch(() => {});
+        }, 100);
       }
     }
   })();
@@ -1250,7 +1277,7 @@ export async function syncFullOsWithCloud(options = {}) {
  */
 let debouncePushTimer = null;
 
-export function triggerDebouncedCloudPush(delayMs = 250) {
+export function triggerDebouncedCloudPush(delayMs = 250, forcePush = false) {
   if (isApplyingRemoteSync) return;
   if (typeof window === 'undefined') return;
 
@@ -1260,7 +1287,7 @@ export function triggerDebouncedCloudPush(delayMs = 250) {
 
   debouncePushTimer = setTimeout(() => {
     if (isApplyingRemoteSync) return;
-    syncFullOsWithCloud({ forcePush: false }).catch(err => {
+    syncFullOsWithCloud({ forcePush, silent: true }).catch(err => {
       console.debug("Debounced cloud push notice:", err.message);
     });
   }, delayMs);
@@ -1268,12 +1295,14 @@ export function triggerDebouncedCloudPush(delayMs = 250) {
 
 /**
  * Immediate Cloud Push: Sends immediate signal on item additions/deletions
- * Confirms change on cloud serverless vault with ultra-low latency (50ms)
+ * Force pushes local state directly to cloud serverless vault with ultra-low latency (50ms)
  */
 let immediatePushTimer = null;
 
-export function triggerImmediateCloudPush(delayMs = 50) {
+export function triggerImmediateCloudPush(delayMs = 50, forcePush = true) {
   if (typeof window === 'undefined') return;
+
+  markLocalMutation();
 
   if (debouncePushTimer) {
     clearTimeout(debouncePushTimer);
@@ -1284,7 +1313,7 @@ export function triggerImmediateCloudPush(delayMs = 50) {
   }
 
   immediatePushTimer = setTimeout(() => {
-    syncFullOsWithCloud({ forcePush: false }).catch(err => {
+    syncFullOsWithCloud({ forcePush, silent: false }).catch(err => {
       console.debug("Immediate cloud push notice:", err.message);
     });
   }, delayMs);

@@ -25,7 +25,8 @@ import {
   triggerImmediateCloudPush,
   recordDeletion, 
   recordAdditionOrUpdate, 
-  isLocalMutationRecent 
+  isLocalMutationRecent,
+  markLocalMutation 
 } from './utils/cloudSyncEngine';
 
 // HomeView is kept static for instant first paint on mobile
@@ -320,7 +321,6 @@ export function App() {
   const isApplyingInboundSyncRef = useRef(false);
 
   // Auto-detect day rollover across midnight, window focus, visibility change for nutrition & date
-  const lastFocusCloudPullRef = useRef(0);
   useEffect(() => {
     const checkDayRollover = () => {
       const freshToday = getTodayIso();
@@ -340,14 +340,6 @@ export function App() {
         return prev;
       });
 
-      // Proactively pull cloud sync on tab return/focus (throttled by 3s)
-      const now = Date.now();
-      if (now - lastFocusCloudPullRef.current > 3000) {
-        lastFocusCloudPullRef.current = now;
-        syncFullOsWithCloud({ forcePush: false }).catch(err => {
-          console.debug("Focus cloud sync pull notice:", err.message);
-        });
-      }
     };
 
     window.addEventListener('focus', checkDayRollover);
@@ -518,7 +510,13 @@ export function App() {
   }, []);
 
   // Save changes to localStorage and instant auto-push to cloud (suppressed on inbound sync)
+  const isFirstDataMountRef = useRef(true);
   useEffect(() => {
+    if (isFirstDataMountRef.current) {
+      isFirstDataMountRef.current = false;
+      return;
+    }
+
     safeSetItem('wolfe_calendar_data', JSON.stringify(calendarData));
     safeSetItem('wolfe_school_data', JSON.stringify(schoolData));
     safeSetItem('wolfe_workout_data', JSON.stringify(workoutData));
@@ -527,7 +525,8 @@ export function App() {
     safeSetItem('wolfe_settings', JSON.stringify(settings));
 
     if (!isApplyingInboundSyncRef.current) {
-      triggerImmediateCloudPush(80);
+      markLocalMutation();
+      triggerImmediateCloudPush(60, true);
     }
   }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
 
@@ -634,12 +633,12 @@ export function App() {
 
   const lastMainScreenFetchRef = useRef(0);
 
-  // Everytime we load or navigate back to the main screen, pull fresh directly from Google Calendar
+  // Everytime we load or navigate back to the main screen, pull fresh directly from Google Calendar (throttled to 60s)
   useEffect(() => {
     if (activeView === 'home' && isGoogleCalendarConnected()) {
       const now = Date.now();
-      // 2.5s debounce throttle to prevent multi-fetch spamming
-      if (now - lastMainScreenFetchRef.current < 2500) return;
+      // 60s debounce throttle to prevent multi-fetch spamming
+      if (now - lastMainScreenFetchRef.current < 60000) return;
       lastMainScreenFetchRef.current = now;
 
       (async () => {
@@ -668,30 +667,30 @@ export function App() {
         }
       })();
     } else if (activeView === 'nutrition') {
-      // Fast proactive cloud vault pull when user navigates into nutrition
+      // Proactive cloud vault check when user navigates into nutrition (throttled to 60s, silent)
       const now = Date.now();
-      if (now - lastMainScreenFetchRef.current >= 3000) {
+      if (now - lastMainScreenFetchRef.current >= 60000) {
         lastMainScreenFetchRef.current = now;
-        syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+        syncFullOsWithCloud({ forcePush: false, silent: true }).catch(() => {});
       }
     }
   }, [activeView]);
 
-  // Fast adaptive background sync: checks every 4.5s while tab is visible, plus on focus/interaction/broadcast
+  // Relaxed background sync: checks every 60s while tab is visible, plus on focus/broadcast
   useEffect(() => {
     let lastThrottledSync = 0;
     const triggerResponsiveSync = () => {
       const now = Date.now();
-      if (now - lastThrottledSync < 3000) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(3500)) {
+      if (now - lastThrottledSync < 50000) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(15000)) {
         lastThrottledSync = now;
-        syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+        syncFullOsWithCloud({ forcePush: false, silent: true }).catch(() => {});
       }
     };
 
-    const interval = setInterval(triggerResponsiveSync, 4500);
+    const interval = setInterval(triggerResponsiveSync, 60000);
 
-    // Instant sync on window focus or visibility
+    // Sync on window focus or visibility if at least 50s has elapsed
     const handleFocus = () => triggerResponsiveSync();
     const handleVisibility = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -699,17 +698,14 @@ export function App() {
       }
     };
 
-    // Responsive sync on user interaction (when picking up device or touching screen)
-    const handleUserInteraction = () => triggerResponsiveSync();
-
-    // Cross-tab / same-origin broadcast channel listener for 0ms sync
+    // Cross-tab / same-origin broadcast channel listener for cross-tab sync
     let channel = null;
     if (typeof BroadcastChannel !== 'undefined') {
       try {
         channel = new BroadcastChannel('wolfe_cloud_sync_bus');
         channel.onmessage = (msg) => {
           if (msg?.data?.type === 'VAULT_PUSHED') {
-            syncFullOsWithCloud({ forcePush: false }).catch(() => {});
+            syncFullOsWithCloud({ forcePush: false, silent: true }).catch(() => {});
           }
         };
       } catch (e) {}
@@ -718,8 +714,6 @@ export function App() {
     window.addEventListener('focus', handleFocus);
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibility);
-      window.addEventListener('pointerdown', handleUserInteraction, { passive: true });
-      window.addEventListener('keydown', handleUserInteraction, { passive: true });
     }
 
     return () => {
@@ -727,8 +721,6 @@ export function App() {
       window.removeEventListener('focus', handleFocus);
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibility);
-        window.removeEventListener('pointerdown', handleUserInteraction);
-        window.removeEventListener('keydown', handleUserInteraction);
       }
       if (channel) {
         try { channel.close(); } catch (e) {}
