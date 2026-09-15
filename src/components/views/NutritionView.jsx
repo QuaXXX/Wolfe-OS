@@ -187,14 +187,6 @@ const NutritionViewInner = ({
   const [syncFeedback, setSyncFeedback] = useState(null); // 'synced' | 'error' | null
 
   useEffect(() => {
-    const handleSyncApplied = (e) => {
-      const freshNutrition = e.detail?.vault?.nutrition;
-      if (freshNutrition && typeof setNutritionData === 'function') {
-        setNutritionData(freshNutrition);
-      }
-    };
-    window.addEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
-
     const handleSyncStatus = (e) => {
       if (e.detail?.status === 'syncing') {
         setIsSyncingCloud(true);
@@ -205,10 +197,9 @@ const NutritionViewInner = ({
     window.addEventListener('wolfe-cloud-sync-status', handleSyncStatus);
 
     return () => {
-      window.removeEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
       window.removeEventListener('wolfe-cloud-sync-status', handleSyncStatus);
     };
-  }, [setNutritionData]);
+  }, []);
 
   const handleTriggerCloudSync = async () => {
     playSound('click', soundEnabled);
@@ -218,22 +209,9 @@ const NutritionViewInner = ({
       // Execute a guaranteed bidirectional force sync bypassing conditional caching
       const res = await syncFullOsWithCloud({ forceSync: true, silent: false });
       if (res && res.success) {
-        if (res.vault?.nutrition && typeof setNutritionData === 'function') {
-          setNutritionData(res.vault.nutrition);
-        } else {
-          try {
-            const raw = localStorage.getItem('wolfe_nutrition_data');
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (parsed && typeof setNutritionData === 'function') {
-                setNutritionData(parsed);
-              }
-            }
-          } catch (e) {}
-        }
         playSound('success', soundEnabled);
         setSyncFeedback('synced');
-        const mealCount = (res.vault?.nutrition?.meals || meals || []).length;
+        const mealCount = (meals || []).length;
         setQuickAddFeedback(`Cloud synced: ${mealCount} meals synchronized`);
         setTimeout(() => setQuickAddFeedback(null), 3000);
         setTimeout(() => setSyncFeedback(null), 2500);
@@ -402,7 +380,7 @@ const NutritionViewInner = ({
   const handleLogMeal = (mealEntry) => {
     playSound('success', soundEnabled);
     const mealDate = mealEntry?.date || selectedDate || currentTodayIso;
-    let stampedMeal = {
+    const stampedMeal = {
       ...mealEntry,
       date: mealDate,
       createdAt: mealEntry?.createdAt || Date.now(),
@@ -412,36 +390,48 @@ const NutritionViewInner = ({
     if (stampedMeal?.id) recordAdditionOrUpdate(stampedMeal.id);
     markLocalMutation();
 
-    // Read current persisted storage synchronously to prevent race conditions
-    let currentNut = safeNutritionData || {};
-    try {
-      const raw = localStorage.getItem('wolfe_nutrition_data');
-      if (raw) currentNut = JSON.parse(raw);
-    } catch (e) {}
+    // Atomic functional update: preserves all existing meals and merges atomically
+    setNutritionData(prev => {
+      const base = (prev && typeof prev === 'object') ? prev : {};
+      let storageMeals = [];
+      try {
+        const raw = localStorage.getItem('wolfe_nutrition_data');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed?.meals)) storageMeals = parsed.meals;
+        }
+      } catch (e) {}
 
-    const existingMeals = (currentNut.meals || []).filter(m => m && m.id !== stampedMeal.id);
-    const nextMeals = [stampedMeal, ...existingMeals];
-    // Today's total strictly from meals logged for currentTodayIso
-    const todayMeals = nextMeals.filter(m => m && m.date === currentTodayIso);
-    const todayTotals = aggregateDailyNutrition(todayMeals);
+      // Union meals from React state and localStorage
+      const combined = [stampedMeal, ...(base.meals || []), ...storageMeals];
+      const mealMap = new Map();
+      combined.forEach(m => {
+        if (m && m.id && !mealMap.has(m.id)) {
+          mealMap.set(m.id, m);
+        }
+      });
+      const nextMeals = Array.from(mealMap.values());
+      const todayMeals = nextMeals.filter(m => m && m.date === currentTodayIso);
+      const todayTotals = aggregateDailyNutrition(todayMeals);
 
-    const nextData = {
-      ...currentNut,
-      currentDate: currentTodayIso,
-      consumedCalories: todayTotals.calories,
-      protein: { ...(currentNut.protein || {}), current: todayTotals.protein },
-      carbs: { ...(currentNut.carbs || {}), current: todayTotals.carbs },
-      fats: { ...(currentNut.fats || {}), current: todayTotals.fats },
-      meals: nextMeals,
-      updatedAt: Date.now()
-    };
+      const nextData = {
+        ...base,
+        currentDate: currentTodayIso,
+        consumedCalories: todayTotals.calories,
+        protein: { ...(base.protein || {}), current: todayTotals.protein },
+        carbs: { ...(base.carbs || {}), current: todayTotals.carbs },
+        fats: { ...(base.fats || {}), current: todayTotals.fats },
+        meals: nextMeals,
+        updatedAt: Date.now()
+      };
 
-    // Synchronously persist BEFORE setting React state or calling cloud push
-    try {
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-    } catch (e) {}
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
 
-    setNutritionData(nextData);
+      return nextData;
+    });
+
     triggerImmediateCloudPush(80);
   };
 
@@ -450,31 +440,29 @@ const NutritionViewInner = ({
     recordDeletion(mealId);
     markLocalMutation();
 
-    let currentNut = safeNutritionData || {};
-    try {
-      const raw = localStorage.getItem('wolfe_nutrition_data');
-      if (raw) currentNut = JSON.parse(raw);
-    } catch (e) {}
+    setNutritionData(prev => {
+      const base = (prev && typeof prev === 'object') ? prev : {};
+      const nextMeals = (base.meals || []).filter(m => m && m.id !== mealId);
+      const todayMeals = nextMeals.filter(m => m && m.date === currentTodayIso);
+      const todayTotals = aggregateDailyNutrition(todayMeals);
 
-    const nextMeals = (currentNut.meals || []).filter(m => m && m.id !== mealId);
-    const todayMeals = nextMeals.filter(m => m && m.date === currentTodayIso);
-    const todayTotals = aggregateDailyNutrition(todayMeals);
+      const nextData = {
+        ...base,
+        consumedCalories: todayTotals.calories,
+        protein: { ...(base.protein || {}), current: todayTotals.protein },
+        carbs: { ...(base.carbs || {}), current: todayTotals.carbs },
+        fats: { ...(base.fats || {}), current: todayTotals.fats },
+        meals: nextMeals,
+        updatedAt: Date.now()
+      };
 
-    const nextData = {
-      ...currentNut,
-      consumedCalories: todayTotals.calories,
-      protein: { ...(currentNut.protein || {}), current: todayTotals.protein },
-      carbs: { ...(currentNut.carbs || {}), current: todayTotals.carbs },
-      fats: { ...(currentNut.fats || {}), current: todayTotals.fats },
-      meals: nextMeals,
-      updatedAt: Date.now()
-    };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
 
-    try {
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-    } catch (e) {}
+      return nextData;
+    });
 
-    setNutritionData(nextData);
     triggerImmediateCloudPush(80);
   };
 

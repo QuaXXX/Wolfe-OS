@@ -2555,6 +2555,13 @@ ${pantryPrompt ? `${pantryPrompt}\n` : ''}
     - Measure and state cup volumes at granular 0.1 cup precision (e.g. "0.3 cup", "0.6 cup", "0.7 cup", "0.8 cup", "1.1 cups", "1.2 cups", "1.3 cups", "1.4 cups").
     - CONSERVATIVE ROUND-DOWN MANDATE: If uncertain between intervals or volume, ALWAYS round down to the nearest lower 0.1 interval or nearest 1 (e.g., if visually between 1.2 and 1.3 cups, choose 1.2 cups; if uncertain between a fraction and a whole amount, round down to the lower tenth or nearest 1). Never overestimate volume.
 
+5c. LIQUID VOLUME & LITRE (L) CONVERSIONS:
+    - 1L = 1 Litre = 1000ml = strictly 4 standard cups (250ml each).
+    - When the user specifies litres or 'L' (e.g. "1L milk", "1.5L water", "2L milk", "500ml"):
+      * RECOGNIZE LITRES DIRECTLY: DO NOT automatically collapse or truncate 1L down to 1 cup! 1L is exactly 4 cups (1000ml).
+      * When the user specifies "1L milk", preserve the unit as Litres in the portion label (e.g. "1L (1000ml / 4 cups)").
+      * Normal milk (2% reduced fat) at 1L is 4 cups = 480 kcal, 32g protein, 46g carbs, ~19.2g fats (strictly 4x the 1-cup benchmark of 120 kcal / 8g P).
+
 OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
 {
   "hasFood": true,
