@@ -796,8 +796,8 @@ export function importFullOsState(vault) {
   if (cleanSchool?.dashboard) {
     writeStorageJson(SYNC_KEYS.SCHOOL, cleanSchool.dashboard);
   }
-  // Only apply calendar from vault if Google Calendar is not connected (Google is single master)
-  if (vault.calendar && !isGoogleCalendarConnected()) {
+  // Always persist clean calendar from incoming vault as resilient local backup
+  if (vault.calendar) {
     const cleanCalendar = {
       ...vault.calendar,
       items: (vault.calendar.items || []).filter(it => !isTomb(it.id))

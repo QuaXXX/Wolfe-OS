@@ -14,7 +14,8 @@ import {
   parseTargetDate, 
   normalizeCalendarDate, 
   extractCleanTitle,
-  parseTimeToMinutes 
+  parseTimeToMinutes,
+  normalizeSpokenTimes
 } from './calendarParser.js';
 import { 
   getSavedHermesBriefs, 
@@ -180,7 +181,15 @@ SYSTEM INTERACTION DIRECTIVES:
 - CALENDAR & SCHEDULING MANDATE:
   • When asked to add, create, schedule, or log an event, deadline, task, reminder, exam, meeting, or workout, ALWAYS set "actionType": "CREATE_CALENDAR_ITEM" (or "BATCH_CREATE_CALENDAR_ITEMS" for multiple).
   • Set "date" strictly to "YYYY-MM-DD" formatted string (Today is ${todayIso}, tomorrow is ${addDays(todayIso, 1)}).
-  • Clean Entity Title: Strip all command verbs ("add", "schedule", "create"), relative dates ("today", "tomorrow", "next Monday"), prepositions ("at", "for", "on"), and time markers ("at 5pm", "from 2 to 4pm"). Example: "Add gym tomorrow at 5pm" -> title: "Gym", date: "${addDays(todayIso, 1)}", startTime: "05:00 PM", endTime: "06:00 PM".
+  • HIGH-PRECISION TIMING & CONTEXT INTELLIGENCE:
+    - Conversational & unpunctuated number pairs like "6 30", "8 49", "10 15", "12 30", "2 15" are ALWAYS clock times (e.g. 06:30, 08:49, 10:15, 12:30, 02:15). They are NEVER course numbers or title artifacts!
+    - Speech-to-text pauses like "6 for finance 30" or "finance 6 30" mean the subject is "Finance" scheduled at 6:30.
+    - AM vs PM contextual resolution:
+      * Academic classes, lectures, exams (Finance, FNCE, Econ, Stat, Math, Accounting, Chemistry, etc.) between 8:00 and 11:59 default to AM (e.g. "finance at 9 30" -> 09:30 AM). Afternoon classes between 1:00 and 6:59 default to PM (e.g. "finance at 6 30" -> 06:30 PM).
+      * Athletic training, gym, workouts, lifting, cardio between 4:00 and 9:00 default to PM (e.g. "gym at 6 30" -> 06:30 PM).
+      * Meals: Dinner, drinks, evening hangouts default to PM. Breakfast, morning coffee default to AM.
+      * Standard waking hours: 1:00-6:59 default to PM; 8:00-11:59 default to AM; 7:00 defaults to PM unless "morning" or "breakfast" is stated.
+  • Clean Entity Title: Strip all command verbs ("add", "schedule", "create"), relative dates ("today", "tomorrow", "next Monday"), prepositions ("at", "for", "on", "from", "to"), and time markers ("at 5pm", "6 30", "6:30", "from 2 to 4pm"). NEVER include time digits in the title (e.g. "Finance 30" or "6 for finance 30" -> title MUST BE "Finance"). Example: "Add finance 6 30" -> title: "Finance", startTime: "06:30 PM", endTime: "07:30 PM", category: "School".
   • For deadlines/exams: type: "deadline", isAllDay: true, priority: "urgent" (exams, midterms, finals, project submissions, assignment due dates).
   • For timed events: type: "event", startTime: "HH:MM AM/PM", endTime: "HH:MM AM/PM", isAllDay: false (meetings, classes, workouts, dinners, doctor appointments).
   • For tasks/reminders: type: "task" or "reminder", isAllDay: true.
@@ -810,8 +819,10 @@ export async function processVoiceOrTextCommand(
     };
   }
 
+  // Pre-process prompt to normalize spoken times and unpunctuated number pairs (e.g. "finance 6 30" -> "finance at 6:30")
+  const normalizedPrompt = normalizeSpokenTimes(prompt);
   const todayIso = getTodayIso();
-  const lower = prompt.toLowerCase().trim();
+  const lower = normalizedPrompt.toLowerCase().trim();
 
   // Instant local catch for Purge commands
   if (lower.startsWith('purge') || lower.match(/\bpurge\b/i)) {
@@ -852,13 +863,13 @@ export async function processVoiceOrTextCommand(
   let response = null;
 
   try {
-    response = await callGemini(prompt, systemInstruction, aiConfig);
+    response = await callGemini(normalizedPrompt, systemInstruction, aiConfig);
   } catch (err) {
-    response = directFallbackAnswer(prompt, osData, history);
+    response = directFallbackAnswer(normalizedPrompt, osData, history);
   }
 
   if (!response || !response.message) {
-    response = directFallbackAnswer(prompt, osData, history);
+    response = directFallbackAnswer(normalizedPrompt, osData, history);
   }
 
   // 1. Handle PURGE_ITEMS

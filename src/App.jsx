@@ -480,8 +480,18 @@ export function App() {
       if (vault.workouts) setWorkoutData(vault.workouts);
       if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
       if (vault.school?.dashboard) setSchoolData(vault.school.dashboard);
-      // Only apply calendar from vault if Google Calendar is NOT connected (Google Calendar is single master)
-      if (vault.calendar && !isGoogleCalendarConnected()) setCalendarData(vault.calendar);
+      // Apply calendar from vault (merging items and filtering tombstones)
+      if (vault.calendar && Array.isArray(vault.calendar.items)) {
+        setCalendarData(prev => {
+          const tombstones = vault._tombstones || {};
+          const isTomb = (id) => Boolean(id && tombstones[String(id)]);
+          const incoming = vault.calendar.items.filter(it => it && !isTomb(it.id));
+          return {
+            ...prev,
+            items: reconcileCalendarItems(prev.items, incoming, tombstones)
+          };
+        });
+      }
       if (vault.settings) setSettings(prev => ({ ...prev, ...vault.settings }));
       setLastSyncTimestamp(Date.now());
       setSyncStatus('synced');
@@ -565,14 +575,14 @@ export function App() {
         }));
       }
 
-      // 3. Fetch fresh remote events & tasks from Google (taking everything directly from Google Calendar)
+      // 3. Fetch fresh remote events & tasks from Google (reconciling and preserving all items)
       const liveGoogleItems = await fetchGoogleCalendarEvents();
       if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
         setCalendarData(prev => ({
           ...prev,
           currentDate: formatDateTitle(getTodayIso()),
-          selectedDate: getTodayIso(),
-          items: liveGoogleItems
+          selectedDate: prev.selectedDate || getTodayIso(),
+          items: reconcileCalendarItems(prev.items, liveGoogleItems)
         }));
         setSyncStatus('synced');
         setLastSyncTimestamp(Date.now());
@@ -647,12 +657,12 @@ export function App() {
           setSyncStatus('syncing');
           const liveGoogleItems = await fetchGoogleCalendarEvents();
           if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
-            // Take everything directly from Google Calendar onto this one
+            // Reconcile and retain all Google and local items
             setCalendarData(prev => ({
               ...prev,
               currentDate: formatDateTitle(getTodayIso()),
-              selectedDate: getTodayIso(),
-              items: liveGoogleItems
+              selectedDate: prev.selectedDate || getTodayIso(),
+              items: reconcileCalendarItems(prev.items, liveGoogleItems)
             }));
             setSyncStatus('synced');
             setLastSyncTimestamp(Date.now());

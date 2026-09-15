@@ -154,14 +154,133 @@ export function normalizeCalendarDate(dateStr, todayIso = getTodayIso()) {
   return parseTargetDate(clean, todayIso);
 }
 
+const SPOKEN_NUMBER_WORDS = {
+  'zero': 0, 'oh': 0,
+  'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+  'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+  'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+  'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+  'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50
+};
+
+/**
+ * Normalizes spoken numbers and conversational unpunctuated time pairs.
+ * e.g. "6 30" -> "6:30", "8 49" -> "8:49", "six thirty" -> "6:30", "6 for finance 30" -> "finance at 6:30"
+ */
+export function normalizeSpokenTimes(text) {
+  if (!text || typeof text !== 'string') return '';
+  let str = text;
+
+  // 1. Convert relative phrases like "half past six", "quarter past seven", "quarter to eight"
+  str = str.replace(/\bhalf\s+past\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\b/gi, (match, h) => {
+    const hour = SPOKEN_NUMBER_WORDS[h.toLowerCase()] || parseInt(h, 10);
+    return `${hour}:30`;
+  });
+  str = str.replace(/\bquarter\s+(?:past|after)\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\b/gi, (match, h) => {
+    const hour = SPOKEN_NUMBER_WORDS[h.toLowerCase()] || parseInt(h, 10);
+    return `${hour}:15`;
+  });
+  str = str.replace(/\bquarter\s+(?:to|till)\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\b/gi, (match, h) => {
+    let hour = (SPOKEN_NUMBER_WORDS[h.toLowerCase()] || parseInt(h, 10)) - 1;
+    if (hour <= 0) hour = 12;
+    return `${hour}:45`;
+  });
+
+  // Word hours + minutes: "six thirty", "eight forty nine", "eight forty-nine"
+  str = str.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(o'?clock)\b/gi, (match, h) => {
+    const hour = SPOKEN_NUMBER_WORDS[h.toLowerCase()];
+    return `${hour}:00`;
+  });
+  str = str.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(fifteen|twenty|thirty|forty|fifty)(?:[-\s](one|two|three|four|five|six|seven|eight|nine))?\b/gi, (match, h, tens, ones) => {
+    const hour = SPOKEN_NUMBER_WORDS[h.toLowerCase()];
+    let min = SPOKEN_NUMBER_WORDS[tens.toLowerCase()] || 0;
+    if (ones && SPOKEN_NUMBER_WORDS[ones.toLowerCase()]) {
+      min += SPOKEN_NUMBER_WORDS[ones.toLowerCase()];
+    }
+    return `${hour}:${String(min).padStart(2, '0')}`;
+  });
+
+  // 2. Speech-to-text anomaly: "6 for finance 30" -> "finance at 6:30"
+  str = str.replace(/\b(\d{1,2})\s+(?:for|at)\s+([a-zA-Z\s]+?)\s+([0-5]\d)\b/gi, (match, h, subject, m) => {
+    const hour = parseInt(h, 10);
+    if (hour >= 1 && hour <= 12) {
+      return `${subject.trim()} at ${hour}:${m}`;
+    }
+    return match;
+  });
+
+  // 3. Unpunctuated numeric time pairs: "6 30", "8 49", "10 15", "12 30", "2 15"
+  const timePairRegex = /(?<!\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+)\b([01]?\d|2[0-3])\s+([0-5]\d)(?:\s*(am|pm))?\b(?!\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?|days?|weeks?|months?|years?|lbs?|kg|calories?|kcal|grams?|g\b|%|percent))/gi;
+  
+  str = str.replace(timePairRegex, (match, h, m, meridiem) => {
+    const hNum = parseInt(h, 10);
+    if (hNum >= 0 && hNum <= 23) {
+      return `${hNum}:${m}${meridiem ? ' ' + meridiem : ''}`;
+    }
+    return match;
+  });
+
+  // 4. "6 o'clock", "8 oclock", "6 o clock" -> "6:00", "8:00"
+  str = str.replace(/\b(\d{1,2})\s*o'?\s*clock\b/gi, '$1:00');
+
+  return str;
+}
+
 /**
  * Parses time expressions and returns standardized 12-hour strings.
+ * Includes deep conversational context clues for AM/PM resolution.
  */
 export function parseEventTimes(text) {
   if (!text || typeof text !== 'string') {
     return { startTime: 'All Day', endTime: 'All Day', time: 'All Day', isAllDay: true, hasTime: false };
   }
-  const lower = text.toLowerCase();
+  const normalized = normalizeSpokenTimes(text);
+  const lower = normalized.toLowerCase();
+
+  // Contextual clues for AM / PM resolution
+  const resolveMeridiem = (hour, textContext = '') => {
+    const ctx = textContext.toLowerCase();
+    const isNightOrEvening = /\b(tonight|this\s+evening|evening|night|dinner|supper|pm|p\.m\.|late|after\s+work|bedtime)\b/i.test(ctx);
+    const isMorning = /\b(morning|in\s+the\s+morning|am|a\.m\.|breakfast|early|fasted|wake\s*up)\b/i.test(ctx);
+    const isAfternoon = /\b(afternoon|in\s+the\s+afternoon|lunch|lunchtime|midday)\b/i.test(ctx);
+
+    if (hour >= 13) return 'pm';
+    if (hour === 0) return 'am';
+    if (hour === 12) return isNightOrEvening && ctx.includes('midnight') ? 'am' : 'pm';
+
+    if (isNightOrEvening && !isMorning) return 'pm';
+    if (isMorning && !isNightOrEvening) return 'am';
+    if (isAfternoon) return 'pm';
+
+    // Academic clues: lectures/exams at 8-11 default to AM, at 1-6 default to PM
+    const isAcademic = /\b(class|lecture|exam|quiz|midterm|finals|school|test|fnce|econ|stat|cpsc|math|study|homework|assignment|ta|office\s+hours|finance)\b/i.test(ctx);
+    if (isAcademic) {
+      if (hour >= 8 && hour <= 11) return 'am';
+      if (hour >= 1 && hour <= 6) return 'pm';
+    }
+
+    // Workout clues: evening gym 4-9pm is most common
+    const isWorkout = /\b(gym|workout|lift|bench|squat|cardio|run|training)\b/i.test(ctx);
+    if (isWorkout) {
+      if (hour <= 6) return 'pm';
+      if (hour >= 7 && hour <= 9) return 'pm';
+      if (hour >= 10 && hour <= 11) return 'am';
+    }
+
+    // Trading clues: market opens morning, closes afternoon
+    const isTrading = /\b(market|trading|stocks?|open|fomc|cpi|bell)\b/i.test(ctx);
+    if (isTrading) {
+      if (hour >= 7 && hour <= 11) return 'am';
+      if (hour >= 1 && hour <= 4) return 'pm';
+    }
+
+    // General waking defaults: 1-6 -> PM, 8-11 -> AM, 7 -> PM unless breakfast/morning
+    if (hour >= 1 && hour <= 6) return 'pm';
+    if (hour >= 8 && hour <= 11) return 'am';
+    if (hour === 7) return 'pm';
+
+    return 'pm';
+  };
 
   const format12H = (h, m = 0, meridiem = null) => {
     let hour = parseInt(h, 10);
@@ -169,26 +288,22 @@ export function parseEventTimes(text) {
     let p = meridiem ? meridiem.toLowerCase() : null;
 
     if (!p) {
-      if (hour >= 12) {
-        p = 'pm';
-        if (hour > 12) hour -= 12;
-      } else {
-        p = hour <= 6 ? 'pm' : (hour >= 8 && hour <= 11 ? 'am' : 'pm');
-      }
+      p = resolveMeridiem(hour, lower);
     } else {
       if (p === 'pm' && hour < 12) hour += 12;
       if (p === 'am' && hour === 12) hour = 0;
-      if (hour === 0) {
-        hour = 12;
-        p = 'am';
-      } else if (hour === 12) {
-        p = 'pm';
-      } else if (hour > 12) {
-        hour -= 12;
-        p = 'pm';
-      } else {
-        p = 'am';
-      }
+    }
+
+    if (hour === 0) {
+      hour = 12;
+      p = 'am';
+    } else if (hour === 12) {
+      p = p || 'pm';
+    } else if (hour > 12) {
+      hour -= 12;
+      p = 'pm';
+    } else {
+      p = p || 'am';
     }
 
     return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')} ${p.toUpperCase()}`;
@@ -224,9 +339,8 @@ export function parseEventTimes(text) {
     durationMinutes = parseInt(lower.match(/\bfor\s+(\d+)\s*(?:minutes?|mins?)\b/i)[1], 10);
   }
 
-  // 2. Explicit range: "from 2 to 4pm", "2pm - 4pm", "2:30pm to 3:45pm", "10am - 12pm", "4-6pm"
-  const rangeMatch = lower.match(/(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:to|-|until|till)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i) ||
-                     lower.match(/(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*(?:to|-|until|till)\s*(\d{1,2})(?::(\d{2}))?(?:\s*(am|pm))?/i) ||
+  // 2. Explicit range: "from 6:30 to 8:00", "6:30 - 8:30", "4-6pm"
+  const rangeMatch = lower.match(/(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:to|-|until|till)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i) ||
                      lower.match(/\b(\d{1,2})-(\d{1,2})\s*(am|pm)\b/i);
 
   if (rangeMatch) {
@@ -235,6 +349,11 @@ export function parseEventTimes(text) {
 
     if (!p1 && p2) p1 = p2;
     if (!p2 && p1) p2 = p1;
+    if (!p1 && !p2) {
+      const resolved = resolveMeridiem(parseInt(h2, 10), lower);
+      p1 = resolved;
+      p2 = resolved;
+    }
 
     const startTime = format12H(h1, m1, p1);
     const endTime = format12H(h2, m2, p2);
@@ -247,8 +366,8 @@ export function parseEventTimes(text) {
     };
   }
 
-  // 3. Single time point: "at 5pm", "at 5:30pm", "at 5", "at 14:00", "5pm", "11:59pm"
-  const singleMatch = lower.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i) ||
+  // 3. Single time point: "at 6:30", "for 6:30", "6:30pm", "6:30", "at 5", "5pm"
+  const singleMatch = lower.match(/\b(?:at|for|from)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i) ||
                       lower.match(/\b(\d{1,2}):(\d{2})\s*(am|pm)?\b/i) ||
                       lower.match(/\b(\d{1,2})\s*(am|pm)\b/i);
 
@@ -338,7 +457,7 @@ export function formatTitleCase(str) {
 export function extractCleanTitle(rawText) {
   if (!rawText) return "New Event";
 
-  let str = rawText.trim();
+  let str = normalizeSpokenTimes(rawText).trim();
 
   // Strip conversational buffer junk
   str = str
@@ -348,20 +467,10 @@ export function extractCleanTitle(rawText) {
     .trim();
 
   // Strip initial action verbs and calendar targets:
-  // e.g. "add event to my calendar:", "schedule on calendar:", "put on my schedule:", "add to my calendar"
   str = str.replace(/^(?:add|schedule|create|put|set|book|log|insert|make)\s+(?:an|a|the|my)?\s*(?:new\s+)?(?:calendar\s+item|event|deadline|task|reminder|todo)?\s*(?:to|on|in)?\s*(?:my\s+|the\s+)?(?:calendar|schedule|timeline)?[:\s]*/gi, '');
-
-  // Strip reminder prefixes: "remind me to", "remember to", "don't forget to", "make sure to"
   str = str.replace(/^(?:remind\s+me\s+to|remember\s+to|don'?t\s+forget\s+to|make\s+sure\s+to)\s+/gi, '');
-
-  // Strip leading container labels if followed by a title/colon or "called/named":
-  // e.g. "an appointment called eye exam" -> "eye exam", "event: chest and triceps" -> "chest and triceps", "exam: STAT 213 Final Exam" -> "STAT 213 Final Exam"
   str = str.replace(/^(?:an|a|the|my)?\s*(?:new\s+)?(?:calendar\s+item|event|deadline|task|reminder|todo|appointment|meeting|exam|test|quiz)\s*(?:called|named|titled|:)\s*/gi, '');
-
-  // Strip leading "submit " if followed by an academic deliverable (e.g. "submit essay for FNCE 317" -> "essay for FNCE 317")
   str = str.replace(/^submit\s+(?=(?:essay|assignment|homework|paper|project|lab|report|deliverable)\b)/gi, '');
-
-  // Strip trailing or internal calendar destination: "to my calendar", "on my schedule", "in my calendar"
   str = str.replace(/\b(?:to|on|in)\s+(?:my\s+|the\s+)?(?:calendar|schedule|timeline)\b[:\s]*/gi, ' ');
 
   // Strip date indicators
@@ -373,10 +482,11 @@ export function extractCleanTitle(rawText) {
   str = str.replace(/\b(?:in\s+)?\d+\s+days?\b/gi, ' ');
   str = str.replace(/\bin\s+a\s+week\b/gi, ' ');
 
-  // Strip time indicators
+  // Strip time indicators (including normalized times and ranges)
   str = str.replace(/\b(?:from\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:to|-|until|till)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, ' ');
+  str = str.replace(/\b(?:from\s+)?\d{1,2}:\d{2}\s*(?:to|-|until|till)\s*\d{1,2}:\d{2}\b/gi, ' ');
   str = str.replace(/\b\d{1,2}-\d{1,2}\s*(?:am|pm)\b/gi, ' ');
-  str = str.replace(/\bat\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi, ' ');
+  str = str.replace(/\b(?:at|for|from)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi, ' ');
   str = str.replace(/\b\d{1,2}:\d{2}\s*(?:am|pm)?\b/gi, ' ');
   str = str.replace(/\b\d{1,2}\s*(?:am|pm)\b/gi, ' ');
   str = str.replace(/\bfor\s+\d+(?:\.\d+)?\s*(?:hours?|hrs?|minutes?|mins?)\b/gi, ' ');
@@ -414,7 +524,7 @@ export function detectCategory(title, text) {
   if (combined.match(/\b(grocery|groceries|meal\s+prep|dinner|lunch|breakfast|food|cook|cooking|protein|shake|creatine|smoothie|snack)\b/)) {
     return 'Nutrition';
   }
-  if (combined.match(/\b(lecture|class|exam|midterm|finals|quiz|test|homework|assignment|essay|study|syllabus|professor|advisor|ta|office\s+hours|course|math|stats|stat|fnce|econ|chem|phys|cpsc)\b/)) {
+  if (combined.match(/\b(lecture|class|exam|midterm|finals|quiz|test|homework|assignment|essay|study|syllabus|professor|advisor|ta|office\s+hours|course|math|stats|stat|fnce|econ|chem|phys|cpsc|finance|accounting|mgmt|marketing)\b/)) {
     if (!combined.match(/\b(?:eye|dental|medical|annual|physical)\s+exam\b/)) {
       return 'School';
     }
@@ -431,7 +541,8 @@ export function detectCategory(title, text) {
  */
 export function parseCalendarCommand(text, todayIso = getTodayIso()) {
   if (!text || typeof text !== 'string') return null;
-  const lower = text.toLowerCase().trim();
+  const normalized = normalizeSpokenTimes(text);
+  const lower = normalized.toLowerCase().trim();
 
   // Check if this looks like a calendar/schedule intent
   const isSchoolExam = lower.match(/\b(?:exam|quiz|midterm|finals|test)\b/) && !lower.match(/\b(?:eye|dental|medical|annual|physical)\s+exam\b/);
@@ -439,15 +550,15 @@ export function parseCalendarCommand(text, todayIso = getTodayIso()) {
   const isDirectAdd = lower.match(/^(?:add|schedule|create|put|set|book|log|insert|make)\b/);
   const isReminder = lower.match(/\b(?:remind\s+me|reminder|remember\s+to|don'?t\s+forget)\b/);
   const isTask = lower.match(/\b(?:task|todo|to-do)\b/) || lower.match(/^(?:buy|call|clean|finish|prepare|prep|pay)\b/);
-  const isEventEntity = lower.match(/\b(?:appointment|meeting|dentist|doctor|interview|flight|class|lecture|session|party|dinner|lunch|haircut|workout|gym)\b/);
+  const isEventEntity = lower.match(/\b(?:appointment|meeting|dentist|doctor|interview|flight|class|lecture|session|party|dinner|lunch|breakfast|haircut|workout|gym|study|finance|trading|market|fnce|econ|stat|cpsc)\b/);
 
-  const timeInfo = parseEventTimes(lower);
+  const timeInfo = parseEventTimes(text);
   const hasTime = timeInfo.hasTime;
   const hasDate = lower.match(/\b(?:today|tomorrow|tonight|yesterday|morning|afternoon|noon|midnight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|in\s+\d+\s+days?|next\s+week|next\s+[a-z]+|this\s+[a-z]+)\b/) ||
                   lower.match(/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}\b/);
 
-  if (!isDirectAdd && !isReminder && !isTask && !isDeadline && !isEventEntity && !(hasTime && hasDate)) {
-    return null;
+  if (!isDirectAdd && !isReminder && !isTask && !isDeadline && !isEventEntity && !(hasTime && (hasDate || isEventEntity || isDirectAdd))) {
+    if (!hasTime) return null;
   }
 
   // Determine item type

@@ -180,52 +180,112 @@ export function getMonthGrid(yearOrIso, month) {
  * Merges fresh remote items from Google with local items, preserving unsynced local creations
  * and reflecting remote additions, modifications, and deletions.
  */
-export function reconcileCalendarItems(localItems = [], remoteGoogleItems = []) {
+export function reconcileCalendarItems(localItems = [], remoteGoogleItems = [], customTombstones = null) {
   if (!Array.isArray(localItems)) localItems = [];
   if (!Array.isArray(remoteGoogleItems)) remoteGoogleItems = [];
 
+  let tombstones = customTombstones;
+  if (!tombstones && typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('wolfe_tombstones');
+      tombstones = raw ? JSON.parse(raw) : {};
+    } catch {
+      tombstones = {};
+    }
+  }
+  if (!tombstones) tombstones = {};
+
+  const isTomb = (id) => Boolean(id && tombstones[String(id)]);
+
   const remoteMap = new Map();
   for (const r of remoteGoogleItems) {
-    if (r.id) remoteMap.set(String(r.id), r);
-  }
-
-  // 1. Keep local items that are NOT from Google (unsynced local additions, syllabus imports, etc.)
-  // These must NOT be deleted just because they don't exist on Google yet!
-  const localNonGoogleItems = localItems.filter(it => !it.isGoogle);
-
-  // 2. For items that originated from Google:
-  // If still in remoteMap: take the latest remote item (updates time, title, date, etc.)
-  // If no longer in remoteMap: it was deleted remotely on Google Calendar -> remove it locally!
-  const matchedGoogleItems = [];
-  const processedRemoteIds = new Set();
-
-  for (const localItem of localItems) {
-    if (localItem.isGoogle && localItem.id) {
-      const idStr = String(localItem.id);
-      if (remoteMap.has(idStr)) {
-        const remoteItem = remoteMap.get(idStr);
-        matchedGoogleItems.push({
-          ...remoteItem,
-          // Preserve local task completion if remote doesn't specify
-          completed: localItem.completed !== undefined ? localItem.completed : remoteItem.completed
-        });
-        processedRemoteIds.add(idStr);
-      }
-      // If not in remoteMap, localItem is omitted (deleted remotely on Google)
+    if (r && r.id && !isTomb(r.id)) {
+      remoteMap.set(String(r.id), r);
     }
   }
 
-  // 3. New remote items that did not exist locally yet (created on phone, web Google Calendar, etc.)
-  const newRemoteItems = [];
+  const result = [];
+  const processedRemoteIds = new Set();
+  const now = Date.now();
+
+  // Active sync window boundaries (-60 days to +365 days)
+  const windowStart = new Date();
+  windowStart.setDate(windowStart.getDate() - 60);
+  windowStart.setHours(0, 0, 0, 0);
+  const windowStartIso = windowStart.toISOString().split('T')[0];
+
+  const windowEnd = new Date();
+  windowEnd.setDate(windowEnd.getDate() + 365);
+  windowEnd.setHours(23, 59, 59, 999);
+  const windowEndIso = windowEnd.toISOString().split('T')[0];
+
+  for (const localItem of localItems) {
+    if (!localItem || !localItem.id) continue;
+    const idStr = String(localItem.id);
+
+    // Skip explicitly deleted items
+    if (isTomb(idStr)) continue;
+
+    // 1. If remote Google Calendar has this item, adopt the latest remote properties
+    if (remoteMap.has(idStr)) {
+      const remoteItem = remoteMap.get(idStr);
+      result.push({
+        ...localItem,
+        ...remoteItem,
+        // Preserve local properties if remote doesn't specify
+        completed: localItem.completed !== undefined ? localItem.completed : remoteItem.completed,
+        priority: localItem.priority || remoteItem.priority,
+        category: localItem.category || remoteItem.category,
+      });
+      processedRemoteIds.add(idStr);
+      continue;
+    }
+
+    // 2. Also match by date + title if remote item exists with different ID (e.g. temporary local ID -> Google ID)
+    const matchByTitleAndDate = remoteGoogleItems.find(r => 
+      r && !processedRemoteIds.has(String(r.id)) && 
+      r.date === localItem.date && 
+      r.title?.trim().toLowerCase() === localItem.title?.trim().toLowerCase()
+    );
+    if (matchByTitleAndDate) {
+      const remoteIdStr = String(matchByTitleAndDate.id);
+      result.push({
+        ...localItem,
+        ...matchByTitleAndDate,
+        id: matchByTitleAndDate.id,
+        isGoogle: true,
+        completed: localItem.completed !== undefined ? localItem.completed : matchByTitleAndDate.completed,
+      });
+      processedRemoteIds.add(remoteIdStr);
+      continue;
+    }
+
+    // 3. Local item NOT found on Google:
+    // Retain if:
+    // a) Local non-Google item (!localItem.isGoogle)
+    // b) Recently created or modified (within 10 minutes) to account for Google API propagation latency
+    // c) Item date is outside the fetch query window (< windowStartIso or > windowEndIso)
+    const itemDate = localItem.date || '';
+    const isOutsideWindow = itemDate && (itemDate < windowStartIso || itemDate > windowEndIso);
+    const itemAge = localItem.createdAt ? (now - new Date(localItem.createdAt).getTime()) : 0;
+    const isRecentlyCreated = !localItem.createdAt || itemAge < 10 * 60 * 1000;
+
+    if (!localItem.isGoogle || isOutsideWindow || isRecentlyCreated) {
+      result.push(localItem);
+    }
+  }
+
+  // 4. Add new remote Google items that didn't exist locally
   for (const remoteItem of remoteGoogleItems) {
+    if (!remoteItem || !remoteItem.id) continue;
     const idStr = String(remoteItem.id);
-    if (idStr && !processedRemoteIds.has(idStr)) {
-      newRemoteItems.push(remoteItem);
+    if (!isTomb(idStr) && !processedRemoteIds.has(idStr)) {
+      result.push(remoteItem);
       processedRemoteIds.add(idStr);
     }
   }
 
-  return [...localNonGoogleItems, ...matchedGoogleItems, ...newRemoteItems];
+  return result;
 }
 
 /**

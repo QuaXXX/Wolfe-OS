@@ -819,103 +819,116 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
   }
 
   const startRange = new Date();
-  startRange.setFullYear(startRange.getFullYear() - 2);
+  startRange.setDate(startRange.getDate() - 60);
   startRange.setHours(0, 0, 0, 0);
 
   const endRange = new Date();
-  endRange.setFullYear(endRange.getFullYear() + 2);
+  endRange.setDate(endRange.getDate() + 365);
   endRange.setHours(23, 59, 59, 999);
 
   let allEvents = [];
   const calendarIds = await getUserCalendarIds();
 
   for (const calId of calendarIds) {
-    try {
-      const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`);
-      url.searchParams.append('timeMin', startRange.toISOString());
-      url.searchParams.append('timeMax', endRange.toISOString());
-      url.searchParams.append('singleEvents', 'true');
-      url.searchParams.append('orderBy', 'startTime');
-      url.searchParams.append('maxResults', '500');
+    let pageToken = null;
+    let pageCount = 0;
+    const MAX_PAGES = 5; // Up to 1,250 events per calendar
 
-      let response = await authedGoogleFetch(url.toString(), {
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        const errMsg = errData.error?.message || `Google Calendar API error (${response.status})`;
-        console.warn(`Google Calendar API error for ${calId} (${response.status}):`, errMsg);
-        if (response.status === 401 || response.status === 403) {
-          throw new Error(`Google authorization expired or rejected (${response.status}). Please reconnect calendar.`);
+    do {
+      try {
+        const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`);
+        url.searchParams.append('timeMin', startRange.toISOString());
+        url.searchParams.append('timeMax', endRange.toISOString());
+        url.searchParams.append('singleEvents', 'true');
+        url.searchParams.append('orderBy', 'startTime');
+        url.searchParams.append('maxResults', '250');
+        if (pageToken) {
+          url.searchParams.append('pageToken', pageToken);
         }
-        if (calId === 'primary') {
-          throw new Error(`Google Calendar primary sync failed (${response.status}): ${errMsg}`);
-        }
-      } else {
-        const data = await response.json();
-        const rawItems = data.items || [];
 
-        const parsed = rawItems.map(item => {
-          const isAllDay = !item.start?.dateTime && !!item.start?.date;
-          const dateStr = item.start?.dateTime ? item.start.dateTime.split('T')[0] : (item.start?.date || getTodayIso());
-          const timeString = isAllDay ? "All Day" : formatEventTimeRange(item.start?.dateTime, item.end?.dateTime);
-
-          const summary = item.summary || "Untitled Event";
-          const lowerSummary = summary.toLowerCase().trim();
-
-          let type = "event";
-          if (item.colorId === "11" || summary.startsWith('🚨') || lowerSummary.startsWith('deadline:') || (isAllDay && lowerSummary.includes('deadline')) || calId.toLowerCase().includes('deadline')) {
-            type = "deadline";
-          } else if (item.colorId === "8" || summary.startsWith('✅') || lowerSummary.startsWith('task:')) {
-            type = "task";
-          } else if (summary.startsWith('🔔') || lowerSummary.startsWith('reminder:')) {
-            type = "reminder";
-          }
-
-          let category = "General";
-          if (lowerSummary.includes('class') || lowerSummary.includes('study') || lowerSummary.includes('exam') || lowerSummary.includes('cs ') || lowerSummary.includes('homework') || lowerSummary.includes('math') || lowerSummary.includes('chemistry') || lowerSummary.includes('physics') || lowerSummary.includes('diploma') || lowerSummary.includes('calculus') || lowerSummary.includes('statistics') || calId.toLowerCase().includes('school')) {
-            category = "School";
-          } else if (lowerSummary.includes('trade') || lowerSummary.includes('market') || lowerSummary.includes('stock')) {
-            category = "Trading";
-          } else if (lowerSummary.includes('gym') || lowerSummary.includes('workout') || lowerSummary.includes('push') || lowerSummary.includes('pull') || lowerSummary.includes('legs') || lowerSummary.includes('run')) {
-            category = "Fitness";
-          } else if (lowerSummary.includes('lunch') || lowerSummary.includes('dinner') || lowerSummary.includes('meal')) {
-            category = "Nutrition";
-          }
-
-          const cleanTitle = summary
-            .replace(/^🚨\s*Deadline:\s*/i, '')
-            .replace(/^✅\s*Task:\s*/i, '')
-            .replace(/^🔔\s*Reminder:\s*/i, '')
-            .trim();
-
-          return {
-            id: item.id || `gcal-${Date.now()}-${Math.random()}`,
-            type,
-            title: cleanTitle || summary,
-            date: dateStr,
-            time: timeString,
-            isAllDay,
-            colorId: item.colorId || (type === 'deadline' ? '11' : type === 'task' ? '8' : '9'),
-            category,
-            priority: type === 'deadline' ? 'urgent' : 'normal',
-            completed: false,
-            isGoogle: true,
-            htmlLink: item.htmlLink,
-            calendarId: calId
-          };
+        let response = await authedGoogleFetch(url.toString(), {
+          headers: { 'Accept': 'application/json' }
         });
 
-        allEvents = [...allEvents, ...parsed];
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData.error?.message || `Google Calendar API error (${response.status})`;
+          console.warn(`Google Calendar API error for ${calId} (${response.status}):`, errMsg);
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(`Google authorization expired or rejected (${response.status}). Please reconnect calendar.`);
+          }
+          if (calId === 'primary') {
+            throw new Error(`Google Calendar primary sync failed (${response.status}): ${errMsg}`);
+          }
+          break;
+        } else {
+          const data = await response.json();
+          const rawItems = data.items || [];
+
+          const parsed = rawItems.map(item => {
+            const isAllDay = !item.start?.dateTime && !!item.start?.date;
+            const dateStr = item.start?.dateTime ? item.start.dateTime.split('T')[0] : (item.start?.date || getTodayIso());
+            const timeString = isAllDay ? "All Day" : formatEventTimeRange(item.start?.dateTime, item.end?.dateTime);
+
+            const summary = item.summary || "Untitled Event";
+            const lowerSummary = summary.toLowerCase().trim();
+
+            let type = "event";
+            if (item.colorId === "11" || summary.startsWith('🚨') || lowerSummary.startsWith('deadline:') || (isAllDay && lowerSummary.includes('deadline')) || calId.toLowerCase().includes('deadline')) {
+              type = "deadline";
+            } else if (item.colorId === "8" || summary.startsWith('✅') || lowerSummary.startsWith('task:')) {
+              type = "task";
+            } else if (summary.startsWith('🔔') || lowerSummary.startsWith('reminder:')) {
+              type = "reminder";
+            }
+
+            let category = "General";
+            if (lowerSummary.includes('class') || lowerSummary.includes('study') || lowerSummary.includes('exam') || lowerSummary.includes('cs ') || lowerSummary.includes('homework') || lowerSummary.includes('math') || lowerSummary.includes('chemistry') || lowerSummary.includes('physics') || lowerSummary.includes('diploma') || lowerSummary.includes('calculus') || lowerSummary.includes('statistics') || calId.toLowerCase().includes('school')) {
+              category = "School";
+            } else if (lowerSummary.includes('trade') || lowerSummary.includes('market') || lowerSummary.includes('stock')) {
+              category = "Trading";
+            } else if (lowerSummary.includes('gym') || lowerSummary.includes('workout') || lowerSummary.includes('push') || lowerSummary.includes('pull') || lowerSummary.includes('legs') || lowerSummary.includes('run')) {
+              category = "Fitness";
+            } else if (lowerSummary.includes('lunch') || lowerSummary.includes('dinner') || lowerSummary.includes('meal')) {
+              category = "Nutrition";
+            }
+
+            const cleanTitle = summary
+              .replace(/^🚨\s*Deadline:\s*/i, '')
+              .replace(/^✅\s*Task:\s*/i, '')
+              .replace(/^🔔\s*Reminder:\s*/i, '')
+              .trim();
+
+            return {
+              id: item.id || `gcal-${Date.now()}-${Math.random()}`,
+              type,
+              title: cleanTitle || summary,
+              date: dateStr,
+              time: timeString,
+              isAllDay,
+              colorId: item.colorId || (type === 'deadline' ? '11' : type === 'task' ? '8' : '9'),
+              category,
+              priority: type === 'deadline' ? 'urgent' : 'normal',
+              completed: false,
+              isGoogle: true,
+              htmlLink: item.htmlLink,
+              calendarId: calId
+            };
+          });
+
+          allEvents = [...allEvents, ...parsed];
+          pageToken = data.nextPageToken || null;
+          pageCount++;
+        }
+      } catch (err) {
+        console.warn(`Calendar fetch error for ${calId}:`, err);
+        // Re-throw critical authentication and primary calendar errors
+        if (err.message?.includes('expired') || err.message?.includes('unauthorized') || err.message?.includes('rejected') || err.message?.includes('primary')) {
+          throw err;
+        }
+        break;
       }
-    } catch (err) {
-      console.warn(`Calendar fetch error for ${calId}:`, err);
-      // Re-throw critical authentication and primary calendar errors
-      if (err.message?.includes('expired') || err.message?.includes('unauthorized') || err.message?.includes('rejected') || err.message?.includes('primary')) {
-        throw err;
-      }
-    }
+    } while (pageToken && pageCount < MAX_PAGES);
   }
 
   // Also fetch Google Tasks
