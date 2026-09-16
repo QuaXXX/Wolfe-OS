@@ -21,10 +21,8 @@ import {
   Cloud,
   Smartphone,
   Laptop,
-  Dumbbell,
   UtensilsCrossed,
-  TrendingUp,
-  GraduationCap
+  TrendingUp
 } from 'lucide-react';
 import { 
   isGoogleCalendarConnected, 
@@ -113,14 +111,14 @@ export const GoogleCalendarModal = ({
         localStorage.setItem('wolfe_user_signed_in_google', 'true');
       }
 
-      // 2. Immediately trigger 2-way cloud sync across all 6 hubs (Trading, Nutrition, Workouts, Academics, Calendar, Settings)
+      // 2. Immediately trigger 2-way cloud sync across all hubs (Trading, Nutrition, Calendar, Settings)
       const cloudRes = await syncFullOsWithCloud({ forcePush: false });
 
       // 3. Immediately sync Google Calendar & Google Tasks
       await handleSyncNow();
 
       if (cloudRes?.success) {
-        setSyncMessage("All 6 command hubs synchronized across phone & computer!");
+        setSyncMessage("All command hubs synchronized across phone & computer!");
       }
     } catch (err) {
       console.warn("Google sign-in notice:", err);
@@ -387,22 +385,14 @@ export const GoogleCalendarModal = ({
                   <span className="text-slate-300 font-medium">Cross-Device Synchronized Modules</span>
                   <span className="text-[10px] font-mono text-emerald-400">Phone ⇄ Computer</span>
                 </div>
-                <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
                   <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
                     <UtensilsCrossed className="w-3 h-3 text-emerald-400 shrink-0" />
                     <span className="truncate">Nutrition</span>
                   </div>
                   <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
-                    <Dumbbell className="w-3 h-3 text-cyan-400 shrink-0" />
-                    <span className="truncate">Workouts</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
                     <TrendingUp className="w-3 h-3 text-blue-400 shrink-0" />
                     <span className="truncate">Trading</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
-                    <GraduationCap className="w-3 h-3 text-purple-400 shrink-0" />
-                    <span className="truncate">Academics</span>
                   </div>
                   <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-slate-200">
                     <Calendar className="w-3 h-3 text-amber-400 shrink-0" />
@@ -497,7 +487,7 @@ export const GoogleCalendarModal = ({
                   </div>
                   <h4 className="text-sm font-bold text-white tracking-tight">Connect Your Google Account</h4>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                    Access your trading, nutrition, workouts, and calendar as one unified system across all devices with permanent authentication.
+                    Access your trading, nutrition, and calendar as one unified system across all devices with permanent authentication.
                   </p>
                 </div>
 

@@ -56,17 +56,7 @@ export const buildSystemPrompt = (osData) => {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 6);
 
-  // 2. School & Academics Snapshot
-  const courses = osData?.schoolData?.courses || [];
-  const assignments = osData?.schoolData?.assignments || [];
-  const pendingAssignments = assignments.filter(a => !a.completed).slice(0, 6);
-
-  // 3. Workouts & Athletic Snapshot
-  const workoutSplit = osData?.workoutData?.split || 'Push / Pull / Legs';
-  const todayWorkout = osData?.workoutData?.todayWorkout || 'Training';
-  const workoutHistory = osData?.workoutData?.history?.slice(0, 3) || [];
-
-  // 4. Nutrition Snapshot
+  // 2. Nutrition Snapshot
   const consumedCal = osData?.nutritionData?.consumedCalories || 0;
   const targetCal = osData?.nutritionData?.targetCalories || 2750;
   const proteinConsumed = osData?.nutritionData?.consumedProtein || 0;
@@ -78,7 +68,7 @@ export const buildSystemPrompt = (osData) => {
   const todayIsoBrief = getTodayIso();
   const loggedMeals = (osData?.nutritionData?.meals || []).filter(m => m?.date === todayIsoBrief);
 
-  // 5. Day Trading & Quantitative War Room Snapshot
+  // 3. Day Trading & Quantitative War Room Snapshot
   let latestBrief = null;
   try {
     const briefs = getSavedHermesBriefs();
@@ -105,7 +95,7 @@ export const buildSystemPrompt = (osData) => {
   const activePaperTrades = paperPos.filter(p => p.status === 'ACTIVE');
   const restingLimitOrders = paperPos.filter(p => p.status === 'PENDING_ENTRY');
 
-  // 6. Obsidian Vault & Networked Thought Knowledge Base Snapshot
+  // 4. Obsidian Vault & Networked Thought Knowledge Base Snapshot
   let vaultMeta = { connected: false, totalNotes: 0, folderName: null, courses: [] };
   let vaultFiles = [];
   try {
@@ -118,7 +108,7 @@ export const buildSystemPrompt = (osData) => {
 
 ABOUT ZACH WOLFE:
 - Name: Zach Wolfe (address him as Zach).
-- Role: Ambitious university student, disciplined athlete, and active investor/trader.
+- Role: Ambitious investor, student, and operator.
 - Operating Style: Values efficiency, precision, clear actionability, zero fluff, and high intellectual rigor.
 - Tone: Sharp, proactive, articulate, supportive, and executive-level customized.
 
@@ -127,15 +117,9 @@ CURRENT TIME & DATE:
 - Day: ${dayOfWeek}
 - Local Time: ${timeStr}
 
-LIVE SYSTEM STATE & OPERATIONAL AWARENESS ACROSS ALL 6 HUBS:
+LIVE SYSTEM STATE & OPERATIONAL AWARENESS ACROSS ALL 4 COMMAND HUBS:
 
-1. ACADEMICS & UNIVERSITY COURSES:
-- Current GPA: ${osData?.schoolData?.gpa || '—'}
-- Enrolled Courses: ${courses.map(c => `${c.code || c.name}`).join(', ') || 'Connected'}
-- Pending Assignments & Graded Deliverables:
-${pendingAssignments.map(a => `  • [${a.course || 'Course'}] ${a.title} (Due: ${a.dueDate || 'Soon'}, Weight: ${a.weight || 'Graded'})`).join('\n') || '  • All current assignments submitted or up-to-date.'}
-
-2. SCHEDULE & TIMELINE (TODAY & UPCOMING):
+1. SCHEDULE & TIMELINE (TODAY & UPCOMING):
 - Hard Deadlines Today:
 ${todayDeadlines.map(d => `  • 🚨 [DEADLINE] ${d.title} (${d.time || 'End of Day'})`).join('\n') || '  • No hard deadlines today.'}
 - Events & Scheduled Blocks Today:
@@ -145,18 +129,13 @@ ${todayTasks.map(t => `  • [${t.completed ? 'COMPLETED' : 'TODO'}] ${t.title}`
 - Upcoming Deadlines (Next 7 Days):
 ${upcomingDeadlines.map(u => `  • ${u.date}: ${u.title}`).join('\n') || '  • No upcoming deadlines in the next week.'}
 
-3. ATHLETICS & WORKOUTS:
-- Training Split: ${workoutSplit}
-- Today's Session: ${todayWorkout}
-${workoutHistory.length > 0 ? `- Recent Workout History: ${workoutHistory.map(w => `${w.date}: ${w.name}`).join(', ')}` : ''}
-
-4. NUTRITION & MACROS:
+2. NUTRITION & MACROS:
 - Daily Calorie Budget: ${consumedCal} / ${targetCal} kcal (${Math.max(0, targetCal - consumedCal)} kcal remaining)
 - Protein: ${proteinConsumed}g / ${proteinTarget}g (${Math.max(0, proteinTarget - proteinConsumed)}g remaining)
 - Carbohydrates: ${carbsConsumed}g / ${carbsTarget}g | Fats: ${fatConsumed}g / ${fatTarget}g
 - Today's Logged Meals: ${loggedMeals.map(m => `${m.name} (${m.calories} kcal)`).join(', ') || 'No meals logged yet today'}
 
-5. DAY TRADING & QUANTITATIVE WAR ROOM:
+3. DAY TRADING & QUANTITATIVE WAR ROOM:
 - Session P&L: +$${osData?.tradingData?.dayPnl || '0.00'} (+${osData?.tradingData?.dayPnlPercent || '0.00'}%)
 - Overall Performance: ${tradeStats.winRate || '70'}% Historical Win Rate across ${tradeStats.totalTrades || '0'} logged trades (Realized P&L: ${tradeStats.totalPnlUSD >= 0 ? '+' : ''}$${(tradeStats.totalPnlUSD || 0).toFixed(2)})
 - Active Positions (${activePaperTrades.length + hlPos.length} running):
@@ -170,14 +149,9 @@ ${latestBrief?.macroPoints?.[1]?.items?.slice(0, 3).map(it => `    - ${it}`).joi
   • High-Conviction Setups Vetted by Hermes Swarm & Chronos Backtesting:
 ${latestBrief?.highConvictionPlays?.slice(0, 6).map(p => `    - [${p.convictionGrade || 'A'}] ${p.ticker} (${p.bias}): Trigger Entry $${p.entryNumeric || p.entryPrice}, Stop $${p.stopNumeric || p.stopPrice}, TP $${p.target2RNumeric || p.target2R} | R:R ${p.riskRewardRatio || '1:3'} | Chronos: ${p.chronosBacktest?.historicalWinRate || '68%'} WR (${p.chronosBacktest?.verdict || p.chronosBacktest?.status || 'PASSED'}) | Scanned: ${p.createdAt ? (new Date(p.createdAt).toDateString() === new Date().toDateString() ? `Today at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : `${new Date(p.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`) : 'Today'}`).join('\n') || '    - Run scanner in War Room to refresh candidate trade setups.'}
 
-6. OBSIDIAN VAULT & NETWORKED THOUGHT SECOND BRAIN:
-- Status: ${vaultMeta.connected ? `Connected ("${vaultMeta.folderName}" — ${vaultFiles.length || vaultMeta.totalNotes || 0} indexed notes)` : 'Not Connected'}
-- Academic Courses in Vault: ${vaultMeta.courses?.join(', ') || 'None'}
-${vaultFiles.length > 0 ? `- Indexed Vault Notes: ${vaultFiles.slice(0, 10).map(f => `[[${f.course || 'School'}/${f.name}]]`).join(', ')}` : ''}
-
 SYSTEM INTERACTION DIRECTIVES:
-- You have 100% full situational awareness of Zach's entire operational cockpit across all 6 hubs.
-- When Zach asks about his trades, his schedule, his schoolwork, notes, or his workouts, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
+- You have 100% full situational awareness of Zach's entire operational cockpit across all 4 hubs: Home Hub, Calendar & Timeline, Nutrition, and Day Trading.
+- When Zach asks about his trades, his schedule, tasks, or his nutrition, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
 - CALENDAR & SCHEDULING MANDATE:
   • When asked to add, create, schedule, or log an event, deadline, task, reminder, exam, meeting, or workout, ALWAYS set "actionType": "CREATE_CALENDAR_ITEM" (or "BATCH_CREATE_CALENDAR_ITEMS" for multiple).
   • Set "date" strictly to "YYYY-MM-DD" formatted string (Today is ${todayIso}, tomorrow is ${addDays(todayIso, 1)}).
@@ -207,7 +181,7 @@ RESPOND ONLY IN VALID JSON:
 {
   "title": "Short 2-3 word topic title",
   "message": "Direct executive response text",
-  "targetView": "home" | "calendar" | "school" | "workouts" | "nutrition" | "trading",
+  "targetView": "home" | "calendar" | "nutrition" | "trading",
   "actionLabel": "Button Label",
   "actionType": "CREATE_CALENDAR_ITEM" | "BATCH_CREATE_CALENDAR_ITEMS" | "CLEAR_CALENDAR_ITEMS" | "DELETE_SPECIFIC_ITEM" | "ASK_CLARIFICATION",
   "targetDate": "YYYY-MM-DD" (or "ALL"),
@@ -644,7 +618,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
   if (lower === 'hi' || lower === 'hello' || lower === 'hey' || lower === 'sup' || lower === "what's up" || lower === 'yo') {
     return {
       title: "Wolfe OS",
-      message: `Hey Zach! All 5 command hubs (Academics, Workouts, Nutrition, Trading, Timeline) are in sync. What are we tackling today?`,
+      message: `Hey Zach! All 4 command hubs (Home Hub, Calendar, Nutrition, Trading) are in sync. What are we tackling today?`,
       targetView: "home",
       actionLabel: "View Dashboard"
     };
@@ -732,7 +706,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
   }
 
   // 7. SCHEDULE & AGENDA INQUIRIES
-  if (lower.includes('schedule') || lower.includes('agenda') || lower.includes('what do i have') || lower.includes('my day') || (lower.includes('today') && !lower.includes('workout') && !lower.includes('eat'))) {
+  if (lower.includes('schedule') || lower.includes('agenda') || lower.includes('what do i have') || lower.includes('my day') || (lower.includes('today') && !lower.includes('eat'))) {
     const calendarItems = osData?.calendarData?.items || [];
     const todayItems = calendarItems.filter(it => it.date === todayIso);
     const deadlines = todayItems.filter(it => it.type === 'deadline');
@@ -761,19 +735,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
     }
   }
 
-  // 8. WORKOUT & ATHLETIC INQUIRIES
-  if (lower.includes('workout') || lower.includes('gym') || lower.includes('lift') || lower.includes('exercise') || lower.includes('split') || lower.includes('training')) {
-    const split = osData?.workoutData?.split || 'Push / Pull / Legs';
-    const todayWorkout = osData?.workoutData?.todayWorkout || 'Training Session';
-    return {
-      title: "🏋️ Workout Focus",
-      message: `Today's session is ${todayWorkout} (${split} split). Fuel up and execute your sets with high intensity.`,
-      targetView: "workouts",
-      actionLabel: "View Workouts"
-    };
-  }
-
-  // 9. NUTRITION & CALORIE INQUIRIES
+  // 8. NUTRITION & CALORIE INQUIRIES
   if (lower.includes('calorie') || lower.includes('calories') || lower.includes('macro') || lower.includes('nutrition') || lower.includes('protein') || lower.includes('carbs') || lower.includes('food') || lower.includes('eat')) {
     const consumed = osData?.nutritionData?.consumedCalories || 0;
     const target = osData?.nutritionData?.targetCalories || 2750;
@@ -791,7 +753,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
   // General Questions
   return {
     title: "Wolfe OS",
-    message: `All 5 command hubs are synchronized: Academics: GPA ${osData?.schoolData?.gpa || '—'} | Trading: Day P&L +$${osData?.tradingData?.dayPnl || '0.00'} | Schedule: Active | Fitness: ${osData?.workoutData?.todayWorkout || 'Training'} | Nutrition: ${osData?.nutritionData?.consumedCalories || 0} / ${osData?.nutritionData?.targetCalories || 2750} kcal.`,
+    message: `All 4 command hubs are synchronized: Trading: Day P&L +$${osData?.tradingData?.dayPnl || '0.00'} | Schedule: Active | Nutrition: ${osData?.nutritionData?.consumedCalories || 0} / ${osData?.nutritionData?.targetCalories || 2750} kcal.`,
     targetView: "home",
     actionLabel: "Dashboard"
   };
@@ -813,7 +775,7 @@ export async function processVoiceOrTextCommand(
   if (!prompt || !prompt.trim()) {
     return {
       title: "Wolfe Assistant",
-      message: "I'm listening. How can I assist with your schedule, courses, trading, or workouts?",
+      message: "I'm listening. How can I assist with your schedule, tasks, trading, or nutrition?",
       targetView: "home",
       actionLabel: "View Dashboard"
     };

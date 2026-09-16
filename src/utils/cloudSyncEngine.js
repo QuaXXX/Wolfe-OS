@@ -1,10 +1,8 @@
 /**
  * Wolfe OS Unified Cross-Device Cloud Sync Engine
- * Synchronizes all 6 command hubs between Phone and Desktop:
+ * Synchronizes core command hubs between Phone and Desktop:
  * - Nutrition (meals, macros, targets, weight history, staples)
- * - Workouts (splits, exercises, sets, history)
  * - Trading (watchlist, positions, journal, paper trader, Hermes briefs)
- * - Academics / School (courses, flashcard decks, quizzes, weak spots)
  * - Calendar / Timeline (schedule, events, tasks)
  * - Settings (theme color, AI config, module visibility)
  */
@@ -28,9 +26,7 @@ export const SYNC_KEYS = {
   CALENDAR: 'wolfe_os_calendar_v5',
   CALENDAR_FALLBACK: 'wolfe_calendar_data',
   NUTRITION: 'wolfe_nutrition_data',
-  WORKOUTS: 'wolfe_workout_data',
   TRADING: 'wolfe_trading_data',
-  SCHOOL: 'wolfe_school_data',
   // Extended trading
   TRADING_CONFIG: 'wolfe_trading_config_v1',
   TRADING_WATCHLIST: 'wolfe_trading_watchlist_v1',
@@ -40,11 +36,6 @@ export const SYNC_KEYS = {
   PAPER_ACCOUNT: 'wolfe_paper_account_v1',
   PAPER_POSITIONS: 'wolfe_paper_positions_v1',
   PAPER_HISTORY: 'wolfe_paper_history_v1',
-  // Extended study
-  STUDY_DECKS: 'wolfe_study_decks',
-  STUDY_QUIZZES: 'wolfe_study_quizzes',
-  STUDY_WEAK_SPOTS: 'wolfe_study_weak_spots',
-  STUDY_COURSES: 'wolfe_study_courses',
   // Cloud Sync Metadata
   CLOUD_META: 'wolfe_cloud_sync_meta_v1',
   // Permanent Deletion Tombstone Ledger
@@ -164,9 +155,7 @@ export function exportFullOsState() {
     weightHistory: normalizedWeight,
     weightLogs: normalizedWeight
   };
-  const workouts = readStorageJson(SYNC_KEYS.WORKOUTS) || {};
   const trading = readStorageJson(SYNC_KEYS.TRADING) || {};
-  const school = readStorageJson(SYNC_KEYS.SCHOOL) || {};
 
   // Extended modules
   const tradingConfig = readStorageJson(SYNC_KEYS.TRADING_CONFIG) || {};
@@ -178,17 +167,11 @@ export function exportFullOsState() {
   const paperPositions = readStorageJson(SYNC_KEYS.PAPER_POSITIONS) || [];
   const paperHistory = readStorageJson(SYNC_KEYS.PAPER_HISTORY) || [];
 
-  const studyDecks = readStorageJson(SYNC_KEYS.STUDY_DECKS) || [];
-  const studyQuizzes = readStorageJson(SYNC_KEYS.STUDY_QUIZZES) || [];
-  const studyWeakSpots = readStorageJson(SYNC_KEYS.STUDY_WEAK_SPOTS) || [];
-  const studyCourses = readStorageJson(SYNC_KEYS.STUDY_COURSES) || [];
-
   const meta = readStorageJson(SYNC_KEYS.CLOUD_META) || {};
 
   const calculatedLastUpdated = Math.max(
     meta.lastUpdated || 0,
     nutrition.updatedAt || 0,
-    workouts.updatedAt || 0,
     trading.updatedAt || 0,
     lastLocalMutationAt || 0,
     (isLocalMutationRecent(10000) ? Date.now() : 0)
@@ -202,7 +185,6 @@ export function exportFullOsState() {
     _tombstones: getTombstones(),
     googleAccount: account ? { email: account.email, name: account.name, picture: account.picture } : null,
     nutrition,
-    workouts,
     trading: {
       dashboard: trading,
       config: tradingConfig,
@@ -213,13 +195,6 @@ export function exportFullOsState() {
       paperAccount,
       paperPositions,
       paperHistory
-    },
-    school: {
-      dashboard: school,
-      decks: studyDecks,
-      quizzes: studyQuizzes,
-      weakSpots: studyWeakSpots,
-      courses: studyCourses
     },
     calendar,
     settings
@@ -480,31 +455,7 @@ export function mergeOsState(localVault, remoteVault) {
     kitchenCalibration: mergedCalibration
   };
 
-  // 2. WORKOUTS MERGE
-  const localWork = localVault.workouts || {};
-  const remoteWork = remoteVault.workouts || {};
-  const baseWork = localIsNewerNut ? localWork : remoteWork;
-
-  const historyMap = new Map();
-  (remoteWork.history || []).forEach(h => {
-    const k = h.id || `${h.date}_${h.routine}`;
-    if (!isTombstoned(k, h.updatedAt || new Date(h.date).getTime())) {
-      historyMap.set(k, h);
-    }
-  });
-  (localWork.history || []).forEach(h => {
-    const k = h.id || `${h.date}_${h.routine}`;
-    if (!isTombstoned(k, h.updatedAt || new Date(h.date).getTime())) {
-      historyMap.set(k, { ...(historyMap.get(k) || {}), ...h });
-    }
-  });
-
-  merged.workouts = {
-    ...baseWork,
-    history: Array.from(historyMap.values())
-  };
-
-  // 3. TRADING MERGE
+  // 2. TRADING MERGE
   const localTrade = localVault.trading || {};
   const remoteTrade = remoteVault.trading || {};
   const localIsNewerTrade = isMutatingLocally || (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
@@ -557,43 +508,7 @@ export function mergeOsState(localVault, remoteVault) {
     paperHistory: Array.from(paperHistMap.values())
   };
 
-  // 4. ACADEMICS / SCHOOL MERGE
-  const localSchool = localVault.school || {};
-  const remoteSchool = remoteVault.school || {};
-
-  const decksMap = new Map();
-  (remoteSchool.decks || []).forEach(d => {
-    if (!isTombstoned(d.id, d.updatedAt || new Date(d.lastStudied || 0).getTime())) {
-      decksMap.set(d.id, d);
-    }
-  });
-  (localSchool.decks || []).forEach(d => {
-    if (!isTombstoned(d.id, d.updatedAt || new Date(d.lastStudied || 0).getTime())) {
-      decksMap.set(d.id, { ...(decksMap.get(d.id) || {}), ...d });
-    }
-  });
-
-  const quizMap = new Map();
-  (remoteSchool.quizzes || []).forEach(q => {
-    if (!isTombstoned(q.id, q.updatedAt)) {
-      quizMap.set(q.id, q);
-    }
-  });
-  (localSchool.quizzes || []).forEach(q => {
-    if (!isTombstoned(q.id, q.updatedAt)) {
-      quizMap.set(q.id, { ...(quizMap.get(q.id) || {}), ...q });
-    }
-  });
-
-  merged.school = {
-    dashboard: localIsNewerNut ? (localSchool.dashboard || {}) : (remoteSchool.dashboard || {}),
-    decks: Array.from(decksMap.values()),
-    quizzes: Array.from(quizMap.values()),
-    weakSpots: localIsNewerNut ? (localSchool.weakSpots || []) : (remoteSchool.weakSpots || []),
-    courses: localIsNewerNut ? (localSchool.courses || []) : (remoteSchool.courses || [])
-  };
-
-  // 5. CALENDAR MERGE (Google Calendar is single master when connected)
+  // 3. CALENDAR MERGE (Google Calendar is single master when connected)
   const localCalItems = (localVault.calendar?.items || []).filter(it => !isTombstoned(it.id, it.updatedAt));
   const remoteCalItems = (remoteVault.calendar?.items || []).filter(it => !isTombstoned(it.id, it.updatedAt));
   merged.calendar = {
@@ -765,11 +680,6 @@ export function importFullOsState(vault) {
     };
   }
 
-  const cleanWorkouts = vault.workouts ? {
-    ...vault.workouts,
-    history: (vault.workouts.history || []).filter(h => !isTomb(h.id) && !isTomb(`${h.date}_${h.routine}`))
-  } : null;
-
   const cleanTrading = vault.trading ? {
     ...vault.trading,
     watchlist: (vault.trading.watchlist || []).filter(w => !isTomb(w.symbol)),
@@ -777,24 +687,12 @@ export function importFullOsState(vault) {
     paperHistory: (vault.trading.paperHistory || []).filter(p => !isTomb(p.id))
   } : null;
 
-  const cleanSchool = vault.school ? {
-    ...vault.school,
-    decks: (vault.school.decks || []).filter(d => !isTomb(d.id)),
-    quizzes: (vault.school.quizzes || []).filter(q => !isTomb(q.id))
-  } : null;
-
   // 1. Core modules
   if (cleanNutrition) {
     writeStorageJson(SYNC_KEYS.NUTRITION, cleanNutrition);
   }
-  if (cleanWorkouts) {
-    writeStorageJson(SYNC_KEYS.WORKOUTS, cleanWorkouts);
-  }
   if (cleanTrading?.dashboard) {
     writeStorageJson(SYNC_KEYS.TRADING, cleanTrading.dashboard);
-  }
-  if (cleanSchool?.dashboard) {
-    writeStorageJson(SYNC_KEYS.SCHOOL, cleanSchool.dashboard);
   }
   // Always persist clean calendar from incoming vault as resilient local backup
   if (vault.calendar) {
@@ -820,13 +718,7 @@ export function importFullOsState(vault) {
   if (cleanTrading?.paperPositions) writeStorageJson(SYNC_KEYS.PAPER_POSITIONS, cleanTrading.paperPositions);
   if (cleanTrading?.paperHistory) writeStorageJson(SYNC_KEYS.PAPER_HISTORY, cleanTrading.paperHistory);
 
-  // 3. Extended study
-  if (cleanSchool?.decks) writeStorageJson(SYNC_KEYS.STUDY_DECKS, cleanSchool.decks);
-  if (cleanSchool?.quizzes) writeStorageJson(SYNC_KEYS.STUDY_QUIZZES, cleanSchool.quizzes);
-  if (cleanSchool?.weakSpots) writeStorageJson(SYNC_KEYS.STUDY_WEAK_SPOTS, cleanSchool.weakSpots);
-  if (cleanSchool?.courses) writeStorageJson(SYNC_KEYS.STUDY_COURSES, cleanSchool.courses);
-
-  // 4. Update cloud sync metadata
+  // 3. Update cloud sync metadata
   writeStorageJson(SYNC_KEYS.CLOUD_META, {
     lastSyncedAt: Date.now(),
     lastUpdated: vault.lastUpdated || Date.now(),
@@ -838,9 +730,7 @@ export function importFullOsState(vault) {
     ...vault,
     _tombstones: activeTombstones,
     nutrition: cleanNutrition || vault.nutrition,
-    workouts: cleanWorkouts || vault.workouts,
-    trading: cleanTrading || vault.trading,
-    school: cleanSchool || vault.school
+    trading: cleanTrading || vault.trading
   };
 
   // 5. Dispatch live window event so React state updates without page reload

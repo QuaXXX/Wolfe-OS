@@ -62,9 +62,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     setSettings,
     setCalendarData,
     setNutritionData,
-    setWorkoutData,
     setTradingData,
-    setSchoolData,
     onNavigate,
     onClearCalendar,
     onDeleteSpecificItem,
@@ -76,13 +74,11 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   // ==========================================
   // 1. NAVIGATION SHORTCUTS
   // ==========================================
-  const navMatch = text.match(/^(?:go\s+to|open|show|switch\s+to|navigate\s+to|take\s+me\s+to)\s+(home|dashboard|calendar|schedule|timeline|school|academics|workouts?|gym|fitness|nutrition|diet|food|meals?|trading|stocks?|markets?)$/i);
+  const navMatch = text.match(/^(?:go\s+to|open|show|switch\s+to|navigate\s+to|take\s+me\s+to)\s+(home|dashboard|calendar|schedule|timeline|nutrition|diet|food|meals?|trading|stocks?|markets?)$/i);
   if (navMatch) {
     const target = navMatch[1].toLowerCase();
     let view = 'home';
     if (target.includes('cal') || target.includes('sched') || target.includes('time')) view = 'calendar';
-    else if (target.includes('school') || target.includes('acad')) view = 'school';
-    else if (target.includes('work') || target.includes('gym') || target.includes('fit')) view = 'workouts';
     else if (target.includes('nutri') || target.includes('diet') || target.includes('food') || target.includes('meal')) view = 'nutrition';
     else if (target.includes('trad') || target.includes('stock') || target.includes('market')) view = 'trading';
 
@@ -620,44 +616,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   }
 
   // ==========================================
-  // 5. WORKOUTS & PRs
-  // ==========================================
-  // Complete Workout / Finish Gym
-  if (text.match(/\b(?:finish|finished|complete|completed|done\s+with)\s+(?:today'?s?\s+)?(?:workout|gym|session|training|lifting|push\s+day|pull\s+day|leg\s+day)\b/i) || text.match(/^workout\s+done$/i)) {
-    if (setWorkoutData) {
-      setWorkoutData(prev => ({
-        ...prev,
-        completedDaysThisWeek: Math.min(prev?.targetDaysThisWeek || 5, (prev?.completedDaysThisWeek || 4) + 1)
-      }));
-    }
-    return {
-      handled: true,
-      confetti: true,
-      title: "🏋️ Workout Completed",
-      message: "Logged workout completed! Target week progress updated. Great effort!",
-      targetView: "workouts"
-    };
-  }
-
-  // Log PR (Personal Record)
-  // Matches: "log pr bench 255 lbs", "new pr squat 315", "hit a pr on deadlift 405 lbs"
-  const prMatch = text.match(/\b(?:log|new|hit|set)\s*(?:a\s+)?pr\s*(?:on|for)?\s*([a-z\s]+?)\s*(\d{2,4})\s*(?:lbs?|kg|pounds?)?\b/i);
-  if (prMatch) {
-    const exercise = prMatch[1].trim();
-    const weight = prMatch[2];
-    const prStr = `${exercise.charAt(0).toUpperCase() + exercise.slice(1)} ${weight} lbs`;
-
-    return {
-      handled: true,
-      confetti: true,
-      title: "🏆 New PR Logged!",
-      message: `Boom! Logged new PR: ${prStr}. Keep pushing!`,
-      targetView: "workouts"
-    };
-  }
-
-  // ==========================================
-  // 6. DAY TRADING QUICK LOGS
+  // 5. DAY TRADING QUICK LOGS
   // ==========================================
   // Log Trade Win/Loss
   // Matches: "log trade +350", "log win 400", "log loss 150", "made $500 on trade", "lost $120"
@@ -788,19 +747,6 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     }
   }
 
-  // Query Workout
-  if (text.match(/\b(?:what(?:'s|\s+is)\s+my\s+workout|workout\s+today|what\s+are\s+we\s+lifting|today(?:'s)?\s+workout)\b/i) || text === 'workout') {
-    const split = osData?.workoutData?.split || 'Push / Pull / Legs';
-    const todayWorkout = osData?.workoutData?.todayWorkout || 'Training Session';
-    return {
-      handled: true,
-      title: "🏋️ Today's Workout",
-      message: `${todayWorkout} (${split} split). Time to get after it.`,
-      targetView: "workouts",
-      actionLabel: "View Workouts"
-    };
-  }
-
   // Query Nutrition / Calories
   if (text.match(/\b(?:how\s+many\s+calories\s+left|calories\s+left|nutrition\s+status|macro\s+status|how\s+much\s+protein)\b/i) || text === 'calories' || text === 'macros') {
     const consumed = osData?.nutritionData?.consumedCalories || 0;
@@ -814,78 +760,6 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       message: `${consumed} / ${target} kcal (${remaining} kcal remaining). Protein: ${protein}g / ${proteinTarget}g.`,
       targetView: "nutrition",
       actionLabel: "View Nutrition"
-    };
-  }
-
-  // ==========================================
-  // 7. ACADEMICS / STUDY LOGS
-  // ==========================================
-  // Log Study Time
-  const studyMatch = text.match(/\b(?:log|studied|add)\s*(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\s*(?:of\s+)?(?:study|studying)?\b/i) ||
-                     text.match(/\b(?:log|studied|add)\s*(\d+)\s*(?:min|mins|minutes)\s*(?:of\s+)?(?:study|studying)?\b/i);
-  if (studyMatch) {
-    const isMinutes = text.includes('min');
-    const val = parseFloat(studyMatch[1]);
-    const hoursAdded = isMinutes ? Math.round((val / 60) * 10) / 10 : val;
-
-    if (setSchoolData) {
-      setSchoolData(prev => ({
-        ...prev,
-        studyHoursThisWeek: (prev?.studyHoursThisWeek || 14) + hoursAdded
-      }));
-    }
-    return {
-      handled: true,
-      title: "🎓 Study Session Logged",
-      message: `Logged +${hoursAdded}h of study time. Academic momentum!`,
-      targetView: "school"
-    };
-  }
-
-  // Active Recall Flashcards Shortcut
-  if (text.match(/\b(?:flashcards?|study\s+cards?|make\s+flashcards?|anki)\b/i)) {
-    if (onNavigate) onNavigate('school');
-    return {
-      handled: true,
-      title: "⚡ Active Recall Flashcards",
-      message: "Opening Flashcard Deck simulator in School Hub.",
-      targetView: "school"
-    };
-  }
-
-  // Practice Quiz / Exam Simulator Shortcut
-  if (text.match(/\b(?:quiz|practice\s+quiz|quiz\s+me|practice\s+exam|mock\s+exam|test\s+me)\b/i)) {
-    if (onNavigate) onNavigate('school');
-    return {
-      handled: true,
-      title: "📝 Practice Exam Simulator",
-      message: "Opening Practice Quiz in School Hub.",
-      targetView: "school"
-    };
-  }
-
-  // Prof Email Drafter Shortcut
-  if (text.match(/\b(?:email\s+(?:prof|professor|instructor|ta)|draft\s+email|contact\s+prof)\b/i)) {
-    if (onNavigate) onNavigate('school');
-    return {
-      handled: true,
-      title: "📧 Prof Email Drafter",
-      message: "Opening Syllabus-Compliant Email Drafter in School Hub.",
-      targetView: "school"
-    };
-  }
-
-  // Obsidian Vault Search Shortcut
-  if (text.match(/\b(?:search\s+vault|ask\s+vault|find\s+in\s+notes|obsidian\s+search)\b/i)) {
-    if (onNavigate) onNavigate('school');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('open-vault-search'));
-    }
-    return {
-      handled: true,
-      title: "🔍 Ask My Obsidian Vault",
-      message: "Opening Semantic Vault Search in School Hub.",
-      targetView: "school"
     };
   }
 

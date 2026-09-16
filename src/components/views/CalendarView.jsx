@@ -25,7 +25,6 @@ import {
   GOOGLE_COLOR_MAP
 } from '../../utils/calendarUtils';
 import { parseTimeToMinutes } from '../../utils/calendarParser';
-import { SyllabusIngestionModal } from '../school/SyllabusIngestionModal';
 import { isGoogleCalendarConnected } from '../../utils/googleCalendarService';
 
 export const CalendarView = ({ 
@@ -49,7 +48,6 @@ export const CalendarView = ({
   
   // Quick Add Item Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
   const [itemType, setItemType] = useState('event'); // 'event', 'deadline', 'task', 'reminder'
   const [itemTitle, setItemTitle] = useState('');
   const [itemDate, setItemDate] = useState(todayIso);
@@ -189,7 +187,7 @@ export const CalendarView = ({
   // Keyboard navigation when in calendar view
   useEffect(() => {
     const handleCalendarKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || isAddModalOpen || isSyllabusModalOpen) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || isAddModalOpen) return;
       if (e.key === 'ArrowLeft') {
         if (viewMode === 'day') handlePrevDay();
         else handlePrevMonth();
@@ -200,7 +198,7 @@ export const CalendarView = ({
     };
     window.addEventListener('keydown', handleCalendarKeyDown);
     return () => window.removeEventListener('keydown', handleCalendarKeyDown);
-  }, [viewMode, currentMonthDate, selectedDate, isAddModalOpen, isSyllabusModalOpen]);
+  }, [viewMode, currentMonthDate, selectedDate, isAddModalOpen]);
 
   // Touch Swipe Handlers for Mobile
   const handleCalendarTouchStart = (e) => {
@@ -375,16 +373,6 @@ export const CalendarView = ({
                 </span>
               </button>
 
-              <button
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  setIsSyllabusModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all shrink-0 cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                <span><span className="hidden sm:inline">Import </span>Syllabus</span>
-              </button>
             </div>
           )}
 
@@ -989,13 +977,7 @@ export const CalendarView = ({
         </div>
       )}
 
-      {/* 5. SYLLABUS INGESTION MODAL */}
-      <SyllabusIngestionModal 
-        isOpen={isSyllabusModalOpen}
-        onClose={() => setIsSyllabusModalOpen(false)}
-        onImportItems={onBatchAddItems || onAddItem}
-        soundEnabled={soundEnabled}
-      />
+
 
     </div>
   );

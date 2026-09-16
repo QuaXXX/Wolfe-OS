@@ -52,8 +52,6 @@ function resilientLazy(factory, retries = 2, intervalMs = 400) {
 }
 
 // Code-split heavy views & modals to eliminate initial mobile loading freeze
-const SchoolView = resilientLazy(() => import('./components/views/SchoolView').then(m => ({ default: m.SchoolView })));
-const WorkoutsView = resilientLazy(() => import('./components/views/WorkoutsView').then(m => ({ default: m.WorkoutsView })));
 const NutritionView = resilientLazy(() => import('./components/views/NutritionView').then(m => ({ default: m.NutritionView || m.default })));
 const TradingView = resilientLazy(() => import('./components/views/TradingView').then(m => ({ default: m.TradingView })));
 const CalendarView = resilientLazy(() => import('./components/views/CalendarView').then(m => ({ default: m.CalendarView })));
@@ -64,8 +62,6 @@ const GoogleCalendarModal = resilientLazy(() => import('./components/calendar/Go
 // Mock Data
 import { 
   INITIAL_USER, 
-  INITIAL_SCHOOL_DATA, 
-  INITIAL_WORKOUT_DATA, 
   INITIAL_NUTRITION_DATA, 
   INITIAL_TRADING_DATA, 
   INITIAL_CALENDAR_DATA 
@@ -201,8 +197,6 @@ const DEFAULT_SETTINGS = {
   visibleModules: {
     timeline: true,
     trading: true,
-    school: true,
-    workouts: true,
     nutrition: true,
   },
   aiConfig: {
@@ -217,7 +211,7 @@ export function App() {
   const [activeView, setActiveView] = useState(() => {
     try {
       const saved = safeGetItem('wolfe_active_view');
-      const validViews = ['home', 'school', 'workouts', 'nutrition', 'trading', 'calendar'];
+      const validViews = ['home', 'calendar', 'nutrition', 'trading'];
       if (saved && validViews.includes(saved)) {
         return saved;
       }
@@ -282,21 +276,6 @@ export function App() {
     };
   });
 
-  const [schoolData, setSchoolData] = useState(() => {
-    try {
-      const saved = safeGetItem('wolfe_school_data');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return INITIAL_SCHOOL_DATA;
-  });
-
-  const [workoutData, setWorkoutData] = useState(() => {
-    try {
-      const saved = safeGetItem('wolfe_workout_data');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return INITIAL_WORKOUT_DATA;
-  });
 
   const [nutritionData, setNutritionData] = useState(() => {
     try {
@@ -477,9 +456,7 @@ export function App() {
           return synchronizeNutritionData(mergedNutrition);
         });
       }
-      if (vault.workouts) setWorkoutData(vault.workouts);
       if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
-      if (vault.school?.dashboard) setSchoolData(vault.school.dashboard);
       // Apply calendar from vault (merging items and filtering tombstones)
       if (vault.calendar && Array.isArray(vault.calendar.items)) {
         setCalendarData(prev => {
@@ -528,8 +505,6 @@ export function App() {
     }
 
     safeSetItem('wolfe_calendar_data', JSON.stringify(calendarData));
-    safeSetItem('wolfe_school_data', JSON.stringify(schoolData));
-    safeSetItem('wolfe_workout_data', JSON.stringify(workoutData));
     safeSetItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
     safeSetItem('wolfe_trading_data', JSON.stringify(tradingData));
     safeSetItem('wolfe_settings', JSON.stringify(settings));
@@ -538,7 +513,7 @@ export function App() {
       markLocalMutation();
       triggerImmediateCloudPush(60, true);
     }
-  }, [calendarData, nutritionData, workoutData, tradingData, schoolData, settings]);
+  }, [calendarData, nutritionData, tradingData, settings]);
 
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
   const [syncStatus, setSyncStatus] = useState(() => isGoogleCalendarConnected() ? 'connected' : 'disconnected');
@@ -617,16 +592,6 @@ export function App() {
         } else {
           // Device is disconnected from Google account
           if (mounted) setSyncStatus('disconnected');
-          // "If needed, show the popup to manually sign in. Do not show this popup multiple times though, it should be a once then forever synced."
-          const hasPrompted = safeSessionGet('wolfe_signin_modal_shown') || safeGetItem('wolfe_signin_modal_dismissed');
-          if (!hasPrompted && mounted) {
-            safeSessionSet('wolfe_signin_modal_shown', 'true');
-            setTimeout(() => {
-              if (mounted && !isGoogleCalendarConnected()) {
-                setIsGCalModalOpen(true);
-              }
-            }, 750);
-          }
         }
       } catch (err) {
         console.warn("OAuth startup initialization notice:", err);
@@ -1405,16 +1370,12 @@ export function App() {
       case 'home':
         return (
           <HomeView 
-            schoolData={schoolData}
-            workoutData={workoutData}
             nutritionData={nutritionData}
             tradingData={tradingData}
             calendarData={calendarData}
             setSettings={setSettings}
             setNutritionData={setNutritionData}
-            setWorkoutData={setWorkoutData}
             setTradingData={setTradingData}
-            setSchoolData={setSchoolData}
             setCalendarData={setCalendarData}
             onItemCreated={handleAddItem}
             onClearCalendar={handleClearCalendar}
@@ -1425,23 +1386,6 @@ export function App() {
             isSyncingGoogle={isSyncingGoogle}
             isGoogleConnected={isGoogleCalendarConnected()}
             onSyncGoogleCalendar={handleSyncGoogleCalendar}
-            {...commonProps}
-          />
-        );
-      case 'school':
-        return (
-          <SchoolView 
-            schoolData={schoolData}
-            calendarData={calendarData}
-            onAddItem={handleAddItem}
-            onBatchAddItems={handleBatchAddItems}
-            {...commonProps}
-          />
-        );
-      case 'workouts':
-        return (
-          <WorkoutsView 
-            workoutData={workoutData}
             {...commonProps}
           />
         );
@@ -1524,16 +1468,12 @@ export function App() {
         onOpenGoogleModal={() => setIsGCalModalOpen(true)}
         onSyncNow={handleSyncGoogleCalendar}
         osData={{
-          schoolData,
-          workoutData,
           nutritionData,
           tradingData,
           calendarData,
           setSettings,
           setNutritionData,
-          setWorkoutData,
           setTradingData,
-          setSchoolData,
           setCalendarData,
           onClearDeadlines: handleClearDeadlines,
           onClearCalendar: handleClearCalendar,

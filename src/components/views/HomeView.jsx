@@ -1,8 +1,6 @@
 import React from 'react';
 import { 
   TrendingUp, 
-  GraduationCap, 
-  Dumbbell, 
   UtensilsCrossed, 
   CalendarDays, 
   ArrowUpRight, 
@@ -22,17 +20,13 @@ import { getTodayIso } from '../../utils/calendarUtils';
 
 export const HomeView = ({ 
   user, 
-  schoolData, 
-  workoutData, 
   nutritionData, 
   tradingData, 
   calendarData = { items: [] },
   settings = { visibleModules: {}, aiConfig: {}, compactMode: false },
   setSettings,
   setNutritionData,
-  setWorkoutData,
   setTradingData,
-  setSchoolData,
   setCalendarData,
   onItemCreated,
   onClearCalendar,
@@ -49,7 +43,6 @@ export const HomeView = ({
   lastSyncTimestamp = 0,
   soundEnabled = true 
 }) => {
-  const nextAssignment = schoolData?.assignments?.find(a => !a.completed);
   const vm = settings.visibleModules || {};
   const isCompact = !!settings.compactMode;
   const todayIso = getTodayIso();
@@ -71,16 +64,12 @@ export const HomeView = ({
   const todayTargetCarbs = (typeof rawTodayTarget === 'object' && rawTodayTarget !== null ? rawTodayTarget.carbs : null) || nutritionData?.carbs?.target || 450;
 
   const osData = {
-    schoolData,
-    workoutData,
     nutritionData,
     tradingData,
     calendarData,
     setSettings,
     setNutritionData,
-    setWorkoutData,
     setTradingData,
-    setSchoolData,
     setCalendarData,
     onClearDeadlines,
     onPurgeItems
@@ -341,7 +330,7 @@ export const HomeView = ({
         </GlassCard>
       )}
 
-      {/* 3. Physical Performance: Nutrition & Workouts */}
+      {/* 3. Core Command: Nutrition & Day Trading */}
       <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3.5 mt-2' : 'gap-5 mt-3'}`}>
         {/* Nutrition */}
         {vm.nutrition !== false && (
@@ -416,71 +405,6 @@ export const HomeView = ({
           </GlassCard>
         )}
 
-        {/* Workouts */}
-        {vm.workouts !== false && (
-          <GlassCard 
-            onClick={(e) => {
-              if (e && e.stopPropagation) e.stopPropagation();
-              playSound('click', soundEnabled);
-              onNavigate('workouts');
-            }}
-            className={`relative z-10 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
-          >
-            <div>
-              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2.5">
-                  <div 
-                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                  >
-                    <Dumbbell className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
-                  </div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Workouts
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isCompact && (
-                    <span className="text-xs font-semibold text-white">
-                      {workoutData.todayWorkout || 'Rest Day'}
-                    </span>
-                  )}
-                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
-                </div>
-              </div>
-
-              {!isCompact ? (
-                <div className="my-2">
-                  <div className="text-sm font-bold text-white">
-                    {workoutData.todayWorkout || 'Rest Day'}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    Target: {workoutData.completedDaysThisWeek || 0} of {workoutData.targetDaysThisWeek || 5} sessions complete
-                  </div>
-                  
-                  <div className="w-full h-1.5 bg-white/[0.06] rounded-lg mt-2.5 overflow-hidden">
-                    <div 
-                      className="h-full rounded-lg transition-all duration-300" 
-                      style={{ 
-                        width: `${Math.min(100, ((workoutData.completedDaysThisWeek || 0) / (workoutData.targetDaysThisWeek || 5)) * 100)}%`,
-                        backgroundColor: 'var(--accent-primary)'
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
-                  <span>Week: {workoutData.completedDaysThisWeek || 0}/{workoutData.targetDaysThisWeek || 5} Complete</span>
-                  <span>Vol: {workoutData.weeklyVolumeLbs || '0 lbs'}</span>
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        )}
-      </div>
-
-      {/* 4. Focus & Execution: Day Trading & School */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3.5' : 'gap-5'}`}>
-        
         {/* Day Trading */}
         {vm.trading !== false && (
           <GlassCard 
@@ -545,79 +469,6 @@ export const HomeView = ({
                     {(tradingData.dayPnl || 0) >= 0 ? '+' : ''}{tradingData.dayPnlPercent || 0}% P&L
                   </span>
                   <span>Win: {tradingData.winRate || '—'}</span>
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        )}
-
-        {/* School & Academics */}
-        {vm.school !== false && (
-          <GlassCard 
-            onClick={(e) => {
-              if (e && e.stopPropagation) e.stopPropagation();
-              playSound('click', soundEnabled);
-              onNavigate('school');
-            }}
-            className={`relative z-10 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
-          >
-            <div>
-              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2.5">
-                  <div 
-                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                  >
-                    <GraduationCap className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
-                  </div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    School & Academics
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isCompact && (
-                    <span className="text-xs font-mono font-bold text-white">
-                      {schoolData.gpa} GPA
-                    </span>
-                  )}
-                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
-                </div>
-              </div>
-
-              {!isCompact ? (
-                <>
-                  <div className="my-2 flex items-baseline justify-between">
-                    <div>
-                      <div className="text-2xl font-mono font-bold text-white tracking-tight">
-                        {schoolData.gpa} <span className="text-xs font-normal text-slate-500">GPA</span>
-                      </div>
-                      <div className="text-xs text-slate-400 mt-0.5">
-                        {schoolData.term} • {schoolData.courses?.length || 0} Courses
-                      </div>
-                    </div>
-                    {schoolData.gpa !== '—' && (
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.03] text-slate-300 border border-white/[0.06]">
-                        Active Term
-                      </span>
-                    )}
-                  </div>
-
-                  {nextAssignment && (
-                    <div className="flex items-center gap-2 text-xs bg-white/[0.02] border border-white/[0.06] text-slate-300 p-2 rounded-xl truncate">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                      <span className="truncate">
-                        <strong className="text-white">Due:</strong> {nextAssignment.course} {nextAssignment.title}
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : nextAssignment ? (
-                <div className="flex items-center gap-2 text-[11px] text-slate-300 mt-1 pt-1.5 border-t border-white/[0.04] truncate">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                  <span className="truncate">Due: {nextAssignment.course} {nextAssignment.title}</span>
-                </div>
-              ) : (
-                <div className="text-[11px] text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
-                  {schoolData.courses.length} Active Courses
                 </div>
               )}
             </div>

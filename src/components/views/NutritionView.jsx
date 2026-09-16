@@ -12,7 +12,6 @@ import {
   Trash2, 
   ChevronRight, 
   ChevronLeft, 
-  Sparkles, 
   Calendar as CalendarIcon, 
   CheckCheck, 
   History,
@@ -20,8 +19,6 @@ import {
   BookmarkPlus,
   Edit3,
   Barcode,
-  Mic,
-  MicOff,
   Ruler,
   CheckCircle2,
   RefreshCw,
@@ -36,7 +33,6 @@ import {
   calculateWeightVelocity, 
   getAdaptiveSurplusRecommendation,
   createMealEntry,
-  parseMealDescription,
   DEFAULT_HOUSEHOLD_PANTRY,
   getCalibrationProgress,
   filterMealsByDate,
@@ -46,7 +42,6 @@ import {
   synchronizeNutritionData,
   sanitizeHouseholdPantry
 } from '../../utils/nutritionEngine.js';
-import { analyzeQuickLogWithAI } from '../../utils/aiService.js';
 import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
@@ -67,13 +62,6 @@ const NutritionViewInner = ({
   const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [calorieHistoryRange, setCalorieHistoryRange] = useState(14); // 7 | 14 | 30
-  const [pantryCategory, setPantryCategory] = useState('common');
-  const [justLoggedToast, setJustLoggedToast] = useState(null);
-  const [quickAddText, setQuickAddText] = useState('');
-  const [isVoiceListening, setIsVoiceListening] = useState(false);
-  const [isQuickAnalyzing, setIsQuickAnalyzing] = useState(false);
-  const [quickAddFeedback, setQuickAddFeedback] = useState(null);
-  const speechRecognitionRef = useRef(null);
 
   // Date Navigation State: Dynamic today tracking that automatically updates on new day / midnight / window focus
   const [currentTodayIso, setCurrentTodayIso] = useState(() => getTodayIso());
@@ -211,9 +199,6 @@ const NutritionViewInner = ({
       if (res && res.success) {
         playSound('success', soundEnabled);
         setSyncFeedback('synced');
-        const mealCount = (meals || []).length;
-        setQuickAddFeedback(`Cloud synced: ${mealCount} meals synchronized`);
-        setTimeout(() => setQuickAddFeedback(null), 3000);
         setTimeout(() => setSyncFeedback(null), 2500);
       } else {
         setSyncFeedback('error');
@@ -345,26 +330,6 @@ const NutritionViewInner = ({
   }, [safeNutritionData?.kitchenCalibration]);
 
   
-  // Filtered pantry list based on category
-  const filteredPantry = useMemo(() => {
-    if (pantryCategory === 'all') return householdPantry;
-    if (pantryCategory === 'common') {
-      const commonIds = [
-        'staple-eggs-2',
-        'staple-apple',
-        'staple-granola-bar',
-        'staple-protein-bar',
-        'staple-banana',
-        'staple-whey',
-        'staple-greek-yogurt',
-        'staple-chicken',
-        'staple-rice',
-        'staple-pb'
-      ];
-      return householdPantry.filter(s => s && (commonIds.includes(s.id) || s.category === 'Common' || s.category === 'Protein' || s.category === 'Fruit' || s.category === 'Snacks')).slice(0, 10);
-    }
-    return householdPantry.filter(s => s && (s.category || '').toLowerCase() === pantryCategory.toLowerCase());
-  }, [householdPantry, pantryCategory]);
 
   const latestWeightLog = useMemo(() => {
     if (!weightHistory.length) return null;
@@ -464,182 +429,6 @@ const NutritionViewInner = ({
     });
 
     triggerImmediateCloudPush(80);
-  };
-
-  const handleQuickLogStaple = (staple) => {
-    playSound('success', soundEnabled);
-    const mealItems = Array.isArray(staple.items) && staple.items.length > 0
-      ? staple.items.map(it => ({
-          name: it.name,
-          portion: it.portion,
-          calories: it.calories,
-          protein: it.protein,
-          carbs: it.carbs,
-          fats: it.fats
-        }))
-      : [{
-          name: staple.name,
-          portion: staple.portion || staple.name,
-          calories: staple.calories,
-          protein: staple.protein,
-          carbs: staple.carbs,
-          fats: staple.fats
-        }];
-
-    const meal = createMealEntry({
-      date: selectedDate,
-      name: staple.name,
-      slot: 'meal',
-      calories: staple.calories,
-      protein: staple.protein,
-      carbs: staple.carbs,
-      fats: staple.fats,
-      items: mealItems
-    });
-    handleLogMeal(meal);
-    const dayLabel = selectedDate === todayIso ? 'Today' : selectedDate;
-    setJustLoggedToast(`Logged ${staple.name} into ${dayLabel} (+${staple.protein}g P, ${staple.calories} kcal)`);
-    setTimeout(() => setJustLoggedToast(null), 3000);
-  };
-
-  const handleQuickAddSubmit = async () => {
-    if (!quickAddText.trim() || isQuickAnalyzing) return;
-    const text = quickAddText.trim();
-    setIsQuickAnalyzing(true);
-    try {
-      const parsed = await analyzeQuickLogWithAI({
-        query: text,
-        aiConfig: settings?.aiConfig,
-        kitchenCalibration: safeNutritionData?.kitchenCalibration,
-        householdPantry
-      });
-
-      if (parsed && parsed.hasFood !== false && parsed.items && parsed.items.length > 0) {
-        playSound('success', soundEnabled);
-        const meal = createMealEntry({
-          date: selectedDate,
-          name: parsed.name,
-          slot: 'meal',
-          calories: parsed.calories,
-          protein: parsed.protein,
-          carbs: parsed.carbs,
-          fats: parsed.fats,
-          items: parsed.items
-        });
-        handleLogMeal(meal);
-        setQuickAddText('');
-        setQuickAddFeedback(`Logged: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
-        setTimeout(() => setQuickAddFeedback(null), 3500);
-      } else {
-        playSound('click', soundEnabled);
-        setQuickAddFeedback("Could not recognize meal. Try specifying portions or snap with Camera.");
-        setTimeout(() => setQuickAddFeedback(null), 4000);
-      }
-    } catch (err) {
-      const local = parseMealDescription(text, { kitchenCalibration: safeNutritionData?.kitchenCalibration, householdPantry });
-      if (local && local.items && local.items.length > 0) {
-        playSound('success', soundEnabled);
-        const meal = createMealEntry({
-          date: selectedDate,
-          name: local.name,
-          slot: 'meal',
-          calories: local.calories,
-          protein: local.protein,
-          carbs: local.carbs,
-          fats: local.fats,
-          items: local.items
-        });
-        handleLogMeal(meal);
-        setQuickAddText('');
-        setQuickAddFeedback(`Logged: ${local.name} (${local.calories} kcal, ${local.protein}g P)`);
-        setTimeout(() => setQuickAddFeedback(null), 3500);
-      } else {
-        playSound('click', soundEnabled);
-        setQuickAddFeedback("Could not recognize meal. Try specifying portions or snap with Camera.");
-        setTimeout(() => setQuickAddFeedback(null), 4000);
-      }
-    } finally {
-      setIsQuickAnalyzing(false);
-    }
-  };
-
-  const handleToggleVoiceQuickAdd = () => {
-    if (isVoiceListening) {
-      if (speechRecognitionRef.current) {
-        try { speechRecognitionRef.current.stop(); } catch (e) {}
-      }
-      setIsVoiceListening(false);
-      return;
-    }
-
-    if (typeof window === 'undefined') return;
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Voice speech recognition is not supported on this browser.");
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setIsVoiceListening(true);
-        playSound('click', soundEnabled);
-      };
-
-      recognition.onresult = async (event) => {
-        const transcript = event.results?.[0]?.[0]?.transcript || '';
-        if (transcript) {
-          setQuickAddText(transcript);
-          setIsQuickAnalyzing(true);
-          try {
-            const parsed = await analyzeQuickLogWithAI({
-              query: transcript,
-              aiConfig: settings?.aiConfig,
-              kitchenCalibration: safeNutritionData?.kitchenCalibration,
-              householdPantry
-            });
-            if (parsed && parsed.hasFood !== false && parsed.items && parsed.items.length > 0) {
-              playSound('success', soundEnabled);
-              const meal = createMealEntry({
-                date: selectedDate,
-                name: parsed.name,
-                slot: 'meal',
-                calories: parsed.calories,
-                protein: parsed.protein,
-                carbs: parsed.carbs,
-                fats: parsed.fats,
-                items: parsed.items
-              });
-              handleLogMeal(meal);
-              setQuickAddText('');
-              setQuickAddFeedback(`Logged: ${parsed.name} (${parsed.calories} kcal, ${parsed.protein}g P)`);
-              setTimeout(() => setQuickAddFeedback(null), 3500);
-            }
-          } catch (err) {
-            // Keep transcript in text field for user review
-          } finally {
-            setIsQuickAnalyzing(false);
-          }
-        }
-      };
-
-      recognition.onerror = () => {
-        setIsVoiceListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsVoiceListening(false);
-      };
-
-      speechRecognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) {
-      setIsVoiceListening(false);
-    }
   };
 
   const handleLogWeight = (weightEntry) => {
@@ -1064,74 +853,7 @@ const NutritionViewInner = ({
         </div>
       </div>
 
-      {/* 1. Quick Add Input Bar (Voice or Instant Text) - Direct at Top */}
-      <div className="flex flex-col gap-2">
-        <div className="relative flex items-center gap-2 p-1.5 sm:p-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-2 flex-1 px-2.5 py-1">
-            <UtensilsCrossed className="w-4 h-4 text-slate-400 shrink-0" />
-            <input
-              type="text"
-              value={quickAddText}
-              onChange={(e) => setQuickAddText(e.target.value)}
-              disabled={isQuickAnalyzing}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleQuickAddSubmit();
-                }
-              }}
-              placeholder={isQuickAnalyzing ? "AI analyzing meal..." : 'Quick log: "1 peanutbutter toast", "chipotle bowl no cheese", "2 eggs and apple"...'}
-              className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
-            />
-          </div>
-
-          {/* Voice Speech Recognition Button */}
-          <button
-            type="button"
-            onClick={handleToggleVoiceQuickAdd}
-            disabled={isQuickAnalyzing}
-            className={`p-2 rounded-xl border transition-all cursor-pointer disabled:opacity-40 ${
-              isVoiceListening 
-                ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse' 
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-400 hover:text-white'
-            }`}
-            title={isVoiceListening ? "Listening... click to stop" : "Speak meal to log (e.g. '1 peanutbutter toast')"}
-          >
-            {isVoiceListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-          </button>
-
-          {/* Add Button */}
-          <button
-            type="button"
-            onClick={handleQuickAddSubmit}
-            disabled={!quickAddText.trim() || isQuickAnalyzing}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--accent-primary)' }}
-          >
-            {isQuickAnalyzing ? (
-              <>
-                <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-300" />
-                <span>AI Analyzing...</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Quick Add Feedback Toast */}
-        {quickAddFeedback && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium">
-            <Check className="w-3.5 h-3.5 shrink-0" />
-            <span>{quickAddFeedback}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 2. Compact Morning Weight Bar (Minimal & Sleek Status) */}
+      {/* Morning Weight Bar (Minimal & Sleek Status) */}
       <div 
         onClick={() => {
           playSound('click', soundEnabled);
@@ -1483,105 +1205,13 @@ const NutritionViewInner = ({
             </div>
             <div className="text-xs font-bold text-white">{selectedDate === todayIso ? "No Meals Logged Today" : `No Meals Logged for ${formatDateTitle(selectedDate)}`}</div>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-              Use the Quick Add bar above, tap a pantry staple, or tap Camera to snap a photo.
+              Tap + Log Meal or tap Camera to log meals with photo or barcode analysis.
             </p>
           </GlassCard>
         )}
       </div>
 
-      {/* 4. HOUSEHOLD PANTRY STAPLES (1-Tap Fast Logging - Icon + Name + Plus) */}
-      <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-base">🏠</span>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <span>Quick Staples</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-400 border border-white/10">
-                1-Tap Fast Add
-              </span>
-            </h2>
-          </div>
-          {selectedDate !== todayIso && (
-            <div 
-              className="text-[11px] font-mono px-2.5 py-1 rounded-xl border shadow-sm"
-              style={{
-                backgroundColor: 'var(--accent-subtle)',
-                borderColor: 'var(--accent-border)',
-                color: 'var(--accent-primary)'
-              }}
-            >
-              Logging into: <strong className="text-white">{formatDateTitle(selectedDate)}</strong>
-            </div>
-          )}
-        </div>
-
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-          {[
-            { id: 'common', label: '⭐ Quick Staples' },
-            { id: 'all', label: 'All Items' },
-            { id: 'protein', label: '🥩 Protein' },
-            { id: 'carbs', label: '🍚 Carbs' },
-            { id: 'fruit', label: '🍎 Fruit' },
-            { id: 'snacks', label: '🍫 Snacks & Bars' },
-            { id: 'dairy', label: '🥛 Dairy' }
-          ].map(cat => {
-            const active = pantryCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  setPantryCategory(cat.id);
-                }}
-                className={`px-3 py-1 rounded-xl text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer ${
-                  active 
-                    ? 'bg-white text-black font-bold shadow-sm' 
-                    : 'bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
-                }`}
-              >
-                {cat.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Toast Notification */}
-        {justLoggedToast && (
-          <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-slate-200 text-xs font-mono font-medium flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-400" />
-            <span>{justLoggedToast}</span>
-          </div>
-        )}
-
-        {/* Minimal Action Chips: Icon + Name + Plus button (No macro clutter) */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {filteredPantry.map((staple, sIdx) => {
-            if (!staple) return null;
-            return (
-              <button
-                key={staple.id || `staple-${sIdx}`}
-                type="button"
-                onClick={() => handleQuickLogStaple(staple)}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm hover:border-white/20 group"
-                title={`Tap to log ${staple.name || 'item'} into ${selectedDate === todayIso ? 'Today' : selectedDate}`}
-              >
-                <span className="text-base">{staple.icon || '🍽️'}</span>
-                <span>{staple.name || 'Item'}</span>
-                <div 
-                  className="w-5 h-5 rounded-lg flex items-center justify-center text-white transition-transform group-hover:scale-110 ml-0.5"
-                  style={{ backgroundColor: 'var(--accent-primary)' }}
-                >
-                  <Plus className="w-3.5 h-3.5" strokeWidth={3} />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 4. DAY-BY-DAY CALENDAR & PROGRESS STRIP (Positioned at bottom) */}
+      {/* DAY-BY-DAY CALENDAR & PROGRESS STRIP (Positioned at bottom) */}
       <div className="p-3 sm:p-4 rounded-3xl bg-[#0f1220]/90 border border-white/10 shadow-xl space-y-3 font-sans mt-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

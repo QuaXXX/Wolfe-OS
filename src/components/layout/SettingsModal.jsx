@@ -9,8 +9,6 @@ import {
   VolumeX, 
   RotateCcw, 
   TrendingUp, 
-  GraduationCap, 
-  Dumbbell, 
   UtensilsCrossed, 
   CalendarDays, 
   Layers, 
@@ -290,8 +288,6 @@ export const SettingsModal = ({
   const modulesList = [
     { key: 'timeline', label: 'Today\'s Timeline', desc: 'Schedule & deadline stream at the top', icon: CalendarDays },
     { key: 'trading', label: 'Day Trading & Markets', desc: 'Realized P&L, stock sparklines & watchlist', icon: TrendingUp },
-    { key: 'school', label: 'School & Academics', desc: 'GPA counter, courses & urgent assignments', icon: GraduationCap },
-    { key: 'workouts', label: 'Workouts & Hypertrophy', desc: 'Daily routine, PR board & weekly split', icon: Dumbbell },
     { key: 'nutrition', label: 'Nutrition & Fuel', desc: 'Macro breakdown, calories & hydration', icon: UtensilsCrossed },
   ];
 
@@ -793,7 +789,7 @@ export const SettingsModal = ({
                   </div>
 
                   <div className="p-2 rounded-xl bg-black/20 border border-white/5 text-[11px] text-slate-300 flex items-center justify-between">
-                    <span>Syncs: Nutrition, Workouts, Trading, Academics, Calendar & Settings</span>
+                    <span>Syncs: Nutrition, Trading, Calendar & Settings</span>
                     <span className="text-[10px] font-mono text-emerald-400">Auto</span>
                   </div>
 
@@ -833,7 +829,7 @@ export const SettingsModal = ({
                     </div>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Sign in once with your Google account to keep all your data (trading, nutrition, workouts, academics, and calendar) automatically synchronized between your phone and computer.
+                    Sign in once with your Google account to keep all your data (trading, nutrition, and calendar) automatically synchronized between your phone and computer.
                   </p>
                   <button
                     onClick={() => {

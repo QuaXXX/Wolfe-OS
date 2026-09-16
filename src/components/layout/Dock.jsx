@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, 
-  GraduationCap, 
-  Dumbbell, 
   UtensilsCrossed, 
   TrendingUp, 
   CalendarDays
@@ -12,11 +10,9 @@ import { playSound } from '../../utils/soundFX';
 
 export const NAV_ITEMS = [
   { id: 'home', label: 'Home Hub', icon: Home },
-  { id: 'nutrition', label: 'Nutrition', icon: UtensilsCrossed },
-  { id: 'workouts', label: 'Workouts', icon: Dumbbell },
-  { id: 'school', label: 'School', icon: GraduationCap },
-  { id: 'trading', label: 'Trading', icon: TrendingUp },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
+  { id: 'nutrition', label: 'Nutrition', icon: UtensilsCrossed },
+  { id: 'trading', label: 'Trading', icon: TrendingUp },
 ];
 
 export const Dock = ({ activeView, onViewChange, soundEnabled = true }) => {
