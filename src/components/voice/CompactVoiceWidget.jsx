@@ -19,6 +19,7 @@ import { playSound } from '../../utils/soundFX';
 import { sendQueryToAI } from '../../utils/aiService';
 import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
 import { FormattedAiText } from '../common/FormattedAiText';
+import { UniversalVoiceController } from '../../utils/voiceService';
 
 export const CompactVoiceWidget = forwardRef(({ 
   onNavigate, 
@@ -43,53 +44,45 @@ export const CompactVoiceWidget = forwardRef(({
   const [copied, setCopied] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
   
-  const recognitionRef = useRef(null);
+  const voiceControllerRef = useRef(null);
+  const handleQuerySubmitRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
 
-  // Initialize SpeechRecognition with real-time interim results
+  // Keep a ref to latest handleQuerySubmit
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+    handleQuerySubmitRef.current = handleQuerySubmit;
+  });
 
-      recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
+  // Initialize UniversalVoiceController (MediaRecorder on iOS/PWA, Web Speech on desktop)
+  useEffect(() => {
+    const controller = new UniversalVoiceController({
+      onInterim: (text) => {
+        setLiveSpeechText(text);
+        setInputText(text);
+      },
+      onFinal: (text) => {
+        setLiveSpeechText(text);
+        setInputText(text);
+        if (text && text.trim()) {
+          handleQuerySubmitRef.current?.(text.trim());
         }
-
-        const activeText = finalTranscript || interimTranscript;
-        if (activeText) {
-          setLiveSpeechText(activeText);
-          setInputText(activeText);
+      },
+      onError: (err) => {
+        console.warn("[VoiceWidget] Notice:", err);
+      },
+      onStateChange: ({ isListening: listening, isProcessing: processing }) => {
+        setIsListening(listening);
+        if (processing) {
+          setIsProcessing(true);
         }
+      }
+    });
 
-        if (finalTranscript && finalTranscript.trim()) {
-          handleQuerySubmit(finalTranscript.trim());
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.warn("Speech recognition notice:", event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-    }
+    voiceControllerRef.current = controller;
+    return () => {
+      controller.destroy();
+    };
   }, []);
 
   // Global hotkey (Cmd+K / Ctrl+K)
@@ -108,28 +101,16 @@ export const CompactVoiceWidget = forwardRef(({
   }, [isProcessing, isListening]);
 
   const toggleListening = () => {
-    if (!recognitionRef.current) {
-      const next = !isListening;
-      setIsListening(next);
-      playSound(next ? 'voice-open' : 'click', soundEnabled);
-      return;
-    }
+    if (!voiceControllerRef.current) return;
 
     if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+      voiceControllerRef.current.stop();
       playSound('click', soundEnabled);
     } else {
       setInputText('');
       setLiveSpeechText('');
       setAiResponse(null);
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-        playSound('voice-open', soundEnabled);
-      } catch (err) {
-        console.error("Speech recognition start notice:", err);
-      }
+      voiceControllerRef.current.start();
     }
   };
 
@@ -143,10 +124,10 @@ export const CompactVoiceWidget = forwardRef(({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (voiceControllerRef.current) {
+      voiceControllerRef.current.stop();
     }
+    setIsListening(false);
     setIsProcessing(false);
     playSound('click', soundEnabled);
   };
@@ -165,10 +146,10 @@ export const CompactVoiceWidget = forwardRef(({
     const query = (textToSubmit || inputText || '').trim();
     if (!query) return;
 
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (voiceControllerRef.current) {
+      voiceControllerRef.current.stop();
     }
+    setIsListening(false);
 
     playSound('click', soundEnabled);
     setLastHeardQuery(query);
@@ -300,7 +281,7 @@ export const CompactVoiceWidget = forwardRef(({
             e.stopPropagation();
             toggleListening();
           }}
-          title={isListening ? "Listening... Click to stop" : "Click to speak"}
+          title={isListening ? "Listening... Tap to send" : "Tap to speak"}
           className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer"
           style={{
             backgroundColor: isListening ? 'var(--accent-primary)' : 'var(--accent-subtle)',
@@ -343,9 +324,11 @@ export const CompactVoiceWidget = forwardRef(({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder={
-              isListening 
-                ? (liveSpeechText ? `Hearing: "${liveSpeechText}"` : "Listening... Speak command or food...") 
-                : "Ask anything or log food..."
+              isProcessing
+                ? "Transcribing & processing..."
+                : isListening 
+                  ? (liveSpeechText ? `Hearing: "${liveSpeechText}"` : "Listening... Speak command or food (Tap mic to send)") 
+                  : "Ask anything or log food..."
             }
             className={`w-full bg-transparent border-none text-xs sm:text-sm placeholder:text-slate-500 focus:outline-none focus:ring-0 font-medium py-1 ${
               isListening ? 'animate-pulse' : 'text-slate-100'

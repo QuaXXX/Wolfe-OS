@@ -22,6 +22,7 @@ import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
 import { sendQueryToAI } from '../../utils/aiService';
 import { getGoogleAccount } from '../../utils/googleCalendarService';
 import { FormattedAiText } from '../common/FormattedAiText';
+import { UniversalVoiceController } from '../../utils/voiceService';
 
 export const TopBar = ({ 
   soundEnabled, 
@@ -52,7 +53,8 @@ export const TopBar = ({
   const [voiceResponse, setVoiceResponse] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(!!(typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement)));
   
-  const recognitionRef = useRef(null);
+  const voiceControllerRef = useRef(null);
+  const handleVoiceQueryRef = useRef(null);
   const abortControllerRef = useRef(null);
   const toastTimeoutRef = useRef(null);
 
@@ -88,6 +90,40 @@ export const TopBar = ({
     }
   };
 
+  // Keep a ref to latest handleVoiceQuery
+  useEffect(() => {
+    handleVoiceQueryRef.current = handleVoiceQuery;
+  });
+
+  // Initialize UniversalVoiceController (MediaRecorder on iOS/PWA, Web Speech on desktop)
+  useEffect(() => {
+    const controller = new UniversalVoiceController({
+      onInterim: (text) => {
+        setLiveSpeech(text);
+      },
+      onFinal: (text) => {
+        setLiveSpeech(text);
+        if (text && text.trim()) {
+          handleVoiceQueryRef.current?.(text.trim());
+        }
+      },
+      onError: (err) => {
+        console.warn("[TopBar Voice] Notice:", err);
+      },
+      onStateChange: ({ isListening: listening, isProcessing: processing }) => {
+        setIsListening(listening);
+        if (processing) {
+          setIsProcessing(true);
+        }
+      }
+    });
+
+    voiceControllerRef.current = controller;
+    return () => {
+      controller.destroy();
+    };
+  }, []);
+
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -104,71 +140,16 @@ export const TopBar = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Initialize Speech Recognition for in-place voice
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-
-        const activeText = finalTranscript || interimTranscript;
-        if (activeText) {
-          setLiveSpeech(activeText);
-        }
-
-        if (finalTranscript && finalTranscript.trim()) {
-          handleVoiceQuery(finalTranscript.trim());
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.warn("TopBar speech notice:", event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-    }
-  }, [osData, aiConfig]);
-
   const toggleTopBarListening = () => {
-    if (!recognitionRef.current) {
-      setIsListening(prev => !prev);
-      playSound(!isListening ? 'voice-open' : 'click', soundEnabled);
-      return;
-    }
+    if (!voiceControllerRef.current) return;
 
     if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+      voiceControllerRef.current.stop();
       playSound('click', soundEnabled);
     } else {
       setLiveSpeech('');
       setVoiceResponse(null);
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-        playSound('voice-open', soundEnabled);
-      } catch (err) {
-        console.error("TopBar voice start notice:", err);
-      }
+      voiceControllerRef.current.start();
     }
   };
 
@@ -176,20 +157,20 @@ export const TopBar = ({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (voiceControllerRef.current) {
+      voiceControllerRef.current.stop();
     }
+    setIsListening(false);
     setIsProcessing(false);
     playSound('click', soundEnabled);
   };
 
   const handleVoiceQuery = async (queryText) => {
     if (!queryText) return;
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (voiceControllerRef.current) {
+      voiceControllerRef.current.stop();
     }
+    setIsListening(false);
 
     playSound('click', soundEnabled);
     setLiveSpeech('');

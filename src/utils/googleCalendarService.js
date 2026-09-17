@@ -375,30 +375,95 @@ export async function ensureGoogleGsiLoaded() {
   });
 }
 
+// Prewarmed GIS Token Client instance to guarantee immediate synchronous user gesture handling on iPhone/Safari
+let prewarmedTokenClient = null;
+let currentTokenCallbacks = { resolve: null, reject: null };
+
 /**
- * Generate Google OAuth 2.0 Authorization URL for 0-popup direct full-page redirect
- * Essential for mobile browsers, iPhone Home Screen PWAs, and environments where popups fail.
+ * Pre-initialize Google Identity Services Token Client
+ * Call on mount so that when the user taps "Sign in with Google", requestAccessToken()
+ * can be triggered synchronously without any async delay, bypassing Safari/iOS popup blockers.
  */
-export function getGoogleOAuthRedirectUrl(clientIdOverride = null) {
-  if (typeof window === 'undefined') return '';
+export function ensurePrewarmedTokenClient(clientIdOverride = null) {
+  if (typeof window === 'undefined') return null;
+  if (!window.google?.accounts?.oauth2?.initTokenClient) return null;
+
   const storedId = typeof localStorage !== 'undefined' ? localStorage.getItem(GOOGLE_CLIENT_ID_KEY) : null;
   const clientId = clientIdOverride || storedId || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
-  const redirectUri = window.location.origin;
-  const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks email profile openid');
-  
-  // Use response_type=token for client-side SPA (instant callback via URL hash, 0 client_secret needed)
-  return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}&prompt=select_account%20consent`;
+
+  try {
+    prewarmedTokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks email profile openid',
+      callback: async (tokenResponse) => {
+        if (tokenResponse.error) {
+          currentTokenCallbacks.reject?.(new Error(tokenResponse.error_description || tokenResponse.error));
+          return;
+        }
+        if (tokenResponse.access_token) {
+          const expiresIn = tokenResponse.expires_in || 3600;
+          saveGoogleToken(tokenResponse.access_token, expiresIn);
+          localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
+          const profile = await fetchGoogleUserProfile(tokenResponse.access_token).catch(() => null);
+          currentTokenCallbacks.resolve?.({ access_token: tokenResponse.access_token, user: profile });
+        } else {
+          currentTokenCallbacks.reject?.(new Error("No access token received from Google."));
+        }
+      },
+      error_callback: (err) => {
+        const isBlocked = err?.type === 'popup_failed_to_open' || 
+                          err?.type === 'popup_blocked' || 
+                          (err?.message && /popup/i.test(err.message));
+        const message = isBlocked
+          ? "Popup window was blocked by your browser. Please allow popups for this site."
+          : (err?.message || "Google Sign-In was closed or cancelled.");
+        const customErr = new Error(message);
+        customErr.isPopupBlocked = isBlocked;
+        customErr.type = err?.type;
+        currentTokenCallbacks.reject?.(customErr);
+      }
+    });
+    return prewarmedTokenClient;
+  } catch (e) {
+    console.warn("[Google Calendar] Prewarming GIS token client notice:", e);
+    return null;
+  }
 }
 
 /**
- * Initiate Direct Full-Window Google OAuth Redirect (0 Popups, 100% Mobile & Standalone PWA Compatible)
+ * Synchronously request Google access token in direct user click event tick.
+ * Guarantees zero popup blocking on Safari & iOS.
+ */
+export function requestGoogleAccessTokenSync(clientIdOverride = null) {
+  return new Promise(async (resolve, reject) => {
+    currentTokenCallbacks = { resolve, reject };
+
+    if (!prewarmedTokenClient) {
+      if (!isGoogleGsiReady()) {
+        await ensureGoogleGsiLoaded();
+      }
+      ensurePrewarmedTokenClient(clientIdOverride);
+    }
+
+    if (prewarmedTokenClient) {
+      try {
+        prewarmedTokenClient.requestAccessToken({ prompt: 'select_account' });
+      } catch (err) {
+        reject(err);
+      }
+    } else {
+      signInWithGooglePopup(clientIdOverride).then(resolve).catch(reject);
+    }
+  });
+}
+
+/**
+ * Initiate Direct Full-Window Google OAuth Redirect
+ * Uses response_type=code to prevent Google Error 400 invalid_request
  */
 export function startGoogleOAuthRedirect(clientIdOverride = null) {
-  if (typeof window === 'undefined') return;
-  const url = getGoogleOAuthRedirectUrl(clientIdOverride);
-  if (url) {
-    window.location.href = url;
-  }
+  // Delegate directly to official GIS flow
+  requestGoogleAccessTokenSync(clientIdOverride);
 }
 
 /**
