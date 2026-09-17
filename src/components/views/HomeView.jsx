@@ -12,7 +12,6 @@ import {
   Bell,
   RotateCw,
   Plus,
-  Camera,
   Flame,
   Sparkles
 } from 'lucide-react';
@@ -369,24 +368,24 @@ export const HomeView = ({
         return (
           <div className={isCompact ? 'mt-2' : 'mt-3'}>
             <GlassCard 
-              className={`relative z-20 isolate touch-manipulation flex flex-col justify-between group transition-all ${isCompact ? 'p-3.5' : 'p-5'}`}
+              onClick={() => {
+                playSound('click', soundEnabled);
+                onNavigate('nutrition');
+              }}
+              className={`relative z-20 isolate touch-manipulation flex flex-col justify-between group transition-all cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
             >
               {/* Header: Title & Quick Navigate */}
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div 
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    onNavigate('nutrition');
-                  }}
-                  className="flex items-center gap-2.5 cursor-pointer group/nav"
+                  className="flex items-center gap-2.5 group/nav"
                 >
                   <div 
-                    className={`rounded-xl flex items-center justify-center bg-white/[0.04] text-slate-300 border border-white/[0.08] group-hover/nav:border-white/20 group-hover/nav:text-white transition-all ${isCompact ? 'w-7 h-7' : 'w-8 h-8'}`}
+                    className={`rounded-xl flex items-center justify-center bg-white/[0.04] text-slate-300 border border-white/[0.08] group-hover:border-white/20 group-hover:text-white transition-all ${isCompact ? 'w-7 h-7' : 'w-8 h-8'}`}
                   >
                     <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} style={{ color: 'var(--accent-primary)' }} />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 group-hover/nav:text-white transition-colors">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 group-hover:text-white transition-colors">
                       Daily Nutrition
                     </h3>
                     <p className="text-[10px] text-slate-500 font-sans">Macro & fuel breakdown</p>
@@ -401,14 +400,15 @@ export const HomeView = ({
                   )}
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       playSound('click', soundEnabled);
-                      onNavigate('nutrition');
+                      handleOpenMealModal('quick_text');
                     }}
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                    title="Open full nutrition view"
+                    className="flex items-center justify-center w-7 h-7 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-90 cursor-pointer"
+                    title="Log food"
                   >
-                    <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    <Plus className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
                   </button>
                 </div>
               </div>
@@ -546,42 +546,6 @@ export const HomeView = ({
 
               </div>
 
-              {/* Direct Quick Action Buttons Right From Homescreen */}
-              <div className="flex items-center gap-2 pt-3 mt-2 border-t border-white/[0.06] flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleOpenMealModal('quick_text')}
-                  className="flex-1 min-w-[130px] py-2 px-3 rounded-xl text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-all cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--accent-primary)',
-                    boxShadow: '0 4px 14px -2px var(--accent-glow)'
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Log Food</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenMealModal('upload_image')}
-                  className="py-2 px-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 hover:text-white border border-white/10 text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                  title="Take a photo of your food to analyze & log with AI"
-                >
-                  <Camera className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Snap Photo</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    onNavigate('nutrition');
-                  }}
-                  className="py-2 px-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] text-xs font-medium transition-all cursor-pointer hidden sm:block"
-                >
-                  Full Details →
-                </button>
-              </div>
             </GlassCard>
           </div>
         );

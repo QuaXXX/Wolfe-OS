@@ -5,7 +5,6 @@ import {
   Scale, 
   X, 
   TrendingUp, 
-  Zap, 
   Plus, 
   Trash2, 
   Check, 
@@ -17,7 +16,6 @@ import {
   createWeightLogEntry, 
   calculateMovingAverageWeight, 
   calculateWeightVelocity,
-  getAdaptiveSurplusRecommendation, 
   calculateWeightTrend 
 } from '../../utils/nutritionEngine.js';
 import { getTodayIso } from '../../utils/calendarUtils.js';
@@ -51,7 +49,6 @@ export const WeightTrackerModal = ({
   const trend = calculateWeightTrend(weightHistory, weightSpan);
   const movingAvg = calculateMovingAverageWeight(weightHistory, weightSpan === 'all' ? 30 : Number(weightSpan));
   const velocity = calculateWeightVelocity(weightHistory);
-  const surplusRec = getAdaptiveSurplusRecommendation(weightHistory, currentCalorieTarget);
   const latestWeighIn = sortedHistory[0];
 
   // SVG Chart points calculation
@@ -73,13 +70,6 @@ export const WeightTrackerModal = ({
     } catch (err) {
       setError(err.message || "Invalid weight entry");
       playSound('click', soundEnabled);
-    }
-  };
-
-  const handleApplySurplusClick = () => {
-    if (surplusRec.needsSurplus && onApplySurplus) {
-      playSound('success', soundEnabled);
-      onApplySurplus(surplusRec.newCalorieTarget);
     }
   };
 
@@ -330,40 +320,6 @@ export const WeightTrackerModal = ({
               </button>
             </div>
           </div>
-
-          {/* ADAPTIVE SURPLUS ADVISOR ALERT (When Weight Stalls) */}
-          {surplusRec.needsSurplus && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold text-xs text-amber-200">
-                  <Zap className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
-                  <span>{surplusRec.title}</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">
-                  +{surplusRec.suggestedAddition} kcal Suggested
-                </span>
-              </div>
-
-              <p className="text-[11px] leading-relaxed text-amber-200/90">
-                {surplusRec.description}
-              </p>
-
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleApplySurplusClick}
-                  className="flex-1 py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Flame className="w-3.5 h-3.5" />
-                  <span>Bump Target to {surplusRec.newCalorieTarget} kcal/day</span>
-                </button>
-              </div>
-            </motion.div>
-          )}
 
           {/* Log New Morning Weigh-In Form */}
           <form onSubmit={handleSubmit} className="p-4 rounded-2xl bg-[#131728] border border-white/10 space-y-3">

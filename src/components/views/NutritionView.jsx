@@ -7,7 +7,6 @@ import {
   Scale, 
   TrendingUp, 
   Flame, 
-  Zap, 
   Check, 
   Trash2, 
   ChevronRight, 
@@ -25,13 +24,12 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GlassCard } from '../common/GlassCard';
-import { playSound } from '../../utils/soundFX';
+import { GlassCard } from '../common/GlassCard.jsx';
+import { playSound } from '../../utils/soundFX.js';
 import { 
   aggregateDailyNutrition, 
   calculateMovingAverageWeight, 
   calculateWeightVelocity, 
-  getAdaptiveSurplusRecommendation,
   createMealEntry,
   DEFAULT_HOUSEHOLD_PANTRY,
   getCalibrationProgress,
@@ -319,10 +317,6 @@ const NutritionViewInner = ({
   const weightVelocity = useMemo(() => {
     return calculateWeightVelocity(weightHistory);
   }, [weightHistory]);
-
-  const surplusRecommendation = useMemo(() => {
-    return getAdaptiveSurplusRecommendation(weightHistory, activeTargetCalories);
-  }, [weightHistory, activeTargetCalories]);
 
   // Kitchen Hardware Calibration Progress
   const calibrationProgress = useMemo(() => {
@@ -1037,37 +1031,6 @@ const NutritionViewInner = ({
           </div>
         </div>
       </GlassCard>
-
-
-      {/* 2. ADAPTIVE SURPLUS BANNER (Appears if weight stalls) */}
-      {surplusRecommendation.needsSurplus && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
-              <Zap className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-amber-200 flex items-center gap-2">
-                <span>Scale Stalled — Calorie Adjustment Available</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
-                  +{surplusRecommendation.suggestedAddition} kcal
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-200/90 mt-0.5 leading-relaxed">
-                {surplusRecommendation.description}
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => handleApplySurplus(surplusRecommendation.newCalorieTarget)}
-            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95 whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
-          >
-            <Flame className="w-3.5 h-3.5" />
-            <span>Bump Target to {surplusRecommendation.newCalorieTarget} kcal</span>
-          </button>
-        </div>
-      )}
 
       {/* 5. TODAY'S MEAL ENTRIES BY SLOT */}
       <div className="space-y-4">

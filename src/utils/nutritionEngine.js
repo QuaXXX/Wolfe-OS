@@ -1298,45 +1298,10 @@ export function calculateWeightVelocity(weightHistory = []) {
 }
 
 /**
- * Adaptive Surplus Advisor: Suggests increasing daily calories if scale weight hasn't moved
+ * Adaptive Surplus Advisor: Disabled per user request (Scale stalled indicator removed)
  */
 export function getAdaptiveSurplusRecommendation(weightHistory = [], currentCalorieTarget = 3250) {
-  if (!Array.isArray(weightHistory) || weightHistory.length < 5) {
-    return { needsSurplus: false, reason: "Logging baseline. Continue current targets for 5+ days." };
-  }
-
-  const recent = [...weightHistory]
-    .filter(w => w && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(-7);
-
-  if (recent.length < 5) {
-    return { needsSurplus: false, reason: "Need 5 consecutive weigh-ins to confirm weight trend." };
-  }
-
-  const oldestRecent = recent[0].weightLbs;
-  const newestRecent = recent[recent.length - 1].weightLbs;
-  const delta = newestRecent - oldestRecent;
-
-  if (delta < 0.2) {
-    const recommendedNewTarget = clamp(currentCalorieTarget + 250, 2000, 4500);
-    return {
-      needsSurplus: true,
-      currentWeight: newestRecent,
-      daysObserved: recent.length,
-      stalledDeltaLbs: Number(delta.toFixed(1)),
-      suggestedAddition: 250,
-      newCalorieTarget: recommendedNewTarget,
-      title: "Scale Stalled — Calorie Adjustment Available",
-      description: `Your morning weight is flat over the last ${recent.length} days (${delta >= 0 ? '+' : ''}${delta.toFixed(1)} lbs). Add +250 kcal to push progress.`
-    };
-  }
-
-  return {
-    needsSurplus: false,
-    currentWeight: newestRecent,
-    reason: `Great momentum: +${delta.toFixed(1)} lbs over recent weigh-ins.`
-  };
+  return { needsSurplus: false, reason: "Adaptive surplus recommendation disabled" };
 }
 
 // ---------------------------------------------------------------------------
