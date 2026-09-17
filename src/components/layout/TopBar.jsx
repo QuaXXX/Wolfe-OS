@@ -273,20 +273,22 @@ export const TopBar = ({
             }}
             className="flex items-center gap-2.5 cursor-pointer group"
           >
-            {/* Dynamic Wolf Logo Badge synced with color slider */}
+            {/* Dynamic Wolf Logo Badge with Instagram Story Gradient Ring */}
             <div 
-              className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/[0.04] transition-all shadow-sm group-hover:scale-105"
-              style={{
-                border: '1px solid var(--accent-border)',
-                color: 'var(--accent-primary)',
-                boxShadow: '0 0 15px -3px var(--accent-glow)'
-              }}
+              className="flex items-center justify-center w-8 h-8 rounded-xl p-[1.5px] bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] transition-all shadow-sm group-hover:scale-105"
             >
-              <WolfLogo className="w-4 h-4" />
+              <div className="w-full h-full rounded-[10px] bg-[#0c0e18] flex items-center justify-center text-amber-400">
+                <WolfLogo className="w-4 h-4" />
+              </div>
             </div>
-            <span className="font-display font-bold text-sm tracking-tight text-white group-hover:text-slate-200 transition-colors">
-              Wolfe OS
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-bold text-sm tracking-tight text-white group-hover:text-slate-200 transition-colors">
+                Wolfe OS
+              </span>
+              <span className="inline-flex items-center justify-center w-3 h-3 rounded-full bg-blue-500 text-white text-[8px] font-black shrink-0 shadow-sm" title="Verified System">
+                ✓
+              </span>
+            </div>
           </div>
 
           {activeView !== 'home' && (

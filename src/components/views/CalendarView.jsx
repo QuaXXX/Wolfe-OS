@@ -51,7 +51,7 @@ export const CalendarView = ({
   const [itemType, setItemType] = useState('event'); // 'event', 'deadline', 'task', 'reminder'
   const [itemTitle, setItemTitle] = useState('');
   const [itemDate, setItemDate] = useState(todayIso);
-  const [itemCategory, setItemCategory] = useState('School');
+  const [itemCategory, setItemCategory] = useState('General');
   const [itemStartTime, setItemStartTime] = useState('02:00 PM');
   const [itemEndTime, setItemEndTime] = useState('03:00 PM');
   const [itemIsAllDay, setItemIsAllDay] = useState(false);
@@ -921,11 +921,10 @@ export const CalendarView = ({
                     onChange={(e) => setItemCategory(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-white/30"
                   >
-                    <option value="School">School / Academics</option>
-                    <option value="Trading">Trading</option>
-                    <option value="Fitness">Workouts / Fitness</option>
-                    <option value="Nutrition">Nutrition</option>
                     <option value="General">General / Personal</option>
+                    <option value="Trading">Trading</option>
+                    <option value="Nutrition">Nutrition</option>
+                    <option value="Important">Important / Priority</option>
                   </select>
                 </div>
               </div>
