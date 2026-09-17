@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Volume2, 
-  VolumeX, 
   ChevronRight,
-  Mic,
   Settings,
   Loader2,
   X,
   ArrowUpRight,
   Square,
-  Maximize2,
-  Minimize2,
   Cloud,
   Camera
 } from 'lucide-react';
@@ -38,57 +33,22 @@ export const TopBar = ({
   onPurgeItems,
   isGoogleConnected = false,
   syncStatus = 'disconnected',
-  onOpenGoogleModal = null,
-  onSyncNow = null,
-  onOpenMealLogModal = null,
+  onOpenGoogleModal,
+  onSyncNow,
+  onOpenMealLogModal,
   onLogMeal = null
 }) => {
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
-
-  // In-place TopBar voice listening state
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveSpeech, setLiveSpeech] = useState('');
   const [voiceResponse, setVoiceResponse] = useState(null);
-  const [isFullscreen, setIsFullscreen] = useState(!!(typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement)));
   
   const voiceControllerRef = useRef(null);
   const handleVoiceQueryRef = useRef(null);
   const abortControllerRef = useRef(null);
   const toastTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    const handleFsChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
-    };
-    document.addEventListener('fullscreenchange', handleFsChange);
-    document.addEventListener('webkitfullscreenchange', handleFsChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFsChange);
-      document.removeEventListener('webkitfullscreenchange', handleFsChange);
-    };
-  }, []);
-
-  const handleToggleFullscreen = () => {
-    playSound('click', soundEnabled);
-    const docEl = document.documentElement;
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      if (docEl.requestFullscreen) {
-        docEl.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
-          docEl.requestFullscreen().catch(() => {});
-        });
-      } else if (docEl.webkitRequestFullscreen) {
-        docEl.webkitRequestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      }
-    }
-  };
 
   // Keep a ref to latest handleVoiceQuery
   useEffect(() => {
@@ -290,33 +250,21 @@ export const TopBar = ({
         {activeView !== 'home' && (
           <div className="flex items-center gap-2">
             {!isListening && !isProcessing ? (
-              <>
-                <button
-                  onClick={toggleTopBarListening}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
-                  style={{ border: '1px solid var(--accent-border)' }}
-                  title="Speak a command from this view"
-                >
-                  <Mic className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span>Speak</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    if (onOpenMealLogModal) {
-                      onOpenMealLogModal();
-                    } else {
-                      onNavigate('nutrition');
-                    }
-                  }}
-                  className="hidden xs:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-300 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer border border-white/10"
-                  title="Snap photo or log food"
-                >
-                  <Camera className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                  <span className="hidden md:inline">Log Food</span>
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  playSound('click', soundEnabled);
+                  if (onOpenMealLogModal) {
+                    onOpenMealLogModal();
+                  } else {
+                    onNavigate('nutrition');
+                  }
+                }}
+                className="hidden xs:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-300 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer border border-white/10"
+                title="Snap photo or log food"
+              >
+                <Camera className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                <span className="hidden md:inline">Log Food</span>
+              </button>
             ) : isListening ? (
               <div 
                 className="flex items-center gap-2 px-3 py-1 rounded-xl text-xs font-medium animate-pulse"
@@ -377,35 +325,6 @@ export const TopBar = ({
             <span className="text-slate-400 font-sans">{dateStr}</span>
           </div>
 
-          {/* Sound Toggle */}
-          <button
-            onClick={() => {
-              const next = !soundEnabled;
-              onToggleSound();
-              if (next) playSound('click', true);
-            }}
-            title={soundEnabled ? "Mute audio" : "Enable audio"}
-            className="p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/5 transition-colors cursor-pointer"
-          >
-            {soundEnabled ? (
-              <Volume2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-            ) : (
-              <VolumeX className="w-4 h-4 text-slate-600" />
-            )}
-          </button>
-
-          {/* 1-Tap Fullscreen Immersion (Hides Android status & nav bars) */}
-          <button
-            onClick={handleToggleFullscreen}
-            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen (Hides Android status & nav bars)"}
-            className="p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/5 transition-colors cursor-pointer"
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-            ) : (
-              <Maximize2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-            )}
-          </button>
 
           {/* Cloud Sync & Google Account Indicator */}
           <button

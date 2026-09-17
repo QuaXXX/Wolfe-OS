@@ -1571,33 +1571,6 @@ export function App() {
         </AnimatePresence>
       </main>
 
-      {/* Mobile Floating Home Exit Button */}
-      {activeView !== 'home' && (
-        <div 
-          className="fixed right-4 sm:hidden z-50"
-          style={{
-            bottom: 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 60px)'
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              playSound('click', settings.soundEnabled);
-              handleNavigate('home');
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-white text-xs font-bold shadow-2xl backdrop-blur-xl transition-all active:scale-95 cursor-pointer"
-            style={{
-              backgroundColor: 'rgba(15, 18, 32, 0.95)',
-              border: '1px solid var(--accent-border)',
-              boxShadow: '0 8px 25px -4px rgba(0,0,0,0.7), 0 0 15px -3px var(--accent-glow)'
-            }}
-            title="Return to Home Hub"
-          >
-            <X className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-            <span>Home</span>
-          </button>
-        </div>
-      )}
 
       {/* Floating Interactive Dock */}
       <Dock 

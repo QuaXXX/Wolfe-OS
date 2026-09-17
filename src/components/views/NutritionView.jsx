@@ -74,17 +74,6 @@ const NutritionViewInner = ({
     });
   };
 
-  const handleToggleExpandAll = (meals = []) => {
-    playSound('click', soundEnabled);
-    setExpandedMealIds(prev => {
-      const allIds = meals.map(m => m.id).filter(Boolean);
-      if (prev.size >= allIds.length && allIds.length > 0) {
-        return new Set();
-      } else {
-        return new Set(allIds);
-      }
-    });
-  };
 
   // Date Navigation State: Dynamic today tracking that automatically updates on new day / midnight / window focus
   const [currentTodayIso, setCurrentTodayIso] = useState(() => getTodayIso());
@@ -744,18 +733,8 @@ const NutritionViewInner = ({
       {/* 1. Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--accent-primary)' }}>
-            <UtensilsCrossed className="w-4 h-4" />
-            <span>Performance Nutrition & Fuel</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/[0.04] text-slate-300 border border-white/10">
-              {activeTargetProtein}g Protein • High Carb
-            </span>
-          </div>
-          <h1 className="text-xl font-bold text-white tracking-tight mt-0.5 flex items-center gap-2">
-            <span>Nutrition & Macro Tracker</span>
-            <span className="text-xs font-mono font-normal text-slate-400">
-              ({activeTargetCalories} kcal Target)
-            </span>
+          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            Nutrition & Macro Tracker
           </h1>
         </div>
 
@@ -1061,22 +1040,9 @@ const NutritionViewInner = ({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <span>{selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/5 text-slate-400">
-                {selectedDateMeals.length} {selectedDateMeals.length === 1 ? 'Meal' : 'Meals'}
-              </span>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+              {selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}
             </h2>
-
-            {selectedDateMeals.length > 1 && (
-              <button
-                type="button"
-                onClick={() => handleToggleExpandAll(selectedDateMeals)}
-                className="text-[10px] font-mono text-slate-400 hover:text-white px-2 py-0.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 transition-all cursor-pointer"
-              >
-                {expandedMealIds.size >= selectedDateMeals.length ? 'Collapse All' : 'Expand All'}
-              </button>
-            )}
           </div>
 
           <button
@@ -1211,11 +1177,11 @@ const NutritionViewInner = ({
                       {/* Clean Ingredients Breakdown */}
                       {Array.isArray(meal.items) && meal.items.length > 0 && (
                         <div className="pt-1 space-y-1.5">
-                          <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                          <div className="text-[10px] uppercase font-sans tracking-wider text-slate-400 font-semibold flex items-center justify-between">
                             <span>Items & Calculated Ingredients</span>
                             <span className="text-[10px] text-slate-500">{meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}</span>
                           </div>
-                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                             {meal.items.map((it, idx) => {
                               const isObj = it && typeof it === 'object';
                               const name = isObj ? (typeof it.name === 'string' ? it.name : String(it.name?.title || it.name?.name || 'Item')) : String(it || 'Item');
@@ -1227,16 +1193,18 @@ const NutritionViewInner = ({
                               const hasMacros = isObj && (itCals != null || itProtein != null || itCarbs != null || itFats != null);
 
                               return (
-                                <div key={idx} className="p-2 sm:p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 text-xs font-mono flex items-center justify-between gap-2 transition-colors">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
-                                    <span className="text-slate-200 font-medium truncate">{name}</span>
-                                    {portion && (
-                                      <span className="text-[10px] text-slate-400 shrink-0">({portion})</span>
-                                    )}
+                                <div key={idx} className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-colors">
+                                  <div className="flex items-start sm:items-center gap-2 min-w-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0 mt-1 sm:mt-0" />
+                                    <div className="leading-snug break-words whitespace-normal">
+                                      <span className="text-slate-200 font-medium">{name}</span>
+                                      {portion && (
+                                        <span className="text-[11px] text-slate-400 ml-1.5">({portion})</span>
+                                      )}
+                                    </div>
                                   </div>
                                   {hasMacros && (
-                                    <div className="flex items-center gap-2 text-[11px] shrink-0 font-semibold">
+                                    <div className="flex items-center gap-2 text-[11px] shrink-0 font-medium ml-3.5 sm:ml-0">
                                       {itCals != null && (
                                         <span className="text-white">{itCals} cal</span>
                                       )}
