@@ -1,9 +1,5 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-import marketPricesHandler from './api/market-prices.js'
-import historicalCandlesHandler from './api/historical-candles.js'
-import marketNewsHandler from './api/market-news.js'
-import webhookHandler from './api/webhook/tradingview.js'
 import googleAuthHandler from './api/auth/google-auth.js'
 import syncHandler from './api/sync.js'
 
@@ -48,10 +44,6 @@ export default defineConfig({
     {
       name: 'api-serverless-middleware',
       configureServer(server) {
-        server.middlewares.use('/api/market-prices', apiHandlerMiddleware(marketPricesHandler));
-        server.middlewares.use('/api/historical-candles', apiHandlerMiddleware(historicalCandlesHandler));
-        server.middlewares.use('/api/market-news', apiHandlerMiddleware(marketNewsHandler));
-        server.middlewares.use('/api/webhook/tradingview', apiHandlerMiddleware(webhookHandler));
         server.middlewares.use('/api/auth/google-auth', apiHandlerMiddleware(googleAuthHandler));
         server.middlewares.use('/api/sync', apiHandlerMiddleware(syncHandler));
       }
