@@ -6,7 +6,7 @@ import {
   deleteGoogleCalendarEvent, 
   isGoogleCalendarConnected
 } from './googleCalendarService.js';
-import { parseMealDescription, createMealEntry, aggregateDailyNutrition } from './nutritionEngine.js';
+import { parseMealDescription, createMealEntry, aggregateDailyNutrition, isFoodLogQuery } from './nutritionEngine.js';
 import { recordAdditionOrUpdate, triggerImmediateCloudPush, markLocalMutation } from './cloudSyncEngine.js';
 
 // Color theme hue mappings
@@ -65,6 +65,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     onDeleteSpecificItem,
     onPurgeItems,
     onEventCreated,
+    onLogMeal = ctx.onLogMeal || ctx.osData?.onLogMeal,
     todayIso = getTodayIso()
   } = ctx;
 
@@ -474,18 +475,29 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     };
   }
 
-  // Natural Language Food Logging: "log 1 peanutbutter toast", "ate 2 eggs and apple", "had quinoa chickpea bowl"
-  const foodLogMatch = text.match(/^(?:log|add|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*(.+)$/i);
-  if (foodLogMatch) {
-    const rawFoodPhrase = foodLogMatch[1].trim();
-    if (!rawFoodPhrase.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock|water)\b/i)) {
+  // Natural Language Food Logging: "add 2 eggs and toast", "log 1 peanutbutter toast", "ate chicken and rice", "3 tacos"
+  const isFoodIntent = isFoodLogQuery(text);
+  const foodLogMatch = text.match(/^(?:log|add|record|track|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*(.+)$/i);
+
+  if (foodLogMatch || isFoodIntent) {
+    const rawFoodPhrase = foodLogMatch 
+      ? foodLogMatch[1].trim() 
+      : text.replace(/^(?:log|add|record|track|ate|had|eating|eat|put)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/i, '').trim();
+
+    if (!rawFoodPhrase.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock)\b/i)) {
       const parsedMeal = parseMealDescription(rawFoodPhrase);
       if (parsedMeal && parsedMeal.items && parsedMeal.items.length > 0) {
         const todayIso = getTodayIso();
+        let slot = 'meal';
+        if (/\bbreakfast\b/i.test(text)) slot = 'breakfast';
+        else if (/\blunch\b/i.test(text)) slot = 'lunch';
+        else if (/\bdinner\b/i.test(text)) slot = 'dinner';
+        else if (/\bsnack\b/i.test(text)) slot = 'snack';
+
         const mealEntry = createMealEntry({
           date: todayIso,
           name: parsedMeal.name,
-          slot: 'meal',
+          slot,
           calories: parsedMeal.calories,
           protein: parsedMeal.protein,
           carbs: parsedMeal.carbs,
@@ -496,7 +508,9 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
         recordAdditionOrUpdate(mealEntry.id);
         markLocalMutation();
 
-        if (setNutritionData) {
+        if (onLogMeal) {
+          onLogMeal(mealEntry);
+        } else if (setNutritionData) {
           let currentNut = {};
           try {
             const raw = localStorage.getItem('wolfe_nutrition_data');
@@ -555,7 +569,9 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       recordAdditionOrUpdate(mealEntry.id);
       markLocalMutation();
 
-      if (setNutritionData) {
+      if (onLogMeal) {
+        onLogMeal(mealEntry);
+      } else if (setNutritionData) {
         let currentNut = {};
         try {
           const raw = localStorage.getItem('wolfe_nutrition_data');

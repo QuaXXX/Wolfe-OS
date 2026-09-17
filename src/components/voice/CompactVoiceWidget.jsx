@@ -30,7 +30,8 @@ export const CompactVoiceWidget = forwardRef(({
   onPurgeItems,
   onOpenSettings, 
   soundEnabled = true,
-  onOpenMealLog = null
+  onOpenMealLog = null,
+  onLogMeal = null
 }, ref) => {
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -186,6 +187,7 @@ export const CompactVoiceWidget = forwardRef(({
       setSettings: osData?.setSettings,
       setCalendarData: osData?.setCalendarData,
       setNutritionData: osData?.setNutritionData,
+      onLogMeal: onLogMeal || osData?.onLogMeal,
       onNavigate,
       onClearCalendar,
       onDeleteSpecificItem,

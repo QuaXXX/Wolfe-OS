@@ -80,7 +80,8 @@ export const HomeView = ({
     setNutritionData,
     setCalendarData,
     onClearDeadlines,
-    onPurgeItems
+    onPurgeItems,
+    onLogMeal
   };
 
   const items = calendarData?.items || [];
@@ -112,6 +113,7 @@ export const HomeView = ({
         onPurgeItems={onPurgeItems}
         onOpenSettings={onOpenSettings}
         soundEnabled={soundEnabled}
+        onLogMeal={onLogMeal}
         onOpenMealLog={({ initialTab } = {}) => handleOpenMealModal(initialTab || 'upload_image')}
       />
 

@@ -1498,12 +1498,14 @@ export function App() {
           onClearDeadlines: handleClearDeadlines,
           onClearCalendar: handleClearCalendar,
           onDeleteItem: handleDeleteItem,
-          onPurgeItems: handlePurgeItems
+          onPurgeItems: handlePurgeItems,
+          onLogMeal: handleLogMeal
         }}
         onEventCreated={handleAddItem}
         onClearCalendar={handleClearCalendar}
         onDeleteSpecificItem={handleDeleteSpecificItem}
         onPurgeItems={handlePurgeItems}
+        onLogMeal={handleLogMeal}
         onOpenMealLogModal={() => handleNavigate('nutrition')}
       />
 

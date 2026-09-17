@@ -17,7 +17,18 @@ import {
   parseTimeToMinutes,
   normalizeSpokenTimes
 } from './calendarParser.js';
-import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt, calibrateBoneInMeats, calibrateMealItems } from './nutritionEngine.js';
+import { 
+  parseMealDescription, 
+  calculateCaloriesFromMacros, 
+  buildAiCalibrationPrompt, 
+  buildAiPantryPrompt, 
+  calibrateBoneInMeats, 
+  calibrateMealItems,
+  isFoodLogQuery,
+  createMealEntry,
+  aggregateDailyNutrition
+} from './nutritionEngine.js';
+import { recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush } from './cloudSyncEngine.js';
 import { getVaultMetadata, getCachedVaultFiles } from './obsidianService.js';
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
@@ -118,6 +129,26 @@ SYSTEM INTERACTION DIRECTIVES:
   • For deadlines/exams: type: "deadline", isAllDay: true, priority: "urgent" (exams, midterms, finals, project submissions, assignment due dates).
   • For timed events: type: "event", startTime: "HH:MM AM/PM", endTime: "HH:MM AM/PM", isAllDay: false (meetings, classes, workouts, dinners, doctor appointments).
   • For tasks/reminders: type: "task" or "reminder", isAllDay: true.
+- FOOD & NUTRITION LOGGING MANDATE (CRITICAL):
+  • When Zach asks to "add ____" (or "log ____", "had ____", "ate ____") and it refers to food, meals, ingredients, drinks, protein shakes, or calories (e.g. "add 2 eggs and toast", "add chicken and rice", "add a protein shake", "add 500 cals", "add chipotle bowl", "add an apple", "add lunch: turkey sandwich"):
+    - THIS IS STRICTLY A NUTRITION FOOD LOG, NEVER A CALENDAR EVENT OR SCHEDULE ITEM!
+    - DO NOT create a calendarItem or use CREATE_CALENDAR_ITEM.
+    - Set "actionType": "LOG_MEAL".
+    - Set "targetView": "nutrition".
+    - Set "actionLabel": "View Nutrition".
+    - Provide a "meal" object with:
+      {
+        "name": "Concise Descriptive Title (e.g. 2 Eggs & Whole Wheat Toast)",
+        "slot": "breakfast" | "lunch" | "dinner" | "snack" | "meal",
+        "calories": number (total kcal),
+        "protein": number (grams),
+        "carbs": number (grams),
+        "fats": number (grams),
+        "items": [
+          { "name": "Item Name", "portion": "portion description", "calories": number, "protein": number, "carbs": number, "fats": number }
+        ]
+      }
+    - Set "message": e.g. "Logged 2 Eggs & Toast: 304 kcal | 18.6g P | 30.8g C | 11.6g F to your daily nutrition."
 - FORMATTING MANDATE: Present responses with executive polish. Never output escaped or doubled quote artifacts (avoid \"\" or \"\"\"). Never wrap your whole message in outer quotes. Use clean bullet points and bold headers (**Heading:**) for multi-point answers.
 - WIKILINK & NETWORKED THOUGHT MANDATE: When referencing courses, study notes, formula sheets, or calendar dates, use Obsidian [[wikilink]] syntax (e.g. [[FNCE 317]], [[WACC]], [[Daily/${todayIso}]]). Wolfe OS converts these into interactive clickable buttons.
 
@@ -126,7 +157,8 @@ ACTIONS:
 2. "BATCH_CREATE_CALENDAR_ITEMS": For adding multiple deadlines, events, tasks, exam schedules, or course milestones at once. Provide "calendarItems" array.
 3. "CLEAR_CALENDAR_ITEMS": When asked to clear or wipe the calendar for today, tomorrow, all days, or a specific date. Provide "targetDate": "YYYY-MM-DD" or "ALL".
 4. "DELETE_SPECIFIC_ITEM": For deleting a specific item by name/title. Provide "itemTitle" and optional "targetDate".
-5. "ASK_CLARIFICATION": When time/date is missing.
+5. "LOG_MEAL": For logging food, meals, ingredients, drinks, snacks, or calories/macros to daily nutrition. Provide "meal" object.
+6. "ASK_CLARIFICATION": When time/date is missing.
 
 RESPOND ONLY IN VALID JSON:
 {
@@ -134,7 +166,7 @@ RESPOND ONLY IN VALID JSON:
   "message": "Direct executive response text",
   "targetView": "home" | "calendar" | "nutrition",
   "actionLabel": "Button Label",
-  "actionType": "CREATE_CALENDAR_ITEM" | "BATCH_CREATE_CALENDAR_ITEMS" | "CLEAR_CALENDAR_ITEMS" | "DELETE_SPECIFIC_ITEM" | "ASK_CLARIFICATION",
+  "actionType": "CREATE_CALENDAR_ITEM" | "BATCH_CREATE_CALENDAR_ITEMS" | "CLEAR_CALENDAR_ITEMS" | "DELETE_SPECIFIC_ITEM" | "LOG_MEAL" | "ASK_CLARIFICATION",
   "targetDate": "YYYY-MM-DD" (or "ALL"),
   "itemTitle": "Title to delete if actionType is DELETE_SPECIFIC_ITEM",
   "calendarItem": {
@@ -159,7 +191,18 @@ RESPOND ONLY IN VALID JSON:
       "priority": "urgent" | "normal",
       "weight": "30%" (optional)
     }
-  ]
+  ],
+  "meal": {
+    "name": "Meal Title",
+    "slot": "breakfast" | "lunch" | "dinner" | "snack" | "meal",
+    "calories": 500,
+    "protein": 40,
+    "carbs": 50,
+    "fats": 15,
+    "items": [
+      { "name": "Item Name", "portion": "1 serving", "calories": 500, "protein": 40, "carbs": 50, "fats": 15 }
+    ]
+  }
 }
 `;
 };
@@ -492,6 +535,40 @@ export function directFallbackAnswer(prompt, osData, history = []) {
     };
   }
 
+  // Food & Nutrition Fallback (Guarantees food is logged and never scheduled as a calendar event)
+  if (isFoodLogQuery(lower)) {
+    const cleanFoodQuery = lower.replace(/^(?:log|add|record|track|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/i, '').trim();
+    let slot = 'meal';
+    if (/\bbreakfast\b/i.test(lower)) slot = 'breakfast';
+    else if (/\blunch\b/i.test(lower)) slot = 'lunch';
+    else if (/\bdinner\b/i.test(lower)) slot = 'dinner';
+    else if (/\bsnack\b/i.test(lower)) slot = 'snack';
+
+    const parsedMeal = parseMealDescription(cleanFoodQuery || lower, {
+      kitchenCalibration: osData?.nutritionData?.kitchenCalibration,
+      householdPantry: osData?.nutritionData?.householdPantry
+    });
+
+    if (parsedMeal && parsedMeal.items && parsedMeal.items.length > 0) {
+      return {
+        title: "🍽️ Meal Logged",
+        message: `Logged ${parsedMeal.name}: ${parsedMeal.calories} kcal | ${parsedMeal.protein}g P | ${parsedMeal.carbs}g C | ${parsedMeal.fats}g F.`,
+        targetView: "nutrition",
+        actionLabel: "View Nutrition",
+        actionType: "LOG_MEAL",
+        meal: {
+          name: parsedMeal.name,
+          slot,
+          calories: parsedMeal.calories,
+          protein: parsedMeal.protein,
+          carbs: parsedMeal.carbs,
+          fats: parsedMeal.fats,
+          items: parsedMeal.items
+        }
+      };
+    }
+  }
+
   // Calendar Scheduling / Add Command Fallback
   const calCmd = parseCalendarCommand(prompt, todayIso);
   if (calCmd && calCmd.isCalendarCommand) {
@@ -719,6 +796,77 @@ export async function processVoiceOrTextCommand(
     };
   }
 
+  // Instant local catch for food logging commands (e.g. "add 2 eggs and toast", "add chicken and rice")
+  if (isFoodLogQuery(lower)) {
+    const cleanFoodQuery = lower.replace(/^(?:log|add|record|track|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/i, '').trim();
+    let slot = 'meal';
+    if (/\bbreakfast\b/i.test(lower)) slot = 'breakfast';
+    else if (/\blunch\b/i.test(lower)) slot = 'lunch';
+    else if (/\bdinner\b/i.test(lower)) slot = 'dinner';
+    else if (/\bsnack\b/i.test(lower)) slot = 'snack';
+
+    const localMeal = parseMealDescription(cleanFoodQuery || lower, {
+      kitchenCalibration: osData?.nutritionData?.kitchenCalibration,
+      householdPantry: osData?.nutritionData?.householdPantry
+    });
+
+    if (localMeal && localMeal.items && localMeal.items.length > 0) {
+      const mealEntry = createMealEntry({
+        date: todayIso,
+        name: localMeal.name,
+        slot,
+        calories: localMeal.calories,
+        protein: localMeal.protein,
+        carbs: localMeal.carbs,
+        fats: localMeal.fats,
+        items: localMeal.items
+      });
+
+      recordAdditionOrUpdate(mealEntry.id);
+      markLocalMutation();
+
+      if (osData?.onLogMeal) {
+        osData.onLogMeal(mealEntry);
+      } else if (osData?.setNutritionData) {
+        let currentNut = {};
+        try {
+          const raw = localStorage.getItem('wolfe_nutrition_data');
+          if (raw) currentNut = JSON.parse(raw);
+        } catch (e) {}
+
+        const nextMeals = [mealEntry, ...(currentNut.meals || [])];
+        const todayMeals = nextMeals.filter(m => m.date === todayIso);
+        const totals = aggregateDailyNutrition(todayMeals);
+        const nextData = {
+          ...currentNut,
+          currentDate: todayIso,
+          consumedCalories: totals.calories,
+          protein: { ...(currentNut.protein || {}), current: totals.protein },
+          carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
+          fats: { ...(currentNut.fats || {}), current: totals.fats },
+          meals: nextMeals,
+          updatedAt: Date.now()
+        };
+
+        try {
+          localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+        } catch (e) {}
+
+        osData.setNutritionData(nextData);
+        triggerImmediateCloudPush(80);
+      }
+
+      return {
+        title: "🍽️ Meal Logged",
+        message: `Logged ${localMeal.name}: ${localMeal.calories} kcal | ${localMeal.protein}g P | ${localMeal.carbs}g C | ${localMeal.fats}g F.`,
+        targetView: "nutrition",
+        actionLabel: "View Nutrition",
+        actionType: "LOG_MEAL",
+        meal: mealEntry
+      };
+    }
+  }
+
   const systemInstruction = buildSystemPrompt(osData);
   let response = null;
 
@@ -870,6 +1018,61 @@ export async function processVoiceOrTextCommand(
 
     if (onEventCreated) {
       onEventCreated(newItem);
+    }
+  }
+
+  // 5. Handle LOG_MEAL from Gemini AI
+  else if (response.actionType === 'LOG_MEAL' && response.meal) {
+    const meal = response.meal;
+    let slot = meal.slot || 'meal';
+    if (/\bbreakfast\b/i.test(prompt)) slot = 'breakfast';
+    else if (/\blunch\b/i.test(prompt)) slot = 'lunch';
+    else if (/\bdinner\b/i.test(prompt)) slot = 'dinner';
+    else if (/\bsnack\b/i.test(prompt)) slot = 'snack';
+
+    const mealEntry = createMealEntry({
+      date: meal.date || todayIso,
+      name: meal.name || 'Logged Meal',
+      slot,
+      calories: Number(meal.calories) || 0,
+      protein: Number(meal.protein) || 0,
+      carbs: Number(meal.carbs) || 0,
+      fats: Number(meal.fats) || 0,
+      items: Array.isArray(meal.items) ? meal.items : []
+    });
+
+    recordAdditionOrUpdate(mealEntry.id);
+    markLocalMutation();
+
+    if (osData?.onLogMeal) {
+      osData.onLogMeal(mealEntry);
+    } else if (osData?.setNutritionData) {
+      let currentNut = {};
+      try {
+        const raw = localStorage.getItem('wolfe_nutrition_data');
+        if (raw) currentNut = JSON.parse(raw);
+      } catch (e) {}
+
+      const nextMeals = [mealEntry, ...(currentNut.meals || [])];
+      const todayMeals = nextMeals.filter(m => m.date === todayIso);
+      const totals = aggregateDailyNutrition(todayMeals);
+      const nextData = {
+        ...currentNut,
+        currentDate: todayIso,
+        consumedCalories: totals.calories,
+        protein: { ...(currentNut.protein || {}), current: totals.protein },
+        carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
+        fats: { ...(currentNut.fats || {}), current: totals.fats },
+        meals: nextMeals,
+        updatedAt: Date.now()
+      };
+
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+
+      osData.setNutritionData(nextData);
+      triggerImmediateCloudPush(80);
     }
   }
 

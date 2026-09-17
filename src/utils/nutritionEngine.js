@@ -30,6 +30,77 @@ export function clamp(val, min, max) {
   return Math.min(Math.max(num, min), max);
 }
 
+/**
+ * Detects whether a natural language user query represents food, meal logging, or nutrition,
+ * rather than a calendar appointment or schedule event.
+ */
+export function isFoodLogQuery(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.toLowerCase().trim();
+
+  // 1. Exclude clear calendar / schedule intents even if they mention meal words (e.g. "lunch with Sarah at 1pm")
+  const hasTimeIndicator = lower.match(/\b(?:at|@)\s*(?:\d{1,2}(?::\d{2})?|\d{1,2}\s*(?:am|pm)|noon|midnight)\b/i) ||
+                           lower.match(/\b\d{1,2}:\d{2}\s*(?:am|pm)?\b/i);
+  const hasMeetingContext = lower.match(/\b(?:with\s+[a-z]+|meeting|appointment|interview|call|sync|session|hangout|date\s+with)\b/i);
+  const hasCalendarWords = lower.match(/\b(?:calendar|schedule|timeline|deadline|due|exam|midterm|test|quiz|lecture|class|homework|assignment|flight|haircut|dentist|doctor)\b/i);
+
+  // If it has calendar words and no food words, definitely not food
+  if (hasCalendarWords && !lower.match(/\b(?:food|meal|calories|kcal|protein|carbs|fats|recipe|nutrition|eat|ate)\b/i)) {
+    return false;
+  }
+
+  // If it has both a time indicator and a meeting/person context (e.g., "lunch with Sarah at 1pm", "dinner at 7pm with family"):
+  // it is a scheduled calendar event, NOT a food log!
+  if (hasTimeIndicator && hasMeetingContext) {
+    return false;
+  }
+
+  // If it has a clock time (e.g. "at 12pm", "at 1:00"), check if it contains actual food ingredients vs just "lunch/dinner"
+  const hasSpecificFood = lower.match(/\b(?:egg|eggs|chicken|beef|steak|pork|bacon|fish|salmon|tuna|rice|oats|oatmeal|bread|toast|bagel|wrap|pasta|noodles|salad|sweet potato|potato|fries|avocado|apple|banana|berry|milk|yogurt|cheese|whey|protein powder|protein shake|smoothie|shake|coffee|pizza|burger|taco|tacos|burrito|chipotle|sushi|cookie|calories|kcal|protein|carbs|fats|water)\b/i);
+  if (hasTimeIndicator && !hasSpecificFood) {
+    return false;
+  }
+
+  // 2. Direct food / meal commands & prefixes
+  if (lower.match(/^(?:log|add|record|track|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack|groceries)\b/i)) {
+    return true;
+  }
+  if (lower.match(/^(?:ate|had|eating|drank)\b/i)) {
+    return true;
+  }
+
+  // 3. Direct Calorie / Macro / Hydration patterns
+  if (lower.match(/\b\d+\s*(?:cals?|calories|kcal)\b/i)) {
+    return true;
+  }
+  if (lower.match(/\b\d+\s*g?\s*(?:protein|carbs?|fats?|macros?)\b/i)) {
+    return true;
+  }
+  if (lower.match(/\b(?:drink|drank|log|add|had|\+)\s*(\d+)?\s*(?:glass(?:es)?|cups?|bottles?)?\s*(?:of\s+)?water\b/i) || lower.match(/^water\s*\+\s*(\d+)?$/i)) {
+    return true;
+  }
+
+  // 4. Common Food, Beverage, and Ingredient Dictionary
+  const FOOD_TERMS = /\b(?:egg|eggs|egg whites|whites|chicken|chicken breast|thigh|thighs|wings|turkey|beef|ground beef|steak|sirloin|ribeye|pork|bacon|ham|sausage|fish|salmon|tuna|cod|tilapia|shrimp|prawns|crab|lobster|tofu|tempeh|edamame|rice|white rice|brown rice|jasmine rice|basmati|quinoa|oats|oatmeal|bread|toast|sourdough|bagel|tortilla|wrap|pita|pasta|spaghetti|noodles|ramen|mac and cheese|macaroni|cereal|granola|pancake|pancakes|waffle|waffles|potato|potatoes|sweet potato|sweet potatoes|fries|yam|broccoli|spinach|kale|lettuce|salad|cucumber|tomato|tomatoes|carrot|carrots|onion|onions|pepper|peppers|bell pepper|mushroom|mushrooms|zucchini|asparagus|green beans|peas|corn|avocado|avocados|apple|apples|banana|bananas|orange|oranges|berry|berries|blueberry|blueberries|strawberry|strawberries|raspberry|raspberries|blackberry|blackberries|mango|pineapple|watermelon|grapes|peach|pear|kiwi|lemon|lime|milk|almond milk|oat milk|soy milk|yogurt|greek yogurt|cottage cheese|cheese|cheddar|mozzarella|parmesan|feta|butter|ghee|oil|olive oil|peanut butter|almond butter|peanuts|almonds|walnuts|cashews|pistachios|seeds|chia|flax|whey|casein|protein powder|protein bar|protein shake|creatine|smoothie|shake|coffee|latte|cappuccino|tea|juice|pizza|burger|hamburger|cheeseburger|sandwich|sub|taco|tacos|burrito|fajita|quesadilla|enchilada|chipotle|subway|sushi|sashimi|poke|soup|stew|chili|curry|sauce|dressing|mayo|mayonnaise|mustard|ketchup|bbq sauce|honey|syrup|cookie|cookies|brownie|brownies|cake|chocolate|ice cream|popcorn|chips|pretzel|pretzels|cracker|crackers|snack|meat|beans|lentils|chickpeas)\b/i;
+
+  if (FOOD_TERMS.test(lower)) {
+    if (lower.match(/^(?:add|log|record|track|ate|had|eating|eat|put)\b/i) || lower.match(/\b(?:with|and|\+|\&)\b/i)) {
+      return true;
+    }
+    if (lower.match(/^\d+(?:\.\d+)?\s*(?:g|grams?|oz|ounces?|cups?|tbsp|tsp|scoops?|slices?|pieces?|can|cans?|serving|servings?|bowl|plate|bar|bottle)?\s+[a-z]+/i)) {
+      return true;
+    }
+  }
+
+  // 5. Quantity + Food Measurement
+  const FOOD_UNIT_REGEX = /\b\d+(?:\.\d+)?\s*(?:g\b|grams?\b|oz\b|ounces?\b|cups?\b|tbsp\b|tablespoons?\b|tsp\b|teaspoons?\b|scoops?\b|slices?\b|pieces?\b|can\b|cans?\b|serving\b|servings?\b|bowls?\b|plates?\b|bars?\b|bottles?\b|pouch(?:es)?\b|pack(?:et)?s?\b)/i;
+  if (lower.match(/^(?:add|log|ate|had|eating)\b/i) && FOOD_UNIT_REGEX.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // 2. VERIFIED SPORTS NUTRITION INGREDIENT DATABASE
 // ---------------------------------------------------------------------------
@@ -748,6 +819,61 @@ export const INGREDIENT_DATABASE = [
       bowl: { calories: 300, protein: 16, carbs: 36, fats: 10 },
       bowls: { calories: 300, protein: 16, carbs: 36, fats: 10 },
       g: { calories: 0.6, protein: 0.035, carbs: 0.075, fats: 0.018 }
+    }
+  },
+  {
+    regex: /\b(?:pizza|pepperoni\s+pizza|cheese\s+pizza)\b/i,
+    name: "Pizza",
+    defaultUnit: "slice",
+    defaultQty: 1,
+    perUnit: {
+      slice: { calories: 280, protein: 12, carbs: 32, fats: 11 },
+      slices: { calories: 280, protein: 12, carbs: 32, fats: 11 },
+      pie: { calories: 2240, protein: 96, carbs: 256, fats: 88 }
+    }
+  },
+  {
+    regex: /\b(?:tacos?|beef\s+tacos?|chicken\s+tacos?)\b/i,
+    name: "Tacos",
+    defaultUnit: "taco",
+    defaultQty: 1,
+    perUnit: {
+      taco: { calories: 210, protein: 12, carbs: 18, fats: 10 },
+      tacos: { calories: 210, protein: 12, carbs: 18, fats: 10 }
+    }
+  },
+  {
+    regex: /\b(?:burgers?|cheeseburgers?|hamburgers?)\b/i,
+    name: "Cheeseburger",
+    defaultUnit: "burger",
+    defaultQty: 1,
+    perUnit: {
+      burger: { calories: 535, protein: 30, carbs: 40, fats: 28 },
+      burgers: { calories: 535, protein: 30, carbs: 40, fats: 28 }
+    }
+  },
+  {
+    regex: /\b(?:burritos?|burrito\s+bowl|chipotle\s+burrito|chipotle\s+bowl)\b/i,
+    name: "Burrito / Bowl",
+    defaultUnit: "burrito",
+    defaultQty: 1,
+    perUnit: {
+      burrito: { calories: 750, protein: 38, carbs: 85, fats: 26 },
+      burritos: { calories: 750, protein: 38, carbs: 85, fats: 26 },
+      bowl: { calories: 680, protein: 42, carbs: 70, fats: 22 },
+      bowls: { calories: 680, protein: 42, carbs: 70, fats: 22 }
+    }
+  },
+  {
+    regex: /\b(?:sandwiches?|sub|subs)\b/i,
+    name: "Sandwich / Sub",
+    defaultUnit: "sandwich",
+    defaultQty: 1,
+    perUnit: {
+      sandwich: { calories: 420, protein: 24, carbs: 44, fats: 16 },
+      sandwiches: { calories: 420, protein: 24, carbs: 44, fats: 16 },
+      sub: { calories: 550, protein: 32, carbs: 62, fats: 18 },
+      subs: { calories: 550, protein: 32, carbs: 62, fats: 18 }
     }
   }
 ];

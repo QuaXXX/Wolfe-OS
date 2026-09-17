@@ -5,6 +5,7 @@
  */
 
 import { getTodayIso, addDays } from './calendarUtils.js';
+import { isFoodLogQuery } from './nutritionEngine.js';
 
 // Month lookup
 const MONTH_NAMES = {
@@ -538,6 +539,7 @@ export function detectCategory(title, text) {
  */
 export function parseCalendarCommand(text, todayIso = getTodayIso()) {
   if (!text || typeof text !== 'string') return null;
+  if (isFoodLogQuery(text)) return null;
   const normalized = normalizeSpokenTimes(text);
   const lower = normalized.toLowerCase().trim();
 

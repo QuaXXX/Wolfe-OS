@@ -39,7 +39,8 @@ export const TopBar = ({
   syncStatus = 'disconnected',
   onOpenGoogleModal = null,
   onSyncNow = null,
-  onOpenMealLogModal = null
+  onOpenMealLogModal = null,
+  onLogMeal = null
 }) => {
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -199,6 +200,7 @@ export const TopBar = ({
       setSettings: osData?.setSettings,
       setCalendarData: osData?.setCalendarData,
       setNutritionData: osData?.setNutritionData,
+      onLogMeal: onLogMeal || osData?.onLogMeal,
       onNavigate,
       onClearCalendar,
       onDeleteSpecificItem,
