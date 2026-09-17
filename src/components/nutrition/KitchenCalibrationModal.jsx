@@ -478,7 +478,7 @@ export const KitchenCalibrationModal = ({
           ) : (
             <div className="flex items-center justify-between text-xs text-slate-300 px-0.5">
               <div className="flex items-center gap-2 font-bold text-white">
-                <Ruler className="w-3.5 h-3.5 text-indigo-400" />
+                <Ruler className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                 <span>Necessary Hardware Scale Tasks ({tasks.filter(t => t.completed).length}/{tasks.length})</span>
               </div>
               <span className="text-[11px] font-mono text-slate-400">Physical measurements for vision scale</span>
@@ -495,11 +495,11 @@ export const KitchenCalibrationModal = ({
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                 isBrandSearchOpen 
-                  ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' 
+                  ? 'bg-white/10 text-white border-white/20' 
                   : 'bg-white/[0.03] hover:bg-white/[0.06] text-slate-300 border-white/10'
               }`}
             >
-              <Search className="w-3.5 h-3.5 text-indigo-400" />
+              <Search className="w-3.5 h-3.5 text-slate-400" />
               <span>Search Brand & Save Staple</span>
               {isBrandSearchOpen ? <ChevronUp className="w-3.5 h-3.5 ml-0.5" /> : <ChevronDown className="w-3.5 h-3.5 ml-0.5" />}
             </button>
@@ -522,7 +522,7 @@ export const KitchenCalibrationModal = ({
             <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Search className="w-3.5 h-3.5 text-indigo-400" />
+                  <Search className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                   <span>Search Branded Food Database</span>
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
@@ -643,7 +643,7 @@ export const KitchenCalibrationModal = ({
                   key={task.id}
                   className={`rounded-2xl border transition-all overflow-hidden ${
                     isDone 
-                      ? 'bg-white/[0.02] border-emerald-500/20' 
+                      ? 'bg-white/[0.02] border-white/10' 
                       : isExpanded
                         ? 'bg-white/[0.04] border-white/20'
                         : 'bg-white/[0.02] hover:bg-white/[0.04] border-white/[0.08]'
@@ -657,7 +657,7 @@ export const KitchenCalibrationModal = ({
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 border ${
                         isDone 
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
                           : 'bg-white/[0.04] border-white/10 text-slate-300'
                       }`}>
                         {isDone ? <Check className="w-4 h-4" /> : <span>{task.icon || '📏'}</span>}
@@ -665,11 +665,11 @@ export const KitchenCalibrationModal = ({
 
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className={`text-xs font-bold ${isDone ? 'text-emerald-300' : 'text-white'}`}>
+                          <h4 className="text-xs font-bold text-white">
                             {task.title}
                           </h4>
                           {isDone && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-emerald-400 border border-white/10">
                               Calibrated
                             </span>
                           )}
@@ -734,7 +734,7 @@ export const KitchenCalibrationModal = ({
                           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                                <Search className="w-3.5 h-3.5 text-indigo-400" />
+                                <Search className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
                                 <span>Look Up Your Brand</span>
                               </span>
                               <span className="text-[10px] font-mono text-slate-400">

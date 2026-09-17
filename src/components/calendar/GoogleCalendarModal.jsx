@@ -304,7 +304,7 @@ export const GoogleCalendarModal = ({
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   <span>Google Account & Cross-Device Sync</span>
-                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-xl bg-white/[0.04] border border-white/10 text-emerald-400">
                     6 Hubs Live
                   </span>
                 </h3>
@@ -325,17 +325,17 @@ export const GoogleCalendarModal = ({
 
           {/* Connected State Card */}
           {isConnected ? (
-            <div className={`p-4.5 rounded-2xl border space-y-3.5 ${
+            <div className={`p-4 sm:p-5 rounded-2xl border space-y-3.5 ${
               (error || syncStatus === 'failed' || syncStatus === 'error')
-                ? 'bg-rose-500/10 border-rose-500/20'
-                : 'bg-emerald-500/10 border-emerald-500/20'
+                ? 'bg-rose-500/[0.08] border-rose-500/20'
+                : 'bg-white/[0.03] border-white/10'
             }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${
                     (error || syncStatus === 'failed' || syncStatus === 'error')
                       ? 'bg-rose-500/20 border-rose-500/30'
-                      : 'bg-emerald-500/20 border-emerald-500/30'
+                      : 'bg-emerald-500/15 border-emerald-500/30'
                   }`}>
                     {account?.picture ? (
                       <img src={account.picture} alt="Google Avatar" className="w-full h-full rounded-xl object-cover" />
@@ -493,8 +493,8 @@ export const GoogleCalendarModal = ({
               {/* Primary 1-Click Sign-In Hero Card */}
               <div className="p-5 rounded-2xl bg-[#131728] border border-white/10 space-y-4 text-center">
                 <div className="space-y-1.5 text-center">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-medium mb-1">
-                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 text-[11px] font-medium mb-1">
+                    <Sparkles className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} />
                     <span>Sign in once • Synchronize phone & computer</span>
                   </div>
                   <h4 className="text-sm font-bold text-white tracking-tight">Connect Your Google Account</h4>

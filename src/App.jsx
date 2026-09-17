@@ -177,8 +177,14 @@ function safeSessionSet(key, val) {
 function ViewLoadingFallback() {
   return (
     <div className="w-full py-28 flex flex-col items-center justify-center space-y-3 select-none">
-      <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shadow-lg shadow-blue-500/10">
-        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div 
+        className="w-10 h-10 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center shadow-lg"
+        style={{ borderColor: 'var(--accent-border)' }}
+      >
+        <div 
+          className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" 
+          style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }}
+        />
       </div>
       <div className="text-[11px] font-bold text-slate-400 tracking-widest uppercase">Loading Module...</div>
     </div>

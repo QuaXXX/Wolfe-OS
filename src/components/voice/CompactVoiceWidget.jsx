@@ -269,8 +269,12 @@ export const CompactVoiceWidget = forwardRef(({
         }
       }}
       className={`relative w-full rounded-2xl theme-card p-2.5 sm:p-3 transition-all cursor-text ${
-        isListening ? 'ring-1 ring-blue-500/50 bg-[#0c1020]' : 'hover:border-white/20'
+        isListening ? 'bg-[#0c1020]' : 'hover:border-white/20'
       }`}
+      style={isListening ? {
+        borderColor: 'var(--accent-border)',
+        boxShadow: '0 0 25px -4px var(--accent-glow)'
+      } : {}}
     >
       <div className="flex items-center gap-3">
         

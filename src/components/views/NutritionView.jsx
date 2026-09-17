@@ -11,6 +11,8 @@ import {
   Trash2, 
   ChevronRight, 
   ChevronLeft, 
+  ChevronDown,
+  ChevronUp,
   Calendar as CalendarIcon, 
   CheckCheck, 
   History,
@@ -60,6 +62,29 @@ const NutritionViewInner = ({
   const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [calorieHistoryRange, setCalorieHistoryRange] = useState(14); // 7 | 14 | 30
+  const [expandedMealIds, setExpandedMealIds] = useState(() => new Set());
+
+  const toggleMealExpand = (mealId) => {
+    playSound('click', soundEnabled);
+    setExpandedMealIds(prev => {
+      const next = new Set(prev);
+      if (next.has(mealId)) next.delete(mealId);
+      else next.add(mealId);
+      return next;
+    });
+  };
+
+  const handleToggleExpandAll = (meals = []) => {
+    playSound('click', soundEnabled);
+    setExpandedMealIds(prev => {
+      const allIds = meals.map(m => m.id).filter(Boolean);
+      if (prev.size >= allIds.length && allIds.length > 0) {
+        return new Set();
+      } else {
+        return new Set(allIds);
+      }
+    });
+  };
 
   // Date Navigation State: Dynamic today tracking that automatically updates on new day / midnight / window focus
   const [currentTodayIso, setCurrentTodayIso] = useState(() => getTodayIso());
@@ -774,11 +799,11 @@ const NutritionViewInner = ({
             disabled={isSyncingCloud}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
               syncFeedback === 'synced'
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 ring-1 ring-emerald-500/20'
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
                 : syncFeedback === 'error'
-                ? 'bg-rose-500/15 border-rose-500/30 text-rose-300 ring-1 ring-rose-500/20'
+                ? 'bg-rose-500/10 border-rose-500/20 text-rose-300'
                 : isSyncingCloud
-                ? 'bg-sky-500/15 border-sky-500/30 text-sky-300 ring-1 ring-sky-400/30 opacity-80'
+                ? 'bg-white/[0.04] border-white/10 text-slate-300'
                 : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
             }`}
             title="Sync nutrition data across your phone and computer"
@@ -788,7 +813,7 @@ const NutritionViewInner = ({
             ) : syncFeedback === 'error' ? (
               <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
             ) : (
-              <RefreshCw className={`w-3.5 h-3.5 text-sky-400 shrink-0 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncingCloud ? 'animate-spin text-white' : 'text-slate-400'}`} />
             )}
             <span>
               {isSyncingCloud
@@ -814,7 +839,7 @@ const NutritionViewInner = ({
             }`}
             title="View calendar history at bottom"
           >
-            <History className="w-3.5 h-3.5 text-sky-400" />
+            <History className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
             <span>{isHistoryExpanded ? 'Hide Calendar' : 'Calendar History'}</span>
           </button>
 
@@ -857,7 +882,7 @@ const NutritionViewInner = ({
         title="Click to log or edit morning fasted weight"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-6 h-6 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
+          <div className="w-6 h-6 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center text-slate-300 shrink-0">
             <Scale className="w-3.5 h-3.5" />
           </div>
           <span className="text-xs font-semibold text-slate-300 shrink-0">Morning Weight:</span>
@@ -876,7 +901,7 @@ const NutritionViewInner = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1 text-xs font-medium text-sky-400 group-hover:text-sky-300 transition-colors shrink-0 ml-2">
+        <div className="flex items-center gap-1 text-xs font-medium text-slate-400 group-hover:text-white transition-colors shrink-0 ml-2">
           <span>{latestWeightLog?.weightLbs != null ? 'Edit' : '+ Log Weight'}</span>
           <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
         </div>
@@ -1033,14 +1058,26 @@ const NutritionViewInner = ({
       </GlassCard>
 
       {/* 5. TODAY'S MEAL ENTRIES BY SLOT */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-            <span>{selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/5 text-slate-400">
-              {selectedDateMeals.length} {selectedDateMeals.length === 1 ? 'Meal' : 'Meals'}
-            </span>
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <span>{selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-white/5 text-slate-400">
+                {selectedDateMeals.length} {selectedDateMeals.length === 1 ? 'Meal' : 'Meals'}
+              </span>
+            </h2>
+
+            {selectedDateMeals.length > 1 && (
+              <button
+                type="button"
+                onClick={() => handleToggleExpandAll(selectedDateMeals)}
+                className="text-[10px] font-mono text-slate-400 hover:text-white px-2 py-0.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 transition-all cursor-pointer"
+              >
+                {expandedMealIds.size >= selectedDateMeals.length ? 'Collapse All' : 'Expand All'}
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
@@ -1058,7 +1095,7 @@ const NutritionViewInner = ({
         </div>
 
         {selectedDateMeals.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
             {selectedDateMeals.map((meal, mIdx) => {
               if (!meal) return null;
               const displayMealName = typeof meal.name === 'string' ? meal.name : (meal.name?.name || meal.name?.title || 'Meal');
@@ -1066,121 +1103,160 @@ const NutritionViewInner = ({
               const displayProtein = typeof meal.protein === 'number' ? meal.protein : (Number(meal.protein?.current || meal.protein) || 0);
               const displayCarbs = typeof meal.carbs === 'number' ? meal.carbs : (Number(meal.carbs?.current || meal.carbs) || 0);
               const displayFats = typeof meal.fats === 'number' ? meal.fats : (Number(meal.fats?.current || meal.fats) || 0);
+              const mealKey = meal.id || `meal-${mIdx}`;
+              const isExpanded = expandedMealIds.has(mealKey) || (meal.id && expandedMealIds.has(meal.id));
 
               return (
                 <div 
-                  key={meal.id || `meal-${mIdx}`} 
-                  className="rounded-3xl bg-[#101322]/90 border border-white/10 hover:border-white/20 p-5 sm:p-6 transition-all shadow-lg flex flex-col justify-between space-y-4 backdrop-blur-xl"
+                  key={mealKey} 
+                  className={`rounded-2xl border transition-all duration-200 overflow-hidden shadow-md backdrop-blur-xl ${
+                    isExpanded 
+                      ? 'bg-[#101322]/95 border-white/20 p-4 sm:p-5 space-y-3.5' 
+                      : 'bg-[#0f1220]/80 hover:bg-[#101424] border-white/10 hover:border-white/20 px-3.5 sm:px-4 py-3 cursor-pointer'
+                  }`}
+                  onClick={!isExpanded ? () => toggleMealExpand(meal.id || mealKey) : undefined}
                 >
-                  {/* Top Bar: Icon, Name, Time & Cals */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-xl shrink-0 shadow-sm">
+                  {/* Summary Row: Icon, Name, Time, Calories, Expand Toggle & Delete */}
+                  <div className="flex items-center justify-between gap-3 select-none">
+                    <div 
+                      className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer flex-1"
+                      onClick={isExpanded ? () => toggleMealExpand(meal.id || mealKey) : undefined}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-base shrink-0 shadow-sm">
                         {meal.icon || '🍽️'}
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">
+                      <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
                           {displayMealName}
                         </h4>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {meal.time && (
-                            <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-500" />
-                              <span>{meal.time}</span>
-                            </span>
-                          )}
-                          {Array.isArray(meal.items) && meal.items.length > 0 && (
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/[0.05] text-slate-400 border border-white/5">
-                              {meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}
-                            </span>
-                          )}
-                        </div>
+                        {meal.time && (
+                          <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 text-slate-500" />
+                            <span>{meal.time}</span>
+                          </span>
+                        )}
+                        {!isExpanded && Array.isArray(meal.items) && meal.items.length > 0 && (
+                          <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
+                            ({meal.items.length} {meal.items.length === 1 ? 'item' : 'items'})
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0">
-                      <div className="text-right">
-                        <div className="text-base sm:text-lg font-extrabold text-white font-mono tracking-tight leading-none">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                      {/* Calories Badge */}
+                      <div 
+                        className="flex items-baseline gap-1 cursor-pointer font-mono"
+                        onClick={() => toggleMealExpand(meal.id || mealKey)}
+                      >
+                        <span className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
                           {displayCals}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        </span>
+                        <span className="text-[10px] text-slate-400">
                           kcal
-                        </div>
+                        </span>
                       </div>
 
+                      {/* Dropdown Expand Toggle Arrow */}
                       <button
-                        onClick={() => handleDeleteMeal(meal.id)}
-                        className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleMealExpand(meal.id || mealKey);
+                        }}
+                        className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                        title={isExpanded ? "Collapse details" : "Expand full meal details"}
+                      >
+                        <ChevronDown 
+                          className={`w-4 h-4 transition-transform duration-200 ${
+                            isExpanded ? 'rotate-180 text-white' : 'text-slate-400'
+                          }`} 
+                        />
+                      </button>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteMeal(meal.id);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
                         title="Delete meal"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Clean Macro Pill Trio */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/80 font-semibold">Protein</div>
-                      <div className="text-xs sm:text-sm font-bold text-emerald-300 font-mono mt-0.5">{displayProtein}g</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-sky-400/80 font-semibold">Carbs</div>
-                      <div className="text-xs sm:text-sm font-bold text-sky-300 font-mono mt-0.5">{displayCarbs}g</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400/80 font-semibold">Fats</div>
-                      <div className="text-xs sm:text-sm font-bold text-amber-300 font-mono mt-0.5">{displayFats}g</div>
-                    </div>
-                  </div>
-
-                  {/* Clean Ingredients Breakdown */}
-                  {Array.isArray(meal.items) && meal.items.length > 0 && (
-                    <div className="pt-2 border-t border-white/5 space-y-1.5">
-                      <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 font-semibold flex items-center justify-between">
-                        <span>Items & Ingredients</span>
-                        <span className="text-[10px] text-slate-500">{meal.items.length} logged</span>
+                  {/* EXPANDED SECTION: Complete Macros & Ingredients Details */}
+                  {isExpanded && (
+                    <div className="space-y-3.5 pt-1 animate-fade-in border-t border-white/10">
+                      {/* Clean Macro Pill Trio */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                          <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/80 font-semibold">Protein</div>
+                          <div className="text-xs sm:text-sm font-bold text-emerald-300 font-mono mt-0.5">{displayProtein}g</div>
+                        </div>
+                        <div className="p-2 sm:p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
+                          <div className="text-[10px] font-mono uppercase tracking-wider text-sky-400/80 font-semibold">Carbs</div>
+                          <div className="text-xs sm:text-sm font-bold text-sky-300 font-mono mt-0.5">{displayCarbs}g</div>
+                        </div>
+                        <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                          <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400/80 font-semibold">Fats</div>
+                          <div className="text-xs sm:text-sm font-bold text-amber-300 font-mono mt-0.5">{displayFats}g</div>
+                        </div>
                       </div>
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                        {meal.items.map((it, idx) => {
-                          const isObj = it && typeof it === 'object';
-                          const name = isObj ? (typeof it.name === 'string' ? it.name : String(it.name?.title || it.name?.name || 'Item')) : String(it || 'Item');
-                          const portion = isObj ? (typeof it.portion === 'string' ? it.portion : (it.portion ? String(it.portion) : null)) : null;
-                          const itCals = isObj && it.calories != null ? (typeof it.calories === 'number' ? it.calories : (Number(it.calories?.current || it.calories) || 0)) : null;
-                          const itProtein = isObj && it.protein != null ? (typeof it.protein === 'number' ? it.protein : (Number(it.protein?.current || it.protein) || 0)) : null;
-                          const itCarbs = isObj && it.carbs != null ? (typeof it.carbs === 'number' ? it.carbs : (Number(it.carbs?.current || it.carbs) || 0)) : null;
-                          const itFats = isObj && it.fats != null ? (typeof it.fats === 'number' ? it.fats : (Number(it.fats?.current || it.fats) || 0)) : null;
-                          const hasMacros = isObj && (itCals != null || itProtein != null || itCarbs != null || itFats != null);
 
-                          return (
-                            <div key={idx} className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-xs font-mono flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
-                                <span className="text-slate-200 font-medium truncate">{name}</span>
-                                {portion && (
-                                  <span className="text-[10px] text-slate-400 shrink-0">({portion})</span>
-                                )}
-                              </div>
-                              {hasMacros && (
-                                <div className="flex items-center gap-2 text-[11px] shrink-0 font-semibold">
-                                  {itCals != null && (
-                                    <span className="text-white">{itCals} cal</span>
-                                  )}
-                                  {itProtein != null && (
-                                    <span className="text-emerald-400">{itProtein}g P</span>
-                                  )}
-                                  {itCarbs != null && (
-                                    <span className="text-sky-300">{itCarbs}g C</span>
-                                  )}
-                                  {itFats != null && (
-                                    <span className="text-amber-300">{itFats}g F</span>
+                      {/* Clean Ingredients Breakdown */}
+                      {Array.isArray(meal.items) && meal.items.length > 0 && (
+                        <div className="pt-1 space-y-1.5">
+                          <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                            <span>Items & Calculated Ingredients</span>
+                            <span className="text-[10px] text-slate-500">{meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}</span>
+                          </div>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {meal.items.map((it, idx) => {
+                              const isObj = it && typeof it === 'object';
+                              const name = isObj ? (typeof it.name === 'string' ? it.name : String(it.name?.title || it.name?.name || 'Item')) : String(it || 'Item');
+                              const portion = isObj ? (typeof it.portion === 'string' ? it.portion : (it.portion ? String(it.portion) : null)) : null;
+                              const itCals = isObj && it.calories != null ? (typeof it.calories === 'number' ? it.calories : (Number(it.calories?.current || it.calories) || 0)) : null;
+                              const itProtein = isObj && it.protein != null ? (typeof it.protein === 'number' ? it.protein : (Number(it.protein?.current || it.protein) || 0)) : null;
+                              const itCarbs = isObj && it.carbs != null ? (typeof it.carbs === 'number' ? it.carbs : (Number(it.carbs?.current || it.carbs) || 0)) : null;
+                              const itFats = isObj && it.fats != null ? (typeof it.fats === 'number' ? it.fats : (Number(it.fats?.current || it.fats) || 0)) : null;
+                              const hasMacros = isObj && (itCals != null || itProtein != null || itCarbs != null || itFats != null);
+
+                              return (
+                                <div key={idx} className="p-2 sm:p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 text-xs font-mono flex items-center justify-between gap-2 transition-colors">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
+                                    <span className="text-slate-200 font-medium truncate">{name}</span>
+                                    {portion && (
+                                      <span className="text-[10px] text-slate-400 shrink-0">({portion})</span>
+                                    )}
+                                  </div>
+                                  {hasMacros && (
+                                    <div className="flex items-center gap-2 text-[11px] shrink-0 font-semibold">
+                                      {itCals != null && (
+                                        <span className="text-white">{itCals} cal</span>
+                                      )}
+                                      {itProtein != null && (
+                                        <span className="text-emerald-400">{itProtein}g P</span>
+                                      )}
+                                      {itCarbs != null && (
+                                        <span className="text-sky-300">{itCarbs}g C</span>
+                                      )}
+                                      {itFats != null && (
+                                        <span className="text-amber-300">{itFats}g F</span>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1316,7 +1392,7 @@ const NutritionViewInner = ({
         <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
             <div className="flex items-center gap-2">
-              <History className="w-4 h-4 text-sky-400" />
+              <History className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-white">
                   Target Consistency & Calorie History ({calorieHistoryRange} Days)
@@ -1371,8 +1447,8 @@ const NutritionViewInner = ({
                   <span className="text-[9px] text-slate-500">Goal: {targetCalories} kcal</span>
                 </div>
                 <div>
-                  <span className="text-[9px] uppercase text-indigo-300 block">Avg Daily Protein</span>
-                  <div className="text-sm sm:text-base font-bold text-indigo-300 mt-0.5">
+                  <span className="text-[9px] uppercase text-slate-300 block">Avg Daily Protein</span>
+                  <div className="text-sm sm:text-base font-bold text-white mt-0.5">
                     {avgProtein > 0 ? `${avgProtein}g` : '—'}
                   </div>
                   <span className="text-[9px] text-slate-500">Goal: {targetProtein}g</span>
@@ -1573,7 +1649,7 @@ const NutritionViewInner = ({
 
                 <div className="grid grid-cols-3 gap-2.5">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono uppercase text-indigo-300">Protein (g)</label>
+                    <label className="text-[10px] font-mono uppercase text-slate-300">Protein (g)</label>
                     <input
                       type="number"
                       value={customProtein}
@@ -1583,7 +1659,7 @@ const NutritionViewInner = ({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono uppercase text-sky-300">Carbs (g)</label>
+                    <label className="text-[10px] font-mono uppercase text-slate-300">Carbs (g)</label>
                     <input
                       type="number"
                       value={customCarbs}
@@ -1593,7 +1669,7 @@ const NutritionViewInner = ({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono uppercase text-amber-300">Fats (g)</label>
+                    <label className="text-[10px] font-mono uppercase text-slate-300">Fats (g)</label>
                     <input
                       type="number"
                       value={customFats}
