@@ -304,3 +304,58 @@ export function isCalendarOutOfSync(localItems = [], lastSyncTimestamp = 0) {
 
   return false;
 }
+
+/**
+ * Calculate default event start and end time based on the current time rounded to the nearest hour
+ */
+export function getDefaultEventTimes() {
+  const now = new Date();
+  const minutes = now.getMinutes();
+  const startHour = minutes >= 30 ? (now.getHours() + 1) % 24 : now.getHours();
+  const endHour = (startHour + 1) % 24;
+
+  const to12h = (h, m = 0) => {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 === 0 ? 12 : h % 12;
+    return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
+  const to24h = (h, m = 0) => {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  return {
+    startTime12: to12h(startHour, 0),
+    endTime12: to12h(endHour, 0),
+    startTime24: to24h(startHour, 0),
+    endTime24: to24h(endHour, 0)
+  };
+}
+
+/**
+ * Convert 24-hour time "HH:mm" to 12-hour format "hh:mm AM/PM"
+ */
+export function convert24to12(time24) {
+  if (!time24 || !time24.includes(':')) return time24 || '12:00 PM';
+  const [hStr, mStr] = time24.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10) || 0;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const displayH = h % 12 === 0 ? 12 : h % 12;
+  return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+/**
+ * Convert 12-hour time "hh:mm AM/PM" to 24-hour format "HH:mm"
+ */
+export function convert12to24(time12) {
+  if (!time12) return '12:00';
+  const match = time12.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!match) return '12:00';
+  let h = parseInt(match[1], 10);
+  const m = match[2];
+  const p = (match[3] || '').toUpperCase();
+  if (p === 'PM' && h < 12) h += 12;
+  if (p === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${m}`;
+}

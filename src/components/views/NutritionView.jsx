@@ -1058,7 +1058,7 @@ const NutritionViewInner = ({
         </div>
 
         {selectedDateMeals.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {selectedDateMeals.map((meal, mIdx) => {
               if (!meal) return null;
               const displayMealName = typeof meal.name === 'string' ? meal.name : (meal.name?.name || meal.name?.title || 'Meal');
@@ -1068,48 +1068,80 @@ const NutritionViewInner = ({
               const displayFats = typeof meal.fats === 'number' ? meal.fats : (Number(meal.fats?.current || meal.fats) || 0);
 
               return (
-                <GlassCard key={meal.id || `meal-${mIdx}`} hoverEffect={false} className="p-4 flex flex-col justify-between space-y-3">
+                <div 
+                  key={meal.id || `meal-${mIdx}`} 
+                  className="rounded-3xl bg-[#101322]/90 border border-white/10 hover:border-white/20 p-5 sm:p-6 transition-all shadow-lg flex flex-col justify-between space-y-4 backdrop-blur-xl"
+                >
+                  {/* Top Bar: Icon, Name, Time & Cals */}
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-base shrink-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-xl shrink-0 shadow-sm">
                         {meal.icon || '🍽️'}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white">{displayMealName}</span>
+                      <div className="min-w-0">
+                        <h4 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">
+                          {displayMealName}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {meal.time && (
+                            <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              <span>{meal.time}</span>
+                            </span>
+                          )}
+                          {Array.isArray(meal.items) && meal.items.length > 0 && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/[0.05] text-slate-400 border border-white/5">
+                              {meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}
+                            </span>
+                          )}
                         </div>
-                        {meal.time && (
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{meal.time}</span>
-                          </div>
-                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <div className="text-right font-mono">
-                        <div className="text-sm font-bold text-white">{displayCals} kcal</div>
-                        <div className="text-[10px] text-emerald-400 font-semibold">{displayProtein}g Protein</div>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <div className="text-right">
+                        <div className="text-base sm:text-lg font-extrabold text-white font-mono tracking-tight leading-none">
+                          {displayCals}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          kcal
+                        </div>
                       </div>
 
                       <button
                         onClick={() => handleDeleteMeal(meal.id)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
+                        className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
                         title="Delete meal"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
+                  {/* Clean Macro Pill Trio */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/80 font-semibold">Protein</div>
+                      <div className="text-xs sm:text-sm font-bold text-emerald-300 font-mono mt-0.5">{displayProtein}g</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-sky-400/80 font-semibold">Carbs</div>
+                      <div className="text-xs sm:text-sm font-bold text-sky-300 font-mono mt-0.5">{displayCarbs}g</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400/80 font-semibold">Fats</div>
+                      <div className="text-xs sm:text-sm font-bold text-amber-300 font-mono mt-0.5">{displayFats}g</div>
+                    </div>
+                  </div>
+
+                  {/* Clean Ingredients Breakdown */}
                   {Array.isArray(meal.items) && meal.items.length > 0 && (
-                    <div className="bg-black/40 rounded-xl border border-white/5 p-2 space-y-1.5 max-h-48 overflow-y-auto overscroll-contain touch-pan-y scrollbar-thin">
-                      <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 font-semibold px-0.5 flex items-center justify-between">
-                        <span>Items & Ingredients ({meal.items.length})</span>
-                        <span className="text-[9px] text-slate-500 font-normal">Per-item macros</span>
+                    <div className="pt-2 border-t border-white/5 space-y-1.5">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                        <span>Items & Ingredients</span>
+                        <span className="text-[10px] text-slate-500">{meal.items.length} logged</span>
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                         {meal.items.map((it, idx) => {
                           const isObj = it && typeof it === 'object';
                           const name = isObj ? (typeof it.name === 'string' ? it.name : String(it.name?.title || it.name?.name || 'Item')) : String(it || 'Item');
@@ -1121,21 +1153,21 @@ const NutritionViewInner = ({
                           const hasMacros = isObj && (itCals != null || itProtein != null || itCarbs != null || itFats != null);
 
                           return (
-                            <div key={idx} className="p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-[11px] font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-slate-400 shrink-0">•</span>
-                                <span className="text-slate-200 font-medium truncate" title={name}>{name}</span>
+                            <div key={idx} className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-xs font-mono flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
+                                <span className="text-slate-200 font-medium truncate">{name}</span>
                                 {portion && (
                                   <span className="text-[10px] text-slate-400 shrink-0">({portion})</span>
                                 )}
                               </div>
                               {hasMacros && (
-                                <div className="flex items-center gap-2 text-[10px] shrink-0 self-end sm:self-auto">
+                                <div className="flex items-center gap-2 text-[11px] shrink-0 font-semibold">
                                   {itCals != null && (
-                                    <span className="text-white font-semibold">{itCals} kcal</span>
+                                    <span className="text-white">{itCals} cal</span>
                                   )}
                                   {itProtein != null && (
-                                    <span className="text-emerald-400 font-semibold">{itProtein}g P</span>
+                                    <span className="text-emerald-400">{itProtein}g P</span>
                                   )}
                                   {itCarbs != null && (
                                     <span className="text-sky-300">{itCarbs}g C</span>
@@ -1151,13 +1183,7 @@ const NutritionViewInner = ({
                       </div>
                     </div>
                   )}
-
-                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-2 border-t border-white/5">
-                    <span>{displayProtein}g P</span>
-                    <span className="text-sky-300 font-semibold">{displayCarbs}g C</span>
-                    <span className="text-amber-300 font-semibold">{displayFats}g F</span>
-                  </div>
-                </GlassCard>
+                </div>
               );
             })}
           </div>

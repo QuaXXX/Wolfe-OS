@@ -22,7 +22,10 @@ import {
   formatDateTitle, 
   addDays, 
   getMonthGrid,
-  GOOGLE_COLOR_MAP
+  GOOGLE_COLOR_MAP,
+  getDefaultEventTimes,
+  convert24to12,
+  convert12to24
 } from '../../utils/calendarUtils';
 import { parseTimeToMinutes } from '../../utils/calendarParser';
 import { isGoogleCalendarConnected } from '../../utils/googleCalendarService';
@@ -52,8 +55,10 @@ export const CalendarView = ({
   const [itemTitle, setItemTitle] = useState('');
   const [itemDate, setItemDate] = useState(todayIso);
   const [itemCategory, setItemCategory] = useState('General');
-  const [itemStartTime, setItemStartTime] = useState('02:00 PM');
-  const [itemEndTime, setItemEndTime] = useState('03:00 PM');
+  const [itemStartTime, setItemStartTime] = useState(() => getDefaultEventTimes().startTime12);
+  const [itemEndTime, setItemEndTime] = useState(() => getDefaultEventTimes().endTime12);
+  const [itemStartTime24, setItemStartTime24] = useState(() => getDefaultEventTimes().startTime24);
+  const [itemEndTime24, setItemEndTime24] = useState(() => getDefaultEventTimes().endTime24);
   const [itemIsAllDay, setItemIsAllDay] = useState(false);
 
   const items = calendarData?.items || [];
@@ -143,12 +148,44 @@ export const CalendarView = ({
 
   const handleOpenAddModal = (type = 'event', defaultDate = selectedDate) => {
     playSound('click', soundEnabled);
+    const defTimes = getDefaultEventTimes();
     setItemType(type);
     setItemDate(defaultDate || selectedDate);
     setItemTitle('');
+    setItemStartTime(defTimes.startTime12);
+    setItemEndTime(defTimes.endTime12);
+    setItemStartTime24(defTimes.startTime24);
+    setItemEndTime24(defTimes.endTime24);
     setItemCategory(type === 'deadline' ? 'School' : 'General');
     setItemIsAllDay(type === 'deadline' || type === 'task');
     setIsAddModalOpen(true);
+  };
+
+  const handleStartTimeChange = (val24) => {
+    setItemStartTime24(val24);
+    const val12 = convert24to12(val24);
+    setItemStartTime(val12);
+
+    if (val24 && val24.includes(':')) {
+      const [h, m] = val24.split(':').map(Number);
+      const endH = (h + 1) % 24;
+      const endVal24 = `${String(endH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+      setItemEndTime24(endVal24);
+      setItemEndTime(convert24to12(endVal24));
+    }
+  };
+
+  const handleEndTimeChange = (val24) => {
+    setItemEndTime24(val24);
+    setItemEndTime(convert24to12(val24));
+  };
+
+  const handleApplyPreset = (start24, end24) => {
+    playSound('click', soundEnabled);
+    setItemStartTime24(start24);
+    setItemStartTime(convert24to12(start24));
+    setItemEndTime24(end24);
+    setItemEndTime(convert24to12(end24));
   };
 
   const handleCreateSubmit = (e) => {
@@ -572,18 +609,25 @@ export const CalendarView = ({
                     {selectedDayTimedEvents.map((evt) => (
                       <div
                         key={evt.id}
-                        className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 transition-all text-xs group"
+                        className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-white/20 transition-all text-xs group shadow-sm"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="font-mono text-slate-400 w-36 shrink-0 flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <span 
+                            className="font-mono text-xs px-2.5 py-1 rounded-xl shrink-0 flex items-center gap-1.5 font-medium border"
+                            style={{
+                              backgroundColor: 'var(--accent-subtle)',
+                              borderColor: 'var(--accent-border)',
+                              color: 'var(--accent-primary)'
+                            }}
+                          >
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
                             {evt.time}
                           </span>
-                          <span className="font-medium text-slate-100 truncate">{evt.title}</span>
+                          <span className="font-semibold text-slate-100 truncate text-sm">{evt.title}</span>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="px-2 py-0.5 rounded bg-white/5 text-[10px] uppercase font-mono text-slate-300 border border-white/10">
+                        <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-white/[0.05] text-[10px] uppercase font-mono text-slate-300 border border-white/10">
                             {evt.category}
                           </span>
                           <button
@@ -591,7 +635,7 @@ export const CalendarView = ({
                               playSound('click', soundEnabled);
                               if (onDeleteItem) onDeleteItem(evt.id);
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-white/10 opacity-70 group-hover:opacity-100 transition-all shrink-0"
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 opacity-70 group-hover:opacity-100 transition-all shrink-0 cursor-pointer"
                             title="Delete Event"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -929,26 +973,96 @@ export const CalendarView = ({
               </div>
 
               {itemType === 'event' && (
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">Start Time</label>
-                    <input 
-                      type="text"
-                      value={itemStartTime}
-                      onChange={(e) => setItemStartTime(e.target.value)}
-                      placeholder="02:00 PM"
-                      className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-white/30 font-mono"
-                    />
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                      <span>Event Time</span>
+                    </label>
+                    <span 
+                      className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-lg border transition-all"
+                      style={{
+                        backgroundColor: 'var(--accent-subtle)',
+                        borderColor: 'var(--accent-border)',
+                        color: 'var(--accent-primary)'
+                      }}
+                    >
+                      {itemStartTime} – {itemEndTime}
+                    </span>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">End Time</label>
-                    <input 
-                      type="text"
-                      value={itemEndTime}
-                      onChange={(e) => setItemEndTime(e.target.value)}
-                      placeholder="03:00 PM"
-                      className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-white/30 font-mono"
-                    />
+
+                  {/* Native Time Inputs */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Start Time</span>
+                      <input 
+                        type="time"
+                        value={itemStartTime24}
+                        onChange={(e) => handleStartTimeChange(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/10 hover:border-white/20 text-white text-xs outline-none focus:border-white/30 font-mono transition-all [color-scheme:dark] cursor-pointer"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">End Time</span>
+                      <input 
+                        type="time"
+                        value={itemEndTime24}
+                        onChange={(e) => handleEndTimeChange(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/10 hover:border-white/20 text-white text-xs outline-none focus:border-white/30 font-mono transition-all [color-scheme:dark] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="space-y-1.5 pt-0.5">
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Quick Presets</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const def = getDefaultEventTimes();
+                          handleApplyPreset(def.startTime24, def.endTime24);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/[0.04] hover:bg-white/[0.1] text-slate-200 hover:text-white border border-white/10 transition-all cursor-pointer"
+                      >
+                        Now (Nearest)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('09:00', '10:00')}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/[0.04] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+                      >
+                        9:00 AM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('12:00', '13:00')}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/[0.04] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+                      >
+                        12:00 PM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('15:00', '16:00')}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/[0.04] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+                      >
+                        3:00 PM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('18:00', '19:00')}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/[0.04] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+                      >
+                        6:00 PM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('20:00', '21:00')}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/[0.04] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+                      >
+                        8:00 PM
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
