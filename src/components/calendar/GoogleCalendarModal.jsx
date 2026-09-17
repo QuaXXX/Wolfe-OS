@@ -254,7 +254,13 @@ export const GoogleCalendarModal = ({
 
   const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-4 select-none">
+      <div 
+        className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center px-4 select-none"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)'
+        }}
+      >
         {/* Frosted Glass Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}

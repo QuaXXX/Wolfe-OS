@@ -1322,6 +1322,64 @@ export function App() {
     setUndoAction(null);
   };
 
+  // Global Food Logging Handler (usable directly from HomeView, CompactVoiceWidget, and TopBar)
+  const handleLogMeal = useCallback((mealEntry) => {
+    playSound('success', settings.soundEnabled);
+    const today = getTodayIso();
+    const mealDate = mealEntry?.date || today;
+    const stampedMeal = {
+      ...mealEntry,
+      date: mealDate,
+      createdAt: mealEntry?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+
+    if (stampedMeal?.id) recordAdditionOrUpdate(stampedMeal.id);
+    markLocalMutation();
+
+    setNutritionData(prev => {
+      const base = (prev && typeof prev === 'object') ? prev : {};
+      let storageMeals = [];
+      try {
+        const raw = localStorage.getItem('wolfe_nutrition_data');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed?.meals)) storageMeals = parsed.meals;
+        }
+      } catch (e) {}
+
+      const combined = [stampedMeal, ...(base.meals || []), ...storageMeals];
+      const mealMap = new Map();
+      combined.forEach(m => {
+        if (m && m.id && !mealMap.has(m.id)) {
+          mealMap.set(m.id, m);
+        }
+      });
+      const nextMeals = Array.from(mealMap.values());
+      const todayMeals = nextMeals.filter(m => m && m.date === today);
+      const todayTotals = aggregateDailyNutrition(todayMeals);
+
+      const nextData = {
+        ...base,
+        currentDate: today,
+        consumedCalories: todayTotals.calories,
+        protein: { ...(base.protein || {}), current: todayTotals.protein },
+        carbs: { ...(base.carbs || {}), current: todayTotals.carbs },
+        fats: { ...(base.fats || {}), current: todayTotals.fats },
+        meals: nextMeals,
+        updatedAt: Date.now()
+      };
+
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+
+      return nextData;
+    });
+
+    triggerImmediateCloudPush(80);
+  }, [settings.soundEnabled]);
+
   // Render current active view
   const renderActiveView = () => {
     const commonProps = {
@@ -1335,7 +1393,8 @@ export function App() {
       isGoogleConnected: isGoogleCalendarConnected(),
       onSyncGoogleCalendar: handleSyncGoogleCalendar,
       syncStatus: syncStatus,
-      lastSyncTimestamp: lastSyncTimestamp
+      lastSyncTimestamp: lastSyncTimestamp,
+      onLogMeal: handleLogMeal
     };
 
     switch (activeView) {
@@ -1445,6 +1504,7 @@ export function App() {
         onClearCalendar={handleClearCalendar}
         onDeleteSpecificItem={handleDeleteSpecificItem}
         onPurgeItems={handlePurgeItems}
+        onOpenMealLogModal={() => handleNavigate('nutrition')}
       />
 
       {/* Main Dynamic Viewport Container */}
@@ -1469,7 +1529,12 @@ export function App() {
 
       {/* Mobile Floating Home Exit Button */}
       {activeView !== 'home' && (
-        <div className="fixed bottom-20 right-4 sm:hidden z-50">
+        <div 
+          className="fixed right-4 sm:hidden z-50"
+          style={{
+            bottom: 'calc(max(env(safe-area-inset-bottom, 0px), 16px) + 60px)'
+          }}
+        >
           <button
             type="button"
             onClick={() => {

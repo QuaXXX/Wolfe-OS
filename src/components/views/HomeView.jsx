@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   UtensilsCrossed, 
   CalendarDays, 
@@ -10,10 +10,15 @@ import {
   Check,
   ListTodo,
   Bell,
-  RotateCw
+  RotateCw,
+  Plus,
+  Camera,
+  Flame,
+  Sparkles
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { CompactVoiceWidget } from '../voice/CompactVoiceWidget';
+import { MealLogModal } from '../nutrition/MealLogModal';
 import { playSound } from '../../utils/soundFX';
 import { getTodayIso } from '../../utils/calendarUtils';
 
@@ -38,8 +43,17 @@ export const HomeView = ({
   onSyncGoogleCalendar,
   syncStatus = 'synced',
   lastSyncTimestamp = 0,
-  soundEnabled = true 
+  soundEnabled = true,
+  onLogMeal = null
 }) => {
+  const [isMealModalOpen, setIsMealModalOpen] = useState(false);
+  const [modalInitialTab, setModalInitialTab] = useState('quick_text');
+
+  const handleOpenMealModal = (initialTab = 'quick_text') => {
+    playSound('click', soundEnabled);
+    setModalInitialTab(initialTab);
+    setIsMealModalOpen(true);
+  };
   const vm = settings.visibleModules || {};
   const isCompact = !!settings.compactMode;
   const todayIso = getTodayIso();
@@ -99,6 +113,7 @@ export const HomeView = ({
         onPurgeItems={onPurgeItems}
         onOpenSettings={onOpenSettings}
         soundEnabled={soundEnabled}
+        onOpenMealLog={({ initialTab } = {}) => handleOpenMealModal(initialTab || 'upload_image')}
       />
 
       {/* 2. TIMELINE & TASKS AT THE VERY TOP */}
@@ -325,79 +340,276 @@ export const HomeView = ({
         </GlassCard>
       )}
 
-      {/* 3. Core Command: Nutrition */}
-      {vm.nutrition !== false && (
-        <div className={isCompact ? 'mt-2' : 'mt-3'}>
-          <GlassCard 
-            onClick={(e) => {
-              if (e && e.stopPropagation) e.stopPropagation();
-              playSound('click', soundEnabled);
-              onNavigate('nutrition');
-            }}
-            className={`relative z-20 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
-          >
-            <div>
-              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2.5">
+      {/* 3. Core Command: Nutrition with Google-Style Calorie Circle & Homescreen Food Logging */}
+      {vm.nutrition !== false && (() => {
+        const consumedCals = Number(nutritionData?.consumedCalories) || 0;
+        const targetCals = Number(todayTargetCals) || 3250;
+        const calsPercent = Math.min(100, Math.max(0, Math.round((consumedCals / (targetCals || 1)) * 100)));
+        const remainingCals = targetCals - consumedCals;
+        const isSurplus = remainingCals < 0;
+
+        const circleRadius = 44;
+        const circumference = 2 * Math.PI * circleRadius;
+        const strokeDashoffset = circumference - (calsPercent / 100) * circumference;
+
+        const currentProtein = Number(nutritionData?.protein?.current) || 0;
+        const targetProt = Number(todayTargetProtein) || 180;
+        const proteinPercent = Math.min(100, Math.round((currentProtein / (targetProt || 1)) * 100));
+
+        const currentCarbs = Number(nutritionData?.carbs?.current) || 0;
+        const targetCarb = Number(todayTargetCarbs) || 450;
+        const carbsPercent = Math.min(100, Math.round((currentCarbs / (targetCarb || 1)) * 100));
+
+        const currentFats = Number(nutritionData?.fats?.current) || 0;
+        const targetFat = Number(nutritionData?.fats?.target) || 80;
+        const fatsPercent = Math.min(100, Math.round((currentFats / (targetFat || 1)) * 100));
+
+        const todayMeals = (Array.isArray(nutritionData?.meals) ? nutritionData.meals : []).filter(m => m && m.date === todayIso);
+
+        return (
+          <div className={isCompact ? 'mt-2' : 'mt-3'}>
+            <GlassCard 
+              className={`relative z-20 isolate touch-manipulation flex flex-col justify-between group transition-all ${isCompact ? 'p-3.5' : 'p-5'}`}
+            >
+              {/* Header: Title & Quick Navigate */}
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div 
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    onNavigate('nutrition');
+                  }}
+                  className="flex items-center gap-2.5 cursor-pointer group/nav"
+                >
                   <div 
-                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
+                    className={`rounded-xl flex items-center justify-center bg-white/[0.04] text-slate-300 border border-white/[0.08] group-hover/nav:border-white/20 group-hover/nav:text-white transition-all ${isCompact ? 'w-7 h-7' : 'w-8 h-8'}`}
                   >
-                    <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
+                    <UtensilsCrossed className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} style={{ color: 'var(--accent-primary)' }} />
                   </div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Nutrition
-                  </h3>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 group-hover/nav:text-white transition-colors">
+                      Daily Nutrition
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-sans">Macro & fuel breakdown</p>
+                  </div>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  {isCompact && (
-                    <span className="text-xs font-mono font-bold text-white">
-                      {nutritionData?.consumedCalories || 0} / {todayTargetCals} kcal
+                  {latestWeight && (
+                    <span className="hidden sm:inline-flex text-[11px] font-mono font-semibold px-2 py-0.5 rounded-lg bg-white/[0.03] text-slate-300 border border-white/5">
+                      ⚖️ {latestWeight} lbs {weightChangeStr ? `(${weightChangeStr})` : ''}
                     </span>
                   )}
-                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSound('click', soundEnabled);
+                      onNavigate('nutrition');
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    title="Open full nutrition view"
+                  >
+                    <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </button>
                 </div>
               </div>
 
-              {!isCompact ? (
-                <>
-                  <div className="my-2">
-                    <div className="flex items-baseline justify-between">
-                      <div className="text-2xl font-mono font-bold text-white tracking-tight">
-                        {nutritionData?.consumedCalories || 0} <span className="text-xs font-normal text-slate-500">/ {todayTargetCals} kcal</span>
-                      </div>
-                      {latestWeight && (
-                        <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                          ⚖️ {latestWeight} lbs {weightChangeStr ? `(${weightChangeStr})` : ''}
+              {/* Core Visualizer: Calorie Circle & Google-Style Macro Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center my-1">
+                
+                {/* Left: Calorie Circle Ring Visualizer */}
+                <div className="md:col-span-5 flex items-center justify-center sm:justify-start gap-4">
+                  <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 108 108">
+                      {/* Background Track Ring */}
+                      <circle
+                        cx="54"
+                        cy="54"
+                        r={circleRadius}
+                        className="fill-none stroke-white/[0.06]"
+                        strokeWidth="8"
+                      />
+                      {/* Dynamic Progress Ring */}
+                      <circle
+                        cx="54"
+                        cy="54"
+                        r={circleRadius}
+                        className="fill-none transition-all duration-700 ease-out"
+                        stroke="var(--accent-primary)"
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
+                        style={{
+                          filter: 'drop-shadow(0 0 8px var(--accent-glow))'
+                        }}
+                      />
+                    </svg>
+                    
+                    {/* Text Inside Circle */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                      <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight leading-none">
+                        {consumedCals.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                        kcal
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        {calsPercent}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Calorie Stats Next to Circle */}
+                  <div className="flex flex-col gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {isSurplus ? (
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          +{Math.abs(remainingCals).toLocaleString()} kcal over
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                          {remainingCals.toLocaleString()} kcal left
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
-                      <span>P: {nutritionData?.protein?.current || 0}g / {todayTargetProtein}g</span>
-                      <span>C: {nutritionData?.carbs?.current || 0}g</span>
-                      <span>F: {nutritionData?.fats?.current || 0}g</span>
+                    <div className="text-xs text-slate-400">
+                      Target: <span className="font-mono font-bold text-white">{targetCals.toLocaleString()}</span> kcal
                     </div>
+                    <div className="text-[11px] text-slate-500 font-sans">
+                      {todayMeals.length} meal{todayMeals.length === 1 ? '' : 's'} logged today
+                    </div>
+                  </div>
+                </div>
 
-                    <div className="w-full h-1.5 bg-white/[0.06] rounded-lg mt-2.5 overflow-hidden">
+                {/* Right: Google-Style Macro Progress Bars */}
+                <div className="md:col-span-7 flex flex-col justify-center space-y-2">
+                  {/* Protein Bar */}
+                  <div className="bg-white/[0.02] p-2 rounded-xl border border-white/5 space-y-1">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-primary)' }} />
+                        Protein
+                      </span>
+                      <span className="text-slate-400">
+                        <strong className="text-white font-bold">{currentProtein}g</strong> / {targetProt}g
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
                       <div 
-                        className="h-full rounded-lg transition-all duration-300" 
+                        className="h-full rounded-full transition-all duration-500"
                         style={{ 
-                          width: `${Math.min(100, ((nutritionData?.consumedCalories || 0) / (todayTargetCals || 1)) * 100)}%`,
+                          width: `${proteinPercent}%`,
                           backgroundColor: 'var(--accent-primary)'
                         }}
                       />
                     </div>
                   </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04] font-mono">
-                  <span>P: {nutritionData?.protein?.current || 0}/{todayTargetProtein}g</span>
-                  <span>C: {nutritionData?.carbs?.current || 0}g</span>
-                  <span>F: {nutritionData?.fats?.current || 0}g</span>
+
+                  {/* Carbs Bar */}
+                  <div className="bg-white/[0.02] p-2 rounded-xl border border-white/5 space-y-1">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        Carbs
+                      </span>
+                      <span className="text-slate-400">
+                        <strong className="text-white font-bold">{currentCarbs}g</strong> / {targetCarb}g
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                        style={{ width: `${carbsPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Fats Bar */}
+                  <div className="bg-white/[0.02] p-2 rounded-xl border border-white/5 space-y-1">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        Fats
+                      </span>
+                      <span className="text-slate-400">
+                        <strong className="text-white font-bold">{currentFats}g</strong> / {targetFat}g
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                        style={{ width: `${fatsPercent}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          </GlassCard>
-        </div>
+
+              </div>
+
+              {/* Direct Quick Action Buttons Right From Homescreen */}
+              <div className="flex items-center gap-2 pt-3 mt-2 border-t border-white/[0.06] flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleOpenMealModal('quick_text')}
+                  className="flex-1 min-w-[130px] py-2 px-3 rounded-xl text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-all cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--accent-primary)',
+                    boxShadow: '0 4px 14px -2px var(--accent-glow)'
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Log Food</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenMealModal('upload_image')}
+                  className="py-2 px-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 hover:text-white border border-white/10 text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                  title="Take a photo of your food to analyze & log with AI"
+                >
+                  <Camera className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                  <span>Snap Photo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    onNavigate('nutrition');
+                  }}
+                  className="py-2 px-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] text-xs font-medium transition-all cursor-pointer hidden sm:block"
+                >
+                  Full Details →
+                </button>
+              </div>
+            </GlassCard>
+          </div>
+        );
+      })()}
+
+      {/* Homescreen Meal Log Modal */}
+      {isMealModalOpen && (
+        <MealLogModal
+          isOpen={isMealModalOpen}
+          onClose={() => setIsMealModalOpen(false)}
+          onLogMeal={(meal) => {
+            if (onLogMeal) {
+              onLogMeal(meal);
+            } else if (setNutritionData) {
+              setNutritionData(prev => ({
+                ...prev,
+                meals: [meal, ...(prev?.meals || [])]
+              }));
+            }
+            setIsMealModalOpen(false);
+          }}
+          selectedDate={todayIso}
+          householdPantry={nutritionData?.householdPantry || []}
+          aiConfig={settings?.aiConfig}
+          kitchenCalibration={nutritionData?.kitchenCalibration}
+          soundEnabled={soundEnabled}
+          initialTab={modalInitialTab}
+        />
       )}
 
     </div>

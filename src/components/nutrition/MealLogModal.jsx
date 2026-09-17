@@ -526,7 +526,13 @@ export const MealLogModal = ({
 
   const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center px-3 sm:px-4"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)'
+        }}
+      >
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}

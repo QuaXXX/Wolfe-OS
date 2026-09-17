@@ -110,6 +110,27 @@ class GlobalErrorBoundary extends Component {
   }
 }
 
+// Purge any lingering legacy trading storage keys from PWA/browser cache
+try {
+  const legacyTradingKeys = [
+    'wolfe_trading_data',
+    'wolfe_trading_positions',
+    'wolfe_trading_watchlist',
+    'wolfe_trading_journal',
+    'wolfe_trading_config',
+    'wolfe_trading_hermes_briefs',
+    'wolfe_paper_account',
+    'wolfe_paper_positions',
+    'wolfe_paper_history'
+  ];
+  legacyTradingKeys.forEach(k => {
+    try { localStorage.removeItem(k); } catch (e) {}
+  });
+  if (localStorage.getItem('wolfe_active_view') === 'trading') {
+    localStorage.setItem('wolfe_active_view', 'home');
+  }
+} catch (e) {}
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
   rootElement.setAttribute('data-rendered', 'true');

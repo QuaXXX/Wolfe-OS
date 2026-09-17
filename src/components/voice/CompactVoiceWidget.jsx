@@ -11,7 +11,8 @@ import {
   Maximize2,
   Minimize2,
   Copy,
-  Check
+  Check,
+  Camera
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { playSound } from '../../utils/soundFX';
@@ -28,7 +29,8 @@ export const CompactVoiceWidget = forwardRef(({
   onDeleteSpecificItem, 
   onPurgeItems,
   onOpenSettings, 
-  soundEnabled = true 
+  soundEnabled = true,
+  onOpenMealLog = null
 }, ref) => {
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -340,14 +342,32 @@ export const CompactVoiceWidget = forwardRef(({
             onChange={(e) => setInputText(e.target.value)}
             placeholder={
               isListening 
-                ? (liveSpeechText ? `Hearing: "${liveSpeechText}"` : "Listening... Speak your command...") 
-                : "Ask anything..."
+                ? (liveSpeechText ? `Hearing: "${liveSpeechText}"` : "Listening... Speak command or food...") 
+                : "Ask anything or log food..."
             }
             className={`w-full bg-transparent border-none text-xs sm:text-sm placeholder:text-slate-500 focus:outline-none focus:ring-0 font-medium py-1 ${
               isListening ? 'animate-pulse' : 'text-slate-100'
             }`}
             style={{ color: isListening ? 'var(--accent-primary)' : undefined }}
           />
+
+          {/* Quick Camera Food Upload Trigger */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              playSound('click', soundEnabled);
+              if (onOpenMealLog) {
+                onOpenMealLog({ initialTab: 'upload_image' });
+              } else if (onNavigate) {
+                onNavigate('nutrition');
+              }
+            }}
+            title="Upload or snap food photo to log meal"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all shrink-0 cursor-pointer"
+          >
+            <Camera className="w-4 h-4 hover:scale-110 transition-transform" style={{ color: 'var(--accent-primary)' }} />
+          </button>
 
           <button
             type="submit"

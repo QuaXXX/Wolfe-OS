@@ -303,7 +303,11 @@ export const SettingsModal = ({
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-          className="relative w-full max-w-lg h-full bg-[#0a0c14] border-l border-white/10 p-6 shadow-2xl flex flex-col justify-between overflow-y-auto z-10"
+          className="relative w-full max-w-lg h-full bg-[#0a0c14] border-l border-white/10 px-6 shadow-2xl flex flex-col justify-between overflow-y-auto z-10"
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 24px)',
+            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)'
+          }}
         >
           {/* Header */}
           <div>

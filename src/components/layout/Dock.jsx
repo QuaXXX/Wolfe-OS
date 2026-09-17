@@ -17,7 +17,12 @@ export const Dock = ({ activeView, onViewChange, soundEnabled = true }) => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
   return (
-    <nav className="fixed bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 select-none">
+    <nav 
+      className="fixed left-1/2 -translate-x-1/2 z-40 select-none"
+      style={{
+        bottom: 'max(env(safe-area-inset-bottom, 0px), 16px)'
+      }}
+    >
       {/* Outer Dock Container with Dynamic Theme Border & Glow */}
       <div 
         className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 rounded-2xl theme-dock"

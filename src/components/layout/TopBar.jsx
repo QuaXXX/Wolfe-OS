@@ -12,7 +12,8 @@ import {
   Square,
   Maximize2,
   Minimize2,
-  Cloud
+  Cloud,
+  Camera
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { WolfLogo } from '../common/WolfLogo';
@@ -37,7 +38,8 @@ export const TopBar = ({
   isGoogleConnected = false,
   syncStatus = 'disconnected',
   onOpenGoogleModal = null,
-  onSyncNow = null
+  onSyncNow = null,
+  onOpenMealLogModal = null
 }) => {
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -258,7 +260,12 @@ export const TopBar = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 w-full px-4 sm:px-8 py-2.5 bg-[#08090d]/90 backdrop-blur-xl border-b border-white/[0.06] transition-colors select-none">
+    <header 
+      className="sticky top-0 z-30 w-full px-4 sm:px-8 bg-[#08090d]/95 backdrop-blur-xl border-b border-white/[0.06] transition-colors select-none pb-2.5 sm:pb-3"
+      style={{
+        paddingTop: 'max(env(safe-area-inset-top, 0px), 14px)'
+      }}
+    >
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
         
         {/* Left: Brand Identity with Dynamic Wolf Logo */}
@@ -296,19 +303,37 @@ export const TopBar = ({
           )}
         </div>
 
-        {/* Center: In-Place Voice Listening Controller */}
+        {/* Center: In-Place Voice & Food Logging Controls */}
         {activeView !== 'home' && (
           <div className="flex items-center gap-2">
             {!isListening && !isProcessing ? (
-              <button
-                onClick={toggleTopBarListening}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
-                style={{ border: '1px solid var(--accent-border)' }}
-                title="Speak a command from this view"
-              >
-                <Mic className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                <span>Speak</span>
-              </button>
+              <>
+                <button
+                  onClick={toggleTopBarListening}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
+                  style={{ border: '1px solid var(--accent-border)' }}
+                  title="Speak a command from this view"
+                >
+                  <Mic className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                  <span>Speak</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    playSound('click', soundEnabled);
+                    if (onOpenMealLogModal) {
+                      onOpenMealLogModal();
+                    } else {
+                      onNavigate('nutrition');
+                    }
+                  }}
+                  className="hidden xs:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-300 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer border border-white/10"
+                  title="Snap photo or log food"
+                >
+                  <Camera className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+                  <span className="hidden md:inline">Log Food</span>
+                </button>
+              </>
             ) : isListening ? (
               <div 
                 className="flex items-center gap-2 px-3 py-1 rounded-xl text-xs font-medium animate-pulse"
