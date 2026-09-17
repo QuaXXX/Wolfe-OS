@@ -63,6 +63,7 @@ function writeStorageJson(key, value) {
 export function wipeLocalUserData() {
   if (typeof localStorage === 'undefined') return;
   try {
+    cancelPendingCloudPushes();
     localStorage.removeItem(SYNC_KEYS.NUTRITION);
     localStorage.removeItem(SYNC_KEYS.CALENDAR);
     localStorage.removeItem(SYNC_KEYS.CALENDAR_FALLBACK);
@@ -78,6 +79,7 @@ export function wipeLocalUserData() {
     localStorage.removeItem('user_email');
     localStorage.removeItem('wolfe_user_signed_in_google');
     localStorage.removeItem('wolfe_gcal_deadlines_id');
+    localStorage.removeItem('wolfe_gcal_vault_event_id');
     localStorage.removeItem('wolfe_study_decks');
     localStorage.removeItem('wolfe_study_quizzes');
     localStorage.removeItem('wolfe_study_weak_spots');
@@ -666,7 +668,8 @@ export function importFullOsState(vault, options = {}) {
     window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-applied', {
       detail: {
         vault: sanitizedVault,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        options
       }
     }));
   }
@@ -1146,4 +1149,18 @@ export function triggerImmediateCloudPush(delayMs = 50, forcePush = true) {
       console.debug("Immediate cloud push notice:", err.message);
     });
   }, delayMs);
+}
+
+/**
+  * Cancel all pending debounced or immediate cloud pushes
+  */
+export function cancelPendingCloudPushes() {
+  if (debouncePushTimer) {
+    clearTimeout(debouncePushTimer);
+    debouncePushTimer = null;
+  }
+  if (immediatePushTimer) {
+    clearTimeout(immediatePushTimer);
+    immediatePushTimer = null;
+  }
 }

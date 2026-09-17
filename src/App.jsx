@@ -337,8 +337,14 @@ export function App() {
       const vault = e.detail?.vault;
       if (!vault) return;
       isApplyingInboundSyncRef.current = true;
+      const isReplacing = Boolean(e.detail?.options?.replaceLocal || e.detail?.options?.forcePull || e.detail?.replaceLocal);
+
       if (vault.nutrition) {
         setNutritionData(prev => {
+          if (isReplacing) {
+            return synchronizeNutritionData(vault.nutrition);
+          }
+
           const tombstones = vault._tombstones || {};
           const isTomb = (id) => Boolean(id && tombstones[String(id)]);
 
@@ -458,6 +464,13 @@ export function App() {
           const tombstones = vault._tombstones || {};
           const isTomb = (id) => Boolean(id && tombstones[String(id)]);
           const incoming = vault.calendar.items.filter(it => it && !isTomb(it.id));
+          if (isReplacing) {
+            return {
+              currentDate: formatDateTitle(getTodayIso()),
+              selectedDate: getTodayIso(),
+              items: incoming
+            };
+          }
           return {
             ...prev,
             items: reconcileCalendarItems(prev.items, incoming, tombstones)
