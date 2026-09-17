@@ -9,6 +9,15 @@ export const UndoActionPopup = ({
   onDismiss, 
   soundEnabled = true 
 }) => {
+  // Automatically dismiss after 4 seconds so it never stays stuck on screen
+  React.useEffect(() => {
+    if (!undoAction) return;
+    const timer = setTimeout(() => {
+      if (onDismiss) onDismiss();
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [undoAction, onDismiss]);
+
   if (!undoAction) return null;
 
   const handleUndo = () => {

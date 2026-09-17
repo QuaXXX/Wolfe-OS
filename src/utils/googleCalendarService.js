@@ -644,24 +644,18 @@ export async function getValidAccessToken(forceRefresh = false) {
     return token;
   }
 
-  // 1. Silent serverless background refresh via permanent refresh_token
+  // 1. Silent serverless background refresh via permanent refresh_token (0 popups)
   try {
     const freshToken = await refreshAccessToken();
     if (freshToken) return freshToken;
   } catch (e) {}
 
-  // 2. Silent GIS background refresh (zero popups, iframe/cookie token renewal)
-  try {
-    const gisToken = await silentRefreshGISToken();
-    if (gisToken) return gisToken;
-  } catch (e) {}
-
-  // 3. Return existing stored token as best-effort fallback ONLY if not expired
+  // 2. Return existing stored token as best-effort fallback ONLY if not expired
   if (token && expiry && Date.now() < Number(expiry)) {
     return token;
   }
 
-  // Token is expired and cannot be refreshed silently - do not return invalid token
+  // Token is expired and cannot be refreshed silently in the background
   return null;
 }
 

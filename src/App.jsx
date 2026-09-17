@@ -608,12 +608,12 @@ export function App() {
 
   const lastMainScreenFetchRef = useRef(0);
 
-  // Everytime we load or navigate back to the main screen, pull fresh directly from Google Calendar (throttled to 60s)
+  // Throttled Google Calendar sync on home view (1 hour debounce throttle)
   useEffect(() => {
     if (activeView === 'home' && isGoogleCalendarConnected()) {
       const now = Date.now();
-      // 60s debounce throttle to prevent multi-fetch spamming
-      if (now - lastMainScreenFetchRef.current < 60000) return;
+      // 1-hour debounce throttle to prevent multi-fetch spamming
+      if (now - lastMainScreenFetchRef.current < 3600000) return;
       lastMainScreenFetchRef.current = now;
 
       (async () => {
@@ -703,24 +703,26 @@ export function App() {
     };
   }, []);
 
-  // Relaxed Google Calendar sync: checks every 5 minutes if Google is connected
+  // Periodic Google Calendar sync: runs silently in background every 1 hour (3600000ms)
   useEffect(() => {
     if (!isGoogleCalendarConnected()) return;
     const interval = setInterval(() => {
       if (isGoogleCalendarConnected()) {
         syncWithGoogle(false);
       }
-    }, 300000);
+    }, 3600000); // 1 hour
     return () => clearInterval(interval);
   }, [syncWithGoogle]);
 
-  // 1-Click Sync Trigger for User
-  const handleSyncGoogleCalendar = useCallback(async () => {
+  // Silent Background Sync Trigger - 0 popups
+  const handleSyncGoogleCalendar = useCallback(async (interactive = false) => {
     if (!isGoogleCalendarConnected()) {
-      setIsGCalModalOpen(true);
-    } else {
-      await syncWithGoogle(true);
+      if (interactive === true) {
+        setIsGCalModalOpen(true);
+      }
+      return;
     }
+    await syncWithGoogle(false);
   }, [syncWithGoogle]);
 
   // Touch Swipe Gesture State
@@ -901,10 +903,15 @@ export function App() {
     }));
     recordAdditionOrUpdate(itemToSave.id);
 
-    // Trigger Undo Action Toast
+    // Silent background sync when an item is added
+    if (isGoogleCalendarConnected()) {
+      syncWithGoogle(false).catch(() => {});
+    }
+
+    // Trigger Undo Action Toast (4s auto-dismiss)
     setUndoAction({
-      title: itemToSave.type === 'deadline' ? "Deadline Added" : "Calendar Item Added",
-      description: `Added "${itemToSave.title}" on ${itemToSave.date}`,
+      title: itemToSave.type === 'deadline' ? "Deadline Added" : "Item Added",
+      description: `"${itemToSave.title}" on ${itemToSave.date}`,
       type: "ADD_ITEM",
       itemsAdded: [itemToSave],
       itemsRemoved: []
@@ -934,15 +941,15 @@ export function App() {
 
     const isGcalConnected = isGoogleCalendarConnected();
 
-    // 2. Set initial Undo Toast with background sync status
+    // 2. Set initial Undo Toast (clean, auto-dismisses)
     setUndoAction({
-      title: "📚 Syllabus Items Added",
-      description: isGcalConnected ? `Added ${localItems.length} items • Syncing to Google...` : `Added ${localItems.length} items to calendar`,
+      title: "Calendar Items Added",
+      description: `Added ${localItems.length} items to calendar`,
       type: "BATCH_ADD",
       batchSyncId,
       itemsAdded: localItems,
       itemsRemoved: [],
-      syncProgress: isGcalConnected ? { current: 0, total: localItems.length, inProgress: true } : null
+      syncProgress: null
     });
 
     // 3. Perform Google Calendar Sync in the Background (Non-blocking & Abort-Safe)
@@ -1003,23 +1010,9 @@ export function App() {
 
           completedCount++;
           syncedItems.push(updatedItem);
-
-          // Update sync progress state in live Undo Toast
-          setUndoAction(prev => (prev && prev.type === 'BATCH_ADD' && activeBatchSyncRef.current === batchSyncId) ? {
-            ...prev,
-            itemsAdded: [...syncedItems, ...localItems.slice(completedCount)],
-            syncProgress: {
-              current: completedCount,
-              total: localItems.length,
-              inProgress: completedCount < localItems.length
-            },
-            description: completedCount < localItems.length 
-              ? `Syncing to Google Calendar (${completedCount}/${localItems.length})...`
-              : `✅ ${localItems.length} items synced to Google Calendar`
-          } : prev);
         }
 
-        // Final state update with official Google IDs if not cancelled
+        // Final state update with official Google IDs and silent background sync
         if (activeBatchSyncRef.current === batchSyncId) {
           setCalendarData(prev => ({
             ...prev,
@@ -1028,6 +1021,7 @@ export function App() {
               return match || it;
             })
           }));
+          syncWithGoogle(false).catch(() => {});
         }
       })();
     }
@@ -1047,10 +1041,11 @@ export function App() {
       for (const dl of toDelete) {
         deleteGoogleCalendarEvent(dl.id, false).catch(console.warn);
       }
+      syncWithGoogle(false).catch(() => {});
     }
 
     setUndoAction({
-      title: "🗑️ Deadlines Removed",
+      title: "Deadlines Removed",
       description: `Removed ${toDelete.length} deadline(s) from calendar`,
       type: "CLEAR_DEADLINES",
       itemsAdded: [],
@@ -1073,11 +1068,12 @@ export function App() {
     // Insta-delete on Google Calendar and Google Tasks in background
     if (isGoogleCalendarConnected()) {
       deleteGoogleCalendarEvent(id, isGoogleTask).catch(err => console.warn("Delete error:", err));
+      syncWithGoogle(false).catch(() => {});
     }
 
     if (targetItem) {
       setUndoAction({
-        title: "🗑️ Item Deleted",
+        title: "Item Deleted",
         description: `Removed "${targetItem.title}"`,
         type: "DELETE_ITEM",
         itemsAdded: [],
@@ -1109,10 +1105,11 @@ export function App() {
       recordDeletion(targetItem.id);
       if (isGoogleCalendarConnected()) {
         deleteGoogleCalendarEvent(targetItem.id, isGoogleTask).catch(err => console.warn("Delete error:", err));
+        syncWithGoogle(false).catch(() => {});
       }
 
       setUndoAction({
-        title: "🗑️ Item Deleted",
+        title: "Item Deleted",
         description: `Removed "${targetItem.title}"`,
         type: "DELETE_ITEM",
         itemsAdded: [],
@@ -1137,6 +1134,7 @@ export function App() {
       for (const it of removedItems) {
         deleteGoogleCalendarEvent(it.id, it.isGoogleTask || it.type === 'task').catch(console.warn);
       }
+      syncWithGoogle(false).catch(() => {});
     }
 
     setUndoAction({
@@ -1218,41 +1216,27 @@ export function App() {
     }));
     itemsToPurge.forEach(it => recordDeletion(it.id));
 
-    // 2. Show Live Real-Time Progress Popup
+    // 2. Set clean Undo Toast (auto-dismisses)
     setUndoAction({
-      title: `🗑️ Purging "${rawQ.toUpperCase()}"`,
-      description: isGcal ? `Purging ${itemsToPurge.length} items from Google Calendar (0/${itemsToPurge.length})...` : `Purged ${itemsToPurge.length} items from calendar`,
+      title: `Purged "${rawQ.toUpperCase()}"`,
+      description: `Purged ${itemsToPurge.length} items from calendar`,
       type: "PURGE_ITEMS",
       itemsAdded: [],
       itemsRemoved: itemsToPurge,
-      syncProgress: isGcal ? { current: 0, total: itemsToPurge.length, inProgress: true } : null
+      syncProgress: null
     });
 
-    // 3. Delete from Google Calendar & Tasks in Background with Live Counter & Progress Bar
+    // 3. Delete from Google Calendar & Tasks silently in Background
     if (isGcal) {
       (async () => {
-        let deletedCount = 0;
         for (const it of itemsToPurge) {
           try {
             await deleteGoogleCalendarEvent(it.id, it.isGoogleTask || it.type === 'task');
           } catch (err) {
             console.warn("Purge delete notice:", err);
           }
-          deletedCount++;
-
-          // Update progress bar in toast in real time!
-          setUndoAction(prev => (prev && prev.type === 'PURGE_ITEMS') ? {
-            ...prev,
-            syncProgress: {
-              current: deletedCount,
-              total: itemsToPurge.length,
-              inProgress: deletedCount < itemsToPurge.length
-            },
-            description: deletedCount < itemsToPurge.length
-              ? `Purging from Google Calendar (${deletedCount}/${itemsToPurge.length})...`
-              : `✅ Purged all ${itemsToPurge.length} "${rawQ.toUpperCase()}" items`
-          } : prev);
         }
+        syncWithGoogle(false).catch(() => {});
       })();
     }
 
@@ -1280,6 +1264,7 @@ export function App() {
     // Sync to Google in background
     if (isGoogleCalendarConnected()) {
       updateGoogleTaskStatus(id, nextCompleted).catch(err => console.warn("Task toggle sync error:", err));
+      syncWithGoogle(false).catch(() => {});
     }
   };
 
