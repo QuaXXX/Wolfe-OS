@@ -36,7 +36,6 @@ import {
   DEFAULT_HOUSEHOLD_PANTRY,
   getCalibrationProgress,
   filterMealsByDate,
-  getDailyNutritionHistory,
   getTargetForDate,
   calculateWeightTrend,
   synchronizeNutritionData,
@@ -46,6 +45,7 @@ import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
+import { NutritionHistoryModal } from '../nutrition/NutritionHistoryModal';
 import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush, syncFullOsWithCloud, isLocalMutationRecent } from '../../utils/cloudSyncEngine.js';
 
 const NutritionViewInner = ({ 
@@ -60,8 +60,7 @@ const NutritionViewInner = ({
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
-  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
-  const [calorieHistoryRange, setCalorieHistoryRange] = useState(14); // 7 | 14 | 30
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [expandedMealIds, setExpandedMealIds] = useState(() => new Set());
 
   const toggleMealExpand = (mealId) => {
@@ -308,11 +307,6 @@ const NutritionViewInner = ({
   const dailyTotals = useMemo(() => {
     return aggregateDailyNutrition(selectedDateMeals);
   }, [selectedDateMeals]);
-
-  // Multi-day consistency and lookback history (7, 14, or 30 days) with per-date target protection
-  const nutritionHistory = useMemo(() => {
-    return getDailyNutritionHistory(meals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets);
-  }, [meals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets]);
 
   const weightTrend14 = useMemo(() => {
     return calculateWeightTrend(weightHistory, 14);
@@ -805,21 +799,17 @@ const NutritionViewInner = ({
             </span>
           </button>
 
-          {/* Consistency Lookback Toggle Button */}
+          {/* Calendar History Modal Button */}
           <button
             onClick={() => {
               playSound('click', soundEnabled);
-              setIsHistoryExpanded(prev => !prev);
+              setIsHistoryModalOpen(true);
             }}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
-              isHistoryExpanded 
-                ? 'bg-white/15 text-white border-white/20 shadow-sm' 
-                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
-            }`}
-            title="View calendar history at bottom"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
+            title="View calendar & calorie history"
           >
             <History className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-            <span>{isHistoryExpanded ? 'Hide Calendar' : 'Calendar History'}</span>
+            <span>Calendar History</span>
           </button>
 
           {/* Morning Weight Tracker */}
@@ -1355,196 +1345,20 @@ const NutritionViewInner = ({
         </div>
       </div>
 
-      {/* MULTI-WEEK CONSISTENCY & HISTORY LOOKBACK CARD (Expandable at Bottom) */}
-      {isHistoryExpanded && (
-        <GlassCard hoverEffect={false} className="p-4 sm:p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
-            <div className="flex items-center gap-2">
-              <History className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-                  Target Consistency & Calorie History ({calorieHistoryRange} Days)
-                </h3>
-                <p className="text-[10px] text-slate-400">
-                  Track whether you've been hitting your caloric surplus & protein targets throughout
-                </p>
-              </div>
-            </div>
-
-            {/* Span Range Selector: 7d | 14d | 30d */}
-            <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/10 text-xs self-start sm:self-auto">
-              {[
-                { id: 7, label: '7 Days' },
-                { id: 14, label: '14 Days' },
-                { id: 30, label: '30 Days' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    setCalorieHistoryRange(tab.id);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-                    calorieHistoryRange === tab.id 
-                      ? 'bg-white/20 text-white shadow-sm font-bold' 
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Period Aggregate Summary Bar */}
-          {(() => {
-            const loggedDays = (nutritionHistory || []).filter(h => h && (h.calories || 0) > 0);
-            const hitDays = (nutritionHistory || []).filter(h => h && h.hitCalories);
-            const avgCalories = loggedDays.length > 0 ? Math.round(loggedDays.reduce((acc, h) => acc + (h?.calories || 0), 0) / loggedDays.length) : 0;
-            const avgProtein = loggedDays.length > 0 ? Math.round(loggedDays.reduce((acc, h) => acc + (h?.protein || 0), 0) / loggedDays.length) : 0;
-            const hitRate = Math.round((hitDays.length / (calorieHistoryRange || 1)) * 100);
-
-            return (
-              <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-white/[0.02] border border-white/10 text-center font-mono">
-                <div>
-                  <span className="text-[9px] uppercase text-slate-400 block">Avg Caloric Intake</span>
-                  <div className="text-sm sm:text-base font-bold text-white mt-0.5">
-                    {avgCalories > 0 ? `${avgCalories} kcal` : '—'}
-                  </div>
-                  <span className="text-[9px] text-slate-500">Goal: {targetCalories} kcal</span>
-                </div>
-                <div>
-                  <span className="text-[9px] uppercase text-slate-300 block">Avg Daily Protein</span>
-                  <div className="text-sm sm:text-base font-bold text-white mt-0.5">
-                    {avgProtein > 0 ? `${avgProtein}g` : '—'}
-                  </div>
-                  <span className="text-[9px] text-slate-500">Goal: {targetProtein}g</span>
-                </div>
-                <div>
-                  <span className="text-[9px] uppercase text-emerald-400 block">Goal Hit Rate</span>
-                  <div className="text-sm sm:text-base font-bold text-emerald-400 mt-0.5">
-                    {hitDays.length}/{calorieHistoryRange} Days ({hitRate}%)
-                  </div>
-                  <span className="text-[9px] text-slate-500">{hitDays.length >= (calorieHistoryRange * 0.7) ? 'On Track' : 'Need Consistency'}</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Visual Calorie Bar Chart */}
-          <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-mono">
-              <span className="text-slate-400">Daily Calorie Bars vs Target ({targetCalories} kcal):</span>
-              <span className="text-slate-500 text-[10px]">Click any bar to view that day</span>
-            </div>
-
-            <div className="flex items-end gap-1 sm:gap-1.5 h-28 pt-4 pb-1 overflow-x-auto scrollbar-none">
-              {(nutritionHistory || []).map((h, hIdx) => {
-                if (!h) return null;
-                const isSelected = h.dateIso === selectedDate;
-                const maxChartCal = Math.max(4000, targetCalories * 1.25);
-                const hCalories = Number(h.calories) || 0;
-                const heightPct = Math.min(100, Math.max(6, Math.round((hCalories / maxChartCal) * 100)));
-                const hitGoal = !!h.hitCalories;
-                const dayInitial = (h.dayName && typeof h.dayName === 'string') ? (h.dayName[0] || 'D') : 'D';
-                const dateSlice = (h.dateIso && typeof h.dateIso === 'string') ? h.dateIso.slice(8) : '';
-
-                return (
-                  <button
-                    key={h.dateIso || `hist-bar-${hIdx}`}
-                    type="button"
-                    onClick={() => {
-                      playSound('click', soundEnabled);
-                      if (h.dateIso) setSelectedDate(h.dateIso);
-                    }}
-                    className={`flex-1 min-w-[18px] sm:min-w-[24px] h-full flex flex-col justify-end items-center group cursor-pointer transition-transform ${
-                      isSelected ? 'scale-105' : 'hover:opacity-100 opacity-85'
-                    }`}
-                    title={`${h.dateTitle || h.dateIso}: ${hCalories} kcal (${h.protein || 0}g P)`}
-                  >
-                    <div 
-                      className={`w-full rounded-t-lg transition-all ${
-                        isSelected 
-                          ? 'ring-2 ring-white shadow-lg' 
-                          : ''
-                      } ${
-                        hitGoal 
-                          ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]' 
-                          : hCalories > 0 
-                            ? 'bg-amber-400/80' 
-                            : 'bg-white/10'
-                      }`}
-                      style={{ height: `${heightPct}%` }}
-                    />
-                    <span className={`text-[8px] sm:text-[9px] font-mono mt-1 whitespace-nowrap ${
-                      isSelected ? 'text-white font-bold' : 'text-slate-500 group-hover:text-slate-300'
-                    }`}>
-                      {dayInitial}{dateSlice}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 max-h-64 overflow-y-auto pr-0.5">
-            {(nutritionHistory || []).map((h, hIdx) => {
-              if (!h) return null;
-              const isSelected = h.dateIso === selectedDate;
-              return (
-                <div
-                  key={h.dateIso || `hist-card-${hIdx}`}
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    if (h.dateIso) setSelectedDate(h.dateIso);
-                  }}
-                  className={`p-3 rounded-2xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-white/[0.08] border-white/25 shadow-md scale-[1.02]'
-                      : 'bg-white/[0.02] hover:bg-white/[0.05] border-white/10'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white">{h.dateTitle || h.dateIso}</span>
-                    {h.hitCalories ? (
-                      <span className="px-1.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold flex items-center gap-1">
-                        <CheckCheck className="w-3 h-3" /> Hit Goal
-                      </span>
-                    ) : (h.calories || 0) > 0 ? (
-                      <span className="px-1.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 text-[9px] font-mono font-bold">
-                        {h.pctCalories || 0}%
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono text-slate-500">No Logs</span>
-                    )}
-                  </div>
-
-                  <div className="mt-2 space-y-1 font-mono">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-slate-400">Calories:</span>
-                      <span className={`font-bold ${h.hitCalories ? 'text-emerald-400' : 'text-white'}`}>
-                        {h.calories || 0} / {h.targetCalories || 0}
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-black/40 rounded-md overflow-hidden">
-                      <div 
-                        className={`h-full rounded-md transition-all ${h.hitCalories ? 'bg-emerald-400' : 'bg-amber-400'}`}
-                        style={{ width: `${Math.min(100, Math.max(0, h.pctCalories || 0))}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
-                      <span>Protein: <strong className="text-white">{h.protein || 0}g</strong> / {h.targetProtein || 0}g</span>
-                      <span>{h.mealCount || 0} meals</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </GlassCard>
-      )}
+      {/* Sleek bottom action to open history modal */}
+      <div className="flex justify-center pt-1">
+        <button
+          type="button"
+          onClick={() => {
+            playSound('click', soundEnabled);
+            setIsHistoryModalOpen(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] text-slate-300 hover:text-white text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
+        >
+          <History className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+          <span>Open Full Calendar & Calorie History</span>
+        </button>
+      </div>
 
       {/* CUSTOM TARGET ADJUSTMENT MODAL */}
       <AnimatePresence>
@@ -1717,6 +1531,17 @@ const NutritionViewInner = ({
         onLogWeight={handleLogWeight}
         onDeleteWeightLog={handleDeleteWeightLog}
         onApplySurplus={handleApplySurplus}
+        soundEnabled={soundEnabled}
+      />
+
+      <NutritionHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        nutritionData={safeNutritionData}
+        selectedDate={selectedDate}
+        onSelectDate={(dateIso) => setSelectedDate(dateIso)}
+        targetCalories={activeTargetCalories}
+        targetProtein={activeTargetProtein}
         soundEnabled={soundEnabled}
       />
 
