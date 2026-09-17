@@ -10,12 +10,12 @@ import { getTodayIso, addDays } from './calendarUtils.js';
 // 1. DEFAULT NUTRITION TARGETS (High Carb, 180g Protein, 3,000-3,500 kcal)
 // ---------------------------------------------------------------------------
 const DEFAULT_NUTRITION_TARGETS = {
-  calories: 3250,      // Midpoint of 3,000 - 3,500 kcal target
+  calories: 3000,      // Baseline 3,000 kcal target
   protein: 180,        // 180g Protein (720 kcal)
-  carbs: 450,          // 450g Carbs (1,800 kcal) - fuels glycogen & high volume training
-  fats: 80,            // 80g Fats (720 kcal) - hormonal health
-  fiber: 38,           // grams
-  waterMl: 3500,       // 3.5 Liters (~14 glasses)
+  carbs: 400,          // 400g Carbs (1,600 kcal)
+  fats: 75,            // 75g Fats (675 kcal)
+  fiber: 35,           // grams
+  waterMl: 3000,       // 3.0 Liters (~12 glasses)
   targetWeightGainLbsPerWeek: 0.75 // 0.5 - 1.0 lb/week target
 };
 
@@ -1426,7 +1426,7 @@ export function calculateWeightVelocity(weightHistory = []) {
 /**
  * Adaptive Surplus Advisor: Disabled per user request (Scale stalled indicator removed)
  */
-export function getAdaptiveSurplusRecommendation(weightHistory = [], currentCalorieTarget = 3250) {
+export function getAdaptiveSurplusRecommendation(weightHistory = [], currentCalorieTarget = 3000) {
   return { needsSurplus: false, reason: "Adaptive surplus recommendation disabled" };
 }
 
@@ -2536,7 +2536,7 @@ export function filterMealsByDate(meals = [], dateIso = null) {
  * Generates an N-day history of nutrition targets hit vs missed without timezone skew
  * Respects per-date historical targets from dailyTargets to prevent retroactive alterations.
  */
-export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 3250, defaultTargetProtein = 180, daysCount = 7, dailyTargets = {}) {
+export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 3000, defaultTargetProtein = 180, daysCount = 7, dailyTargets = {}) {
   if (!Array.isArray(meals)) meals = [];
   const history = [];
   const todayIso = getTodayIso();
@@ -2553,7 +2553,7 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 325
     const dayCarbs = typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.carbs : null;
     const dayFats = typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.fats : null;
 
-    const targetCalories = Number(dayCals) || Number(defaultTargetCalories) || 3250;
+    const targetCalories = Number(dayCals) || Number(defaultTargetCalories) || 3000;
     const targetProtein = Number(dayProtein) || Number(defaultTargetProtein) || 180;
     const targetCarbs = Number(dayCarbs) || 450;
     const targetFats = Number(dayFats) || 80;
@@ -2624,7 +2624,7 @@ export function getTargetForDate(nutritionData, dateIso) {
   const specificFats = typeof specific === 'object' && specific !== null ? specific.fats : null;
 
   return {
-    calories: Number(specificCals) || Number(nutritionData?.targetCalories) || 3250,
+    calories: Number(specificCals) || Number(nutritionData?.targetCalories) || 3000,
     protein: Number(specificProtein) || Number(nutritionData?.protein?.target) || 180,
     carbs: Number(specificCarbs) || Number(nutritionData?.carbs?.target) || 450,
     fats: Number(specificFats) || Number(nutritionData?.fats?.target) || 80
@@ -3023,7 +3023,7 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
   // 2.9 Ensure macro targets are positive numbers
   const targetCalories = typeof nutritionData.targetCalories === 'number' && !isNaN(nutritionData.targetCalories) && nutritionData.targetCalories > 0
     ? nutritionData.targetCalories
-    : (Number(nutritionData.targetCalories) || 3250);
+    : (Number(nutritionData.targetCalories) || 3000);
 
   const targetProtein = typeof nutritionData.protein?.target === 'number' && !isNaN(nutritionData.protein?.target)
     ? nutritionData.protein.target

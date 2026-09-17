@@ -24,7 +24,7 @@ export const WeightTrackerModal = ({
   isOpen,
   onClose,
   weightHistory = [],
-  currentCalorieTarget = 3250,
+  currentCalorieTarget = 3000,
   onLogWeight,
   onDeleteWeightLog,
   onApplySurplus,

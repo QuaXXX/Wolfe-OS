@@ -62,7 +62,7 @@ export const buildSystemPrompt = (osData) => {
 
   // 2. Nutrition Snapshot
   const consumedCal = osData?.nutritionData?.consumedCalories || 0;
-  const targetCal = osData?.nutritionData?.targetCalories || 2750;
+  const targetCal = osData?.nutritionData?.targetCalories || 3000;
   const proteinConsumed = osData?.nutritionData?.consumedProtein || 0;
   const proteinTarget = osData?.nutritionData?.targetProtein || 180;
   const carbsConsumed = osData?.nutritionData?.consumedCarbs || 0;
@@ -720,7 +720,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
   // 7. NUTRITION & CALORIE INQUIRIES
   if (lower.includes('calorie') || lower.includes('calories') || lower.includes('macro') || lower.includes('nutrition') || lower.includes('protein') || lower.includes('carbs') || lower.includes('food') || lower.includes('eat')) {
     const consumed = osData?.nutritionData?.consumedCalories || 0;
-    const target = osData?.nutritionData?.targetCalories || 2750;
+    const target = osData?.nutritionData?.targetCalories || 3000;
     const remaining = Math.max(0, target - consumed);
     const protein = osData?.nutritionData?.consumedProtein || 0;
     const proteinTarget = osData?.nutritionData?.targetProtein || 180;
@@ -735,7 +735,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
   // General Questions
   return {
     title: "Wolfe OS",
-    message: `All 3 command hubs are synchronized: Schedule: Active | Nutrition: ${osData?.nutritionData?.consumedCalories || 0} / ${osData?.nutritionData?.targetCalories || 2750} kcal.`,
+    message: `All 3 command hubs are synchronized: Schedule: Active | Nutrition: ${osData?.nutritionData?.consumedCalories || 0} / ${osData?.nutritionData?.targetCalories || 3000} kcal.`,
     targetView: "home",
     actionLabel: "Dashboard"
   };

@@ -244,11 +244,11 @@ const NutritionViewInner = ({
 
   // Destructure state from nutritionData with bulletproof safe fallbacks
   const safeNutritionData = (nutritionData && typeof nutritionData === 'object') ? nutritionData : {};
-  const targetCalories = Number(safeNutritionData.targetCalories) || 3250;
+  const targetCalories = Number(safeNutritionData.targetCalories) || 3000;
   const targetProtein = Number(safeNutritionData.protein?.target) || 180;
-  const targetCarbs = Number(safeNutritionData.carbs?.target) || 450;
-  const targetFats = Number(safeNutritionData.fats?.target) || 80;
-  const targetWaterMl = Number(safeNutritionData.targetWaterMl) || 3500;
+  const targetCarbs = Number(safeNutritionData.carbs?.target) || 400;
+  const targetFats = Number(safeNutritionData.fats?.target) || 75;
+  const targetWaterMl = Number(safeNutritionData.targetWaterMl) || 3000;
   const waterMl = Number(safeNutritionData.waterMl) || 0;
 
   const rawMeals = Array.isArray(safeNutritionData.meals) ? safeNutritionData.meals : [];
@@ -278,7 +278,7 @@ const NutritionViewInner = ({
     return getTargetForDate(safeNutritionData, selectedDate);
   }, [safeNutritionData, selectedDate]);
 
-  const activeTargetCalories = activeDayTarget?.calories || targetCalories || 3250;
+  const activeTargetCalories = activeDayTarget?.calories || targetCalories || 3000;
   const activeTargetProtein = activeDayTarget?.protein || targetProtein || 180;
   const activeTargetCarbs = activeDayTarget?.carbs || targetCarbs || 450;
   const activeTargetFats = activeDayTarget?.fats || targetFats || 80;
@@ -951,7 +951,7 @@ const NutritionViewInner = ({
               </svg>
               <div className="absolute flex flex-col items-center text-center">
                 <span className="text-2xl font-bold font-mono text-white">{Number(dailyTotals?.calories) || 0}</span>
-                <span className="text-[9px] text-slate-400 uppercase font-mono">of {Number(activeTargetCalories) || 3250} kcal</span>
+                <span className="text-[9px] text-slate-400 uppercase font-mono">of {Number(activeTargetCalories) || 3000} kcal</span>
                 <span className="text-[11px] font-mono font-bold mt-0.5" style={{ color: 'var(--accent-primary)' }}>
                   {Math.round(typeof calPercent === 'number' && !isNaN(calPercent) ? calPercent : 0)}%
                 </span>

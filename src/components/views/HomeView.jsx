@@ -69,7 +69,7 @@ export const HomeView = ({
     : null;
 
   const rawTodayTarget = nutritionData?.dailyTargets?.[todayIso];
-  const todayTargetCals = (typeof rawTodayTarget === 'number' ? rawTodayTarget : rawTodayTarget?.calories) || nutritionData?.targetCalories || 3250;
+  const todayTargetCals = (typeof rawTodayTarget === 'number' ? rawTodayTarget : rawTodayTarget?.calories) || nutritionData?.targetCalories || 3000;
   const todayTargetProtein = (typeof rawTodayTarget === 'object' && rawTodayTarget !== null ? rawTodayTarget.protein : null) || nutritionData?.protein?.target || 180;
   const todayTargetCarbs = (typeof rawTodayTarget === 'object' && rawTodayTarget !== null ? rawTodayTarget.carbs : null) || nutritionData?.carbs?.target || 450;
 
@@ -344,7 +344,7 @@ export const HomeView = ({
       {/* 3. Core Command: Nutrition with Google-Style Calorie Circle & Homescreen Food Logging */}
       {vm.nutrition !== false && (() => {
         const consumedCals = Number(nutritionData?.consumedCalories) || 0;
-        const targetCals = Number(todayTargetCals) || 3250;
+        const targetCals = Number(todayTargetCals) || 3000;
         const calsPercent = Math.min(100, Math.max(0, Math.round((consumedCals / (targetCals || 1)) * 100)));
         const remainingCals = targetCals - consumedCals;
         const isSurplus = remainingCals < 0;

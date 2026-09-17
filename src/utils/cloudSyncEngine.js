@@ -402,8 +402,8 @@ export function mergeOsState(localVault, remoteVault) {
   const baseNut = localIsNewerNut ? localNut : remoteNut;
 
   const targetCalories = (localIsNewerNut || !remoteNut.targetCalories) 
-    ? (localNut.targetCalories || remoteNut.targetCalories || 3250)
-    : (remoteNut.targetCalories || localNut.targetCalories || 3250);
+    ? (localNut.targetCalories || remoteNut.targetCalories || 3000)
+    : (remoteNut.targetCalories || localNut.targetCalories || 3000);
 
   const protein = (localIsNewerNut || !remoteNut.protein)
     ? (localNut.protein || remoteNut.protein)
@@ -603,6 +603,7 @@ export function importFullOsState(vault, options = {}) {
 
     cleanNutrition = {
       ...vault.nutrition,
+      targetCalories: vault.nutrition.targetCalories || 3000,
       currentDate: todayIso,
       consumedCalories: todayTotals.calories,
       protein: {
