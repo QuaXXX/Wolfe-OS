@@ -286,45 +286,42 @@ export const CompactVoiceWidget = forwardRef(({
           inputRef.current?.focus();
         }
       }}
-      className={`relative w-full rounded-2xl theme-card p-2 sm:p-2.5 transition-all cursor-text shadow-lg ${
-        isListening ? 'ring-1 ring-pink-500/50 bg-[#0e0f1c]' : 'hover:border-white/20'
+      className={`relative w-full rounded-2xl theme-card p-2.5 sm:p-3 transition-all cursor-text ${
+        isListening ? 'ring-1 ring-blue-500/50 bg-[#0c1020]' : 'hover:border-white/20'
       }`}
     >
-      <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="flex items-center gap-3">
         
-        {/* Dynamic Microphone / Instagram Story Accent Button */}
+        {/* Dynamic Microphone Button */}
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             toggleListening();
           }}
-          title={isListening ? "Listening... Click to stop" : "Click to speak (or press ⌘K)"}
-          className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer ${
-            isListening ? 'ig-story-ring-active' : ''
-          }`}
-          style={!isListening ? {
-            backgroundColor: 'var(--accent-subtle)',
+          title={isListening ? "Listening... Click to stop" : "Click to speak"}
+          className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer"
+          style={{
+            backgroundColor: isListening ? 'var(--accent-primary)' : 'var(--accent-subtle)',
             border: '1px solid var(--accent-border)',
-            color: 'var(--accent-primary)'
-          } : undefined}
+            color: isListening ? '#ffffff' : 'var(--accent-primary)',
+            boxShadow: isListening ? '0 0 20px 2px var(--accent-glow)' : 'none'
+          }}
         >
           {isListening ? (
-            <div className="w-full h-full rounded-full bg-[#0a0a14] flex items-center justify-center">
-              <div className="flex items-center justify-center gap-0.5">
-                {[0.5, 1.3, 0.7, 1.4, 0.6].map((h, i) => (
-                  <motion.span
-                    key={i}
-                    animate={{ height: ['4px', `${h * 16}px`, '4px'] }}
-                    transition={{
-                      repeat: Infinity,
-                      duration: 0.65 + (i * 0.08),
-                      ease: "easeInOut"
-                    }}
-                    className="w-0.5 bg-gradient-to-t from-amber-400 to-rose-500 rounded-sm"
-                  />
-                ))}
-              </div>
+            <div className="flex items-center justify-center gap-0.5">
+              {[0.5, 1.3, 0.7, 1.4, 0.6].map((h, i) => (
+                <motion.span
+                  key={i}
+                  animate={{ height: ['4px', `${h * 16}px`, '4px'] }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 0.65 + (i * 0.08),
+                    ease: "easeInOut"
+                  }}
+                  className="w-0.5 bg-white rounded-sm"
+                />
+              ))}
             </div>
           ) : (
             <Mic className="w-4 h-4" />
@@ -337,7 +334,7 @@ export const CompactVoiceWidget = forwardRef(({
             e.preventDefault();
             handleQuerySubmit();
           }}
-          className="flex-1 flex items-center gap-2 min-w-0 py-0.5 cursor-text"
+          className="flex-1 flex items-center gap-2 min-w-0 py-1 cursor-text"
         >
           <input
             ref={inputRef}
@@ -347,24 +344,19 @@ export const CompactVoiceWidget = forwardRef(({
             placeholder={
               isListening 
                 ? (liveSpeechText ? `Hearing: "${liveSpeechText}"` : "Listening... Speak your command...") 
-                : "Command Wolfe OS, search, or ask anything..."
+                : "Ask anything..."
             }
             className={`w-full bg-transparent border-none text-xs sm:text-sm placeholder:text-slate-500 focus:outline-none focus:ring-0 font-medium py-1 ${
-              isListening ? 'animate-pulse text-pink-400' : 'text-slate-100'
+              isListening ? 'animate-pulse' : 'text-slate-100'
             }`}
+            style={{ color: isListening ? 'var(--accent-primary)' : undefined }}
           />
-
-          {!inputText.trim() && !isListening && (
-            <span className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-500 bg-white/[0.04] border border-white/5 shrink-0 pointer-events-none">
-              ⌘K
-            </span>
-          )}
 
           <button
             type="submit"
             onClick={(e) => e.stopPropagation()}
             disabled={!inputText.trim() || isProcessing}
-            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white transition-all disabled:opacity-20 shrink-0 cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white transition-all disabled:opacity-30 shrink-0 cursor-pointer"
             style={{ color: inputText.trim() ? 'var(--accent-primary)' : undefined }}
           >
             <Send className="w-4 h-4" />
