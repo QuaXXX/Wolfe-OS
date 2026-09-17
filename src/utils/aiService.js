@@ -6,7 +6,8 @@ import {
   isGoogleCalendarConnected, 
   createGoogleCalendarEvent, 
   deleteGoogleCalendarEvent, 
-  clearGoogleCalendarEventsForDate 
+  clearGoogleCalendarEventsForDate,
+  getGoogleAccount
 } from './googleCalendarService.js';
 import { getTodayIso, addDays, formatDateTitle } from './calendarUtils.js';
 import { 
@@ -80,11 +81,15 @@ export const buildSystemPrompt = (osData) => {
     vaultFiles = cached.files || [];
   } catch (e) {}
 
-  return `You are Wolfe OS, the private, high-performance executive intelligence engine built exclusively for Zach Wolfe.
+  const account = typeof getGoogleAccount === 'function' ? getGoogleAccount() : null;
+  const userName = account?.name || "User";
+  const userFirst = userName.split(' ')[0];
 
-ABOUT ZACH WOLFE:
-- Name: Zach Wolfe (address him as Zach).
-- Role: Ambitious investor, student, and operator.
+  return `You are Wolfe OS, the private, high-performance executive intelligence engine.
+
+USER PROFILE:
+- Name: ${userName} (address as ${userFirst}).
+- Role: Executive, student, and operator.
 - Operating Style: Values efficiency, precision, clear actionability, zero fluff, and high intellectual rigor.
 - Tone: Sharp, proactive, articulate, supportive, and executive-level customized.
 
@@ -112,8 +117,8 @@ ${upcomingDeadlines.map(u => `  • ${u.date}: ${u.title}`).join('\n') || '  •
 - Today's Logged Meals: ${loggedMeals.map(m => `${m.name} (${m.calories} kcal)`).join(', ') || 'No meals logged yet today'}
 
 SYSTEM INTERACTION DIRECTIVES:
-- You have 100% full situational awareness of Zach's entire operational cockpit across all 3 hubs: Home Hub, Calendar & Timeline, and Nutrition.
-- When Zach asks about his schedule, tasks, or nutrition, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
+- You have 100% full situational awareness of the user's operational cockpit across all 3 hubs: Home Hub, Calendar & Timeline, and Nutrition.
+- When asked about schedule, tasks, or nutrition, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
 - CALENDAR & SCHEDULING MANDATE:
   • When asked to add, create, schedule, or log an event, deadline, task, reminder, exam, meeting, or workout, ALWAYS set "actionType": "CREATE_CALENDAR_ITEM" (or "BATCH_CREATE_CALENDAR_ITEMS" for multiple).
   • Set "date" strictly to "YYYY-MM-DD" formatted string (Today is ${todayIso}, tomorrow is ${addDays(todayIso, 1)}).
@@ -130,7 +135,7 @@ SYSTEM INTERACTION DIRECTIVES:
   • For timed events: type: "event", startTime: "HH:MM AM/PM", endTime: "HH:MM AM/PM", isAllDay: false (meetings, classes, workouts, dinners, doctor appointments).
   • For tasks/reminders: type: "task" or "reminder", isAllDay: true.
 - FOOD & NUTRITION LOGGING MANDATE (CRITICAL):
-  • When Zach asks to "add ____" (or "log ____", "had ____", "ate ____") and it refers to food, meals, ingredients, drinks, protein shakes, or calories (e.g. "add 2 eggs and toast", "add chicken and rice", "add a protein shake", "add 500 cals", "add chipotle bowl", "add an apple", "add lunch: turkey sandwich"):
+  • When the user asks to "add ____" (or "log ____", "had ____", "ate ____") and it refers to food, meals, ingredients, drinks, protein shakes, or calories (e.g. "add 2 eggs and toast", "add chicken and rice", "add a protein shake", "add 500 cals", "add chipotle bowl", "add an apple", "add lunch: turkey sandwich"):
     - THIS IS STRICTLY A NUTRITION FOOD LOG, NEVER A CALENDAR EVENT OR SCHEDULE ITEM!
     - DO NOT create a calendarItem or use CREATE_CALENDAR_ITEM.
     - Set "actionType": "LOG_MEAL".
@@ -644,9 +649,11 @@ export function directFallbackAnswer(prompt, osData, history = []) {
 
   // Greetings
   if (lower === 'hi' || lower === 'hello' || lower === 'hey' || lower === 'sup' || lower === "what's up" || lower === 'yo') {
+    const account = typeof getGoogleAccount === 'function' ? getGoogleAccount() : null;
+    const userFirst = account?.name ? account.name.split(' ')[0] : 'there';
     return {
       title: "Wolfe OS",
-      message: `Hey Zach! All 3 command hubs (Home Hub, Calendar, Nutrition) are in sync. What are we tackling today?`,
+      message: `Hey ${userFirst}! All 3 command hubs (Home Hub, Calendar, Nutrition) are in sync. What are we tackling today?`,
       targetView: "home",
       actionLabel: "View Dashboard"
     };
@@ -1374,7 +1381,7 @@ export async function generateFlashcardsWithAI({
     ? 'Focus on complex multi-step scenario calculations, application proofs, and edge-case analytical problems.'
     : 'Focus on HIGH-YIELD EXAM CONCEPTS: recurring exam questions, core decision rules, fundamental theorems, and high-frequency formulas.';
 
-  const prompt = `You are an elite university professor and exam tutor creating high-yield active recall flashcards for student Zach Wolfe in course "${courseCode}".
+  const prompt = `You are an elite university professor and exam tutor creating high-yield active recall flashcards for course "${courseCode}".
 Target Scope: ${scopeDesc}
 Depth Mode: ${depthMode} (${depthInstruction})
 
@@ -1486,7 +1493,7 @@ export async function generatePracticeQuizWithAI({
     ? 'Focus on multi-step calculations, edge-case problem solving, and analytical scenario evaluations.'
     : 'Focus on HIGH-YIELD EXAM QUESTIONS: highest probability midterm/final exam questions, calculations, and core principles.';
 
-  const prompt = `You are a university professor constructing a realistic midterm/final exam quiz for student Zach Wolfe in course "${courseCode}".
+  const prompt = `You are a university professor constructing a realistic midterm/final exam quiz for course "${courseCode}".
 Target Scope: ${scopeDesc}
 Depth Mode: ${depthMode} (${depthInstruction})
 
@@ -1735,7 +1742,7 @@ export async function draftProfEmailWithAI({
   reason = "Student Inquiry",
   details = "",
   syllabusContext = "",
-  studentName = "Zach Wolfe",
+  studentName = "Student",
   studentId = "30100000"
 }) {
   const cleanProfName = instructorName && instructorName !== "Professor" 
@@ -2011,8 +2018,8 @@ export async function searchVaultWithAI({ query, filesIndex = [], sampleNotes = 
 
   const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
 
-  const prompt = `You are Zach Wolfe's university academic assistant in Wolfe OS.
-Zach has connected his course lecture slides, PowerPoint decks, and syllabus materials.
+  const prompt = `You are a university academic assistant in Wolfe OS.
+The student has connected course lecture slides, PowerPoint decks, and syllabus materials.
 
 Question:
 "${cleanUserQuery}"
@@ -2022,7 +2029,7 @@ ${notesSnippet || "No document text available."}
 
 Guidelines for Response:
 1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points.
-2. CITATIONS & SOURCES: You MUST explicitly mention and cite the specific materials and lecture slide decks you used (e.g., "From **Lecture 03 - Financial Ratios & DuPont.pptx (Slide 2)**..." or "According to the **Course Outline**..."). Zach needs to know which lecture presentations and documents were referenced!
+2. CITATIONS & SOURCES: You MUST explicitly mention and cite the specific materials and lecture slide decks you used (e.g., "From **Lecture 03 - Financial Ratios & DuPont.pptx (Slide 2)**..." or "According to the **Course Outline**..."). The student needs to know which lecture presentations and documents were referenced!
 3. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
 4. If formatting formulas or calculations, use crisp LaTeX ($...$).
 5. Keep the response clean, readable, and easy to skim.
@@ -2090,8 +2097,8 @@ export async function streamSearchVaultWithAI({ query, filesIndex = [], sampleNo
 
   const cleanUserQuery = query.replace(/\[Course:\s*[^\]]+\]/gi, '').trim();
 
-  const prompt = `You are Zach Wolfe's university academic study partner in Wolfe OS.
-Zach has connected his course lecture slides, PowerPoint decks, and syllabus materials.
+  const prompt = `You are a university academic study partner in Wolfe OS.
+The student has connected course lecture slides, PowerPoint decks, and syllabus materials.
 
 Question:
 "${cleanUserQuery}"
@@ -2101,7 +2108,7 @@ ${notesSnippet || "No document text available."}
 
 Guidelines for Response:
 1. Be direct, concise, and punchy. Answer EXACTLY what was asked in clean, structured bullet points or brief summary.
-2. CITATIONS & SOURCES: You MUST explicitly mention and cite the specific materials and lecture slide decks you used (e.g., "From **Lecture 03 - Financial Ratios & DuPont.pptx (Slide 2)**..." or "According to the **Course Outline**..."). Zach needs to know which lecture presentations and documents were referenced!
+2. CITATIONS & SOURCES: You MUST explicitly mention and cite the specific materials and lecture slide decks you used (e.g., "From **Lecture 03 - Financial Ratios & DuPont.pptx (Slide 2)**..." or "According to the **Course Outline**..."). The student needs to know which lecture presentations and documents were referenced!
 3. Networked Thought Citing: Connect related concepts across notes. When referencing courses, study guides, formulas, or notes, ALWAYS format them as Obsidian [[wikilinks]] (e.g. [[FNCE 317]], [[Capital Budgeting]], [[Daily/2026-09-09]]). Wolfe OS converts these into interactive buttons.
 4. If formatting formulas or calculations, use crisp LaTeX ($...$).
 5. Keep the response clean, readable, and easy to skim.`;
@@ -2196,7 +2203,7 @@ export async function generateCourseBriefingWithAI({ courseCode, courseName = ''
   const cleanCode = courseCode || "Course";
   const snippet = (syllabusText || '').slice(0, 35000);
 
-  const prompt = `You are Zach Wolfe's personal university study assistant (NotebookLM engine).
+  const prompt = `You are a personal university study assistant (NotebookLM engine).
 Synthesize a comprehensive, high-yield academic briefing for the course "${cleanCode} ${courseName}" from the following course lecture slides, PowerPoint decks, study notes, and syllabus materials.
 
 Course Lecture Slides, Notes & Documents:

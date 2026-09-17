@@ -21,6 +21,7 @@ import { playSound } from '../../utils/soundFX';
 import { 
   isGoogleCalendarConnected, 
   disconnectGoogleCalendar, 
+  logoutGoogleAccount,
   fetchGoogleCalendarEvents,
   getGoogleAccount
 } from '../../utils/googleCalendarService';
@@ -106,9 +107,9 @@ export const SettingsModal = ({
     }
   };
 
-  const handleLogOutGoogle = () => {
+  const handleLogOutGoogle = async () => {
     playSound('click', soundEnabled);
-    disconnectGoogleCalendar();
+    await logoutGoogleAccount();
     setIsGCalConnected(false);
     setAccount(null);
     setGcalMsg(null);

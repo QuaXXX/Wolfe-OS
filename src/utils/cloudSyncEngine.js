@@ -57,6 +57,39 @@ function writeStorageJson(key, value) {
 }
 
 /**
+ * Wipes all user-generated data and sync ledgers from localStorage on logout.
+ * Ensures the device returns to a clean zero/empty state so no personal data remains.
+ */
+export function wipeLocalUserData() {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(SYNC_KEYS.NUTRITION);
+    localStorage.removeItem(SYNC_KEYS.CALENDAR);
+    localStorage.removeItem(SYNC_KEYS.CALENDAR_FALLBACK);
+    localStorage.removeItem(SYNC_KEYS.SETTINGS);
+    localStorage.removeItem(SYNC_KEYS.SETTINGS_FALLBACK);
+    localStorage.removeItem(SYNC_KEYS.CLOUD_META);
+    localStorage.removeItem(SYNC_KEYS.TOMBSTONES);
+
+    localStorage.removeItem('wolfe_calendar_data');
+    localStorage.removeItem('wolfe_nutrition_data');
+    localStorage.removeItem('wolfe_os_calendar_v5');
+    localStorage.removeItem('wolfe_user_email');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('wolfe_user_signed_in_google');
+    localStorage.removeItem('wolfe_gcal_deadlines_id');
+    localStorage.removeItem('wolfe_study_decks');
+    localStorage.removeItem('wolfe_study_quizzes');
+    localStorage.removeItem('wolfe_study_weak_spots');
+    localStorage.removeItem('wolfe_study_courses');
+    localStorage.removeItem('wolfe_trading_data');
+    localStorage.removeItem('wolfe_notes_data');
+  } catch (e) {
+    console.warn("Error wiping local user data:", e);
+  }
+}
+
+/**
  * Tombstone Ledger Management
  * Permanently tracks deleted item IDs across all collections to prevent cross-device resurrection.
  */
@@ -449,12 +482,14 @@ export function isRemoteSyncApplying() {
 /**
  * Save unified vault into device localStorage and dispatch live state events
  */
-export function importFullOsState(vault) {
+export function importFullOsState(vault, options = {}) {
   if (!vault || typeof vault !== 'object') return false;
   isApplyingRemoteSync = true;
 
+  const isReplacing = Boolean(options.replaceLocal || options.forcePull);
+
   // 0. Update Tombstones ledger
-  const activeTombstones = { ...getTombstones(), ...(vault._tombstones || {}) };
+  const activeTombstones = isReplacing ? (vault._tombstones || {}) : { ...getTombstones(), ...(vault._tombstones || {}) };
   saveTombstones(activeTombstones);
 
   // Auto-link Google Account from incoming vault so secondary devices adopt identical identity
@@ -477,8 +512,8 @@ export function importFullOsState(vault) {
   };
 
   // Read current local meals and weight so newly added local entries are NEVER dropped by incoming sync
-  const currentLocalNutrition = readStorageJson(SYNC_KEYS.NUTRITION) || {};
-  const currentLocalMeals = Array.isArray(currentLocalNutrition.meals) ? currentLocalNutrition.meals : [];
+  const currentLocalNutrition = isReplacing ? {} : (readStorageJson(SYNC_KEYS.NUTRITION) || {});
+  const currentLocalMeals = isReplacing ? [] : (Array.isArray(currentLocalNutrition.meals) ? currentLocalNutrition.meals : []);
 
   // Clean incoming vault collections against active tombstones before importing
   let cleanNutrition = null;
@@ -890,7 +925,18 @@ let activeSyncPromise = null;
 let hasQueuedSync = false;
 
 export async function syncFullOsWithCloud(options = {}) {
-  const { forcePush = false, forcePull = false, forceSync = false, silent = false } = options;
+  const { forcePush = false, forcePull = false, forceSync = false, silent = false, replaceLocal = false } = options;
+
+  // Cloud synchronization is strictly active for logged-in accounts
+  const hasAccount = isGoogleCalendarConnected() || getGoogleAccount() || (typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_email'));
+  if (!hasAccount) {
+    if (typeof window !== 'undefined' && !silent) {
+      window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+        detail: { status: 'disconnected', timestamp: Date.now() }
+      }));
+    }
+    return { success: false, reason: 'disconnected' };
+  }
 
   if (activeSyncPromise) {
     hasQueuedSync = true;
@@ -974,7 +1020,7 @@ export async function syncFullOsWithCloud(options = {}) {
 
       // 3. Force Pull: Replace local with remote if remote exists
       if (forcePull && remoteVault) {
-        importFullOsState(remoteVault);
+        importFullOsState(remoteVault, { replaceLocal: true, forcePull: true });
         writeStorageJson(SYNC_KEYS.CLOUD_META, {
           lastRemoteVaultUpdated: remoteVault.lastUpdated || Date.now(),
           lastSyncedAt: Date.now(),

@@ -260,6 +260,39 @@ export function disconnectGoogleCalendar() {
 }
 
 /**
+ * Fully log out of Google account: saves cloud vault first, wipes all local user data, and notifies app.
+ */
+export async function logoutGoogleAccount() {
+  try {
+    const { syncFullOsWithCloud, wipeLocalUserData } = await import('./cloudSyncEngine.js');
+
+    // 1. Save current account state to cloud before disconnecting
+    if (isGoogleCalendarConnected()) {
+      await syncFullOsWithCloud({ forcePush: true, silent: true }).catch(() => {});
+    }
+
+    // 2. Disconnect Google credentials & auth tokens
+    disconnectGoogleCalendar();
+
+    // 3. Wipe all local user hub data from storage
+    wipeLocalUserData();
+
+    // 4. Notify app of logout so in-memory React state resets to 0 immediately
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wolfe_user_logged_out'));
+    }
+    return true;
+  } catch (e) {
+    console.warn("Logout execution notice:", e);
+    disconnectGoogleCalendar();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wolfe_user_logged_out'));
+    }
+    return false;
+  }
+}
+
+/**
  * Exchange Authorization Code for permanent Refresh Token and Access Token
  */
 export async function exchangeCodeForTokens(code, redirectUri = 'postmessage', codeVerifier = '') {

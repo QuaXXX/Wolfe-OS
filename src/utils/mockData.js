@@ -6,11 +6,11 @@ import { getTodayIso, formatDateTitle } from './calendarUtils.js';
 import { DEFAULT_HOUSEHOLD_PANTRY, DEFAULT_CALIBRATION_TASKS } from './nutritionEngine.js';
 
 export const INITIAL_USER = {
-  name: "Zach Wolfe",
-  handle: "@zachwolfe",
+  name: "Guest",
+  handle: "@guest",
   avatar: "",
-  bio: "Founder, Quantitative Trader, CS & Finance Major",
-  status: "In Deep Flow",
+  bio: "Personal Executive Dashboard",
+  status: "Online",
   focusMode: false,
 };
 
@@ -34,30 +34,17 @@ export const INITIAL_WORKOUT_DATA = {
 };
 
 export const INITIAL_NUTRITION_DATA = {
-  targetCalories: 3250,
+  targetCalories: 2000,
   consumedCalories: 0,
-  protein: { current: 0, target: 180, unit: "g", color: "#6366f1" },
-  carbs: { current: 0, target: 450, unit: "g", color: "#06b6d4" },
-  fats: { current: 0, target: 80, unit: "g", color: "#f59e0b" },
+  protein: { current: 0, target: 150, unit: "g", color: "#6366f1" },
+  carbs: { current: 0, target: 200, unit: "g", color: "#06b6d4" },
+  fats: { current: 0, target: 65, unit: "g", color: "#f59e0b" },
   waterGlasses: 0,
-  targetGlasses: 14,
+  targetGlasses: 8,
   waterMl: 0,
-  targetWaterMl: 3500,
+  targetWaterMl: 2500,
   currentDate: getTodayIso(),
-  weightHistory: [
-    { id: "w-01", date: "2026-08-18", weightLbs: 183.0, time: "7:15 AM", notes: "3-week baseline" },
-    { id: "w-02", date: "2026-08-21", weightLbs: 183.2, time: "7:20 AM", notes: "Post-training" },
-    { id: "w-03", date: "2026-08-25", weightLbs: 183.6, time: "7:10 AM", notes: "Fasted" },
-    { id: "w-04", date: "2026-08-28", weightLbs: 183.8, time: "7:30 AM", notes: "2-week checkpoint" },
-    { id: "w-05", date: "2026-08-31", weightLbs: 184.0, time: "7:15 AM", notes: "Refeed day" },
-    { id: "w-1", date: "2026-09-02", weightLbs: 184.2, time: "7:15 AM", notes: "Fasted morning weight" },
-    { id: "w-2", date: "2026-09-03", weightLbs: 184.4, time: "7:20 AM", notes: "Post-rest day" },
-    { id: "w-3", date: "2026-09-04", weightLbs: 184.1, time: "7:10 AM", notes: "Fasted" },
-    { id: "w-4", date: "2026-09-05", weightLbs: 184.6, time: "7:30 AM", notes: "Leg day yesterday" },
-    { id: "w-5", date: "2026-09-06", weightLbs: 184.8, time: "7:15 AM", notes: "High carb refeed" },
-    { id: "w-6", date: "2026-09-07", weightLbs: 185.0, time: "7:25 AM", notes: "Fasted" },
-    { id: "w-7", date: "2026-09-08", weightLbs: 185.2, time: "7:15 AM", notes: "Morning baseline" }
-  ],
+  weightHistory: [],
   householdPantry: DEFAULT_HOUSEHOLD_PANTRY,
   kitchenCalibration: {
     tasks: DEFAULT_CALIBRATION_TASKS

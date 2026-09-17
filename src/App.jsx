@@ -8,7 +8,7 @@ import { ComingSoonModal } from './components/common/ComingSoonModal';
 import { UndoActionPopup } from './components/common/UndoActionPopup';
 import { playSound } from './utils/soundFX';
 import { getTodayIso, formatDateTitle, addDays, reconcileCalendarItems, isCalendarOutOfSync } from './utils/calendarUtils';
-import { synchronizeNutritionData, aggregateDailyNutrition } from './utils/nutritionEngine.js';
+import { synchronizeNutritionData, aggregateDailyNutrition, DEFAULT_HOUSEHOLD_PANTRY, DEFAULT_CALIBRATION_TASKS } from './utils/nutritionEngine.js';
 import { 
   isGoogleCalendarConnected, 
   fetchGoogleCalendarEvents,
@@ -17,7 +17,8 @@ import {
   updateGoogleTaskStatus,
   checkAndHandleOAuthRedirect,
   syncLocalItemsToGoogle,
-  signInWithGooglePopup
+  signInWithGooglePopup,
+  getGoogleAccount
 } from './utils/googleCalendarService';
 import { 
   syncFullOsWithCloud, 
@@ -599,17 +600,66 @@ export function App() {
     };
   }, [syncWithGoogle]);
 
-  // Handle Google account switching: reload clean calendar and cloud vault for the newly connected user
+  // Listen for user logout: immediately reset all hub data to 0/empty
+  useEffect(() => {
+    const handleUserLoggedOut = () => {
+      console.info("[App] User logged out. Resetting all hub data to 0.");
+      isApplyingInboundSyncRef.current = true;
+      setCalendarData({
+        currentDate: formatDateTitle(getTodayIso()),
+        selectedDate: getTodayIso(),
+        items: []
+      });
+      setNutritionData({
+        targetCalories: 2000,
+        consumedCalories: 0,
+        protein: { current: 0, target: 150, unit: "g", color: "#6366f1" },
+        carbs: { current: 0, target: 200, unit: "g", color: "#06b6d4" },
+        fats: { current: 0, target: 65, unit: "g", color: "#f59e0b" },
+        waterGlasses: 0,
+        targetGlasses: 8,
+        waterMl: 0,
+        targetWaterMl: 2500,
+        currentDate: getTodayIso(),
+        weightHistory: [],
+        householdPantry: DEFAULT_HOUSEHOLD_PANTRY,
+        kitchenCalibration: {
+          tasks: DEFAULT_CALIBRATION_TASKS
+        },
+        dailyTargets: {},
+        meals: []
+      });
+      setSyncStatus('disconnected');
+      setIsSyncingGoogle(false);
+      setTimeout(() => {
+        isApplyingInboundSyncRef.current = false;
+      }, 500);
+    };
+
+    window.addEventListener('wolfe_user_logged_out', handleUserLoggedOut);
+    return () => window.removeEventListener('wolfe_user_logged_out', handleUserLoggedOut);
+  }, []);
+
+  // Handle Google account connecting / switching: restore clean personal cloud vault for this account
   useEffect(() => {
     const handleAccountSwitched = async (e) => {
       const newAccount = e.detail?.account;
-      console.info(`[App] Google Account switched to ${newAccount?.email}. Reloading clean calendar & cloud vault.`);
-      setCalendarData(prev => ({
-        ...prev,
-        items: (prev.items || []).filter(it => !it.isGoogle)
-      }));
+      console.info(`[App] Google Account connected/switched to ${newAccount?.email}. Restoring personal cloud vault.`);
       setSyncStatus('syncing');
       try {
+        const cloudRes = await syncFullOsWithCloud({ forcePull: true, forceSync: true, replaceLocal: true });
+        if (cloudRes?.vault) {
+          if (cloudRes.vault.nutrition) {
+            setNutritionData(synchronizeNutritionData(cloudRes.vault.nutrition));
+          }
+          if (cloudRes.vault.calendar) {
+            setCalendarData({
+              currentDate: formatDateTitle(getTodayIso()),
+              selectedDate: getTodayIso(),
+              items: cloudRes.vault.calendar.items || []
+            });
+          }
+        }
         const liveItems = await fetchGoogleCalendarEvents(true);
         if (liveItems && Array.isArray(liveItems)) {
           setCalendarData(prev => ({
@@ -617,7 +667,6 @@ export function App() {
             items: reconcileCalendarItems(prev.items, liveItems)
           }));
         }
-        await syncFullOsWithCloud({ forcePull: true });
         setSyncStatus('synced');
       } catch (err) {
         console.warn("Account switch sync notice:", err);
@@ -1424,8 +1473,16 @@ export function App() {
 
   // Render current active view
   const renderActiveView = () => {
+    const gAccount = getGoogleAccount();
+    const currentUser = gAccount ? {
+      ...INITIAL_USER,
+      name: gAccount.name || INITIAL_USER.name,
+      handle: gAccount.email ? `@${gAccount.email.split('@')[0]}` : INITIAL_USER.handle,
+      avatar: gAccount.picture || INITIAL_USER.avatar,
+    } : INITIAL_USER;
+
     const commonProps = {
-      user: INITIAL_USER,
+      user: currentUser,
       settings: settings,
       onOpenSettings: () => setIsSettingsOpen(true),
       onOpenComingSoon: handleOpenComingSoon,

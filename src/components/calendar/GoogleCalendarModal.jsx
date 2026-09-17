@@ -27,6 +27,7 @@ import {
   isGoogleCalendarConnected, 
   saveGoogleToken, 
   disconnectGoogleCalendar, 
+  logoutGoogleAccount,
   fetchGoogleCalendarEvents,
   signInWithGooglePopup,
   signInWithGoogleCode,
@@ -204,9 +205,9 @@ export const GoogleCalendarModal = ({
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     playSound('click', soundEnabled);
-    disconnectGoogleCalendar();
+    await logoutGoogleAccount();
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('wolfe_signin_modal_dismissed', 'true');
     }
