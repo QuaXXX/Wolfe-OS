@@ -30,6 +30,8 @@ import {
   fetchGoogleCalendarEvents,
   signInWithGooglePopup,
   signInWithGoogleCode,
+  startGoogleOAuthRedirect,
+  getGoogleOAuthRedirectUrl,
   getDeviceSyncDetails,
   getGoogleAccount,
   isMobileDevice
@@ -55,11 +57,16 @@ export const GoogleCalendarModal = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
   const [error, setError] = useState(null);
+  const [isPopupBlocked, setIsPopupBlocked] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [copiedOrigin, setCopiedOrigin] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
 
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const isStandalone = typeof window !== 'undefined' && (
+    window.navigator?.standalone === true || 
+    (isMobileDevice() && window.matchMedia?.('(display-mode: standalone)').matches)
+  );
 
   // Refresh status on open
   useEffect(() => {
@@ -69,6 +76,7 @@ export const GoogleCalendarModal = ({
       setSyncDetails(getDeviceSyncDetails());
       setAccount(getGoogleAccount());
       setError(null);
+      setIsPopupBlocked(false);
       setSyncMessage(null);
       setManualToken('');
 
@@ -88,19 +96,38 @@ export const GoogleCalendarModal = ({
     setAccount(getGoogleAccount());
   };
 
+  const handleDirectRedirect = () => {
+    playSound('click', soundEnabled);
+    startGoogleOAuthRedirect(customClientId || null);
+  };
+
   const handleGoogleSignIn = async () => {
     playSound('click', soundEnabled);
     setError(null);
     setSyncMessage(null);
+    setIsPopupBlocked(false);
+
+    // If running in iPhone Home Screen PWA (standalone mode), WebKit popups are disabled.
+    // Immediately redirect to Google OAuth for a reliable, seamless login experience!
+    if (isStandalone) {
+      startGoogleOAuthRedirect(customClientId || null);
+      return;
+    }
+
     setIsSyncing(true);
 
     try {
-      // 1. Prioritize permanent authorization code flow (offline refresh_token)
+      // 1. Client-side token flow with select_account prompt
+      let authRes = null;
       try {
-        await signInWithGoogleCode();
-      } catch (codeErr) {
-        console.warn("GIS code flow fallback to token client:", codeErr);
-        await signInWithGooglePopup();
+        authRes = await signInWithGooglePopup(customClientId || null);
+      } catch (popErr) {
+        if (popErr.isPopupBlocked || /popup/i.test(popErr.message)) {
+          setIsPopupBlocked(true);
+          throw popErr;
+        }
+        // Fallback to code client if popup wasn't blocked
+        authRes = await signInWithGoogleCode(customClientId || null);
       }
 
       refreshStatus();
@@ -121,6 +148,9 @@ export const GoogleCalendarModal = ({
       }
     } catch (err) {
       console.warn("Google sign-in notice:", err);
+      if (err.isPopupBlocked || /popup/i.test(err.message)) {
+        setIsPopupBlocked(true);
+      }
       setError(err.message || "Google Sign-In was cancelled or interrupted.");
     } finally {
       setIsSyncing(false);
@@ -509,6 +539,41 @@ export const GoogleCalendarModal = ({
                     {isSyncing ? "Connecting device..." : "Sign in with Google"}
                   </span>
                 </button>
+
+                {/* Direct Full-Window OAuth Button (Zero Popups, 100% reliable on iPhone & Mobile) */}
+                {(isPopupBlocked || isStandalone) ? (
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-left space-y-2.5">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-xs font-bold text-amber-300">
+                          {isStandalone ? "iPhone Home Screen App (PWA)" : "Popup Blocked by Browser"}
+                        </div>
+                        <div className="text-[11px] text-slate-300 mt-0.5 leading-snug">
+                          {isStandalone 
+                            ? "iOS web apps restrict popup windows. Connect your Google account directly below:" 
+                            : "Your browser prevented the popup from opening. Tap below to connect directly:"}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDirectRedirect}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Direct Google Sign-In (No Popups)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleDirectRedirect}
+                    className="text-[11px] text-slate-400 hover:text-slate-200 underline transition-colors cursor-pointer block mx-auto pt-1"
+                  >
+                    Having trouble with popups? Connect via Direct Redirect →
+                  </button>
+                )}
 
                 <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400 text-left pt-2 border-t border-white/5">
                   <div className="flex items-center gap-1.5">

@@ -98,12 +98,13 @@ export default async function handler(req, res) {
     }
   }
 
+  const isAuthenticatedUser = !!(tokenEmail || (verifiedUserId && verifiedUserId !== 'primary_user') || (queryUserId && queryUserId !== 'primary_user'));
   const userKey = sanitizeUserId(verifiedUserId || 'primary_user');
   const candidateKeys = [
     userKey,
     tokenEmail ? sanitizeUserId(`user_${tokenEmail}`) : null,
     tokenId ? sanitizeUserId(`user_${tokenId}`) : null,
-    'primary_user'
+    isAuthenticatedUser ? null : 'primary_user'
   ].filter(Boolean);
 
   // -------------------------------------------------------------------------
@@ -137,22 +138,22 @@ export default async function handler(req, res) {
       if (!vault && queryUserId && fileVaults[queryUserId]) {
         vault = fileVaults[queryUserId];
       }
-      // If still no vault, find best match across dev storage
-      if (!vault) {
+      // If still no vault, only attempt match for this user's email/id; NEVER grab other accounts' vaults
+      if (!vault && isAuthenticatedUser) {
+        const entries = Object.entries(fileVaults);
+        if (tokenEmail || queryUserId) {
+          const needle = sanitizeUserId(tokenEmail || queryUserId).toLowerCase();
+          const matched = entries.find(([k, v]) => 
+            k.toLowerCase().includes(needle) || 
+            (v?.googleAccount?.email && sanitizeUserId(v.googleAccount.email).toLowerCase().includes(needle))
+          );
+          if (matched) vault = matched[1];
+        }
+      } else if (!vault && !isAuthenticatedUser) {
         const entries = Object.entries(fileVaults);
         if (entries.length > 0) {
-          if (tokenEmail || queryUserId) {
-            const needle = sanitizeUserId(tokenEmail || queryUserId).toLowerCase();
-            const matched = entries.find(([k, v]) => 
-              k.toLowerCase().includes(needle) || 
-              (v?.googleAccount?.email && sanitizeUserId(v.googleAccount.email).toLowerCase().includes(needle))
-            );
-            if (matched) vault = matched[1];
-          }
-          if (!vault) {
-            entries.sort((a, b) => (b[1]?.lastUpdated || 0) - (a[1]?.lastUpdated || 0));
-            vault = entries[0][1];
-          }
+          entries.sort((a, b) => (b[1]?.lastUpdated || 0) - (a[1]?.lastUpdated || 0));
+          vault = entries[0][1];
         }
       }
       if (vault) {
@@ -248,7 +249,7 @@ export default async function handler(req, res) {
         break;
       }
     }
-    if (!existingVault) {
+    if (!existingVault && !isAuthenticatedUser && targetUserId === 'primary_user') {
       const entries = Object.entries(fileVaults);
       if (entries.length > 0) {
         entries.sort((a, b) => (b[1]?.lastUpdated || 0) - (a[1]?.lastUpdated || 0));

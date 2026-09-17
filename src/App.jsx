@@ -593,6 +593,36 @@ export function App() {
     };
   }, [syncWithGoogle]);
 
+  // Handle Google account switching: reload clean calendar and cloud vault for the newly connected user
+  useEffect(() => {
+    const handleAccountSwitched = async (e) => {
+      const newAccount = e.detail?.account;
+      console.info(`[App] Google Account switched to ${newAccount?.email}. Reloading clean calendar & cloud vault.`);
+      setCalendarData(prev => ({
+        ...prev,
+        items: (prev.items || []).filter(it => !it.isGoogle)
+      }));
+      setSyncStatus('syncing');
+      try {
+        const liveItems = await fetchGoogleCalendarEvents(true);
+        if (liveItems && Array.isArray(liveItems)) {
+          setCalendarData(prev => ({
+            ...prev,
+            items: reconcileCalendarItems(prev.items, liveItems)
+          }));
+        }
+        await syncFullOsWithCloud({ forcePull: true });
+        setSyncStatus('synced');
+      } catch (err) {
+        console.warn("Account switch sync notice:", err);
+        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+      }
+    };
+
+    window.addEventListener('wolfe_google_account_switched', handleAccountSwitched);
+    return () => window.removeEventListener('wolfe_google_account_switched', handleAccountSwitched);
+  }, []);
+
   const lastMainScreenFetchRef = useRef(0);
 
   // Throttled Google Calendar sync on home view (1 hour debounce throttle)
@@ -867,11 +897,13 @@ export function App() {
 
     if (isGoogleCalendarConnected() && !itemToSave.isGoogle) {
       try {
+        const startTime = itemToSave.isAllDay ? 'All Day' : (itemToSave.time ? itemToSave.time.split(' - ')[0] : '02:00 PM');
+        const endTime = itemToSave.isAllDay ? 'All Day' : (itemToSave.time?.split(' - ')[1] || '03:00 PM');
         const createdGcal = await createGoogleCalendarEvent({
           type: itemToSave.type,
           title: itemToSave.title,
-          startTime: itemToSave.isAllDay ? 'All Day' : itemToSave.time.split(' - ')[0],
-          endTime: itemToSave.isAllDay ? 'All Day' : (itemToSave.time.split(' - ')[1] || '03:00 PM'),
+          startTime,
+          endTime,
           dateStr: itemToSave.date,
           isAllDay: itemToSave.isAllDay,
           category: itemToSave.category
@@ -879,8 +911,12 @@ export function App() {
         itemToSave.id = createdGcal.id;
         itemToSave.isGoogle = true;
         itemToSave.htmlLink = createdGcal.htmlLink;
+        setSyncStatus('synced');
       } catch (err) {
         console.warn("Manual add Google Calendar sync error:", err);
+        if (err.message?.includes('401') || err.message?.includes('session')) {
+          setSyncStatus('failed');
+        }
       }
     }
 
