@@ -267,9 +267,9 @@ export function parseEventTimes(text) {
       if (hour >= 10 && hour <= 11) return 'am';
     }
 
-    // Trading clues: market opens morning, closes afternoon
-    const isTrading = /\b(market|trading|stocks?|open|fomc|cpi|bell)\b/i.test(ctx);
-    if (isTrading) {
+    // Financial / market clues: opens morning, closes afternoon
+    const isMarket = /\b(market|stocks?|open|fomc|cpi|bell)\b/i.test(ctx);
+    if (isMarket) {
       if (hour >= 7 && hour <= 11) return 'am';
       if (hour >= 1 && hour <= 4) return 'pm';
     }
@@ -529,9 +529,6 @@ export function detectCategory(title, text) {
       return 'School';
     }
   }
-  if (combined.match(/\b(trading|stock|market|crypto|fomc|earnings|cpi|hermes|war\s+room|shares|options|btc|eth|sol)\b/)) {
-    return 'Trading';
-  }
   return 'General';
 }
 
@@ -550,7 +547,7 @@ export function parseCalendarCommand(text, todayIso = getTodayIso()) {
   const isDirectAdd = lower.match(/^(?:add|schedule|create|put|set|book|log|insert|make)\b/);
   const isReminder = lower.match(/\b(?:remind\s+me|reminder|remember\s+to|don'?t\s+forget)\b/);
   const isTask = lower.match(/\b(?:task|todo|to-do)\b/) || lower.match(/^(?:buy|call|clean|finish|prepare|prep|pay)\b/);
-  const isEventEntity = lower.match(/\b(?:appointment|meeting|dentist|doctor|interview|flight|class|lecture|session|party|dinner|lunch|breakfast|haircut|workout|gym|study|finance|trading|market|fnce|econ|stat|cpsc)\b/);
+  const isEventEntity = lower.match(/\b(?:appointment|meeting|dentist|doctor|interview|flight|class|lecture|session|party|dinner|lunch|breakfast|haircut|workout|gym|study|finance|market|fnce|econ|stat|cpsc)\b/);
 
   const timeInfo = parseEventTimes(text);
   const hasTime = timeInfo.hasTime;

@@ -922,7 +922,6 @@ export const CalendarView = ({
                     className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs outline-none focus:border-white/30"
                   >
                     <option value="General">General / Personal</option>
-                    <option value="Trading">Trading</option>
                     <option value="Nutrition">Nutrition</option>
                     <option value="Important">Important / Priority</option>
                   </select>

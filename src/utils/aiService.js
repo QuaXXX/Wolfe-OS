@@ -17,14 +17,6 @@ import {
   parseTimeToMinutes,
   normalizeSpokenTimes
 } from './calendarParser.js';
-import { 
-  getSavedHermesBriefs, 
-  getTradeJournal, 
-  calculateTradingStats, 
-  getWatchlist, 
-  getOpenPositions 
-} from './tradingStorage.js';
-import { getPaperPositions } from './hermesPaperTrader.js';
 import { parseMealDescription, calculateCaloriesFromMacros, buildAiCalibrationPrompt, buildAiPantryPrompt, calibrateBoneInMeats, calibrateMealItems } from './nutritionEngine.js';
 import { getVaultMetadata, getCachedVaultFiles } from './obsidianService.js';
 
@@ -68,34 +60,7 @@ export const buildSystemPrompt = (osData) => {
   const todayIsoBrief = getTodayIso();
   const loggedMeals = (osData?.nutritionData?.meals || []).filter(m => m?.date === todayIsoBrief);
 
-  // 3. Day Trading & Quantitative War Room Snapshot
-  let latestBrief = null;
-  try {
-    const briefs = getSavedHermesBriefs();
-    if (briefs && briefs.length > 0) latestBrief = briefs[0];
-  } catch (e) {}
-
-  let paperPos = [];
-  try {
-    paperPos = getPaperPositions();
-  } catch (e) {}
-
-  let hlPos = [];
-  try {
-    hlPos = getOpenPositions();
-  } catch (e) {}
-
-  let tradeStats = { totalTrades: 0, winRate: 0, totalPnlUSD: 0 };
-  let recentTrades = [];
-  try {
-    tradeStats = calculateTradingStats();
-    recentTrades = getTradeJournal().slice(0, 4);
-  } catch (e) {}
-
-  const activePaperTrades = paperPos.filter(p => p.status === 'ACTIVE');
-  const restingLimitOrders = paperPos.filter(p => p.status === 'PENDING_ENTRY');
-
-  // 4. Obsidian Vault & Networked Thought Knowledge Base Snapshot
+  // 3. Obsidian Vault & Networked Thought Knowledge Base Snapshot
   let vaultMeta = { connected: false, totalNotes: 0, folderName: null, courses: [] };
   let vaultFiles = [];
   try {
@@ -117,7 +82,7 @@ CURRENT TIME & DATE:
 - Day: ${dayOfWeek}
 - Local Time: ${timeStr}
 
-LIVE SYSTEM STATE & OPERATIONAL AWARENESS ACROSS ALL 4 COMMAND HUBS:
+LIVE SYSTEM STATE & OPERATIONAL AWARENESS ACROSS ALL 3 COMMAND HUBS:
 
 1. SCHEDULE & TIMELINE (TODAY & UPCOMING):
 - Hard Deadlines Today:
@@ -135,23 +100,9 @@ ${upcomingDeadlines.map(u => `  • ${u.date}: ${u.title}`).join('\n') || '  •
 - Carbohydrates: ${carbsConsumed}g / ${carbsTarget}g | Fats: ${fatConsumed}g / ${fatTarget}g
 - Today's Logged Meals: ${loggedMeals.map(m => `${m.name} (${m.calories} kcal)`).join(', ') || 'No meals logged yet today'}
 
-3. DAY TRADING & QUANTITATIVE WAR ROOM:
-- Session P&L: +$${osData?.tradingData?.dayPnl || '0.00'} (+${osData?.tradingData?.dayPnlPercent || '0.00'}%)
-- Overall Performance: ${tradeStats.winRate || '70'}% Historical Win Rate across ${tradeStats.totalTrades || '0'} logged trades (Realized P&L: ${tradeStats.totalPnlUSD >= 0 ? '+' : ''}$${(tradeStats.totalPnlUSD || 0).toFixed(2)})
-- Active Positions (${activePaperTrades.length + hlPos.length} running):
-${activePaperTrades.map(p => `  • [${p.side}] ${p.ticker}: Entered at $${p.entryPrice} on ${p.createdAt ? (new Date(p.createdAt).toDateString() === new Date().toDateString() ? `Today at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : `${new Date(p.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`) : 'Today'} | Size: ${p.size} (${p.leverage}x) | PnL: ${p.unrealizedPnlUSD >= 0 ? '+' : ''}$${p.unrealizedPnlUSD} (${p.roePct >= 0 ? '+' : ''}${p.roePct}% ROE) | Stop Loss: $${p.stopLoss} | Take Profit: $${p.takeProfit}`).join('\n') || '  • No active positions currently running.'}
-- Resting Strategy Limit Orders (${restingLimitOrders.length} pending):
-${restingLimitOrders.map(p => `  • [${p.side} LIMIT] ${p.ticker}: Trigger Entry $${p.plannedLimitPrice || p.entryPrice} (Stop $${p.stopLoss}, TP $${p.takeProfit}) - Placed ${p.createdAt ? (new Date(p.createdAt).toDateString() === new Date().toDateString() ? `Today at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : `${new Date(p.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`) : 'Today'}`).join('\n') || '  • No resting limit orders.'}
-- Latest Hermes Brief & Macro Regime:
-  • Regime: ${latestBrief?.macroRegime || 'Selective Risk-On'} (Scanned: ${latestBrief?.scannedAt ? new Date(latestBrief.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today'})
-  • Breaking Market News & Macro Catalysts:
-${latestBrief?.macroPoints?.[1]?.items?.slice(0, 3).map(it => `    - ${it}`).join('\n') || '    - Global liquidity and rate expectations driving tech and crypto.'}
-  • High-Conviction Setups Vetted by Hermes Swarm & Chronos Backtesting:
-${latestBrief?.highConvictionPlays?.slice(0, 6).map(p => `    - [${p.convictionGrade || 'A'}] ${p.ticker} (${p.bias}): Trigger Entry $${p.entryNumeric || p.entryPrice}, Stop $${p.stopNumeric || p.stopPrice}, TP $${p.target2RNumeric || p.target2R} | R:R ${p.riskRewardRatio || '1:3'} | Chronos: ${p.chronosBacktest?.historicalWinRate || '68%'} WR (${p.chronosBacktest?.verdict || p.chronosBacktest?.status || 'PASSED'}) | Scanned: ${p.createdAt ? (new Date(p.createdAt).toDateString() === new Date().toDateString() ? `Today at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : `${new Date(p.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`) : 'Today'}`).join('\n') || '    - Run scanner in War Room to refresh candidate trade setups.'}
-
 SYSTEM INTERACTION DIRECTIVES:
-- You have 100% full situational awareness of Zach's entire operational cockpit across all 4 hubs: Home Hub, Calendar & Timeline, Nutrition, and Day Trading.
-- When Zach asks about his trades, his schedule, tasks, or his nutrition, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
+- You have 100% full situational awareness of Zach's entire operational cockpit across all 3 hubs: Home Hub, Calendar & Timeline, and Nutrition.
+- When Zach asks about his schedule, tasks, or nutrition, provide direct executive answers with exact numbers, timestamps, and actionable clarity.
 - CALENDAR & SCHEDULING MANDATE:
   • When asked to add, create, schedule, or log an event, deadline, task, reminder, exam, meeting, or workout, ALWAYS set "actionType": "CREATE_CALENDAR_ITEM" (or "BATCH_CREATE_CALENDAR_ITEMS" for multiple).
   • Set "date" strictly to "YYYY-MM-DD" formatted string (Today is ${todayIso}, tomorrow is ${addDays(todayIso, 1)}).
@@ -168,7 +119,7 @@ SYSTEM INTERACTION DIRECTIVES:
   • For timed events: type: "event", startTime: "HH:MM AM/PM", endTime: "HH:MM AM/PM", isAllDay: false (meetings, classes, workouts, dinners, doctor appointments).
   • For tasks/reminders: type: "task" or "reminder", isAllDay: true.
 - FORMATTING MANDATE: Present responses with executive polish. Never output escaped or doubled quote artifacts (avoid \"\" or \"\"\"). Never wrap your whole message in outer quotes. Use clean bullet points and bold headers (**Heading:**) for multi-point answers.
-- WIKILINK & NETWORKED THOUGHT MANDATE: When referencing courses, study notes, formula sheets, trading setups, or calendar dates, use Obsidian [[wikilink]] syntax (e.g. [[FNCE 317]], [[WACC]], [[Trading/Playbook]], [[Daily/${todayIso}]]). Wolfe OS converts these into interactive clickable buttons.
+- WIKILINK & NETWORKED THOUGHT MANDATE: When referencing courses, study notes, formula sheets, or calendar dates, use Obsidian [[wikilink]] syntax (e.g. [[FNCE 317]], [[WACC]], [[Daily/${todayIso}]]). Wolfe OS converts these into interactive clickable buttons.
 
 ACTIONS:
 1. "CREATE_CALENDAR_ITEM": For adding a single deadline (red all-day), timed event, task, or reminder.
@@ -181,7 +132,7 @@ RESPOND ONLY IN VALID JSON:
 {
   "title": "Short 2-3 word topic title",
   "message": "Direct executive response text",
-  "targetView": "home" | "calendar" | "nutrition" | "trading",
+  "targetView": "home" | "calendar" | "nutrition",
   "actionLabel": "Button Label",
   "actionType": "CREATE_CALENDAR_ITEM" | "BATCH_CREATE_CALENDAR_ITEMS" | "CLEAR_CALENDAR_ITEMS" | "DELETE_SPECIFIC_ITEM" | "ASK_CLARIFICATION",
   "targetDate": "YYYY-MM-DD" (or "ALL"),
@@ -193,7 +144,7 @@ RESPOND ONLY IN VALID JSON:
     "startTime": "HH:MM AM/PM",
     "endTime": "HH:MM AM/PM",
     "isAllDay": true/false,
-    "category": "School" | "Trading" | "Fitness" | "Nutrition" | "General",
+    "category": "School" | "Fitness" | "Nutrition" | "General",
     "priority": "urgent" | "normal"
   },
   "calendarItems": [
@@ -204,7 +155,7 @@ RESPOND ONLY IN VALID JSON:
       "startTime": "HH:MM AM/PM",
       "endTime": "HH:MM AM/PM",
       "isAllDay": true/false,
-      "category": "School" | "Trading" | "Fitness" | "Nutrition" | "General",
+      "category": "School" | "Fitness" | "Nutrition" | "General",
       "priority": "urgent" | "normal",
       "weight": "30%" (optional)
     }
@@ -618,7 +569,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
   if (lower === 'hi' || lower === 'hello' || lower === 'hey' || lower === 'sup' || lower === "what's up" || lower === 'yo') {
     return {
       title: "Wolfe OS",
-      message: `Hey Zach! All 4 command hubs (Home Hub, Calendar, Nutrition, Trading) are in sync. What are we tackling today?`,
+      message: `Hey Zach! All 3 command hubs (Home Hub, Calendar, Nutrition) are in sync. What are we tackling today?`,
       targetView: "home",
       actionLabel: "View Dashboard"
     };
@@ -652,60 +603,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
     };
   }
 
-  // 6. TRADING & WAR ROOM INQUIRIES
-  if (lower.includes('trade') || lower.includes('position') || lower.includes('pnl') || lower.includes('market') || lower.includes('setup') || lower.includes('opportunity') || lower.includes('opportunities') || lower.includes('portfolio')) {
-    let paperPos = [];
-    try { paperPos = getPaperPositions(); } catch (e) {}
-    const active = paperPos.filter(p => p.status === 'ACTIVE');
-    const pending = paperPos.filter(p => p.status === 'PENDING_ENTRY');
-    
-    let latestBrief = null;
-    try {
-      const briefs = getSavedHermesBriefs();
-      if (briefs && briefs.length > 0) latestBrief = briefs[0];
-    } catch (e) {}
-
-    // Inquiring about Active Trades
-    if (lower.includes('active') || lower.includes('open') || lower.includes('in') || lower.includes('holding') || lower.includes('running')) {
-      if (active.length > 0) {
-        const details = active.map(p => `${p.side} ${p.ticker} (Entered at $${p.entryPrice}, PnL: ${p.unrealizedPnlUSD >= 0 ? '+' : ''}$${p.unrealizedPnlUSD || 0} / ${p.roePct >= 0 ? '+' : ''}${p.roePct || 0}% ROE)`).join('; ');
-        return {
-          title: `📈 Active Trades (${active.length})`,
-          message: `You have ${active.length} active trade${active.length > 1 ? 's' : ''}: ${details}. Stop losses and take profits are dynamically tracked.`,
-          targetView: "trading",
-          actionLabel: "View Trading Desk"
-        };
-      } else {
-        return {
-          title: "📈 Trading Status",
-          message: `No active positions currently running. You have ${pending.length} resting limit order${pending.length === 1 ? '' : 's'} and ${latestBrief?.highConvictionPlays?.length || 4} vetted trade setups available in the War Room.`,
-          targetView: "trading",
-          actionLabel: "View War Room"
-        };
-      }
-    }
-
-    // Inquiring about Trade Opportunities / Setups
-    if (latestBrief?.highConvictionPlays && latestBrief.highConvictionPlays.length > 0) {
-      const topPlays = latestBrief.highConvictionPlays.slice(0, 3).map(p => `${p.ticker} ${p.bias} at $${p.entryNumeric || p.entryPrice} (${p.chronosBacktest?.historicalWinRate || '70%'} WR)`).join(', ');
-      const scanTime = latestBrief.scannedAt ? new Date(latestBrief.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today';
-      return {
-        title: "⚡ Trade Opportunities",
-        message: `Macro Regime is ${latestBrief.macroRegime || 'Selective Risk-On'} (scanned at ${scanTime}). Top Chronos-verified setups: ${topPlays}. All setups include candlestick stops and 1:3 R:R targets.`,
-        targetView: "trading",
-        actionLabel: "Open War Room"
-      };
-    }
-
-    return {
-      title: "📈 Trading War Room",
-      message: `Day P&L is +$${osData?.tradingData?.dayPnl || '0.00'}. Click "Scan for Trades" in the Trading view to run a fresh multi-agent council sweep.`,
-      targetView: "trading",
-      actionLabel: "View Trading"
-    };
-  }
-
-  // 7. SCHEDULE & AGENDA INQUIRIES
+  // 6. SCHEDULE & AGENDA INQUIRIES
   if (lower.includes('schedule') || lower.includes('agenda') || lower.includes('what do i have') || lower.includes('my day') || (lower.includes('today') && !lower.includes('eat'))) {
     const calendarItems = osData?.calendarData?.items || [];
     const todayItems = calendarItems.filter(it => it.date === todayIso);
@@ -735,7 +633,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
     }
   }
 
-  // 8. NUTRITION & CALORIE INQUIRIES
+  // 7. NUTRITION & CALORIE INQUIRIES
   if (lower.includes('calorie') || lower.includes('calories') || lower.includes('macro') || lower.includes('nutrition') || lower.includes('protein') || lower.includes('carbs') || lower.includes('food') || lower.includes('eat')) {
     const consumed = osData?.nutritionData?.consumedCalories || 0;
     const target = osData?.nutritionData?.targetCalories || 2750;
@@ -753,7 +651,7 @@ export function directFallbackAnswer(prompt, osData, history = []) {
   // General Questions
   return {
     title: "Wolfe OS",
-    message: `All 4 command hubs are synchronized: Trading: Day P&L +$${osData?.tradingData?.dayPnl || '0.00'} | Schedule: Active | Nutrition: ${osData?.nutritionData?.consumedCalories || 0} / ${osData?.nutritionData?.targetCalories || 2750} kcal.`,
+    message: `All 3 command hubs are synchronized: Schedule: Active | Nutrition: ${osData?.nutritionData?.consumedCalories || 0} / ${osData?.nutritionData?.targetCalories || 2750} kcal.`,
     targetView: "home",
     actionLabel: "Dashboard"
   };
@@ -775,7 +673,7 @@ export async function processVoiceOrTextCommand(
   if (!prompt || !prompt.trim()) {
     return {
       title: "Wolfe Assistant",
-      message: "I'm listening. How can I assist with your schedule, tasks, trading, or nutrition?",
+      message: "I'm listening. How can I assist with your schedule, tasks, or nutrition?",
       targetView: "home",
       actionLabel: "View Dashboard"
     };

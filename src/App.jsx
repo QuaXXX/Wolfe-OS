@@ -53,7 +53,6 @@ function resilientLazy(factory, retries = 2, intervalMs = 400) {
 
 // Code-split heavy views & modals to eliminate initial mobile loading freeze
 const NutritionView = resilientLazy(() => import('./components/views/NutritionView').then(m => ({ default: m.NutritionView || m.default })));
-const TradingView = resilientLazy(() => import('./components/views/TradingView').then(m => ({ default: m.TradingView })));
 const CalendarView = resilientLazy(() => import('./components/views/CalendarView').then(m => ({ default: m.CalendarView })));
 
 const SettingsModal = resilientLazy(() => import('./components/layout/SettingsModal').then(m => ({ default: m.SettingsModal })));
@@ -63,7 +62,6 @@ const GoogleCalendarModal = resilientLazy(() => import('./components/calendar/Go
 import { 
   INITIAL_USER, 
   INITIAL_NUTRITION_DATA, 
-  INITIAL_TRADING_DATA, 
   INITIAL_CALENDAR_DATA 
 } from './utils/mockData';
 
@@ -196,7 +194,6 @@ const DEFAULT_SETTINGS = {
   compactMode: false,
   visibleModules: {
     timeline: true,
-    trading: true,
     nutrition: true,
   },
   aiConfig: {
@@ -211,7 +208,7 @@ export function App() {
   const [activeView, setActiveView] = useState(() => {
     try {
       const saved = safeGetItem('wolfe_active_view');
-      const validViews = ['home', 'calendar', 'nutrition', 'trading'];
+      const validViews = ['home', 'calendar', 'nutrition'];
       if (saved && validViews.includes(saved)) {
         return saved;
       }
@@ -286,14 +283,6 @@ export function App() {
       }
     } catch (e) {}
     return synchronizeNutritionData(INITIAL_NUTRITION_DATA);
-  });
-
-  const [tradingData, setTradingData] = useState(() => {
-    try {
-      const saved = safeGetItem('wolfe_trading_data');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return INITIAL_TRADING_DATA;
   });
 
   // Flag to suppress debounced auto-push when applying incoming cloud sync
@@ -456,7 +445,6 @@ export function App() {
           return synchronizeNutritionData(mergedNutrition);
         });
       }
-      if (vault.trading?.dashboard) setTradingData(vault.trading.dashboard);
       // Apply calendar from vault (merging items and filtering tombstones)
       if (vault.calendar && Array.isArray(vault.calendar.items)) {
         setCalendarData(prev => {
@@ -506,14 +494,13 @@ export function App() {
 
     safeSetItem('wolfe_calendar_data', JSON.stringify(calendarData));
     safeSetItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
-    safeSetItem('wolfe_trading_data', JSON.stringify(tradingData));
     safeSetItem('wolfe_settings', JSON.stringify(settings));
 
     if (!isApplyingInboundSyncRef.current) {
       markLocalMutation();
       triggerImmediateCloudPush(60, true);
     }
-  }, [calendarData, nutritionData, tradingData, settings]);
+  }, [calendarData, nutritionData, settings]);
 
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
   const [syncStatus, setSyncStatus] = useState(() => isGoogleCalendarConnected() ? 'connected' : 'disconnected');
@@ -535,7 +522,7 @@ export function App() {
     setSyncStatus('syncing');
 
     try {
-      // 1. Sync full OS state across devices (Trading, Nutrition, Workouts, Academics, Calendar, Settings)
+      // 1. Sync full OS state across devices (Nutrition, Calendar, Settings)
       await syncFullOsWithCloud({ forcePush: false });
 
       // 2. Auto-upload any local items created in Wolfe OS to Google
@@ -1356,11 +1343,9 @@ export function App() {
         return (
           <HomeView 
             nutritionData={nutritionData}
-            tradingData={tradingData}
             calendarData={calendarData}
             setSettings={setSettings}
             setNutritionData={setNutritionData}
-            setTradingData={setTradingData}
             setCalendarData={setCalendarData}
             onItemCreated={handleAddItem}
             onClearCalendar={handleClearCalendar}
@@ -1380,13 +1365,6 @@ export function App() {
             nutritionData={nutritionData}
             setNutritionData={setNutritionData}
             settings={settings}
-            {...commonProps}
-          />
-        );
-      case 'trading':
-        return (
-          <TradingView 
-            tradingData={tradingData}
             {...commonProps}
           />
         );
@@ -1454,11 +1432,9 @@ export function App() {
         onSyncNow={handleSyncGoogleCalendar}
         osData={{
           nutritionData,
-          tradingData,
           calendarData,
           setSettings,
           setNutritionData,
-          setTradingData,
           setCalendarData,
           onClearDeadlines: handleClearDeadlines,
           onClearCalendar: handleClearCalendar,

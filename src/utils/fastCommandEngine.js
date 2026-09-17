@@ -6,8 +6,6 @@ import {
   deleteGoogleCalendarEvent, 
   isGoogleCalendarConnected
 } from './googleCalendarService.js';
-import { getPaperPositions } from './hermesPaperTrader.js';
-import { getSavedHermesBriefs } from './tradingStorage.js';
 import { parseMealDescription, createMealEntry, aggregateDailyNutrition } from './nutritionEngine.js';
 import { recordAdditionOrUpdate, triggerImmediateCloudPush, markLocalMutation } from './cloudSyncEngine.js';
 
@@ -62,7 +60,6 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     setSettings,
     setCalendarData,
     setNutritionData,
-    setTradingData,
     onNavigate,
     onClearCalendar,
     onDeleteSpecificItem,
@@ -74,13 +71,12 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   // ==========================================
   // 1. NAVIGATION SHORTCUTS
   // ==========================================
-  const navMatch = text.match(/^(?:go\s+to|open|show|switch\s+to|navigate\s+to|take\s+me\s+to)\s+(home|dashboard|calendar|schedule|timeline|nutrition|diet|food|meals?|trading|stocks?|markets?)$/i);
+  const navMatch = text.match(/^(?:go\s+to|open|show|switch\s+to|navigate\s+to|take\s+me\s+to)\s+(home|dashboard|calendar|schedule|timeline|nutrition|diet|food|meals?)$/i);
   if (navMatch) {
     const target = navMatch[1].toLowerCase();
     let view = 'home';
     if (target.includes('cal') || target.includes('sched') || target.includes('time')) view = 'calendar';
     else if (target.includes('nutri') || target.includes('diet') || target.includes('food') || target.includes('meal')) view = 'nutrition';
-    else if (target.includes('trad') || target.includes('stock') || target.includes('market')) view = 'trading';
 
     if (onNavigate) onNavigate(view);
     return {
@@ -616,104 +612,8 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   }
 
   // ==========================================
-  // 5. DAY TRADING QUICK LOGS
+  // 5. SCHEDULE & AGENDA QUERY
   // ==========================================
-  // Log Trade Win/Loss
-  // Matches: "log trade +350", "log win 400", "log loss 150", "made $500 on trade", "lost $120"
-  const tradeWinMatch = text.match(/\b(?:log\s+trade|log\s+win|made|gain)\s*\+?\$?(\d+(?:\.\d{1,2})?)\b/i);
-  const tradeLossMatch = text.match(/\b(?:log\s+loss|lost)\s*\-?\$?(\d+(?:\.\d{1,2})?)\b/i);
-
-  if (tradeWinMatch || tradeLossMatch) {
-    const isLoss = !!tradeLossMatch;
-    const amount = parseFloat(isLoss ? tradeLossMatch[1] : tradeWinMatch[1]);
-    const delta = isLoss ? -amount : amount;
-
-    if (setTradingData) {
-      setTradingData(prev => ({
-        ...prev,
-        dayPnl: Math.round(((prev?.dayPnl || 1420.50) + delta) * 100) / 100,
-        dayPnlPercent: Math.round((((prev?.dayPnl || 1420.50) + delta) / 50000 * 100) * 100) / 100
-      }));
-    }
-    return {
-      handled: true,
-      confetti: !isLoss,
-      title: isLoss ? "📉 Trade Logged" : "📈 Trade Win Logged",
-      message: `Logged trade ${isLoss ? `-$${amount}` : `+$${amount}`}. Day P&L updated.`,
-      targetView: "trading"
-    };
-  }
-
-  // Reset Day Trading
-  if (text.match(/\b(?:reset|clear)\s+(?:trading|pnl|day\s+trades?|trades?)\b/i)) {
-    if (setTradingData) {
-      setTradingData(prev => ({
-        ...prev,
-        dayPnl: 0,
-        dayPnlPercent: 0
-      }));
-    }
-    return {
-      handled: true,
-      title: "📈 Trading P&L Reset",
-      message: "Reset day trading session P&L to $0.00 for market open.",
-      targetView: "trading"
-    };
-  }
-
-  // Query Active Trades / Positions
-  if (text.match(/\b(?:what\s+trades|active\s+trades|open\s+trades|open\s+positions|my\s+trades|current\s+trades|portfolio\s+status)\b/i) || text === 'trades' || text === 'positions') {
-    let paperPos = [];
-    try { paperPos = getPaperPositions(); } catch (e) {}
-    const active = paperPos.filter(p => p.status === 'ACTIVE');
-    const pending = paperPos.filter(p => p.status === 'PENDING_ENTRY');
-    if (active.length > 0) {
-      const summary = active.map(p => `${p.side} ${p.ticker} (Entry $${p.entryPrice}, PnL: ${p.unrealizedPnlUSD >= 0 ? '+' : ''}$${p.unrealizedPnlUSD || 0})`).join(', ');
-      return {
-        handled: true,
-        title: `📈 Active Trades (${active.length})`,
-        message: `${summary}. Dynamic stops and targets are active.`,
-        targetView: "trading",
-        actionLabel: "View Desk"
-      };
-    } else {
-      return {
-        handled: true,
-        title: "📈 Trading Status",
-        message: `No active positions running. You have ${pending.length} resting limit order${pending.length === 1 ? '' : 's'} waiting for trigger pullback.`,
-        targetView: "trading",
-        actionLabel: "View Trading"
-      };
-    }
-  }
-
-  // Query Trade Opportunities / War Room Setups
-  if (text.match(/\b(?:trade\s+opportunities|what\s+can\s+we\s+trade|trade\s+setups|trading\s+setups|scan\s+results|war\s+room\s+setups)\b/i) || text === 'opportunities' || text === 'setups') {
-    let latestBrief = null;
-    try {
-      const briefs = getSavedHermesBriefs();
-      if (briefs && briefs.length > 0) latestBrief = briefs[0];
-    } catch (e) {}
-
-    if (latestBrief?.highConvictionPlays && latestBrief.highConvictionPlays.length > 0) {
-      const topPlays = latestBrief.highConvictionPlays.slice(0, 3).map(p => `${p.ticker} ${p.bias} at $${p.entryNumeric || p.entryPrice} (${p.chronosBacktest?.historicalWinRate || '70%'} WR)`).join(', ');
-      const scanTime = latestBrief.scannedAt ? new Date(latestBrief.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today';
-      return {
-        handled: true,
-        title: "⚡ Trade Opportunities",
-        message: `Scanned at ${scanTime}: Top Chronos-verified setups: ${topPlays}. All calibrated with 1:3 R:R targets.`,
-        targetView: "trading",
-        actionLabel: "Open War Room"
-      };
-    }
-    return {
-      handled: true,
-      title: "📈 Trading War Room",
-      message: "Ready to scan. Open the War Room to execute a real-time multi-agent quantitative sweep.",
-      targetView: "trading",
-      actionLabel: "Scan War Room"
-    };
-  }
 
   // Query Today's Schedule / Agenda
   if (text.match(/\b(?:what(?:'s|\s+is)\s+my\s+schedule|my\s+agenda|what\s+do\s+i\s+have\s+today|today(?:'s)?\s+schedule|my\s+deadlines\s+today|what\s+do\s+i\s+have\s+to\s+do)\b/i) || text === 'schedule' || text === 'agenda') {

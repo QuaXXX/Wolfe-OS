@@ -1099,77 +1099,7 @@ export async function saveCheatSheetToObsidian(sheet) {
 }
 
 /**
- * Export completed trade log into Obsidian Trading Journal
- */
-export async function saveTradeToObsidian(trade) {
-  try {
-    const handle = await getVaultHandle();
-    if (!handle) return false;
-
-    const rootName = (handle.name || '').toLowerCase();
-    const isSchoolFolder = rootName === 'school';
-    const subfolder = isSchoolFolder ? `../Trading/Trades` : `Trading/Trades`;
-
-    const cleanDate = new Date(trade.closedAt || trade.openedAt || Date.now()).toISOString().split('T')[0];
-    const cleanTicker = (trade.ticker || 'TRADE').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const cleanId = (trade.id || String(Date.now())).slice(-6);
-    const filename = `${cleanDate}_${cleanTicker}_${trade.side || 'LONG'}_${cleanId}`;
-
-    const pnl = Number(trade.pnlUSD || 0);
-    const isWin = pnl >= 0;
-
-    const frontmatter = generateYamlFrontmatter({
-      type: 'trading/journal',
-      ticker: cleanTicker,
-      side: trade.side || 'LONG',
-      entry_price: Number(trade.entryPrice || 0),
-      exit_price: Number(trade.exitPrice || 0),
-      size: Number(trade.size || 0),
-      pnl_usd: pnl,
-      return_percent: Number(trade.returnPct || 0),
-      is_win: isWin,
-      strategy: trade.strategy || 'Discretionary',
-      date: cleanDate,
-      tags: ['trading', 'journal', cleanTicker.toLowerCase(), isWin ? 'win' : 'loss', ...(trade.tags || []).map(t => t.toLowerCase().replace(/\s+/g, '-'))],
-      references: [`[[Trading/Playbook]]`, `[[Daily/${cleanDate}]]`]
-    });
-
-    let md = `${frontmatter}\n\n`;
-    md += `# 📈 [[Trading]]: ${cleanTicker} (${trade.side || 'LONG'}) — ${isWin ? '🟢 +$' : '🔴 -$'}${Math.abs(pnl).toFixed(2)}\n\n`;
-    md += `- **Date:** [[Daily/${cleanDate}|${new Date(trade.closedAt || Date.now()).toLocaleDateString('en-US', { dateStyle: 'full' })}]]\n`;
-    md += `- **Strategy:** ${trade.strategy || 'Discretionary'}\n`;
-    md += `- **P&L:** $${pnl.toFixed(2)} (${trade.returnPct || 0}%)\n`;
-    md += `- **Entry:** $${trade.entryPrice} ➔ **Exit:** $${trade.exitPrice}\n`;
-    md += `- **Position Size:** ${trade.size}\n\n`;
-
-    if (trade.tags && trade.tags.length > 0) {
-      md += `### Execution Tags\n`;
-      trade.tags.forEach(tag => {
-        md += `- \`#${tag.replace(/\s+/g, '-')}\`\n`;
-      });
-      md += `\n`;
-    }
-
-    if (trade.notes) {
-      md += `### Trader Notes\n${trade.notes}\n\n`;
-    }
-
-    if (trade.aiPostMortem) {
-      md += `### 🧠 AI Coach Post-Mortem\n> ${trade.aiPostMortem.replace(/\n+/g, '\n> ')}\n\n`;
-    }
-
-    md += `---\n*Logged via Wolfe OS Networked Thought Architecture*\n`;
-
-    await saveMarkdownToVault(handle, subfolder, filename, md);
-    return true;
-  } catch (err) {
-    console.warn("Could not export trade to Obsidian:", err);
-    return false;
-  }
-}
-
-/**
- * Synchronize daily performance, tasks, nutrition, trades, and study to Obsidian Daily Note
+ * Synchronize daily performance, tasks, nutrition, and study to Obsidian Daily Note
  */
 export async function syncDailySummaryToObsidian(summaryData = {}) {
   try {
@@ -1192,8 +1122,6 @@ export async function syncDailySummaryToObsidian(summaryData = {}) {
       tasks_completed: summaryData.tasksCompleted || 0,
       tasks_total: summaryData.tasksTotal || 0,
       study_sessions_count: summaryData.studySessions?.length || 0,
-      trades_count: summaryData.trades?.length || 0,
-      net_trading_pnl: summaryData.tradingPnl || 0,
       tags: ['daily', 'journal', 'summary']
     });
 
@@ -1215,17 +1143,6 @@ export async function syncDailySummaryToObsidian(summaryData = {}) {
       md += `## 📚 Academics & Study Mastery\n\n`;
       summaryData.studySessions.forEach(s => {
         md += `- **[[${s.course || 'School'}]]**: ${s.topic || 'Review'} — ${s.type || 'Session'} (${s.score !== undefined ? `Score: ${s.score}%` : 'Completed'})\n`;
-      });
-      md += `\n`;
-    }
-
-    // 3. Trading Journal
-    if (summaryData.trades && summaryData.trades.length > 0) {
-      md += `## 📈 Trading Journal\n\n`;
-      const netPnl = summaryData.trades.reduce((acc, tr) => acc + (Number(tr.pnlUSD) || 0), 0);
-      md += `- **Net P&L:** ${netPnl >= 0 ? '🟢 +$' : '🔴 -$'}${Math.abs(netPnl).toFixed(2)}\n`;
-      summaryData.trades.forEach(tr => {
-        md += `- [[Trading/Trades/${date}_${tr.ticker}|${tr.ticker}]] (${tr.side}): ${tr.pnlUSD >= 0 ? '+' : ''}$${tr.pnlUSD}\n`;
       });
       md += `\n`;
     }

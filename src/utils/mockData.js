@@ -66,18 +66,6 @@ export const INITIAL_NUTRITION_DATA = {
   meals: []
 };
 
-export const INITIAL_TRADING_DATA = {
-  dayPnl: 0.00,
-  dayPnlPercent: 0.00,
-  weekPnl: 0.00,
-  winRate: "—",
-  tradesToday: 0,
-  winningTrades: 0,
-  accountBalance: "$0.00",
-  watchlist: [],
-  todayTrades: []
-};
-
 // FULLY INTEGRATED CALENDAR DATA MODEL
 export const INITIAL_CALENDAR_DATA = {
   currentDate: formatDateTitle(getTodayIso()),

@@ -1,6 +1,5 @@
 import React from 'react';
 import { 
-  TrendingUp, 
   UtensilsCrossed, 
   CalendarDays, 
   ArrowUpRight, 
@@ -21,12 +20,10 @@ import { getTodayIso } from '../../utils/calendarUtils';
 export const HomeView = ({ 
   user, 
   nutritionData, 
-  tradingData, 
   calendarData = { items: [] },
   settings = { visibleModules: {}, aiConfig: {}, compactMode: false },
   setSettings,
   setNutritionData,
-  setTradingData,
   setCalendarData,
   onItemCreated,
   onClearCalendar,
@@ -65,11 +62,9 @@ export const HomeView = ({
 
   const osData = {
     nutritionData,
-    tradingData,
     calendarData,
     setSettings,
     setNutritionData,
-    setTradingData,
     setCalendarData,
     onClearDeadlines,
     onPurgeItems
@@ -330,10 +325,9 @@ export const HomeView = ({
         </GlassCard>
       )}
 
-      {/* 3. Core Command: Nutrition & Day Trading */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${isCompact ? 'gap-3.5 mt-2' : 'gap-5 mt-3'}`}>
-        {/* Nutrition */}
-        {vm.nutrition !== false && (
+      {/* 3. Core Command: Nutrition */}
+      {vm.nutrition !== false && (
+        <div className={isCompact ? 'mt-2' : 'mt-3'}>
           <GlassCard 
             onClick={(e) => {
               if (e && e.stopPropagation) e.stopPropagation();
@@ -403,78 +397,8 @@ export const HomeView = ({
               )}
             </div>
           </GlassCard>
-        )}
-
-        {/* Day Trading */}
-        {vm.trading !== false && (
-          <GlassCard 
-            onClick={(e) => {
-              if (e && e.stopPropagation) e.stopPropagation();
-              playSound('click', soundEnabled);
-              onNavigate('trading');
-            }}
-            className={`relative z-10 isolate touch-manipulation flex flex-col justify-between group cursor-pointer ${isCompact ? 'p-3.5' : 'p-5'}`}
-          >
-            <div>
-              <div className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
-                <div className="flex items-center gap-2.5">
-                  <div 
-                    className={`rounded-lg flex items-center justify-center bg-white/[0.03] text-slate-300 border border-white/[0.06] group-hover:text-white group-hover:border-white/10 transition-colors ${isCompact ? 'w-6 h-6' : 'w-7 h-7'}`}
-                  >
-                    <TrendingUp className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
-                  </div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Day Trading
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isCompact && (
-                    <span className={`text-xs font-mono font-bold ${(tradingData.dayPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      ${(tradingData.dayPnl || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                  )}
-                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-transform" />
-                </div>
-              </div>
-
-              {!isCompact ? (
-                <>
-                  <div className="my-2 flex items-baseline justify-between">
-                    <div>
-                      <div className={`text-2xl font-mono font-bold tracking-tight ${(tradingData.dayPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        ${(tradingData.dayPnl || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-xs text-slate-400 mt-0.5 font-mono">
-                        {(tradingData.dayPnl || 0) >= 0 ? '+' : ''}{tradingData.dayPnlPercent || 0}% • {tradingData.todayTrades?.length || 0} Trades
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-white/[0.03] text-slate-300 border border-white/[0.06]">
-                      Win: {tradingData.winRate || '—'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-white/[0.04]">
-                    {tradingData.watchlist?.length > 0 ? (
-                      tradingData.watchlist.slice(0, 3).map(w => (
-                        <span key={w.symbol}>{w.symbol} <strong className={`font-normal ${w.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{w.change}</strong></span>
-                      ))
-                    ) : (
-                      <span>No active watchlist tickers</span>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-between text-xs font-mono text-slate-400 mt-1 pt-1.5 border-t border-white/[0.04]">
-                  <span className={(tradingData.dayPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                    {(tradingData.dayPnl || 0) >= 0 ? '+' : ''}{tradingData.dayPnlPercent || 0}% P&L
-                  </span>
-                  <span>Win: {tradingData.winRate || '—'}</span>
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        )}
-      </div>
+        </div>
+      )}
 
     </div>
   );

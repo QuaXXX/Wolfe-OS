@@ -2,7 +2,6 @@
  * Wolfe OS Unified Cross-Device Cloud Sync Engine
  * Synchronizes core command hubs between Phone and Desktop:
  * - Nutrition (meals, macros, targets, weight history, staples)
- * - Trading (watchlist, positions, journal, paper trader, Hermes briefs)
  * - Calendar / Timeline (schedule, events, tasks)
  * - Settings (theme color, AI config, module visibility)
  */
@@ -26,16 +25,6 @@ export const SYNC_KEYS = {
   CALENDAR: 'wolfe_os_calendar_v5',
   CALENDAR_FALLBACK: 'wolfe_calendar_data',
   NUTRITION: 'wolfe_nutrition_data',
-  TRADING: 'wolfe_trading_data',
-  // Extended trading
-  TRADING_CONFIG: 'wolfe_trading_config_v1',
-  TRADING_WATCHLIST: 'wolfe_trading_watchlist_v1',
-  TRADING_POSITIONS: 'wolfe_trading_positions_v1',
-  TRADING_JOURNAL: 'wolfe_trading_journal_v1',
-  TRADING_HERMES_BRIEFS: 'wolfe_trading_hermes_briefs_v1',
-  PAPER_ACCOUNT: 'wolfe_paper_account_v1',
-  PAPER_POSITIONS: 'wolfe_paper_positions_v1',
-  PAPER_HISTORY: 'wolfe_paper_history_v1',
   // Cloud Sync Metadata
   CLOUD_META: 'wolfe_cloud_sync_meta_v1',
   // Permanent Deletion Tombstone Ledger
@@ -155,24 +144,12 @@ export function exportFullOsState() {
     weightHistory: normalizedWeight,
     weightLogs: normalizedWeight
   };
-  const trading = readStorageJson(SYNC_KEYS.TRADING) || {};
-
-  // Extended modules
-  const tradingConfig = readStorageJson(SYNC_KEYS.TRADING_CONFIG) || {};
-  const tradingWatchlist = readStorageJson(SYNC_KEYS.TRADING_WATCHLIST) || [];
-  const tradingPositions = readStorageJson(SYNC_KEYS.TRADING_POSITIONS) || [];
-  const tradingJournal = readStorageJson(SYNC_KEYS.TRADING_JOURNAL) || [];
-  const hermesBriefs = readStorageJson(SYNC_KEYS.TRADING_HERMES_BRIEFS) || [];
-  const paperAccount = readStorageJson(SYNC_KEYS.PAPER_ACCOUNT) || {};
-  const paperPositions = readStorageJson(SYNC_KEYS.PAPER_POSITIONS) || [];
-  const paperHistory = readStorageJson(SYNC_KEYS.PAPER_HISTORY) || [];
 
   const meta = readStorageJson(SYNC_KEYS.CLOUD_META) || {};
 
   const calculatedLastUpdated = Math.max(
     meta.lastUpdated || 0,
     nutrition.updatedAt || 0,
-    trading.updatedAt || 0,
     lastLocalMutationAt || 0,
     (isLocalMutationRecent(10000) ? Date.now() : 0)
   );
@@ -185,17 +162,6 @@ export function exportFullOsState() {
     _tombstones: getTombstones(),
     googleAccount: account ? { email: account.email, name: account.name, picture: account.picture } : null,
     nutrition,
-    trading: {
-      dashboard: trading,
-      config: tradingConfig,
-      watchlist: tradingWatchlist,
-      positions: tradingPositions,
-      journal: tradingJournal,
-      hermesBriefs,
-      paperAccount,
-      paperPositions,
-      paperHistory
-    },
     calendar,
     settings
   };
@@ -455,60 +421,7 @@ export function mergeOsState(localVault, remoteVault) {
     kitchenCalibration: mergedCalibration
   };
 
-  // 2. TRADING MERGE
-  const localTrade = localVault.trading || {};
-  const remoteTrade = remoteVault.trading || {};
-  const localIsNewerTrade = isMutatingLocally || (localVault.lastUpdated || 0) >= (remoteVault.lastUpdated || 0);
-
-  const journalMap = new Map();
-  (remoteTrade.journal || []).forEach(j => {
-    if (!isTombstoned(j.id, j.updatedAt || new Date(j.openedAt || j.closedAt).getTime())) {
-      journalMap.set(j.id, j);
-    }
-  });
-  (localTrade.journal || []).forEach(j => {
-    if (!isTombstoned(j.id, j.updatedAt || new Date(j.openedAt || j.closedAt).getTime())) {
-      journalMap.set(j.id, { ...(journalMap.get(j.id) || {}), ...j });
-    }
-  });
-
-  const watchMap = new Map();
-  (remoteTrade.watchlist || []).forEach(w => {
-    if (!isTombstoned(w.symbol, w.updatedAt)) {
-      watchMap.set(w.symbol, w);
-    }
-  });
-  (localTrade.watchlist || []).forEach(w => {
-    if (!isTombstoned(w.symbol, w.updatedAt)) {
-      watchMap.set(w.symbol, { ...(watchMap.get(w.symbol) || {}), ...w });
-    }
-  });
-
-  const paperHistMap = new Map();
-  (remoteTrade.paperHistory || []).forEach(p => {
-    if (!isTombstoned(p.id, p.updatedAt)) {
-      paperHistMap.set(p.id, p);
-    }
-  });
-  (localTrade.paperHistory || []).forEach(p => {
-    if (!isTombstoned(p.id, p.updatedAt)) {
-      paperHistMap.set(p.id, { ...(paperHistMap.get(p.id) || {}), ...p });
-    }
-  });
-
-  merged.trading = {
-    dashboard: localIsNewerTrade ? (localTrade.dashboard || {}) : (remoteTrade.dashboard || {}),
-    config: { ...(remoteTrade.config || {}), ...(localTrade.config || {}) },
-    watchlist: Array.from(watchMap.values()),
-    positions: localIsNewerTrade ? (localTrade.positions || []) : (remoteTrade.positions || []),
-    journal: Array.from(journalMap.values()),
-    hermesBriefs: localIsNewerTrade ? (localTrade.hermesBriefs || []) : (remoteTrade.hermesBriefs || []),
-    paperAccount: localIsNewerTrade ? (localTrade.paperAccount || {}) : (remoteTrade.paperAccount || {}),
-    paperPositions: localIsNewerTrade ? (localTrade.paperPositions || []) : (remoteTrade.paperPositions || []),
-    paperHistory: Array.from(paperHistMap.values())
-  };
-
-  // 3. CALENDAR MERGE (Google Calendar is single master when connected)
+  // 2. CALENDAR MERGE (Google Calendar is single master when connected)
   const localCalItems = (localVault.calendar?.items || []).filter(it => !isTombstoned(it.id, it.updatedAt));
   const remoteCalItems = (remoteVault.calendar?.items || []).filter(it => !isTombstoned(it.id, it.updatedAt));
   merged.calendar = {
@@ -680,19 +593,9 @@ export function importFullOsState(vault) {
     };
   }
 
-  const cleanTrading = vault.trading ? {
-    ...vault.trading,
-    watchlist: (vault.trading.watchlist || []).filter(w => !isTomb(w.symbol)),
-    journal: (vault.trading.journal || []).filter(j => !isTomb(j.id)),
-    paperHistory: (vault.trading.paperHistory || []).filter(p => !isTomb(p.id))
-  } : null;
-
   // 1. Core modules
   if (cleanNutrition) {
     writeStorageJson(SYNC_KEYS.NUTRITION, cleanNutrition);
-  }
-  if (cleanTrading?.dashboard) {
-    writeStorageJson(SYNC_KEYS.TRADING, cleanTrading.dashboard);
   }
   // Always persist clean calendar from incoming vault as resilient local backup
   if (vault.calendar) {
@@ -708,17 +611,7 @@ export function importFullOsState(vault) {
     writeStorageJson(SYNC_KEYS.SETTINGS_FALLBACK, vault.settings);
   }
 
-  // 2. Extended trading
-  if (cleanTrading?.config) writeStorageJson(SYNC_KEYS.TRADING_CONFIG, cleanTrading.config);
-  if (cleanTrading?.watchlist) writeStorageJson(SYNC_KEYS.TRADING_WATCHLIST, cleanTrading.watchlist);
-  if (cleanTrading?.positions) writeStorageJson(SYNC_KEYS.TRADING_POSITIONS, cleanTrading.positions);
-  if (cleanTrading?.journal) writeStorageJson(SYNC_KEYS.TRADING_JOURNAL, cleanTrading.journal);
-  if (cleanTrading?.hermesBriefs) writeStorageJson(SYNC_KEYS.TRADING_HERMES_BRIEFS, cleanTrading.hermesBriefs);
-  if (cleanTrading?.paperAccount) writeStorageJson(SYNC_KEYS.PAPER_ACCOUNT, cleanTrading.paperAccount);
-  if (cleanTrading?.paperPositions) writeStorageJson(SYNC_KEYS.PAPER_POSITIONS, cleanTrading.paperPositions);
-  if (cleanTrading?.paperHistory) writeStorageJson(SYNC_KEYS.PAPER_HISTORY, cleanTrading.paperHistory);
-
-  // 3. Update cloud sync metadata
+  // 2. Update cloud sync metadata
   writeStorageJson(SYNC_KEYS.CLOUD_META, {
     lastSyncedAt: Date.now(),
     lastUpdated: vault.lastUpdated || Date.now(),
@@ -729,8 +622,7 @@ export function importFullOsState(vault) {
   const sanitizedVault = {
     ...vault,
     _tombstones: activeTombstones,
-    nutrition: cleanNutrition || vault.nutrition,
-    trading: cleanTrading || vault.trading
+    nutrition: cleanNutrition || vault.nutrition
   };
 
   // 5. Dispatch live window event so React state updates without page reload

@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, 
   UtensilsCrossed, 
-  TrendingUp, 
   CalendarDays
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
@@ -12,7 +11,6 @@ export const NAV_ITEMS = [
   { id: 'home', label: 'Home Hub', icon: Home },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'nutrition', label: 'Nutrition', icon: UtensilsCrossed },
-  { id: 'trading', label: 'Trading', icon: TrendingUp },
 ];
 
 export const Dock = ({ activeView, onViewChange, soundEnabled = true }) => {

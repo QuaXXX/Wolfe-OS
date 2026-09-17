@@ -879,8 +879,6 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
             let category = "General";
             if (lowerSummary.includes('class') || lowerSummary.includes('study') || lowerSummary.includes('exam') || lowerSummary.includes('cs ') || lowerSummary.includes('homework') || lowerSummary.includes('math') || lowerSummary.includes('chemistry') || lowerSummary.includes('physics') || lowerSummary.includes('diploma') || lowerSummary.includes('calculus') || lowerSummary.includes('statistics') || calId.toLowerCase().includes('school')) {
               category = "School";
-            } else if (lowerSummary.includes('trade') || lowerSummary.includes('market') || lowerSummary.includes('stock')) {
-              category = "Trading";
             } else if (lowerSummary.includes('gym') || lowerSummary.includes('workout') || lowerSummary.includes('push') || lowerSummary.includes('pull') || lowerSummary.includes('legs') || lowerSummary.includes('run')) {
               category = "Fitness";
             } else if (lowerSummary.includes('lunch') || lowerSummary.includes('dinner') || lowerSummary.includes('meal')) {
