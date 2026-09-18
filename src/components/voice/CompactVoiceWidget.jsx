@@ -113,6 +113,7 @@ export const CompactVoiceWidget = forwardRef(({
       }
       setInputText('');
       setLiveSpeechText('');
+      setLastHeardQuery('');
       setAiResponse(null);
       voiceControllerRef.current.start();
     }
@@ -335,9 +336,9 @@ export const CompactVoiceWidget = forwardRef(({
             onChange={(e) => setInputText(e.target.value)}
             placeholder={
               isProcessing
-                ? "Transcribing & processing..."
+                ? "Processing voice..."
                 : isListening 
-                  ? (liveSpeechText ? `Hearing: "${liveSpeechText}"` : "Listening... Speak command or food (Tap mic to send)") 
+                  ? "Listening... Speak command or food" 
                   : "Ask anything or log food..."
             }
             className={`w-full bg-transparent border-none text-xs sm:text-sm placeholder:text-slate-500 focus:outline-none focus:ring-0 font-medium py-1 ${
@@ -376,33 +377,7 @@ export const CompactVoiceWidget = forwardRef(({
         </form>
       </div>
 
-      {/* LIVE HEARING STATUS BAR WHILE SPEAKING */}
-      <AnimatePresence>
-        {isListening && liveSpeechText && (
-          <motion.div
-            initial={{ opacity: 0, y: -4, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
-            exit={{ opacity: 0, y: -4, height: 0 }}
-            className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-xs cursor-default"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 min-w-0 pr-2">
-              <span className="text-emerald-400 shrink-0 font-medium flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                Hearing:
-              </span>
-              <span className="text-white font-semibold truncate italic">
-                "{liveSpeechText}"
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-500 font-mono shrink-0">
-              Listening...
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* SINGLE CLEAN THINKING / HEARD STATUS BAR WITH STOP & REDO */}
+      {/* CLEAN PROCESSING STATUS BAR WITH STOP */}
       <AnimatePresence>
         {isProcessing && (
           <motion.div
@@ -412,48 +387,19 @@ export const CompactVoiceWidget = forwardRef(({
             className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-xs cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 min-w-0 pr-2">
-              <span className="text-slate-400 shrink-0 font-medium">Heard:</span>
-              <span className="text-slate-200 font-semibold truncate italic">
-                "{lastHeardQuery}"
-              </span>
+            <div className="flex items-center gap-2 text-slate-300">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--accent-primary)' }} />
+              <span className="font-medium">Processing voice...</span>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Single Clean Thinking Badge */}
-              <div 
-                className="flex items-center gap-1 px-2 py-0.5 rounded-lg font-mono text-[11px]"
-                style={{
-                  backgroundColor: 'var(--accent-subtle)',
-                  border: '1px solid var(--accent-border)',
-                  color: 'var(--accent-primary)'
-                }}
-              >
-                <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
-                <span>Thinking...</span>
-              </div>
-
-              {/* Redo / Edit Button */}
-              <button
-                type="button"
-                onClick={handleRedo}
-                title="Heard wrong? Click to edit & redo"
-                className="px-2 py-0.5 rounded-lg bg-white/10 text-slate-300 hover:text-white hover:bg-white/20 transition-all flex items-center gap-1 font-medium cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Redo</span>
-              </button>
-
-              {/* Quick Stop Button */}
-              <button
-                type="button"
-                onClick={handleStop}
-                title="Stop AI processing"
-                className="p-1 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 hover:text-red-200 border border-red-500/30 transition-all flex items-center justify-center cursor-pointer"
-              >
-                <Square className="w-3 h-3 fill-current" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleStop}
+              title="Cancel processing"
+              className="p-1 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 hover:text-red-200 border border-red-500/30 transition-all flex items-center justify-center cursor-pointer"
+            >
+              <Square className="w-3 h-3 fill-current" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

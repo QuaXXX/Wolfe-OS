@@ -112,6 +112,7 @@ export const TopBar = ({
         try { navigator.vibrate(25); } catch {}
       }
       setLiveSpeech('');
+      setLastHeardQuery('');
       setVoiceResponse(null);
       voiceControllerRef.current.start();
     }
@@ -298,7 +299,7 @@ export const TopBar = ({
                   ))}
                 </div>
                 <span className="truncate max-w-[90px] sm:max-w-[140px] text-white">
-                  {liveSpeech ? `"${liveSpeech}"` : "Listening..."}
+                  Listening...
                 </span>
                 <button
                   onClick={handleStopListening}
@@ -318,7 +319,7 @@ export const TopBar = ({
                 }}
               >
                 <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
-                <span>Thinking...</span>
+                <span>Processing...</span>
               </div>
             )}
           </div>
