@@ -206,6 +206,7 @@ const DEFAULT_SETTINGS = {
   aiConfig: {
     provider: 'gemini',
     apiKey: import.meta.env?.VITE_GEMINI_API_KEY || '',
+    groqApiKey: import.meta.env?.VITE_GROQ_API_KEY || '',
     model: 'gemini-3.5-flash-lite',
     voiceResponse: false,
   }
@@ -251,13 +252,16 @@ export function App() {
       const parsed = JSON.parse(saved);
       const envApiKey = import.meta.env?.VITE_GEMINI_API_KEY || '';
       const storedApiKey = parsed?.aiConfig?.apiKey?.trim();
+      const envGroqApiKey = import.meta.env?.VITE_GROQ_API_KEY || '';
+      const storedGroqApiKey = parsed?.aiConfig?.groqApiKey?.trim();
       return {
         ...DEFAULT_SETTINGS,
         ...parsed,
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
           ...(parsed.aiConfig || {}),
-          apiKey: storedApiKey || envApiKey || ''
+          apiKey: storedApiKey || envApiKey || '',
+          groqApiKey: storedGroqApiKey || envGroqApiKey || ''
         }
       };
     } catch {

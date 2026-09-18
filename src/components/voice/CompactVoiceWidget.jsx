@@ -58,6 +58,7 @@ export const CompactVoiceWidget = forwardRef(({
   useEffect(() => {
     const controller = new UniversalVoiceController({
       apiKey: aiConfig?.apiKey,
+      groqApiKey: aiConfig?.groqApiKey,
       onInterim: (text) => {
         setLiveSpeechText(text);
         setInputText(text);
@@ -82,7 +83,7 @@ export const CompactVoiceWidget = forwardRef(({
     return () => {
       controller.destroy();
     };
-  }, [aiConfig?.apiKey]);
+  }, [aiConfig?.apiKey, aiConfig?.groqApiKey]);
 
   // Global hotkey (Cmd+K / Ctrl+K)
   useEffect(() => {

@@ -23,14 +23,27 @@ export function isStandaloneApp() {
 function getGeminiApiKey() {
   if (typeof localStorage !== 'undefined') {
     try {
-      const raw = localStorage.getItem('wolfe_settings');
+      const raw = localStorage.getItem('wolfe_settings') || localStorage.getItem('wolfe_os_settings_v3');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?.aiConfig?.apiKey) return parsed.aiConfig.apiKey;
+        if (parsed?.aiConfig?.apiKey) return parsed.aiConfig.apiKey.trim();
       }
     } catch {}
   }
-  return import.meta.env?.VITE_GEMINI_API_KEY || '';
+  return (import.meta.env?.VITE_GEMINI_API_KEY || '').trim();
+}
+
+export function getGroqApiKey() {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('wolfe_settings') || localStorage.getItem('wolfe_os_settings_v3');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.aiConfig?.groqApiKey) return parsed.aiConfig.groqApiKey.trim();
+      }
+    } catch {}
+  }
+  return (import.meta.env?.VITE_GROQ_API_KEY || '').trim();
 }
 
 function blobToBase64(blob) {
@@ -68,7 +81,60 @@ function getSupportedAudioMimeType() {
 }
 
 /**
- * Transcribe recorded audio blob using Gemini 3.6 Flash / 3.5 Flash / 3.7 Flash
+ * Transcribe recorded audio blob using Groq Whisper Large v3 Turbo (~200ms latency)
+ */
+export async function transcribeAudioWithGroq(audioBlob, customApiKey = null) {
+  const apiKey = customApiKey || getGroqApiKey();
+  if (!apiKey) {
+    throw new Error("No Groq API key configured for voice transcription.");
+  }
+
+  const mimeType = (audioBlob.type || 'audio/mp4').split(';')[0] || 'audio/mp4';
+  let filename = 'audio.mp4';
+  if (mimeType.includes('webm')) filename = 'audio.webm';
+  else if (mimeType.includes('ogg')) filename = 'audio.ogg';
+  else if (mimeType.includes('wav')) filename = 'audio.wav';
+  else if (mimeType.includes('aac')) filename = 'audio.aac';
+  else if (mimeType.includes('mp4') || mimeType.includes('m4a')) filename = 'audio.m4a';
+
+  const formData = new FormData();
+  formData.append('file', audioBlob, filename);
+  formData.append('model', 'whisper-large-v3-turbo');
+  formData.append('response_format', 'json');
+  formData.append('language', 'en');
+  formData.append('temperature', '0');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: formData,
+      signal: controller.signal
+    });
+
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Groq Whisper HTTP ${res.status}: ${errText || res.statusText}`);
+    }
+
+    const data = await res.json();
+    const text = (data?.text || '').trim();
+    return text.replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '').trim();
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+/**
+ * Transcribe recorded audio blob using Gemini 3.6 Flash / 3.5 Flash (Fast Fallback)
  */
 export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) {
   const apiKey = customApiKey || getGeminiApiKey();
@@ -88,7 +154,7 @@ export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) 
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
+      const timer = setTimeout(() => controller.abort(), 10000);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -112,8 +178,8 @@ export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) 
             }
           ],
           generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 256
+            temperature: 0.0,
+            maxOutputTokens: 64
           }
         })
       });
@@ -139,8 +205,9 @@ export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) 
  * and MediaRecorder fallback when Web Speech is unavailable.
  */
 export class UniversalVoiceController {
-  constructor({ apiKey = null, onInterim, onFinal, onError, onStateChange } = {}) {
+  constructor({ apiKey = null, groqApiKey = null, onInterim, onFinal, onError, onStateChange } = {}) {
     this.apiKey = apiKey;
+    this.groqApiKey = groqApiKey;
     this.onInterim = onInterim;
     this.onFinal = onFinal;
     this.onError = onError;
@@ -165,6 +232,10 @@ export class UniversalVoiceController {
 
   setApiKey(key) {
     this.apiKey = key;
+  }
+
+  setGroqApiKey(key) {
+    this.groqApiKey = key;
   }
 
   async start() {
@@ -320,7 +391,7 @@ export class UniversalVoiceController {
 
   _scheduleSilenceAutoSubmit() {
     this._cleanupSilenceTimer();
-    // After user pauses for 1.1s after speaking, finalize immediately
+    // After user pauses for 900ms after speaking, finalize immediately
     this._silenceTimer = setTimeout(() => {
       if (this.isListening && this._hasReceivedSpeech && !this._submitted) {
         const text = (this.capturedFinalText || this.latestTranscript || '').trim();
@@ -329,7 +400,7 @@ export class UniversalVoiceController {
           this._finalizeWithText(text);
         }
       }
-    }, 1100);
+    }, 900);
   }
 
   _cleanupSilenceTimer() {
@@ -468,10 +539,10 @@ export class UniversalVoiceController {
           }
           silenceStart = null;
         } else if (speechDetected) {
-          // User paused talking: 800ms of silence to auto-send
+          // User paused talking: 380ms of silence to auto-send
           if (!silenceStart) {
             silenceStart = Date.now();
-          } else if (Date.now() - silenceStart > 800) {
+          } else if (Date.now() - silenceStart > 380) {
             console.info("[Voice VAD] Silence detected after speech. Auto-stopping recorder.");
             this._cleanupVad();
             this.stop();
@@ -584,9 +655,25 @@ export class UniversalVoiceController {
 
     try {
       if (this.onInterim) {
-        this.onInterim("Processing audio...");
+        this.onInterim("Processing voice...");
       }
-      const transcribed = await transcribeAudioWithGemini(audioBlob, this.apiKey);
+
+      let transcribed = '';
+      const groqKey = this.groqApiKey || getGroqApiKey();
+
+      // Groq Whisper Large v3 Turbo on LPU (~200ms ultra-fast transcription)
+      if (groqKey) {
+        try {
+          transcribed = await transcribeAudioWithGroq(audioBlob, groqKey);
+        } catch (groqErr) {
+          console.warn("[Voice] Groq Whisper failed, trying Gemini fallback:", groqErr);
+          transcribed = await transcribeAudioWithGemini(audioBlob, this.apiKey);
+        }
+      } else {
+        // Automatic fallback when Groq key is not provided
+        transcribed = await transcribeAudioWithGemini(audioBlob, this.apiKey);
+      }
+
       if (transcribed && transcribed.trim()) {
         this.capturedFinalText = transcribed.trim();
         if (this.onInterim) {

@@ -59,6 +59,7 @@ export const TopBar = ({
   useEffect(() => {
     const controller = new UniversalVoiceController({
       apiKey: aiConfig?.apiKey,
+      groqApiKey: aiConfig?.groqApiKey,
       onInterim: (text) => {
         setLiveSpeech(text);
       },
@@ -81,7 +82,7 @@ export const TopBar = ({
     return () => {
       controller.destroy();
     };
-  }, [aiConfig?.apiKey]);
+  }, [aiConfig?.apiKey, aiConfig?.groqApiKey]);
 
   useEffect(() => {
     const updateTime = () => {

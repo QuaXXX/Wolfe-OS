@@ -15,7 +15,11 @@ import {
   RefreshCw,
   LogOut,
   ShieldCheck,
-  Cloud
+  Cloud,
+  Zap,
+  Key,
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { 
@@ -275,7 +279,124 @@ export const SettingsModal = ({
               )}
             </div>
 
-            {/* SECTION 2: SHOW / HIDE DASHBOARD MODULES */}
+            {/* SECTION 2: ULTRA-FAST VOICE ENGINE (GROQ & GEMINI) */}
+            <div className="p-4 rounded-3xl bg-[#101322] border border-white/10 space-y-3.5 shadow-sm">
+              <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Ultra-Fast Voice Engine
+                  </span>
+                </div>
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-xl border flex items-center gap-1 ${
+                  settings?.aiConfig?.groqApiKey
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                }`}>
+                  {settings?.aiConfig?.groqApiKey ? (
+                    <>
+                      <Zap className="w-2.5 h-2.5 fill-current" />
+                      <span>Groq Whisper (~200ms)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>Gemini Flash Fallback</span>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                On iPhone Home Screen (PWA), Apple restricts streaming speech recognition. Wolfe OS uses Groq Whisper Large v3 Turbo to transcribe your voice on LPUs in ~200ms with zero perceptible lag.
+              </p>
+
+              {/* Groq API Key Input */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
+                  <span className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Groq Whisper API Key (Recommended)</span>
+                  </span>
+                  <a
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-medium transition-colors"
+                  >
+                    <span>Get free key (2,000/day)</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="relative flex items-center">
+                  <div className="absolute left-3 text-slate-500 pointer-events-none">
+                    <Key className="w-3.5 h-3.5" />
+                  </div>
+                  <input
+                    type="password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    placeholder="gsk_..."
+                    value={settings?.aiConfig?.groqApiKey || ''}
+                    onChange={(e) => {
+                      onUpdateSettings({
+                        ...settings,
+                        aiConfig: {
+                          ...(settings?.aiConfig || {}),
+                          groqApiKey: e.target.value.trim()
+                        }
+                      });
+                    }}
+                    className="w-full bg-black/40 border border-white/10 focus:border-white/25 rounded-xl pl-9 pr-3 py-2 text-xs font-mono text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-0 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Gemini API Key Input (Fallback) */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Gemini AI & Fallback Key</span>
+                  </span>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-slate-400 hover:text-slate-300 flex items-center gap-1 font-medium transition-colors"
+                  >
+                    <span>Google AI Studio</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="relative flex items-center">
+                  <div className="absolute left-3 text-slate-500 pointer-events-none">
+                    <Key className="w-3.5 h-3.5" />
+                  </div>
+                  <input
+                    type="password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    placeholder="AIzaSy..."
+                    value={settings?.aiConfig?.apiKey || ''}
+                    onChange={(e) => {
+                      onUpdateSettings({
+                        ...settings,
+                        aiConfig: {
+                          ...(settings?.aiConfig || {}),
+                          apiKey: e.target.value.trim()
+                        }
+                      });
+                    }}
+                    className="w-full bg-black/40 border border-white/10 focus:border-white/25 rounded-xl pl-9 pr-3 py-2 text-xs font-mono text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-0 transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 3: SHOW / HIDE DASHBOARD MODULES */}
             <div className="p-4 rounded-3xl bg-[#101322] border border-white/10 space-y-3.5 shadow-sm">
               <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
                 <div className="flex items-center gap-2">
@@ -326,7 +447,7 @@ export const SettingsModal = ({
               </div>
             </div>
 
-            {/* SECTION 3: THEME COLOR SLIDER */}
+            {/* SECTION 4: THEME COLOR SLIDER */}
             <div className="p-4 rounded-3xl bg-[#101322] border border-white/10 space-y-3.5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
