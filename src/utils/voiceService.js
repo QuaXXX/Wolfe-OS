@@ -148,13 +148,19 @@ export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) 
   }
 
   const mimeType = (audioBlob.type || 'audio/mp4').split(';')[0] || 'audio/mp4';
-  const models = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.7-flash'];
+  // Fast, high-quota models with sub-second latency (do not prioritize 3.6-flash due to 20 req/day quota limit)
+  const models = [
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3.6-flash'
+  ];
 
   for (const model of models) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000);
+      const timer = setTimeout(() => controller.abort(), 9000);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -179,7 +185,7 @@ export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) 
           ],
           generationConfig: {
             temperature: 0.0,
-            maxOutputTokens: 64
+            maxOutputTokens: 512
           }
         })
       });
@@ -189,7 +195,13 @@ export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) 
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
         const cleaned = text.replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '').trim();
-        if (cleaned) return cleaned;
+        if (
+          cleaned && 
+          !cleaned.toLowerCase().startsWith("i'm sorry") && 
+          !cleaned.toLowerCase().startsWith("i cannot hear")
+        ) {
+          return cleaned;
+        }
       }
     } catch (e) {
       console.warn(`[Voice] Transcription attempt with ${model} failed:`, e);
@@ -264,18 +276,19 @@ export class UniversalVoiceController {
       ? (window.SpeechRecognition || window.webkitSpeechRecognition)
       : null;
 
-    // In iOS standalone PWA, Apple strips microphone access from webkitSpeechRecognition.
-    // In standard Safari, Chrome, Edge, and Desktop, native SpeechRecognition works in real time.
-    const isRestrictedPwa = isIosDevice() && isStandaloneApp();
+    // On iOS (both mobile Safari and standalone PWA), Apple WebKit restricts or silently drops
+    // webkitSpeechRecognition. MediaRecorder + VAD is 100% reliable across all iOS devices.
+    // On Desktop & Android, native SpeechRecognition delivers real-time word streaming.
+    const isIos = isIosDevice();
 
-    if (SpeechRecognition && !isRestrictedPwa) {
+    if (SpeechRecognition && !isIos) {
       const started = this._startNativeSpeech(SpeechRecognition);
       if (started) {
         return;
       }
     }
 
-    // Fallback: Start MediaRecorder + VAD Audio Recorder
+    // High-performance MediaRecorder + VAD Audio Recorder
     await this._startMediaRecorderFallback();
   }
 
@@ -529,8 +542,8 @@ export class UniversalVoiceController {
         }
         const avg = sum / buffer.length;
 
-        // Human speech activity threshold
-        if (avg > 14) {
+        // Human speech activity threshold (11 is sensitive enough for soft phone mics)
+        if (avg > 11) {
           if (!speechDetected) {
             speechDetected = true;
             if (this.onInterim) {
@@ -539,19 +552,19 @@ export class UniversalVoiceController {
           }
           silenceStart = null;
         } else if (speechDetected) {
-          // User paused talking: 380ms of silence to auto-send
+          // User paused talking: 700ms of silence to auto-send (natural conversational pause)
           if (!silenceStart) {
             silenceStart = Date.now();
-          } else if (Date.now() - silenceStart > 380) {
+          } else if (Date.now() - silenceStart > 700) {
             console.info("[Voice VAD] Silence detected after speech. Auto-stopping recorder.");
             this._cleanupVad();
             this.stop();
           }
         }
 
-        // Safety cutoff at 12s
-        if (Date.now() - startTime > 12000) {
-          console.info("[Voice VAD] Max duration reached (12s). Auto-stopping.");
+        // Safety cutoff at 14s
+        if (Date.now() - startTime > 14000) {
+          console.info("[Voice VAD] Max duration reached (14s). Auto-stopping.");
           this._cleanupVad();
           this.stop();
         }
@@ -639,6 +652,9 @@ export class UniversalVoiceController {
       return;
     }
 
+    // Brief delay to allow final ondataavailable event to flush to audioChunks
+    await new Promise(resolve => setTimeout(resolve, 80));
+
     if (this.audioChunks.length === 0) {
       this._handleEnd();
       return;
@@ -648,7 +664,7 @@ export class UniversalVoiceController {
     const audioBlob = new Blob(this.audioChunks, { type: mimeType });
     this.audioChunks = [];
 
-    if (audioBlob.size < 1000) {
+    if (audioBlob.size < 250) {
       this._handleEnd();
       return;
     }
@@ -661,16 +677,17 @@ export class UniversalVoiceController {
       let transcribed = '';
       const groqKey = this.groqApiKey || getGroqApiKey();
 
-      // Groq Whisper Large v3 Turbo on LPU (~200ms ultra-fast transcription)
+      // If Groq API key is available, attempt ultra-fast Groq Whisper first
       if (groqKey) {
         try {
           transcribed = await transcribeAudioWithGroq(audioBlob, groqKey);
         } catch (groqErr) {
-          console.warn("[Voice] Groq Whisper failed, trying Gemini fallback:", groqErr);
-          transcribed = await transcribeAudioWithGemini(audioBlob, this.apiKey);
+          console.warn("[Voice] Groq Whisper error, falling back to Gemini Flash Lite:", groqErr);
         }
-      } else {
-        // Automatic fallback when Groq key is not provided
+      }
+
+      // If no Groq key, or if Groq failed or was empty, transcribe with Gemini Flash Lite
+      if (!transcribed || !transcribed.trim()) {
         transcribed = await transcribeAudioWithGemini(audioBlob, this.apiKey);
       }
 
