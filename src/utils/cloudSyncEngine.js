@@ -188,17 +188,13 @@ export function recordAdditionOrUpdate(id) {
   triggerImmediateCloudPush();
 }
 
+export const MASTER_VAULT_KEY = 'wolfe_master_vault';
+
 /**
- * Get the verified Google User ID or email for cloud vault keying
+ * Get the unified Master Cloud Vault key for Wolfe OS
  */
 export function getCloudUserKey() {
-  const account = getGoogleAccount();
-  const email = account?.email || (typeof localStorage !== 'undefined' ? (localStorage.getItem('wolfe_user_email') || localStorage.getItem('user_email')) : null);
-  if (email && typeof email === 'string' && email.trim()) {
-    return `user_${email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')}`;
-  }
-  if (account?.id) return `user_${account.id}`;
-  return 'primary_user';
+  return MASTER_VAULT_KEY;
 }
 
 /**
@@ -568,15 +564,6 @@ export function isRemoteSyncApplying() {
  */
 export function importFullOsState(vault, options = {}) {
   if (!vault || typeof vault !== 'object') return false;
-
-  // Strict Account Boundary: NEVER import a vault belonging to a different Google account
-  const currentAcc = getGoogleAccount();
-  if (currentAcc?.email && vault.googleAccount?.email) {
-    if (currentAcc.email.trim().toLowerCase() !== vault.googleAccount.email.trim().toLowerCase()) {
-      console.warn(`[Cloud Sync] Blocked cross-account contamination: active=${currentAcc.email}, incoming=${vault.googleAccount.email}`);
-      return false;
-    }
-  }
 
   isApplyingRemoteSync = true;
 
@@ -1098,17 +1085,6 @@ let hasQueuedSync = false;
 export async function syncFullOsWithCloud(options = {}) {
   const { forcePush = false, forcePull = false, forceSync = false, silent = false, replaceLocal = false } = options;
 
-  // Cloud synchronization is strictly active for logged-in accounts
-  const hasAccount = isGoogleCalendarConnected() || getGoogleAccount() || (typeof localStorage !== 'undefined' && localStorage.getItem('wolfe_user_email'));
-  if (!hasAccount) {
-    if (typeof window !== 'undefined' && !silent) {
-      window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
-        detail: { status: 'disconnected', timestamp: Date.now() }
-      }));
-    }
-    return { success: false, reason: 'disconnected' };
-  }
-
   if (activeSyncPromise) {
     hasQueuedSync = true;
     return activeSyncPromise;
@@ -1124,24 +1100,8 @@ export async function syncFullOsWithCloud(options = {}) {
 
     try {
       const account = getGoogleAccount();
-      const activeEmail = account?.email ? account.email.trim().toLowerCase() : null;
-      const storedOwnerEmail = typeof localStorage !== 'undefined' ? (localStorage.getItem('wolfe_data_owner_email') || '').trim().toLowerCase() : null;
-
-      const isAccountMismatch = Boolean(activeEmail && storedOwnerEmail && activeEmail !== storedOwnerEmail);
-
-      // If local data belongs to another account, wipe local user storage and start with a clean blank slate
-      if (isAccountMismatch) {
-        console.warn(`[Cloud Sync] Account mismatch detected (stored owner: ${storedOwnerEmail}, active: ${activeEmail}). Purging foreign local data.`);
-        wipeLocalUserData();
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('wolfe_data_owner_email', activeEmail);
-        }
-      } else if (activeEmail && !storedOwnerEmail && typeof localStorage !== 'undefined') {
-        localStorage.setItem('wolfe_data_owner_email', activeEmail);
-      }
-
       const userKey = getCloudUserKey();
-      let localVault = isAccountMismatch ? getBlankVault(account) : exportFullOsState();
+      let localVault = exportFullOsState();
 
       // 1. Force Push: Upload local state directly
       if (forcePush) {
@@ -1176,7 +1136,7 @@ export async function syncFullOsWithCloud(options = {}) {
       }
 
       // 2b. Efficient Conditional GET Handshake: If remote is unmodified and not forceSync
-      if (remoteVault?.unmodified && !forceSync && !isAccountMismatch) {
+      if (remoteVault?.unmodified && !forceSync) {
         if (!isLocalMutationRecent(15000)) {
           if (typeof window !== 'undefined' && !silent) {
             window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
@@ -1206,8 +1166,8 @@ export async function syncFullOsWithCloud(options = {}) {
         }
       }
 
-      // 3. Force Pull / Account Mismatch / Replace Local:
-      if (forcePull || replaceLocal || isAccountMismatch) {
+      // 3. Force Pull / Replace Local:
+      if (forcePull || replaceLocal) {
         if (remoteVault) {
           importFullOsState(remoteVault, { replaceLocal: true, forcePull: true });
           writeStorageJson(SYNC_KEYS.CLOUD_META, {
@@ -1223,8 +1183,7 @@ export async function syncFullOsWithCloud(options = {}) {
           }
           return { success: true, mode: 'pulled', vault: remoteVault };
         } else {
-          // Brand new account with no remote vault!
-          // Seed new account with pristine blank vault so it NEVER inherits previous user's data
+          // Seed initial master vault
           const blankVault = getBlankVault(account);
           importFullOsState(blankVault, { replaceLocal: true, forcePull: true });
           await saveVaultToServerless(userKey, blankVault);
@@ -1252,12 +1211,8 @@ export async function syncFullOsWithCloud(options = {}) {
         // Both exist: merge intelligently with tombstone guarantees
         finalVault = mergeOsState(localVault, remoteVault);
       } else {
-        // No remote vault exists yet:
-        // Only push localVault if localVault belongs to this user. Otherwise, seed with blank vault.
-        const isOwnedByActiveUser = activeEmail && storedOwnerEmail === activeEmail;
-        finalVault = isOwnedByActiveUser
-          ? { ...localVault, lastUpdated: Date.now() }
-          : getBlankVault(account);
+        // No remote vault exists yet: push localVault
+        finalVault = { ...localVault, lastUpdated: Date.now() };
       }
 
       // Apply merged vault locally

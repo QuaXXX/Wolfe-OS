@@ -38,16 +38,28 @@ export function getOrCreateDeviceId() {
 }
 
 /**
+ * Default permanent Google Account for Wolfe OS (Zach Wolfe)
+ */
+export const DEFAULT_WOLFE_GOOGLE_ACCOUNT = {
+  email: 'zachwolfe8888@gmail.com',
+  name: 'Zach Wolfe',
+  picture: '',
+  id: 'zachwolfe8888'
+};
+
+/**
  * Get cached Google Account details (email, display name, avatar)
+ * Defaults to Zach Wolfe (zachwolfe8888@gmail.com)
  */
 export function getGoogleAccount() {
-  if (typeof localStorage === 'undefined') return null;
+  if (typeof localStorage === 'undefined') return DEFAULT_WOLFE_GOOGLE_ACCOUNT;
   const raw = localStorage.getItem(GOOGLE_ACCOUNT_KEY);
-  if (!raw) return null;
+  if (!raw) return DEFAULT_WOLFE_GOOGLE_ACCOUNT;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return parsed?.email ? parsed : DEFAULT_WOLFE_GOOGLE_ACCOUNT;
   } catch {
-    return null;
+    return DEFAULT_WOLFE_GOOGLE_ACCOUNT;
   }
 }
 
@@ -282,24 +294,19 @@ export function disconnectGoogleCalendar() {
 }
 
 /**
- * Fully log out of Google account: saves cloud vault first, wipes all local user data, and notifies app.
+ * Disconnects Google Calendar credentials without wiping local OS state (nutrition, weight, settings).
  */
 export async function logoutGoogleAccount() {
   try {
-    const { syncFullOsWithCloud, wipeLocalUserData } = await import('./cloudSyncEngine.js');
+    const { syncFullOsWithCloud } = await import('./cloudSyncEngine.js');
 
     // 1. Save current account state to cloud before disconnecting
-    if (isGoogleCalendarConnected()) {
-      await syncFullOsWithCloud({ forcePush: true, silent: true }).catch(() => {});
-    }
+    await syncFullOsWithCloud({ forcePush: true, silent: true }).catch(() => {});
 
     // 2. Disconnect Google credentials & auth tokens
     disconnectGoogleCalendar();
 
-    // 3. Wipe all local user hub data from storage
-    wipeLocalUserData();
-
-    // 4. Notify app of logout so in-memory React state resets to 0 immediately
+    // 3. Notify app of calendar disconnect
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('wolfe_user_logged_out'));
     }

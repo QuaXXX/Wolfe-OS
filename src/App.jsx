@@ -583,11 +583,14 @@ export function App() {
     }
   }, [settings.soundEnabled]);
 
-  // Handle OAuth redirect on initial app load & one-time sign-in prompt if unauthenticated
+  // Handle startup sync, OAuth redirect on initial app load
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        // Automatically sync Wolfe OS Master Cloud Vault (nutrition, calories, macros) on startup
+        await syncFullOsWithCloud({ forcePull: false, silent: true });
+
         const redirected = await checkAndHandleOAuthRedirect();
         if (redirected) {
           if (mounted) await syncWithGoogle(true);
@@ -597,13 +600,12 @@ export function App() {
         if (isGoogleCalendarConnected()) {
           if (mounted) await syncWithGoogle(false);
         } else {
-          // Device is disconnected from Google account
-          if (mounted) setSyncStatus('disconnected');
+          if (mounted) setSyncStatus('connected');
         }
       } catch (err) {
         console.warn("OAuth startup initialization notice:", err);
         if (mounted) {
-          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'connected');
         }
       }
     })();
@@ -613,95 +615,38 @@ export function App() {
     };
   }, [syncWithGoogle]);
 
-  // Listen for user logout: immediately reset all hub data to 0/empty
+  // Background cloud sync on window focus
+  useEffect(() => {
+    const handleFocusSync = () => {
+      if (!isApplyingInboundSyncRef.current) {
+        syncFullOsWithCloud({ forcePull: false, silent: true }).catch(() => {});
+      }
+    };
+    window.addEventListener('focus', handleFocusSync);
+    return () => window.removeEventListener('focus', handleFocusSync);
+  }, []);
+
+  // Listen for Google Calendar disconnect: keeps all nutrition and local state intact
   useEffect(() => {
     const handleUserLoggedOut = () => {
-      console.info("[App] User logged out. Resetting all hub data to 0.");
-      isApplyingInboundSyncRef.current = true;
-      setCalendarData({
-        currentDate: formatDateTitle(getTodayIso()),
-        selectedDate: getTodayIso(),
-        items: []
-      });
-      setNutritionData({
-        targetCalories: 3000,
-        consumedCalories: 0,
-        protein: { current: 0, target: 180, unit: "g", color: "#6366f1" },
-        carbs: { current: 0, target: 400, unit: "g", color: "#06b6d4" },
-        fats: { current: 0, target: 75, unit: "g", color: "#f59e0b" },
-        waterGlasses: 0,
-        targetGlasses: 10,
-        waterMl: 0,
-        targetWaterMl: 3000,
-        currentDate: getTodayIso(),
-        weightHistory: [],
-        householdPantry: DEFAULT_HOUSEHOLD_PANTRY,
-        kitchenCalibration: {
-          tasks: DEFAULT_CALIBRATION_TASKS
-        },
-        dailyTargets: {},
-        meals: []
-      });
+      console.info("[App] Google Calendar disconnected. Preserving Wolfe OS master data.");
       setSyncStatus('disconnected');
       setIsSyncingGoogle(false);
-      setTimeout(() => {
-        isApplyingInboundSyncRef.current = false;
-      }, 500);
     };
 
     window.addEventListener('wolfe_user_logged_out', handleUserLoggedOut);
     return () => window.removeEventListener('wolfe_user_logged_out', handleUserLoggedOut);
   }, []);
 
-  // Handle Google account connecting / switching: restore clean personal cloud vault for this account
+  // Handle Google account connecting / switching: syncs master cloud vault and calendar events
   useEffect(() => {
     const handleAccountSwitched = async (e) => {
       const newAccount = e.detail?.account;
-      console.info(`[App] Google Account connected/switched to ${newAccount?.email}. Restoring personal cloud vault.`);
-      isApplyingInboundSyncRef.current = true;
-      const blankNutrition = e.detail?.blankNutrition || {
-        targetCalories: 3000,
-        consumedCalories: 0,
-        protein: { current: 0, target: 180, unit: "g", color: "#6366f1" },
-        carbs: { current: 0, target: 450, unit: "g", color: "#06b6d4" },
-        fats: { current: 0, target: 80, unit: "g", color: "#f59e0b" },
-        waterGlasses: 0,
-        targetGlasses: 10,
-        waterMl: 0,
-        targetWaterMl: 3000,
-        currentDate: getTodayIso(),
-        dailySummaries: {},
-        weightHistory: [],
-        weightLogs: [],
-        householdPantry: DEFAULT_HOUSEHOLD_PANTRY,
-        kitchenCalibration: {
-          tasks: DEFAULT_CALIBRATION_TASKS
-        },
-        dailyTargets: {},
-        meals: []
-      };
-      setNutritionData(synchronizeNutritionData(blankNutrition));
-      setCalendarData({
-        currentDate: formatDateTitle(getTodayIso()),
-        selectedDate: getTodayIso(),
-        items: []
-      });
+      console.info(`[App] Google Account connected/switched to ${newAccount?.email}. Syncing master cloud vault.`);
       setSyncStatus('syncing');
 
       try {
-        const cloudRes = await syncFullOsWithCloud({ forcePull: true, forceSync: true, replaceLocal: true });
-        if (cloudRes?.vault) {
-          if (cloudRes.vault.nutrition) {
-            setNutritionData(synchronizeNutritionData(cloudRes.vault.nutrition));
-          }
-          if (cloudRes.vault.calendar) {
-            setCalendarData({
-              currentDate: formatDateTitle(getTodayIso()),
-              selectedDate: getTodayIso(),
-              items: cloudRes.vault.calendar.items || []
-            });
-          }
-        }
+        await syncFullOsWithCloud({ forcePull: false, forceSync: true });
         const liveItems = await fetchGoogleCalendarEvents(true);
         if (liveItems && Array.isArray(liveItems)) {
           setCalendarData(prev => ({
@@ -712,16 +657,16 @@ export function App() {
         setSyncStatus('synced');
       } catch (err) {
         console.warn("Account switch sync notice:", err);
-        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
-      } finally {
-        setTimeout(() => {
-          isApplyingInboundSyncRef.current = false;
-        }, 1500);
+        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'connected');
       }
     };
 
+    window.addEventListener('wolfe_account_switched', handleAccountSwitched);
     window.addEventListener('wolfe_google_account_switched', handleAccountSwitched);
-    return () => window.removeEventListener('wolfe_google_account_switched', handleAccountSwitched);
+    return () => {
+      window.removeEventListener('wolfe_account_switched', handleAccountSwitched);
+      window.removeEventListener('wolfe_google_account_switched', handleAccountSwitched);
+    };
   }, []);
 
   const lastMainScreenFetchRef = useRef(0);

@@ -13,6 +13,9 @@ import path from 'path';
 // In-memory cache for fast lambda execution
 const memoryStore = new Map();
 
+// Unified Master Cloud Vault identifier for Wolfe OS
+export const MASTER_VAULT_KEY = 'wolfe_master_vault';
+
 // Local file storage path when running in Node / Vite dev
 const DEV_STORAGE_DIR = path.resolve(process.cwd(), 'data');
 const DEV_STORAGE_FILE = path.join(DEV_STORAGE_DIR, 'wolfe_cloud_vault.json');
@@ -98,13 +101,13 @@ export default async function handler(req, res) {
     }
   }
 
-  const isAuthenticatedUser = !!(tokenEmail || (verifiedUserId && verifiedUserId !== 'primary_user') || (queryUserId && queryUserId !== 'primary_user'));
   const userKey = sanitizeUserId(verifiedUserId || 'primary_user');
   const candidateKeys = [
+    MASTER_VAULT_KEY,
     userKey,
     tokenEmail ? sanitizeUserId(`user_${tokenEmail}`) : null,
     tokenId ? sanitizeUserId(`user_${tokenId}`) : null,
-    isAuthenticatedUser ? null : 'primary_user'
+    'primary_user'
   ].filter(Boolean);
 
   // -------------------------------------------------------------------------
@@ -138,19 +141,20 @@ export default async function handler(req, res) {
       if (!vault && queryUserId && fileVaults[queryUserId]) {
         vault = fileVaults[queryUserId];
       }
-      // If still no vault, only attempt match for this user's email/id; NEVER grab other accounts' vaults
-      if (!vault && isAuthenticatedUser) {
-        const entries = Object.entries(fileVaults);
-        if (tokenEmail || queryUserId) {
-          const needle = sanitizeUserId(tokenEmail || queryUserId).toLowerCase();
-          const matched = entries.find(([k, v]) => 
-            k.toLowerCase().includes(needle) || 
-            (v?.googleAccount?.email && sanitizeUserId(v.googleAccount.email).toLowerCase().includes(needle))
-          );
-          if (matched) vault = matched[1];
+      if (!vault && fileVaults[MASTER_VAULT_KEY]) {
+        vault = fileVaults[MASTER_VAULT_KEY];
+      }
+      if (!vault && fileVaults['primary_user']) {
+        vault = fileVaults['primary_user'];
+      }
+      if (!vault) {
+        const fileValues = Object.values(fileVaults);
+        if (fileValues.length > 0) {
+          vault = fileValues.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0))[0];
         }
       }
       if (vault) {
+        memoryStore.set(MASTER_VAULT_KEY, vault);
         memoryStore.set(userKey, vault);
       }
     }
@@ -280,11 +284,12 @@ export default async function handler(req, res) {
       return itemTime <= tombTime;
     };
 
-    // Intelligently merge nutrition (meals, weightHistory/logs, pantry, dailyTargets)
+    // Intelligently merge nutrition (meals, weightHistory/logs, pantry, dailyTargets, dailySummaries)
     let finalMeals = [];
     let finalWeight = [];
     let finalPantry = [];
     let finalDailyTargets = {};
+    let finalDailySummaries = {};
 
     if (payloadVault.nutrition || existingVault?.nutrition) {
       // 1. Merge meals
@@ -391,6 +396,12 @@ export default async function handler(req, res) {
         ...(existingVault?.nutrition?.dailyTargets || {}),
         ...(payloadVault.nutrition?.dailyTargets || {})
       };
+
+      // 5. Merge dailySummaries (compact daily macro summaries)
+      finalDailySummaries = {
+        ...(existingVault?.nutrition?.dailySummaries || {}),
+        ...(payloadVault.nutrition?.dailySummaries || {})
+      };
     }
 
     const payloadNut = payloadVault.nutrition || {};
@@ -402,6 +413,7 @@ export default async function handler(req, res) {
       weightLogs: finalWeight,
       householdPantry: finalPantry,
       dailyTargets: finalDailyTargets,
+      dailySummaries: finalDailySummaries,
       updatedAt: Math.max(payloadNut.updatedAt || 0, existingVault?.nutrition?.updatedAt || 0, Date.now())
     } : null;
 
@@ -441,8 +453,9 @@ export default async function handler(req, res) {
       serverSyncedAt: new Date().toISOString()
     };
 
-    // 1. Update in-memory store across all candidate keys and user identity aliases
+    // 1. Update in-memory store across all candidate keys, master vault key, and user identity aliases
     const writeKeys = Array.from(new Set([
+      MASTER_VAULT_KEY,
       targetUserId,
       'primary_user',
       payloadVault.googleAccount?.email ? sanitizeUserId(`user_${payloadVault.googleAccount.email}`) : null,

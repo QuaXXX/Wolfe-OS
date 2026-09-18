@@ -6,8 +6,9 @@ import { getTodayIso, formatDateTitle } from './calendarUtils.js';
 import { DEFAULT_HOUSEHOLD_PANTRY, DEFAULT_CALIBRATION_TASKS } from './nutritionEngine.js';
 
 export const INITIAL_USER = {
-  name: "Guest",
-  handle: "@guest",
+  name: "Zach Wolfe",
+  handle: "@zachwolfe",
+  email: "zachwolfe8888@gmail.com",
   avatar: "",
   bio: "Personal Executive Dashboard",
   status: "Online",
