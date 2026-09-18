@@ -1,7 +1,7 @@
 /**
  * Wolfe OS — Universal Voice & Speech Engine
- * Provides resilient voice recognition across Desktop, Mobile Safari, and iOS Home Screen PWAs.
- * Automatically falls back to MediaRecorder + Gemini audio transcription on iOS where Web Speech API is restricted.
+ * Real-time streaming speech recognition across Desktop, Mobile Safari, and iOS.
+ * Words appear on screen in real time as spoken, with zero post-processing latency.
  */
 
 export function isIosDevice() {
@@ -135,7 +135,8 @@ export async function transcribeAudioWithGemini(audioBlob, customApiKey = null) 
 
 /**
  * Universal Voice Controller
- * Manages both native Web Speech API and MediaRecorder fallback smoothly.
+ * Manages native real-time Web Speech API (with live word streaming on Desktop & Mobile Safari)
+ * and MediaRecorder fallback when Web Speech is unavailable.
  */
 export class UniversalVoiceController {
   constructor({ apiKey = null, onInterim, onFinal, onError, onStateChange } = {}) {
@@ -155,9 +156,11 @@ export class UniversalVoiceController {
     this.vadInterval = null;
     this.audioChunks = [];
     this.capturedFinalText = '';
+    this.latestTranscript = '';
     this._hasReceivedSpeech = false;
-    this._forceMediaRecorder = false;
-    this._nativeStartTime = 0;
+    this._submitted = false;
+    this._silenceTimer = null;
+    this._restartCount = 0;
   }
 
   setApiKey(key) {
@@ -167,13 +170,19 @@ export class UniversalVoiceController {
   async start() {
     if (this.isListening || this.isProcessing) return;
     this.isListening = true;
+    this.isProcessing = false;
     this.capturedFinalText = '';
+    this.latestTranscript = '';
     this.audioChunks = [];
     this._hasReceivedSpeech = false;
+    this._submitted = false;
+    this._restartCount = 0;
+    this._cleanupSilenceTimer();
+    this._cleanupVad();
 
-    // Trigger subtle haptic pulse on mobile
+    // Subtle tactile haptic pulse on mobile (zero audio session conflict)
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      try { navigator.vibrate(30); } catch {}
+      try { navigator.vibrate(25); } catch {}
     }
 
     if (this.onStateChange) {
@@ -184,15 +193,18 @@ export class UniversalVoiceController {
       ? (window.SpeechRecognition || window.webkitSpeechRecognition)
       : null;
 
-    // 1. Try native speech recognition first if available and not explicitly broken
-    if (SpeechRecognition && !this._forceMediaRecorder) {
+    // In iOS standalone PWA, Apple strips microphone access from webkitSpeechRecognition.
+    // In standard Safari, Chrome, Edge, and Desktop, native SpeechRecognition works in real time.
+    const isRestrictedPwa = isIosDevice() && isStandaloneApp();
+
+    if (SpeechRecognition && !isRestrictedPwa) {
       const started = this._startNativeSpeech(SpeechRecognition);
       if (started) {
         return;
       }
     }
 
-    // 2. Fallback: Start MediaRecorder + VAD Audio Recorder
+    // Fallback: Start MediaRecorder + VAD Audio Recorder
     await this._startMediaRecorderFallback();
   }
 
@@ -204,68 +216,75 @@ export class UniversalVoiceController {
       }
 
       const recognition = new SpeechRecognition();
-      // On iOS Safari, continuous MUST be false!
-      recognition.continuous = false;
+      // continuous = true ensures uninterrupted listening as the user speaks
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
       recognition.lang = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en-US';
 
-      let speechCaptured = false;
-      this._nativeStartTime = Date.now();
-
       recognition.onstart = () => {
-        this._nativeStartTime = Date.now();
+        console.info("[Voice] Native speech recognition listening...");
       };
 
       recognition.onresult = (event) => {
-        let interim = '';
-        let final = '';
+        let finalTranscript = '';
+        let interimTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
+        for (let i = 0; i < event.results.length; ++i) {
+          const item = event.results[i];
+          const text = item[0]?.transcript || '';
+          if (item.isFinal) {
+            finalTranscript += text;
           } else {
-            interim += event.results[i][0].transcript;
+            interimTranscript += text;
           }
         }
 
-        const active = (final || interim).trim();
-        if (active) {
-          speechCaptured = true;
+        const liveText = (finalTranscript + ' ' + interimTranscript).trim();
+        if (liveText) {
           this._hasReceivedSpeech = true;
+          this.latestTranscript = liveText;
+          if (finalTranscript.trim()) {
+            this.capturedFinalText = finalTranscript.trim();
+          }
           if (this.onInterim) {
-            this.onInterim(active);
+            this.onInterim(liveText);
           }
-        }
-
-        if (final && final.trim()) {
-          this.capturedFinalText = final.trim();
-          if (this.onFinal) {
-            this.onFinal(this.capturedFinalText);
-          }
+          // User is actively speaking — schedule auto-finalize after pause
+          this._scheduleSilenceAutoSubmit();
         }
       };
 
       recognition.onerror = (e) => {
         console.warn("[Voice] Native speech notice:", e.error);
-        // If native speech fails with not-allowed or service-not-allowed, fall back to MediaRecorder
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture' || e.error === 'network') {
-          if (!speechCaptured && this.isListening) {
-            console.info("[Voice] Switching to MediaRecorder fallback due to native error:", e.error);
-            this._forceMediaRecorder = true;
+        if (e.error === 'no-speech' || e.error === 'aborted') {
+          return;
+        }
+        // If native speech fails with not-allowed or service-not-allowed
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          if (this.isListening && !this._hasReceivedSpeech && !this._submitted) {
+            console.info("[Voice] Native recognition not allowed, switching to fallback.");
             this._startMediaRecorderFallback();
           }
         }
       };
 
       recognition.onend = () => {
-        const sessionDuration = Date.now() - this._nativeStartTime;
-        // iOS standalone PWA quirk: recognition immediately ends without error or results in < 400ms
-        if (!speechCaptured && sessionDuration < 400 && this.isListening && !this._hasReceivedSpeech) {
-          console.info("[Voice] Native speech ended prematurely (<400ms) with no speech. Switching to MediaRecorder fallback...");
-          this._forceMediaRecorder = true;
-          this._startMediaRecorderFallback();
-          return;
+        if (this.isListening && !this._submitted) {
+          const text = (this.capturedFinalText || this.latestTranscript || '').trim();
+          if (text && this._hasReceivedSpeech) {
+            // Words were spoken and user paused / finished. Submit immediately!
+            this._finalizeWithText(text);
+            return;
+          }
+
+          // If no speech heard yet, Safari may have timed out on ambient silence.
+          // Seamlessly restart to keep listening for the user (up to 4 times).
+          if (!this._hasReceivedSpeech && this._restartCount < 4) {
+            this._restartCount++;
+            this._restartNativeSpeech(SpeechRecognition);
+            return;
+          }
         }
 
         if (this.isListening) {
@@ -280,6 +299,66 @@ export class UniversalVoiceController {
       console.warn("[Voice] Could not start native SpeechRecognition:", err);
       return false;
     }
+  }
+
+  _restartNativeSpeech(SpeechRecognition) {
+    if (!this.isListening || this._hasReceivedSpeech || this._submitted) return;
+    try {
+      if (this.recognition) {
+        try { this.recognition.abort(); } catch {}
+        this.recognition = null;
+      }
+      setTimeout(() => {
+        if (this.isListening && !this._hasReceivedSpeech && !this._submitted) {
+          this._startNativeSpeech(SpeechRecognition);
+        }
+      }, 100);
+    } catch (e) {
+      console.warn("[Voice] Restart native speech error:", e);
+    }
+  }
+
+  _scheduleSilenceAutoSubmit() {
+    this._cleanupSilenceTimer();
+    // After user pauses for 1.1s after speaking, finalize immediately
+    this._silenceTimer = setTimeout(() => {
+      if (this.isListening && this._hasReceivedSpeech && !this._submitted) {
+        const text = (this.capturedFinalText || this.latestTranscript || '').trim();
+        if (text) {
+          console.info("[Voice] Silence auto-submit triggered for text:", text);
+          this._finalizeWithText(text);
+        }
+      }
+    }, 1100);
+  }
+
+  _cleanupSilenceTimer() {
+    if (this._silenceTimer) {
+      clearTimeout(this._silenceTimer);
+      this._silenceTimer = null;
+    }
+  }
+
+  _finalizeWithText(text) {
+    if (this._submitted) return;
+    this._submitted = true;
+    this.isListening = false;
+    this._cleanupSilenceTimer();
+
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch {}
+      this.recognition = null;
+    }
+
+    if (this.onInterim) {
+      this.onInterim(text);
+    }
+    if (this.onFinal) {
+      this.onFinal(text);
+    }
+    this._handleEnd();
   }
 
   async _startMediaRecorderFallback() {
@@ -331,7 +410,7 @@ export class UniversalVoiceController {
         await this._processAudioChunks();
       };
 
-      recorder.start(200);
+      recorder.start(150);
       this.mediaRecorder = recorder;
     } catch (micErr) {
       console.warn("[Voice] Microphone access error:", micErr);
@@ -384,28 +463,28 @@ export class UniversalVoiceController {
           if (!speechDetected) {
             speechDetected = true;
             if (this.onInterim) {
-              this.onInterim("Listening... (Hearing your voice)");
+              this.onInterim("Hearing voice... (Pause or tap when done)");
             }
           }
           silenceStart = null;
         } else if (speechDetected) {
-          // User paused talking: monitor for 1.3s of silence to auto-send
+          // User paused talking: 800ms of silence to auto-send
           if (!silenceStart) {
             silenceStart = Date.now();
-          } else if (Date.now() - silenceStart > 1300) {
+          } else if (Date.now() - silenceStart > 800) {
             console.info("[Voice VAD] Silence detected after speech. Auto-stopping recorder.");
             this._cleanupVad();
             this.stop();
           }
         }
 
-        // Safety cutoff at 14s
-        if (Date.now() - startTime > 14000) {
-          console.info("[Voice VAD] Max duration reached (14s). Auto-stopping.");
+        // Safety cutoff at 12s
+        if (Date.now() - startTime > 12000) {
+          console.info("[Voice VAD] Max duration reached (12s). Auto-stopping.");
           this._cleanupVad();
           this.stop();
         }
-      }, 100);
+      }, 80);
     } catch (e) {
       console.warn("[Voice] VAD setup notice:", e);
     }
@@ -426,20 +505,24 @@ export class UniversalVoiceController {
   }
 
   stop() {
-    if (!this.isListening) return;
+    if (!this.isListening && !this.isProcessing) return;
+    const wasListening = this.isListening;
     this.isListening = false;
+    this._cleanupSilenceTimer();
+    this._cleanupVad();
+
+    const text = (this.capturedFinalText || this.latestTranscript || '').trim();
 
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate(20); } catch {}
     }
-
-    this._cleanupVad();
 
     // Stop native recognition if active
     if (this.recognition) {
       try {
         this.recognition.stop();
       } catch {}
+      this.recognition = null;
     }
 
     // Stop MediaRecorder if active
@@ -450,12 +533,19 @@ export class UniversalVoiceController {
           this.onStateChange({ isListening: false, isProcessing: true });
         }
         this.mediaRecorder.stop();
+        return;
       } catch (e) {
         this._cleanupStream();
         this._handleEnd();
       }
     } else {
       this._cleanupStream();
+      if (wasListening && text && !this._submitted) {
+        this._submitted = true;
+        if (this.onFinal) {
+          this.onFinal(text);
+        }
+      }
       this._handleEnd();
     }
   }
@@ -472,7 +562,7 @@ export class UniversalVoiceController {
   async _processAudioChunks() {
     this._cleanupVad();
 
-    // If native speech already captured text, we don't need transcription
+    // If native speech already captured text, zero need for audio transcription
     if (this.capturedFinalText && this.capturedFinalText.trim()) {
       this._handleEnd();
       return;
@@ -487,8 +577,7 @@ export class UniversalVoiceController {
     const audioBlob = new Blob(this.audioChunks, { type: mimeType });
     this.audioChunks = [];
 
-    // Audio must be at least ~1.5KB to contain words
-    if (audioBlob.size < 1500) {
+    if (audioBlob.size < 1000) {
       this._handleEnd();
       return;
     }
@@ -524,6 +613,7 @@ export class UniversalVoiceController {
   _handleEnd() {
     this.isListening = false;
     this.isProcessing = false;
+    this._cleanupSilenceTimer();
     this._cleanupVad();
     if (this.onStateChange) {
       this.onStateChange({ isListening: false, isProcessing: false });
@@ -531,6 +621,8 @@ export class UniversalVoiceController {
   }
 
   destroy() {
+    this._submitted = true;
+    this._cleanupSilenceTimer();
     this.stop();
     this.recognition = null;
     this.mediaRecorder = null;

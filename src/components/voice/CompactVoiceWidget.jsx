@@ -19,7 +19,7 @@ import { playSound } from '../../utils/soundFX';
 import { sendQueryToAI } from '../../utils/aiService';
 import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
 import { FormattedAiText } from '../common/FormattedAiText';
-import { UniversalVoiceController } from '../../utils/voiceService';
+import { UniversalVoiceController, isIosDevice } from '../../utils/voiceService';
 
 export const CompactVoiceWidget = forwardRef(({ 
   onNavigate, 
@@ -74,9 +74,7 @@ export const CompactVoiceWidget = forwardRef(({
       },
       onStateChange: ({ isListening: listening, isProcessing: processing }) => {
         setIsListening(listening);
-        if (processing) {
-          setIsProcessing(true);
-        }
+        setIsProcessing(processing);
       }
     });
 
@@ -108,6 +106,11 @@ export const CompactVoiceWidget = forwardRef(({
       voiceControllerRef.current.stop();
       playSound('click', soundEnabled);
     } else {
+      if (!isIosDevice()) {
+        playSound('voice-open', soundEnabled);
+      } else if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(25); } catch {}
+      }
       setInputText('');
       setLiveSpeechText('');
       setAiResponse(null);

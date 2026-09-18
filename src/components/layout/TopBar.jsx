@@ -16,8 +16,7 @@ import { playSound } from '../../utils/soundFX';
 import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
 import { sendQueryToAI } from '../../utils/aiService';
 import { getGoogleAccount } from '../../utils/googleCalendarService';
-import { FormattedAiText } from '../common/FormattedAiText';
-import { UniversalVoiceController } from '../../utils/voiceService';
+import { UniversalVoiceController, isIosDevice } from '../../utils/voiceService';
 
 export const TopBar = ({ 
   soundEnabled, 
@@ -73,9 +72,7 @@ export const TopBar = ({
       },
       onStateChange: ({ isListening: listening, isProcessing: processing }) => {
         setIsListening(listening);
-        if (processing) {
-          setIsProcessing(true);
-        }
+        setIsProcessing(processing);
       }
     });
 
@@ -108,6 +105,11 @@ export const TopBar = ({
       voiceControllerRef.current.stop();
       playSound('click', soundEnabled);
     } else {
+      if (!isIosDevice()) {
+        playSound('click', soundEnabled);
+      } else if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(25); } catch {}
+      }
       setLiveSpeech('');
       setVoiceResponse(null);
       voiceControllerRef.current.start();
