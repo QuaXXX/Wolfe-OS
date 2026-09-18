@@ -26,10 +26,11 @@ import {
   calibrateBoneInMeats, 
   calibrateMealItems,
   isFoodLogQuery,
+  isFoodRemovalQuery,
   createMealEntry,
   aggregateDailyNutrition
 } from './nutritionEngine.js';
-import { recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush } from './cloudSyncEngine.js';
+import { recordAdditionOrUpdate, recordDeletion, markLocalMutation, triggerImmediateCloudPush } from './cloudSyncEngine.js';
 import { getVaultMetadata, getCachedVaultFiles } from './obsidianService.js';
 
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || '';
@@ -515,6 +516,25 @@ export function directFallbackAnswer(prompt, osData, history = []) {
     };
   }
 
+  // Food & Nutrition Removal Fallback
+  if (isFoodRemovalQuery(lower)) {
+    const cleanFoodQuery = lower
+      .replace(/^(?:remove|delete|cancel|drop|clear|purge|undo|subtract|-)\s+/i, '')
+      .replace(/\s+(?:from\s+(?:my\s+)?(?:nutrition|food|diet|meals?|log|today))$/i, '')
+      .trim();
+    const calTargetMatch = lower.match(/\b(\d{2,4})\s*(?:cal|calories|kcal)\b/i);
+    const targetCal = calTargetMatch ? parseInt(calTargetMatch[1], 10) : null;
+    return {
+      title: "🍽️ Nutrition Adjustment",
+      message: targetCal ? `Subtracted ${targetCal} kcal from today's nutrition total.` : `Removed "${cleanFoodQuery}" from today's nutrition.`,
+      targetView: "nutrition",
+      actionLabel: "View Nutrition",
+      actionType: "REMOVE_NUTRITION_ITEM",
+      targetCal,
+      cleanFoodQuery
+    };
+  }
+
   // Specific Item Deletion
   if (lower.startsWith('delete') || lower.startsWith('remove') || lower.startsWith('cancel')) {
     if (lower.includes('all') || lower.includes('calendar') || lower.includes('schedule')) {
@@ -912,7 +932,77 @@ export async function processVoiceOrTextCommand(
     const itemTitle = response.itemTitle || cleanTitleString(response.title || prompt);
     const targetDate = response.targetDate || parseTargetDateFromText(prompt, todayIso) || 'ANY';
     if (onDeleteSpecificItem) {
-      await onDeleteSpecificItem(itemTitle, targetDate);
+      const delResult = await onDeleteSpecificItem(itemTitle, targetDate);
+      if (delResult && delResult.success && delResult.item) {
+        response.message = `Removed "${delResult.item.title}" from calendar.`;
+      } else if (delResult && delResult.success === false) {
+        response.message = `Couldn't find "${itemTitle}" in calendar.`;
+      }
+    }
+  }
+
+  // 3.1 Handle REMOVE_NUTRITION_ITEM
+  else if (response.actionType === 'REMOVE_NUTRITION_ITEM') {
+    let currentNut = osData?.nutritionData;
+    if (!currentNut || !Array.isArray(currentNut.meals)) {
+      try {
+        const raw = localStorage.getItem('wolfe_nutrition_data');
+        if (raw) currentNut = JSON.parse(raw);
+      } catch (e) {}
+    }
+    currentNut = (currentNut && typeof currentNut === 'object') ? currentNut : {};
+    const mealsList = Array.isArray(currentNut.meals) ? currentNut.meals : [];
+    const todayMeals = mealsList.filter(m => m && m.date === todayIso);
+    const targetCal = response.targetCal;
+    const cleanFoodQuery = (response.cleanFoodQuery || '').toLowerCase();
+
+    let mealToRemove = null;
+    if (targetCal !== null && todayMeals.length > 0) {
+      mealToRemove = todayMeals.find(m => Math.abs((Number(m.calories) || 0) - targetCal) <= 5);
+    }
+    if (!mealToRemove && cleanFoodQuery && todayMeals.length > 0) {
+      mealToRemove = todayMeals.find(m => (m.name || '').toLowerCase().includes(cleanFoodQuery) || cleanFoodQuery.includes((m.name || '').toLowerCase()));
+    }
+
+    if (mealToRemove) {
+      const nextMeals = mealsList.filter(m => m.id !== mealToRemove.id);
+      const remainingToday = nextMeals.filter(m => m.date === todayIso);
+      const totals = aggregateDailyNutrition(remainingToday);
+      const nextData = {
+        ...currentNut,
+        currentDate: todayIso,
+        consumedCalories: totals.calories,
+        protein: { ...(currentNut.protein || {}), current: totals.protein },
+        carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
+        fats: { ...(currentNut.fats || {}), current: totals.fats },
+        meals: nextMeals,
+        updatedAt: Date.now()
+      };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      if (osData?.setNutritionData) osData.setNutritionData(nextData);
+      if (mealToRemove.id) recordDeletion(mealToRemove.id);
+      markLocalMutation();
+      triggerImmediateCloudPush(80);
+      response.message = `Removed "${mealToRemove.name}" (${mealToRemove.calories} kcal) from today's nutrition.`;
+    } else if (targetCal !== null && (currentNut.consumedCalories || 0) > 0) {
+      const newCalories = Math.max(0, (currentNut.consumedCalories || 0) - targetCal);
+      const nextData = {
+        ...currentNut,
+        currentDate: todayIso,
+        consumedCalories: newCalories,
+        updatedAt: Date.now()
+      };
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+      if (osData?.setNutritionData) osData.setNutritionData(nextData);
+      markLocalMutation();
+      triggerImmediateCloudPush(80);
+      response.message = `Subtracted ${targetCal} kcal from today's nutrition total.`;
+    } else {
+      response.message = `Couldn't find "${response.cleanFoodQuery || 'item'}" in today's nutrition log.`;
     }
   }
 

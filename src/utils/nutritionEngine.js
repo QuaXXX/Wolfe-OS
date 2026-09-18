@@ -38,6 +38,11 @@ export function isFoodLogQuery(text) {
   if (!text || typeof text !== 'string') return false;
   const lower = text.toLowerCase().trim();
 
+  // 0. Exclude removal / deletion intents
+  if (lower.match(/^(?:remove|delete|cancel|drop|clear|purge|undo|subtract|-)\b/i)) {
+    return false;
+  }
+
   // 1. Exclude clear calendar / schedule intents even if they mention meal words (e.g. "lunch with Sarah at 1pm")
   const hasTimeIndicator = lower.match(/\b(?:at|@)\s*(?:\d{1,2}(?::\d{2})?|\d{1,2}\s*(?:am|pm)|noon|midnight)\b/i) ||
                            lower.match(/\b\d{1,2}:\d{2}\s*(?:am|pm)?\b/i);
@@ -97,6 +102,37 @@ export function isFoodLogQuery(text) {
   if (lower.match(/^(?:add|log|ate|had|eating)\b/i) && FOOD_UNIT_REGEX.test(lower)) {
     return true;
   }
+
+  return false;
+}
+
+/**
+ * Detect whether a query is explicitly attempting to remove or adjust nutrition/meals
+ * (e.g. "remove 120 cal", "delete orange juice", "remove breakfast", "subtract 200 calories")
+ */
+export function isFoodRemovalQuery(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.toLowerCase().trim();
+
+  // Must start with or contain a removal/deletion verb
+  const hasRemovalPrefix = lower.match(/^(?:remove|delete|cancel|drop|clear|purge|undo|subtract|-)\b/i);
+  if (!hasRemovalPrefix) return false;
+
+  // Calendar meeting context or explicit calendar reference should NOT be treated as food removal (e.g. "remove lunch with Sarah", "remove 120 cal from calendar")
+  const hasMeetingContext = lower.match(/\b(?:with\s+[a-z]+|meeting|appointment|interview|call|sync|session|hangout|date\s+with)\b/i);
+  if (hasMeetingContext) return false;
+  if (lower.match(/\b(?:from\s+calendar|from\s+schedule|from\s+timeline)\b/i)) return false;
+
+  // Calorie / Macro removal
+  if (lower.match(/\b\d+\s*(?:cals?|calories|kcal)\b/i)) return true;
+  if (lower.match(/\b\d+\s*g?\s*(?:protein|carbs?|fats?)\b/i)) return true;
+
+  // Meal slot removal
+  if (lower.match(/\b(?:breakfast|lunch|dinner|snack|last\s+meal|meal|food|nutrition|calories|cals)\b/i)) return true;
+
+  // Specific food terms
+  const FOOD_TERMS = /\b(?:egg|eggs|chicken|beef|steak|pork|bacon|fish|salmon|tuna|rice|oats|oatmeal|bread|toast|bagel|pasta|noodles|salad|apple|banana|orange|juice|orange juice|apple juice|milk|yogurt|whey|protein powder|protein bar|protein shake|smoothie|coffee|pizza|burger|sandwich|taco|tacos|cookie|cookies)\b/i;
+  if (FOOD_TERMS.test(lower)) return true;
 
   return false;
 }
@@ -505,6 +541,45 @@ export const INGREDIENT_DATABASE = [
       liters: { calories: 480, protein: 32, carbs: 46, fats: 19.2 },
       oz: { calories: 15, protein: 1.0, carbs: 1.4, fats: 0.6 },
       g: { calories: 0.50, protein: 0.033, carbs: 0.048, fats: 0.02 }
+    }
+  },
+  {
+    regex: /\b(?:orange\s+juice|oj)\b/i,
+    name: "Orange Juice",
+    defaultUnit: "glass",
+    defaultQty: 1,
+    per100g: { calories: 45, protein: 0.7, carbs: 10.4, fats: 0.2 },
+    perUnit: {
+      glass: { calories: 110, protein: 1.7, carbs: 26, fats: 0.5 },
+      cup: { calories: 112, protein: 1.7, carbs: 26, fats: 0.5 },
+      bottle: { calories: 160, protein: 2.5, carbs: 38, fats: 0.7 },
+      serving: { calories: 110, protein: 1.7, carbs: 26, fats: 0.5 },
+      ml: { calories: 0.45, protein: 0.007, carbs: 0.104, fats: 0.002 },
+      oz: { calories: 14, protein: 0.2, carbs: 3.3, fats: 0.06 }
+    }
+  },
+  {
+    regex: /\b(?:apple\s+juice)\b/i,
+    name: "Apple Juice",
+    defaultUnit: "glass",
+    defaultQty: 1,
+    per100g: { calories: 46, protein: 0.1, carbs: 11.3, fats: 0.1 },
+    perUnit: {
+      glass: { calories: 115, protein: 0.3, carbs: 28, fats: 0.3 },
+      cup: { calories: 115, protein: 0.3, carbs: 28, fats: 0.3 },
+      serving: { calories: 115, protein: 0.3, carbs: 28, fats: 0.3 }
+    }
+  },
+  {
+    regex: /\b(?:grape\s+juice|cranberry\s+juice|fruit\s+juice|juice)\b/i,
+    name: "Fruit Juice",
+    defaultUnit: "glass",
+    defaultQty: 1,
+    per100g: { calories: 48, protein: 0.4, carbs: 12, fats: 0.1 },
+    perUnit: {
+      glass: { calories: 120, protein: 1, carbs: 30, fats: 0.2 },
+      cup: { calories: 120, protein: 1, carbs: 30, fats: 0.2 },
+      serving: { calories: 120, protein: 1, carbs: 30, fats: 0.2 }
     }
   },
   {
@@ -1464,21 +1539,109 @@ export function parseMealDescription(text, options = {}) {
   const isBowl = matchedVessel ? matchedVessel.type === 'bowl' : /bowl/i.test(cleanText);
   const activeVessel = matchedVessel || (isPlate ? dishware.plate : isBowl ? dishware.bowl : null);
 
-  // 1. Direct macro check
+  // 1. Direct Calorie & Macro Ingestion with Food Entity Resolution
   const calMatch = cleanText.match(/(\d+)\s*(?:cals?|calories|kcal)\b/i);
-  const protMatch = cleanText.match(/(\d+)\s*g?\s*(?:protein|p)\b/i);
-  const carbMatch = cleanText.match(/(\d+)\s*g?\s*(?:carbs?|c)\b/i);
-  const fatMatch = cleanText.match(/(\d+)\s*g?\s*(?:fats?|f)\b/i);
-  if (calMatch && (protMatch || carbMatch || fatMatch)) {
-    const c = parseInt(calMatch[1], 10);
-    const p = protMatch ? parseInt(protMatch[1], 10) : 0;
-    const cb = carbMatch ? parseInt(carbMatch[1], 10) : 0;
-    const f = fatMatch ? parseInt(fatMatch[1], 10) : 0;
+  const protMatch = cleanText.match(/(\d+(?:\.\d+)?)\s*g?\s*(?:protein|p)\b/i);
+  const carbMatch = cleanText.match(/(\d+(?:\.\d+)?)\s*g?\s*(?:carbs?|c)\b/i);
+  const fatMatch = cleanText.match(/(\d+(?:\.\d+)?)\s*g?\s*(?:fats?|f)\b/i);
+
+  if (calMatch) {
+    const specifiedCals = parseInt(calMatch[1], 10);
+    
+    // Extract remaining food text by removing the calories and action tokens
+    let foodText = cleanText
+      .replace(/(\d+)\s*(?:cals?|calories|kcal)\b/gi, '')
+      .replace(/(\d+(?:\.\d+)?)\s*g?\s*(?:protein|p)\b/gi, '')
+      .replace(/(\d+(?:\.\d+)?)\s*g?\s*(?:carbs?|c)\b/gi, '')
+      .replace(/(\d+(?:\.\d+)?)\s*g?\s*(?:fats?|f)\b/gi, '')
+      .replace(/^(?:log|add|record|track|ate|had|eating|eat|have)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/gi, '')
+      .replace(/\b(?:for|at)?\s*(?:breakfast|lunch|dinner|snack)\b/gi, '')
+      .replace(/^["'`“‘\s,;:\-–—\.]+|["'`”’\s,;:\-–—\.]+$/g, '')
+      .trim();
+
+    // If explicit macros were provided along with calories:
+    const explicitP = protMatch ? Math.round(parseFloat(protMatch[1])) : null;
+    const explicitC = carbMatch ? Math.round(parseFloat(carbMatch[1])) : null;
+    const explicitF = fatMatch ? Math.round(parseFloat(fatMatch[1])) : null;
+
+    let p = explicitP;
+    let cb = explicitC;
+    let f = explicitF;
+
+    const formatFoodTitle = (str) => {
+      if (!str) return 'Food Item';
+      return str
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    };
+
+    let foodName = foodText ? formatFoodTitle(foodText) : `Quick Log (${specifiedCals} kcal)`;
+
+    // Check if foodText matches an ingredient in INGREDIENT_DATABASE or pantry
+    let matchedIng = null;
+    if (foodText) {
+      matchedIng = INGREDIENT_DATABASE.find(ing => ing.regex && ing.regex.test(foodText));
+    }
+
+    if (matchedIng) {
+      foodName = matchedIng.name.replace(/\s*\([^)]*\)/g, '').trim();
+      // Get base macro ratio from matched ingredient
+      const refMacros = matchedIng.per100g || (matchedIng.perUnit && Object.values(matchedIng.perUnit)[0]);
+      if (refMacros && refMacros.calories > 0) {
+        const ratio = specifiedCals / refMacros.calories;
+        if (p === null) p = Math.round(refMacros.protein * ratio);
+        if (cb === null) cb = Math.round(refMacros.carbs * ratio);
+        if (f === null) f = Math.round(refMacros.fats * ratio);
+      }
+    }
+
+    // If macros not yet filled, apply verified food category heuristics
+    if (p === null || cb === null || f === null) {
+      const lowerFood = foodText.toLowerCase();
+      if (/\b(?:juice|oj|cider|soda|pop|coke|sprite|lemonade|gatorade|powerade|syrup|honey|sugar|sweet|fruit|apple|orange|grape|berries|watermelon|mango)\b/i.test(lowerFood)) {
+        if (p === null) p = Math.min(2, Math.round((specifiedCals * 0.05) / 4));
+        if (f === null) f = 0;
+        if (cb === null) cb = Math.max(0, Math.round((specifiedCals - (p * 4) - (f * 9)) / 4));
+      } else if (/\b(?:chicken|beef|steak|turkey|meat|fish|salmon|tuna|shrimp|pork|whey|egg\s+white|tofu)\b/i.test(lowerFood)) {
+        if (p === null) p = Math.round((specifiedCals * 0.75) / 4);
+        if (cb === null) cb = 0;
+        if (f === null) f = Math.max(0, Math.round((specifiedCals - (p * 4) - (cb * 4)) / 9));
+      } else if (/\b(?:rice|oats|oatmeal|bread|toast|bagel|pasta|noodles|potato|cereal|grain|flour|corn)\b/i.test(lowerFood)) {
+        if (p === null) p = Math.round((specifiedCals * 0.15) / 4);
+        if (f === null) f = Math.round((specifiedCals * 0.10) / 9);
+        if (cb === null) cb = Math.max(0, Math.round((specifiedCals - (p * 4) - (f * 9)) / 4));
+      } else if (/\b(?:butter|oil|olive\s+oil|mayo|dressing|ghee|lard|fat)\b/i.test(lowerFood)) {
+        if (p === null) p = 0;
+        if (cb === null) cb = 0;
+        if (f === null) f = Math.round(specifiedCals / 9);
+      } else {
+        // Balanced / mixed distribution
+        if (p === null) p = Math.round((specifiedCals * 0.25) / 4);
+        if (cb === null) cb = Math.round((specifiedCals * 0.50) / 4);
+        if (f === null) f = Math.max(0, Math.round((specifiedCals - (p * 4) - (cb * 4)) / 9));
+      }
+    }
+
+    p = Math.max(0, p || 0);
+    cb = Math.max(0, cb || 0);
+    f = Math.max(0, f || 0);
+
     return {
-      name: 'Custom Macro Log',
-      items: [{ name: 'Direct Macro Entry', portion: '1 serving', calories: c, protein: p, carbs: cb, fats: f }],
-      calories: c, protein: p, carbs: cb, fats: f,
-      source: 'manual_macro'
+      name: foodName,
+      items: [{
+        name: foodName,
+        portion: '1 serving',
+        calories: specifiedCals,
+        protein: p,
+        carbs: cb,
+        fats: f
+      }],
+      calories: specifiedCals,
+      protein: p,
+      carbs: cb,
+      fats: f,
+      source: foodText ? 'calorie_food_log' : 'quick_calorie_log'
     };
   }
 

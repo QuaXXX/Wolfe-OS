@@ -165,6 +165,8 @@ export const CompactVoiceWidget = forwardRef(({
     // 1. FAST LOCAL EXECUTION WITH BUFFER NLP (< 3ms)
     const fastResult = tryExecuteFastCommand(query, {
       osData,
+      calendarData: osData?.calendarData,
+      nutritionData: osData?.nutritionData,
       setSettings: osData?.setSettings,
       setCalendarData: osData?.setCalendarData,
       setNutritionData: osData?.setNutritionData,

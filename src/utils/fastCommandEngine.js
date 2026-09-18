@@ -6,8 +6,8 @@ import {
   deleteGoogleCalendarEvent, 
   isGoogleCalendarConnected
 } from './googleCalendarService.js';
-import { parseMealDescription, createMealEntry, aggregateDailyNutrition, isFoodLogQuery } from './nutritionEngine.js';
-import { recordAdditionOrUpdate, triggerImmediateCloudPush, markLocalMutation } from './cloudSyncEngine.js';
+import { parseMealDescription, createMealEntry, aggregateDailyNutrition, isFoodLogQuery, isFoodRemovalQuery } from './nutritionEngine.js';
+import { recordAdditionOrUpdate, recordDeletion, triggerImmediateCloudPush, markLocalMutation } from './cloudSyncEngine.js';
 
 // Color theme hue mappings
 const THEME_COLOR_MAP = {
@@ -60,6 +60,8 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     setSettings,
     setCalendarData,
     setNutritionData,
+    calendarData = ctx.calendarData || osData?.calendarData,
+    nutritionData = ctx.nutritionData || osData?.nutritionData,
     onNavigate,
     onClearCalendar,
     onDeleteSpecificItem,
@@ -359,25 +361,329 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     };
   }
 
-  // Fast Delete Specific Item by Name
-  const deleteMatch = text.match(/^(?:delete|remove|cancel|drop)\s+(?:the\s+)?(?:task|event|item|deadline|reminder)?\s*(.+)$/i);
-  if (deleteMatch && !text.includes('calendar') && !text.includes('all')) {
-    const itemTitle = deleteMatch[1].trim().replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '');
-    if (itemTitle && itemTitle.length > 1) {
-      if (onDeleteSpecificItem) {
-        onDeleteSpecificItem(itemTitle, 'ANY');
+  // ==========================================
+  // 3.4 NUTRITION REMOVAL & ADJUSTMENT
+  // Matches: "remove 120 cal", "delete orange juice", "remove breakfast", "subtract 200 calories", "remove last meal"
+  // ==========================================
+  if (isFoodRemovalQuery(text)) {
+    let currentNut = nutritionData || osData?.nutritionData;
+    if (!currentNut || !Array.isArray(currentNut.meals)) {
+      try {
+        const raw = localStorage.getItem('wolfe_nutrition_data');
+        if (raw) currentNut = JSON.parse(raw);
+      } catch (e) {}
+    }
+    currentNut = (currentNut && typeof currentNut === 'object') ? currentNut : {};
+    const mealsList = Array.isArray(currentNut.meals) ? currentNut.meals : [];
+    const todayMeals = mealsList.filter(m => m && m.date === todayIso);
+
+    // Extract calorie target if specified (e.g. "remove 120 cal" -> 120)
+    const calTargetMatch = text.match(/\b(\d{2,4})\s*(?:cal|calories|kcal)\b/i);
+    const targetCal = calTargetMatch ? parseInt(calTargetMatch[1], 10) : null;
+
+    // Clean query text for name matching
+    const cleanTarget = text
+      .replace(/^(?:remove|delete|cancel|drop|clear|purge|undo|subtract|-)\s+/i, '')
+      .replace(/\s+(?:from\s+(?:my\s+)?(?:nutrition|food|diet|meals?|log|today))$/i, '')
+      .trim();
+
+    let mealToRemove = null;
+
+    // 1. Try finding by matching calorie count among today's meals
+    if (targetCal !== null && todayMeals.length > 0) {
+      mealToRemove = todayMeals.find(m => Math.abs((Number(m.calories) || 0) - targetCal) <= 5);
+    }
+
+    // 2. Try finding by slot or special phrase ("breakfast", "last meal", etc.)
+    if (!mealToRemove && todayMeals.length > 0) {
+      if (cleanTarget.match(/\b(?:last\s+meal|last|recent)\b/i)) {
+        mealToRemove = todayMeals[0];
+      } else if (cleanTarget.match(/\bbreakfast\b/i)) {
+        mealToRemove = todayMeals.find(m => m.slot === 'breakfast' || (m.name && m.name.toLowerCase().includes('breakfast')));
+      } else if (cleanTarget.match(/\blunch\b/i)) {
+        mealToRemove = todayMeals.find(m => m.slot === 'lunch' || (m.name && m.name.toLowerCase().includes('lunch')));
+      } else if (cleanTarget.match(/\bdinner\b/i)) {
+        mealToRemove = todayMeals.find(m => m.slot === 'dinner' || (m.name && m.name.toLowerCase().includes('dinner')));
+      } else if (cleanTarget.match(/\bsnack\b/i)) {
+        mealToRemove = todayMeals.find(m => m.slot === 'snack' || (m.name && m.name.toLowerCase().includes('snack')));
       }
+    }
+
+    // 3. Try finding by food name in meal title or ingredients
+    if (!mealToRemove && cleanTarget && todayMeals.length > 0) {
+      const lowerTarget = cleanTarget.toLowerCase();
+      mealToRemove = todayMeals.find(m => {
+        const mName = (m.name || '').toLowerCase();
+        if (mName.includes(lowerTarget) || lowerTarget.includes(mName)) return true;
+        if (Array.isArray(m.items)) {
+          return m.items.some(it => {
+            const itName = (it.name || '').toLowerCase();
+            return itName.includes(lowerTarget) || lowerTarget.includes(itName);
+          });
+        }
+        return false;
+      });
+    }
+
+    // CASE A: Specific meal found and removed
+    if (mealToRemove) {
+      const nextMeals = mealsList.filter(m => m.id !== mealToRemove.id);
+      const remainingToday = nextMeals.filter(m => m.date === todayIso);
+      const totals = aggregateDailyNutrition(remainingToday);
+
+      const nextData = {
+        ...currentNut,
+        currentDate: todayIso,
+        consumedCalories: totals.calories,
+        protein: { ...(currentNut.protein || {}), current: totals.protein },
+        carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
+        fats: { ...(currentNut.fats || {}), current: totals.fats },
+        meals: nextMeals,
+        updatedAt: Date.now()
+      };
+
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+
+      if (setNutritionData) {
+        setNutritionData(nextData);
+      }
+      if (mealToRemove.id) {
+        recordDeletion(mealToRemove.id);
+      }
+      markLocalMutation();
+      triggerImmediateCloudPush(80);
+
       return {
         handled: true,
-        title: "🗑️ Item Deleted",
-        message: `Removed "${itemTitle}" from your schedule.`,
-        targetView: "calendar"
+        title: "🍽️ Meal Removed",
+        message: `Removed "${mealToRemove.name}" (${mealToRemove.calories} kcal) from today's nutrition.`,
+        targetView: "nutrition",
+        actionLabel: "View Nutrition"
       };
+    }
+
+    // CASE B: No matching meal found, but user asked to subtract calories and has consumed calories
+    if (targetCal !== null && (currentNut.consumedCalories || 0) > 0) {
+      const newCalories = Math.max(0, (currentNut.consumedCalories || 0) - targetCal);
+      const nextData = {
+        ...currentNut,
+        currentDate: todayIso,
+        consumedCalories: newCalories,
+        updatedAt: Date.now()
+      };
+
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+      } catch (e) {}
+
+      if (setNutritionData) {
+        setNutritionData(nextData);
+      }
+      markLocalMutation();
+      triggerImmediateCloudPush(80);
+
+      return {
+        handled: true,
+        title: "🥩 Calories Adjusted",
+        message: `Subtracted ${targetCal} kcal from today's nutrition total.`,
+        targetView: "nutrition",
+        actionLabel: "View Nutrition"
+      };
+    }
+
+    // CASE C: Couldn't find matching meal
+    return {
+      handled: true,
+      title: "🍽️ Nutrition Log",
+      message: `Couldn't find "${cleanTarget}" in today's nutrition log.`,
+      targetView: "nutrition",
+      actionLabel: "View Nutrition"
+    };
+  }
+
+  // ==========================================
+  // 3.5 CALENDAR ITEM DELETION (Exact Match & Verification)
+  // Matches: "delete dentist", "remove meeting with Sarah", "cancel math exam"
+  // ==========================================
+  const deleteMatch = text.match(/^(?:delete|remove|cancel|drop)\s+(?:the\s+)?(?:task|event|item|deadline|reminder)?\s*(.+)$/i);
+  if (deleteMatch) {
+    let itemTitle = deleteMatch[1].trim().replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '');
+    itemTitle = itemTitle.replace(/\s+(?:from\s+(?:my\s+)?(?:calendar|schedule|timeline))$/i, '').trim();
+
+    const isWipeCommand = itemTitle === 'calendar' || itemTitle === 'schedule' || itemTitle === 'all' || itemTitle === 'everything' || text.includes('wipe');
+    if (!isWipeCommand && itemTitle.length > 1) {
+      let calItems = calendarData?.items || osData?.calendarData?.items;
+      if (!calItems || !Array.isArray(calItems)) {
+        try {
+          const raw = localStorage.getItem('wolfe_calendar_data');
+          if (raw) calItems = JSON.parse(raw)?.items || [];
+        } catch (e) {}
+      }
+      calItems = Array.isArray(calItems) ? calItems : [];
+
+      const lowerQuery = itemTitle.toLowerCase();
+      const targetItem = calItems.find(it => {
+        const itTitle = (it.title || '').toLowerCase();
+        return itTitle.includes(lowerQuery) || lowerQuery.includes(itTitle);
+      });
+
+      if (targetItem) {
+        if (onDeleteSpecificItem) {
+          onDeleteSpecificItem(targetItem.title, 'ANY');
+        } else if (setCalendarData) {
+          setCalendarData(prev => ({
+            ...prev,
+            items: prev.items.filter(it => it.id !== targetItem.id)
+          }));
+          recordDeletion(targetItem.id);
+          if (isGoogleCalendarConnected()) {
+            deleteGoogleCalendarEvent(targetItem.id, targetItem.isGoogleTask || targetItem.type === 'task').catch(console.warn);
+          }
+        }
+        return {
+          handled: true,
+          title: "🗑️ Item Deleted",
+          message: `Removed "${targetItem.title}" from calendar.`,
+          targetView: "calendar"
+        };
+      } else {
+        return {
+          handled: true,
+          title: "🔍 Not Found",
+          message: `Couldn't find "${itemTitle}" in calendar.`,
+          targetView: "calendar"
+        };
+      }
     }
   }
 
   // ==========================================
-  // 3.5 CALENDAR SCHEDULING (Natural Language Event, Deadline, Task, Reminder)
+  // 4. NATURAL LANGUAGE FOOD & CALORIE LOGGING (High Priority)
+  // Handles: "add orange juice 120 cal", "log 2 eggs and toast", "add 120 cal", "300g chicken breast"
+  // ==========================================
+  const isFoodIntent = isFoodLogQuery(text);
+  const foodLogMatch = text.match(/^(?:log|add|record|track|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*(.+)$/i);
+
+  if (foodLogMatch || isFoodIntent) {
+    const rawFoodPhrase = foodLogMatch 
+      ? foodLogMatch[1].trim() 
+      : text.replace(/^(?:log|add|record|track|ate|had|eating|eat|put)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/i, '').trim();
+
+    if (!rawFoodPhrase.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock)\b/i)) {
+      const parsedMeal = parseMealDescription(rawFoodPhrase, {
+        kitchenCalibration: nutritionData?.kitchenCalibration || osData?.nutritionData?.kitchenCalibration,
+        householdPantry: nutritionData?.householdPantry || osData?.nutritionData?.householdPantry
+      });
+
+      if (parsedMeal && parsedMeal.items && parsedMeal.items.length > 0) {
+        let slot = 'meal';
+        if (/\bbreakfast\b/i.test(text)) slot = 'breakfast';
+        else if (/\blunch\b/i.test(text)) slot = 'lunch';
+        else if (/\bdinner\b/i.test(text)) slot = 'dinner';
+        else if (/\bsnack\b/i.test(text)) slot = 'snack';
+
+        let mealName = parsedMeal.name;
+        if (slot !== 'meal' && mealName.startsWith('Quick Log')) {
+          mealName = `${slot.charAt(0).toUpperCase() + slot.slice(1)} (${parsedMeal.calories} kcal)`;
+        }
+
+        const mealEntry = createMealEntry({
+          date: todayIso,
+          name: mealName,
+          slot,
+          calories: parsedMeal.calories,
+          protein: parsedMeal.protein,
+          carbs: parsedMeal.carbs,
+          fats: parsedMeal.fats,
+          items: parsedMeal.items
+        });
+
+        recordAdditionOrUpdate(mealEntry.id);
+        markLocalMutation();
+
+        if (onLogMeal) {
+          onLogMeal(mealEntry);
+        } else if (setNutritionData) {
+          let currentNut = nutritionData || osData?.nutritionData;
+          if (!currentNut || !currentNut.meals) {
+            try {
+              const raw = localStorage.getItem('wolfe_nutrition_data');
+              if (raw) currentNut = JSON.parse(raw);
+            } catch (e) {}
+          }
+          currentNut = (currentNut && typeof currentNut === 'object') ? currentNut : {};
+
+          const nextMeals = [mealEntry, ...(currentNut.meals || [])];
+          const todayMeals = nextMeals.filter(m => m.date === todayIso);
+          const totals = aggregateDailyNutrition(todayMeals);
+          const nextData = {
+            ...currentNut,
+            currentDate: todayIso,
+            consumedCalories: totals.calories,
+            protein: { ...(currentNut.protein || {}), current: totals.protein },
+            carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
+            fats: { ...(currentNut.fats || {}), current: totals.fats },
+            meals: nextMeals,
+            updatedAt: Date.now()
+          };
+
+          try {
+            localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
+          } catch (e) {}
+
+          setNutritionData(nextData);
+          triggerImmediateCloudPush(80);
+        }
+
+        return {
+          handled: true,
+          title: "🍽️ Meal Logged",
+          message: `Logged ${mealName}: ${parsedMeal.calories} kcal | ${parsedMeal.protein}g P | ${parsedMeal.carbs}g C | ${parsedMeal.fats}g F.`,
+          targetView: "nutrition",
+          actionLabel: "View Nutrition"
+        };
+      }
+    }
+  }
+
+  // ==========================================
+  // 4.5 HYDRATION FAST-LOGS
+  // ==========================================
+  // Log Water / Drink Water
+  if (text.match(/\b(?:drink|drank|log|add|had|\+)\s*(\d+)?\s*(?:glass(?:es)?|cups?|bottles?)?\s*(?:of\s+)?water\b/i) || text.match(/^water\s*\+\s*(\d+)?$/i)) {
+    const countMatch = text.match(/\b(\d+)\b/);
+    const count = countMatch ? parseInt(countMatch[1], 10) : 1;
+    if (setNutritionData) {
+      setNutritionData(prev => ({
+        ...prev,
+        waterGlasses: Math.min(20, (prev?.waterGlasses || 6) + count)
+      }));
+    }
+    return {
+      handled: true,
+      title: "💧 Water Logged",
+      message: `Added +${count} glass${count > 1 ? 'es' : ''} of water. Hydration on point!`,
+      targetView: "nutrition"
+    };
+  }
+
+  // Reset Water
+  if (text.match(/\b(?:reset|clear|zero)\s+water\b/i)) {
+    if (setNutritionData) {
+      setNutritionData(prev => ({ ...prev, waterGlasses: 0 }));
+    }
+    return {
+      handled: true,
+      title: "💧 Water Reset",
+      message: "Reset daily water tracker to 0/10 glasses.",
+      targetView: "nutrition"
+    };
+  }
+
+  // ==========================================
+  // 5. CALENDAR SCHEDULING (Natural Language Event, Deadline, Task, Reminder)
   // ==========================================
   const parsedCalendarItem = parseCalendarCommand(rawText, todayIso);
   if (parsedCalendarItem) {
@@ -411,143 +717,6 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       actionType: "CREATE_CALENDAR_ITEM",
       calendarItem: newItem
     };
-  }
-
-  // ==========================================
-  // 4. NUTRITION & WATER FAST-LOGS
-  // ==========================================
-  // Log Water / Drink Water
-  if (text.match(/\b(?:drink|drank|log|add|had|\+)\s*(\d+)?\s*(?:glass(?:es)?|cups?|bottles?)?\s*(?:of\s+)?water\b/i) || text.match(/^water\s*\+\s*(\d+)?$/i)) {
-    const countMatch = text.match(/\b(\d+)\b/);
-    const count = countMatch ? parseInt(countMatch[1], 10) : 1;
-    if (setNutritionData) {
-      setNutritionData(prev => ({
-        ...prev,
-        waterGlasses: Math.min(20, (prev?.waterGlasses || 6) + count)
-      }));
-    }
-    return {
-      handled: true,
-      title: "💧 Water Logged",
-      message: `Added +${count} glass${count > 1 ? 'es' : ''} of water. Hydration on point!`,
-      targetView: "nutrition"
-    };
-  }
-
-  // Reset Water
-  if (text.match(/\b(?:reset|clear|zero)\s+water\b/i)) {
-    if (setNutritionData) {
-      setNutritionData(prev => ({ ...prev, waterGlasses: 0 }));
-    }
-    return {
-      handled: true,
-      title: "💧 Water Reset",
-      message: "Reset daily water tracker to 0/10 glasses.",
-      targetView: "nutrition"
-    };
-  }
-
-  // Quick Log Meal / Calories & Protein
-  // Matches: "log 650 calories 40g protein", "add 500 kcal", "log lunch 700 cals 50 protein"
-  const calMatch = text.match(/\b(?:log|add|ate|had)\s*(?:meal|lunch|dinner|breakfast|snack|food)?\s*(\d{2,4})\s*(?:cal|calories|kcal)\b/i) ||
-                   text.match(/\b(\d{2,4})\s*(?:cal|calories|kcal)\b/i);
-  if (calMatch) {
-    const cals = parseInt(calMatch[1], 10);
-    const proteinMatch = text.match(/\b(\d{1,3})\s*(?:g|grams?)?\s*(?:of\s+)?protein\b/i);
-    const protein = proteinMatch ? parseInt(proteinMatch[1], 10) : 0;
-
-    if (setNutritionData) {
-      setNutritionData(prev => ({
-        ...prev,
-        consumedCalories: (prev?.consumedCalories || 1840) + cals,
-        protein: {
-          ...prev?.protein,
-          current: (prev?.protein?.current || 140) + protein,
-          target: prev?.protein?.target || 195
-        }
-      }));
-    }
-    return {
-      handled: true,
-      title: "🥩 Nutrition Logged",
-      message: `Added +${cals} kcal${protein > 0 ? ` and +${protein}g protein` : ''}.`,
-      targetView: "nutrition"
-    };
-  }
-
-  // Natural Language Food Logging: "add 2 eggs and toast", "log 1 peanutbutter toast", "ate chicken and rice", "3 tacos"
-  const isFoodIntent = isFoodLogQuery(text);
-  const foodLogMatch = text.match(/^(?:log|add|record|track|ate|had|eating|eat)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*(.+)$/i);
-
-  if (foodLogMatch || isFoodIntent) {
-    const rawFoodPhrase = foodLogMatch 
-      ? foodLogMatch[1].trim() 
-      : text.replace(/^(?:log|add|record|track|ate|had|eating|eat|put)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/i, '').trim();
-
-    if (!rawFoodPhrase.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock)\b/i)) {
-      const parsedMeal = parseMealDescription(rawFoodPhrase);
-      if (parsedMeal && parsedMeal.items && parsedMeal.items.length > 0) {
-        const todayIso = getTodayIso();
-        let slot = 'meal';
-        if (/\bbreakfast\b/i.test(text)) slot = 'breakfast';
-        else if (/\blunch\b/i.test(text)) slot = 'lunch';
-        else if (/\bdinner\b/i.test(text)) slot = 'dinner';
-        else if (/\bsnack\b/i.test(text)) slot = 'snack';
-
-        const mealEntry = createMealEntry({
-          date: todayIso,
-          name: parsedMeal.name,
-          slot,
-          calories: parsedMeal.calories,
-          protein: parsedMeal.protein,
-          carbs: parsedMeal.carbs,
-          fats: parsedMeal.fats,
-          items: parsedMeal.items
-        });
-
-        recordAdditionOrUpdate(mealEntry.id);
-        markLocalMutation();
-
-        if (onLogMeal) {
-          onLogMeal(mealEntry);
-        } else if (setNutritionData) {
-          let currentNut = {};
-          try {
-            const raw = localStorage.getItem('wolfe_nutrition_data');
-            if (raw) currentNut = JSON.parse(raw);
-          } catch (e) {}
-
-          const nextMeals = [mealEntry, ...(currentNut.meals || [])];
-          const todayMeals = nextMeals.filter(m => m.date === todayIso);
-          const totals = aggregateDailyNutrition(todayMeals);
-          const nextData = {
-            ...currentNut,
-            currentDate: todayIso,
-            consumedCalories: totals.calories,
-            protein: { ...(currentNut.protein || {}), current: totals.protein },
-            carbs: { ...(currentNut.carbs || {}), current: totals.carbs },
-            fats: { ...(currentNut.fats || {}), current: totals.fats },
-            meals: nextMeals,
-            updatedAt: Date.now()
-          };
-
-          try {
-            localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-          } catch (e) {}
-
-          setNutritionData(nextData);
-          triggerImmediateCloudPush(80);
-        }
-
-        return {
-          handled: true,
-          title: "🍽️ Meal Logged",
-          message: `Logged ${parsedMeal.name}: ${parsedMeal.calories} kcal | ${parsedMeal.protein}g P | ${parsedMeal.carbs}g C | ${parsedMeal.fats}g F.`,
-          targetView: "nutrition",
-          actionLabel: "View Nutrition"
-        };
-      }
-    }
   }
 
   // Direct food utterance without prefix: "1 peanutbutter toast", "quinoa, cottagecheese, kale, chickpea and sweet potato bowl"

@@ -1154,10 +1154,12 @@ export function App() {
   // Delete a specific event by title and optional date (e.g. from Voice / Text commands)
   const handleDeleteSpecificItem = async (titleQuery, targetDate) => {
     playSound('click', settings.soundEnabled);
-    const lowerQuery = (titleQuery || '').toLowerCase().trim();
+    const lowerQuery = (titleQuery || '').toLowerCase().trim().replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '');
+    if (!lowerQuery) return { success: false, query: titleQuery };
 
     const targetItem = calendarData.items.find(it => {
-      const titleMatch = it.title.toLowerCase().includes(lowerQuery) || lowerQuery.includes(it.title.toLowerCase());
+      const itTitle = (it.title || '').toLowerCase();
+      const titleMatch = itTitle.includes(lowerQuery) || lowerQuery.includes(itTitle);
       if (!titleMatch) return false;
       if (targetDate && targetDate !== 'ANY') {
         return it.date === targetDate;
@@ -1184,7 +1186,11 @@ export function App() {
         itemsAdded: [],
         itemsRemoved: [targetItem]
       });
+
+      return { success: true, item: targetItem };
     }
+
+    return { success: false, query: titleQuery };
   };
 
   const handleClearCalendar = async (targetDate) => {

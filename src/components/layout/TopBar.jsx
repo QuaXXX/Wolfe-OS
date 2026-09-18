@@ -138,6 +138,8 @@ export const TopBar = ({
     // 1. Fast Local Command Engine (< 3ms)
     const fastResult = tryExecuteFastCommand(queryText, {
       osData,
+      calendarData: osData?.calendarData,
+      nutritionData: osData?.nutritionData,
       setSettings: osData?.setSettings,
       setCalendarData: osData?.setCalendarData,
       setNutritionData: osData?.setNutritionData,
