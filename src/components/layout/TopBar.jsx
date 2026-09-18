@@ -42,6 +42,7 @@ export const TopBar = ({
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveSpeech, setLiveSpeech] = useState('');
+  const [lastHeardQuery, setLastHeardQuery] = useState('');
   const [voiceResponse, setVoiceResponse] = useState(null);
   
   const voiceControllerRef = useRef(null);
@@ -136,6 +137,7 @@ export const TopBar = ({
     setIsListening(false);
 
     playSound('click', soundEnabled);
+    setLastHeardQuery(queryText);
     setLiveSpeech('');
 
     // 1. Fast Local Command Engine (< 3ms)
@@ -400,41 +402,50 @@ export const TopBar = ({
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[92%] max-w-xl p-3 rounded-2xl bg-[#0d101d]/95 backdrop-blur-2xl border border-white/15 shadow-2xl z-50 text-xs flex items-center justify-between gap-3"
+            className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[92%] max-w-xl p-3 rounded-2xl bg-[#0d101d]/95 backdrop-blur-2xl border border-white/15 shadow-2xl z-50 text-xs flex flex-col gap-2"
             style={{ boxShadow: '0 10px 30px -5px rgba(0,0,0,0.8)' }}
           >
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <span 
-                className="w-2 h-2 rounded-sm shrink-0" 
-                style={{ backgroundColor: 'var(--accent-primary)' }}
-              />
-              <div className="min-w-0 flex items-baseline gap-1.5 flex-wrap">
-                <span className="font-bold text-white shrink-0">{voiceResponse.title || "Wolfe AI"}:</span>
-                <FormattedAiText text={voiceResponse.message} inline className="text-slate-300 leading-snug" />
+            {lastHeardQuery && (
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pb-1.5 border-b border-white/[0.08]">
+                <span className="font-medium">Heard:</span>
+                <span className="text-slate-200 font-semibold truncate italic">"{lastHeardQuery}"</span>
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              {voiceResponse.targetView && voiceResponse.targetView !== activeView && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <span 
+                  className="w-2 h-2 rounded-sm shrink-0" 
+                  style={{ backgroundColor: 'var(--accent-primary)' }}
+                />
+                <div className="min-w-0 flex items-baseline gap-1.5 flex-wrap">
+                  <span className="font-bold text-white shrink-0">{voiceResponse.title || "Wolfe AI"}:</span>
+                  <FormattedAiText text={voiceResponse.message} inline className="text-slate-300 leading-snug" />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {voiceResponse.targetView && voiceResponse.targetView !== activeView && (
+                  <button
+                    onClick={() => {
+                      playSound('click', soundEnabled);
+                      onNavigate(voiceResponse.targetView);
+                      setVoiceResponse(null);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-white/10 text-white hover:bg-white/20 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+                  >
+                    <span>{voiceResponse.actionLabel || "View"}</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                )}
+
                 <button
-                  onClick={() => {
-                    playSound('click', soundEnabled);
-                    onNavigate(voiceResponse.targetView);
-                    setVoiceResponse(null);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-white/10 text-white hover:bg-white/20 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+                  onClick={() => setVoiceResponse(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 >
-                  <span>{voiceResponse.actionLabel || "View"}</span>
-                  <ArrowUpRight className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              )}
-
-              <button
-                onClick={() => setVoiceResponse(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              </div>
             </div>
           </motion.div>
         )}

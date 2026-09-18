@@ -376,6 +376,32 @@ export const CompactVoiceWidget = forwardRef(({
         </form>
       </div>
 
+      {/* LIVE HEARING STATUS BAR WHILE SPEAKING */}
+      <AnimatePresence>
+        {isListening && liveSpeechText && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -4, height: 0 }}
+            className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-xs cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+              <span className="text-emerald-400 shrink-0 font-medium flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Hearing:
+              </span>
+              <span className="text-white font-semibold truncate italic">
+                "{liveSpeechText}"
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono shrink-0">
+              Listening...
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* SINGLE CLEAN THINKING / HEARD STATUS BAR WITH STOP & REDO */}
       <AnimatePresence>
         {isProcessing && (
@@ -442,6 +468,27 @@ export const CompactVoiceWidget = forwardRef(({
             className="mt-2.5 pt-2.5 border-t border-white/10 text-xs space-y-2 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Persistent Heard Section in Confirmed Response Card */}
+            {lastHeardQuery && (
+              <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-white/[0.08] text-[11px]">
+                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                  <span className="text-slate-400 shrink-0 font-medium">Heard:</span>
+                  <span className="text-slate-200 font-semibold truncate italic">
+                    "{lastHeardQuery}"
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRedo}
+                  title="Heard wrong? Click to edit & redo"
+                  className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all flex items-center gap-1 text-[10px] font-medium shrink-0 cursor-pointer"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  <span>Edit</span>
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 shrink-0">
                 <span 
