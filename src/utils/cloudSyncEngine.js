@@ -86,9 +86,54 @@ export function wipeLocalUserData() {
     localStorage.removeItem('wolfe_study_courses');
     localStorage.removeItem('wolfe_trading_data');
     localStorage.removeItem('wolfe_notes_data');
+    localStorage.removeItem('wolfe_data_owner_email');
   } catch (e) {
     console.warn("Error wiping local user data:", e);
   }
+}
+
+/**
+ * Returns pristine blank nutrition data with target calories defaulted to 3000 kcal
+ * and 0 meals, 0 consumed calories, and empty weight logs.
+ */
+export function getBlankNutritionData() {
+  return {
+    targetCalories: 3000,
+    consumedCalories: 0,
+    protein: { current: 0, target: 180, unit: "g", color: "#6366f1" },
+    carbs: { current: 0, target: 400, unit: "g", color: "#06b6d4" },
+    fats: { current: 0, target: 75, unit: "g", color: "#f59e0b" },
+    waterGlasses: 0,
+    targetGlasses: 10,
+    waterMl: 0,
+    targetWaterMl: 3000,
+    currentDate: getTodayIso(),
+    weightHistory: [],
+    weightLogs: [],
+    householdPantry: [],
+    kitchenCalibration: { tasks: [] },
+    dailyTargets: {},
+    meals: []
+  };
+}
+
+/**
+ * Returns a pristine blank OS vault for a newly connected Google account.
+ */
+export function getBlankVault(account = null) {
+  const deviceId = getOrCreateDeviceId();
+  const platform = isMobileDevice() ? 'mobile' : 'desktop';
+  return {
+    version: 2,
+    lastUpdated: Date.now(),
+    lastDevice: deviceId,
+    lastPlatform: platform,
+    _tombstones: {},
+    googleAccount: account ? { email: account.email, name: account.name, picture: account.picture } : null,
+    nutrition: getBlankNutritionData(),
+    calendar: { items: [] },
+    settings: {}
+  };
 }
 
 /**
@@ -176,6 +221,7 @@ export function exportFullOsState() {
   }).filter(Boolean);
   const nutrition = {
     ...rawNutrition,
+    targetCalories: rawNutrition.targetCalories || 3000,
     weightHistory: normalizedWeight,
     weightLogs: normalizedWeight
   };
@@ -923,6 +969,51 @@ export async function saveVaultToGoogleCalendar(vault) {
 }
 
 /**
+ * Hard-resets the active user's cloud vault to a pristine blank state (3000 kcal, 0 meals, empty weight history).
+ * Overwrites both Serverless KV and Google Calendar vault backups, and cleans local storage.
+ */
+export async function resetAccountCloudVault() {
+  const account = getGoogleAccount();
+  const userKey = getCloudUserKey();
+  const blankVault = getBlankVault(account);
+
+  if (account?.email && typeof localStorage !== 'undefined') {
+    localStorage.setItem('wolfe_data_owner_email', account.email.trim().toLowerCase());
+  }
+
+  // Overwrite local storage directly with clean blank state
+  writeStorageJson(SYNC_KEYS.NUTRITION, blankVault.nutrition);
+  writeStorageJson(SYNC_KEYS.CALENDAR, blankVault.calendar);
+  writeStorageJson(SYNC_KEYS.CALENDAR_FALLBACK, blankVault.calendar);
+  saveTombstones({});
+
+  // Overwrite serverless and Google Calendar vaults
+  await saveVaultToServerless(userKey, blankVault);
+  if (isGoogleCalendarConnected()) {
+    await saveVaultToGoogleCalendar(blankVault).catch(() => {});
+  }
+
+  writeStorageJson(SYNC_KEYS.CLOUD_META, {
+    lastRemoteVaultUpdated: blankVault.lastUpdated,
+    lastSyncedAt: Date.now(),
+    status: 'synced',
+    deviceId: getOrCreateDeviceId()
+  });
+
+  // Notify React app to replace in-memory state cleanly
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-applied', {
+      detail: { vault: blankVault, options: { replaceLocal: true, forcePull: true } }
+    }));
+    window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+      detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
+    }));
+  }
+
+  return true;
+}
+
+/**
  * Primary Master Sync: Executes 2-Way sync across Phone and Desktop with Dual-Layer Persistence
  */
 let activeSyncPromise = null;
@@ -956,8 +1047,25 @@ export async function syncFullOsWithCloud(options = {}) {
     }
 
     try {
+      const account = getGoogleAccount();
+      const activeEmail = account?.email ? account.email.trim().toLowerCase() : null;
+      const storedOwnerEmail = typeof localStorage !== 'undefined' ? (localStorage.getItem('wolfe_data_owner_email') || '').trim().toLowerCase() : null;
+
+      const isAccountMismatch = Boolean(activeEmail && storedOwnerEmail && activeEmail !== storedOwnerEmail);
+
+      // If local data belongs to another account, wipe local user storage and start with a clean blank slate
+      if (isAccountMismatch) {
+        console.warn(`[Cloud Sync] Account mismatch detected (stored owner: ${storedOwnerEmail}, active: ${activeEmail}). Purging foreign local data.`);
+        wipeLocalUserData();
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('wolfe_data_owner_email', activeEmail);
+        }
+      } else if (activeEmail && !storedOwnerEmail && typeof localStorage !== 'undefined') {
+        localStorage.setItem('wolfe_data_owner_email', activeEmail);
+      }
+
       const userKey = getCloudUserKey();
-      const localVault = exportFullOsState();
+      let localVault = isAccountMismatch ? getBlankVault(account) : exportFullOsState();
 
       // 1. Force Push: Upload local state directly
       if (forcePush) {
@@ -966,7 +1074,7 @@ export async function syncFullOsWithCloud(options = {}) {
         if (isGoogleCalendarConnected()) {
           saveVaultToGoogleCalendar(enrichedLocal).catch(() => {});
         }
-        importFullOsState(enrichedLocal);
+        importFullOsState(enrichedLocal, { replaceLocal });
         writeStorageJson(SYNC_KEYS.CLOUD_META, {
           lastRemoteVaultUpdated: enrichedLocal.lastUpdated,
           lastSyncedAt: Date.now(),
@@ -992,7 +1100,7 @@ export async function syncFullOsWithCloud(options = {}) {
       }
 
       // 2b. Efficient Conditional GET Handshake: If remote is unmodified and not forceSync
-      if (remoteVault?.unmodified && !forceSync) {
+      if (remoteVault?.unmodified && !forceSync && !isAccountMismatch) {
         if (!isLocalMutationRecent(15000)) {
           if (typeof window !== 'undefined' && !silent) {
             window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
@@ -1022,21 +1130,44 @@ export async function syncFullOsWithCloud(options = {}) {
         }
       }
 
-      // 3. Force Pull: Replace local with remote if remote exists
-      if (forcePull && remoteVault) {
-        importFullOsState(remoteVault, { replaceLocal: true, forcePull: true });
-        writeStorageJson(SYNC_KEYS.CLOUD_META, {
-          lastRemoteVaultUpdated: remoteVault.lastUpdated || Date.now(),
-          lastSyncedAt: Date.now(),
-          status: 'synced',
-          deviceId: getOrCreateDeviceId()
-        });
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
-            detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
-          }));
+      // 3. Force Pull / Account Mismatch / Replace Local:
+      if (forcePull || replaceLocal || isAccountMismatch) {
+        if (remoteVault) {
+          importFullOsState(remoteVault, { replaceLocal: true, forcePull: true });
+          writeStorageJson(SYNC_KEYS.CLOUD_META, {
+            lastRemoteVaultUpdated: remoteVault.lastUpdated || Date.now(),
+            lastSyncedAt: Date.now(),
+            status: 'synced',
+            deviceId: getOrCreateDeviceId()
+          });
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+              detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
+            }));
+          }
+          return { success: true, mode: 'pulled', vault: remoteVault };
+        } else {
+          // Brand new account with no remote vault!
+          // Seed new account with pristine blank vault so it NEVER inherits previous user's data
+          const blankVault = getBlankVault(account);
+          importFullOsState(blankVault, { replaceLocal: true, forcePull: true });
+          await saveVaultToServerless(userKey, blankVault);
+          if (isGoogleCalendarConnected()) {
+            saveVaultToGoogleCalendar(blankVault).catch(() => {});
+          }
+          writeStorageJson(SYNC_KEYS.CLOUD_META, {
+            lastRemoteVaultUpdated: blankVault.lastUpdated,
+            lastSyncedAt: Date.now(),
+            status: 'synced',
+            deviceId: getOrCreateDeviceId()
+          });
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('wolfe-cloud-sync-status', {
+              detail: { status: 'synced', timestamp: Date.now(), userKey, hubsCount: 6 }
+            }));
+          }
+          return { success: true, mode: 'initial_seed', vault: blankVault };
         }
-        return { success: true, mode: 'pulled', vault: remoteVault };
       }
 
       // 4. Standard 2-Way Sync / Force Sync
@@ -1045,8 +1176,12 @@ export async function syncFullOsWithCloud(options = {}) {
         // Both exist: merge intelligently with tombstone guarantees
         finalVault = mergeOsState(localVault, remoteVault);
       } else {
-        // First device initial seed or remote unmodified: push local up
-        finalVault = { ...localVault, lastUpdated: Date.now() };
+        // No remote vault exists yet:
+        // Only push localVault if localVault belongs to this user. Otherwise, seed with blank vault.
+        const isOwnedByActiveUser = activeEmail && storedOwnerEmail === activeEmail;
+        finalVault = isOwnedByActiveUser
+          ? { ...localVault, lastUpdated: Date.now() }
+          : getBlankVault(account);
       }
 
       // Apply merged vault locally

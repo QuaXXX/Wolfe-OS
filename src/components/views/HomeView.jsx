@@ -374,7 +374,7 @@ export const HomeView = ({
                 playSound('click', soundEnabled);
                 onNavigate('nutrition');
               }}
-              className={`relative z-20 isolate touch-manipulation flex flex-col justify-between group transition-all cursor-pointer ${isCompact ? 'p-4' : 'p-5 sm:p-6'} min-h-[175px]`}
+              className={`relative z-20 isolate touch-manipulation flex flex-col justify-between group transition-all cursor-pointer ${isCompact ? 'p-4' : 'p-5 sm:p-6'} min-h-[195px]`}
             >
               {/* Header: Title & Quick Navigate */}
               <div className="flex items-center justify-between gap-2 mb-3">
@@ -419,8 +419,8 @@ export const HomeView = ({
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-8 items-center my-1.5">
                 
                 {/* Left: Calorie Circle Ring Visualizer */}
-                <div className="md:col-span-6 lg:col-span-6 flex items-center justify-center sm:justify-start gap-5 sm:gap-6">
-                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0">
+                <div className="md:col-span-7 lg:col-span-7 flex items-center justify-center sm:justify-start gap-4 sm:gap-6">
+                  <div className="relative w-28 h-28 sm:w-30 sm:h-30 lg:w-32 lg:h-32 flex items-center justify-center shrink-0">
                     <svg className="w-full h-full -rotate-90" viewBox="0 0 108 108">
                       {/* Background Track Ring */}
                       <circle
@@ -448,21 +448,21 @@ export const HomeView = ({
                     </svg>
                     
                     {/* Text Inside Circle */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none select-none">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none select-none p-1">
                       <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight leading-none">
                         {consumedCals.toLocaleString()}
                       </span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
                         kcal
                       </span>
-                      <span className="text-[10px] font-mono text-slate-500">
+                      <span className="text-[10px] font-mono text-slate-500 mt-0.5">
                         {calsPercent}%
                       </span>
                     </div>
                   </div>
 
                   {/* Calorie Stats Next to Circle */}
-                  <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {isSurplus ? (
                         <span className="px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 whitespace-nowrap">
@@ -478,13 +478,13 @@ export const HomeView = ({
                       Target: <span className="font-mono font-bold text-white">{targetCals.toLocaleString()}</span> kcal
                     </div>
                     <div className="text-[11px] sm:text-xs text-slate-500 font-sans whitespace-nowrap">
-                      {todayMeals.length} meal{todayMeals.length === 1 ? '' : 's'} logged today
+                      {todayMeals.length} meal{todayMeals.length === 1 ? '' : 's'} logged
                     </div>
                   </div>
                 </div>
 
                 {/* Right: Google-Style Macro Progress Bars */}
-                <div className="md:col-span-6 lg:col-span-6 flex flex-col justify-center space-y-2.5">
+                <div className="md:col-span-5 lg:col-span-5 flex flex-col justify-center space-y-2.5">
                   {/* Protein Bar */}
                   <div className="bg-white/[0.02] p-2.5 rounded-xl border border-white/5 space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-mono">

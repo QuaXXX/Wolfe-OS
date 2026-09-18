@@ -21,7 +21,8 @@ import {
   Cloud,
   Smartphone,
   Laptop,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Trash2
 } from 'lucide-react';
 import { 
   isGoogleCalendarConnected, 
@@ -37,7 +38,7 @@ import {
   getGoogleAccount,
   isMobileDevice
 } from '../../utils/googleCalendarService';
-import { syncFullOsWithCloud } from '../../utils/cloudSyncEngine';
+import { syncFullOsWithCloud, resetAccountCloudVault } from '../../utils/cloudSyncEngine';
 import { playSound } from '../../utils/soundFX';
 
 export const GoogleCalendarModal = ({ 
@@ -172,6 +173,27 @@ export const GoogleCalendarModal = ({
       }
     } catch (e) {
       setError(e.message || "Force pull failed.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleResetCloudVault = async () => {
+    playSound('click', soundEnabled);
+    const confirmed = typeof window !== 'undefined' ? window.confirm(
+      "Reset this Google account's cloud data to clean blank state (3,000 kcal target, 0 consumed, 0 meals, empty weight logs)?\n\nThis will clear any old or contaminated data for this account."
+    ) : true;
+    if (!confirmed) return;
+
+    setIsSyncing(true);
+    setError(null);
+    try {
+      await resetAccountCloudVault();
+      playSound('success', soundEnabled);
+      setSyncMessage("Account data wiped clean. Fresh blank slate initialized (3,000 kcal, 0 meals).");
+      refreshStatus();
+    } catch (e) {
+      setError(e.message || "Failed to reset cloud vault.");
     } finally {
       setIsSyncing(false);
     }
@@ -485,6 +507,19 @@ export const GoogleCalendarModal = ({
                   >
                     <Unlink className="w-3 h-3" />
                     <span>Disconnect</span>
+                  </button>
+                </div>
+
+                <div className="pt-1.5">
+                  <button
+                    type="button"
+                    onClick={handleResetCloudVault}
+                    disabled={isSyncing}
+                    className="w-full py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-[11px] font-medium border border-red-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-[0.99]"
+                    title="Wipe any old or foreign meals and reset this account to blank (3,000 kcal target, 0 meals)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Reset Account Data to Blank (3,000 kcal, 0 meals)</span>
                   </button>
                 </div>
               </div>

@@ -658,7 +658,35 @@ export function App() {
     const handleAccountSwitched = async (e) => {
       const newAccount = e.detail?.account;
       console.info(`[App] Google Account connected/switched to ${newAccount?.email}. Restoring personal cloud vault.`);
+      isApplyingInboundSyncRef.current = true;
+      const blankNutrition = e.detail?.blankNutrition || {
+        targetCalories: 3000,
+        consumedCalories: 0,
+        protein: { current: 0, target: 180, unit: "g", color: "#6366f1" },
+        carbs: { current: 0, target: 400, unit: "g", color: "#06b6d4" },
+        fats: { current: 0, target: 75, unit: "g", color: "#f59e0b" },
+        waterGlasses: 0,
+        targetGlasses: 10,
+        waterMl: 0,
+        targetWaterMl: 3000,
+        currentDate: getTodayIso(),
+        weightHistory: [],
+        weightLogs: [],
+        householdPantry: DEFAULT_HOUSEHOLD_PANTRY,
+        kitchenCalibration: {
+          tasks: DEFAULT_CALIBRATION_TASKS
+        },
+        dailyTargets: {},
+        meals: []
+      };
+      setNutritionData(synchronizeNutritionData(blankNutrition));
+      setCalendarData({
+        currentDate: formatDateTitle(getTodayIso()),
+        selectedDate: getTodayIso(),
+        items: []
+      });
       setSyncStatus('syncing');
+
       try {
         const cloudRes = await syncFullOsWithCloud({ forcePull: true, forceSync: true, replaceLocal: true });
         if (cloudRes?.vault) {
@@ -684,6 +712,10 @@ export function App() {
       } catch (err) {
         console.warn("Account switch sync notice:", err);
         setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
+      } finally {
+        setTimeout(() => {
+          isApplyingInboundSyncRef.current = false;
+        }, 1500);
       }
     };
 

@@ -35,7 +35,7 @@ export const NutritionHistoryModal = ({
     return getDailyNutritionHistory(rawMeals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets);
   }, [rawMeals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined' || !document.body) return null;
 
   const loggedDays = (nutritionHistory || []).filter(h => h && (h.calories || 0) > 0);
   const hitDays = (nutritionHistory || []).filter(h => h && h.hitCalories);

@@ -68,30 +68,61 @@ export function addDays(dateIso, n) {
 }
 
 /**
- * Convert ISO dateTime string (e.g. '2026-08-30T10:30:00-06:00') directly to 12-hour formatted time (e.g. '10:30 AM')
- * Literal string parsing guarantees zero timezone shift or browser locale skew.
+ * Accurately parses an ISO date/time string from Google Calendar into the user's local timezone.
+ * Handles UTC ('Z'), timezone offsets ('-06:00'), and all-day dates ('YYYY-MM-DD').
+ */
+export function parseGoogleDateTime(dateTimeStr) {
+  if (!dateTimeStr || typeof dateTimeStr !== 'string') {
+    return { dateStr: getTodayIso(), timeStr: 'All Day' };
+  }
+  
+  const trimmed = dateTimeStr.trim();
+  // Pure date (All-day event YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return { dateStr: trimmed, timeStr: 'All Day' };
+  }
+
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) {
+    const parts = trimmed.split('T');
+    return { dateStr: parts[0] || getTodayIso(), timeStr: 'All Day' };
+  }
+
+  // Format date and time in the user's local browser timezone
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  if (hours === 0) hours = 12;
+  else if (hours > 12) hours -= 12;
+  const timeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+
+  return { dateStr, timeStr };
+}
+
+/**
+ * Convert ISO dateTime string to 12-hour formatted time in local timezone
  */
 export function formatIsoTo12Hour(dateTimeStr) {
   if (!dateTimeStr) return '';
-  const timePart = dateTimeStr.split('T')[1];
-  if (!timePart) return '';
-  const match = timePart.match(/^(\d{1,2}):(\d{2})/);
-  if (!match) return '';
-  let h = parseInt(match[1], 10);
-  const min = match[2];
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  if (h === 0) h = 12;
-  else if (h > 12) h -= 12;
-  const padH = String(h).padStart(2, '0');
-  return `${padH}:${min} ${ampm}`;
+  const parsed = parseGoogleDateTime(dateTimeStr);
+  return parsed.timeStr;
 }
 
 export function formatEventTimeRange(startDateTime, endDateTime) {
   if (!startDateTime) return 'All Day';
-  const startStr = formatIsoTo12Hour(startDateTime);
-  if (!endDateTime) return startStr;
-  const endStr = formatIsoTo12Hour(endDateTime);
-  return `${startStr} - ${endStr}`;
+  const startParsed = parseGoogleDateTime(startDateTime);
+  if (startParsed.timeStr === 'All Day') return 'All Day';
+  
+  if (!endDateTime) return startParsed.timeStr;
+  const endParsed = parseGoogleDateTime(endDateTime);
+  if (endParsed.timeStr === 'All Day') return startParsed.timeStr;
+  
+  return `${startParsed.timeStr} - ${endParsed.timeStr}`;
 }
 
 export const GOOGLE_COLOR_MAP = {

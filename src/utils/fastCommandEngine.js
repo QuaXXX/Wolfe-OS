@@ -666,7 +666,7 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
   // Query Nutrition / Calories
   if (text.match(/\b(?:how\s+many\s+calories\s+left|calories\s+left|nutrition\s+status|macro\s+status|how\s+much\s+protein)\b/i) || text === 'calories' || text === 'macros') {
     const consumed = osData?.nutritionData?.consumedCalories || 0;
-    const target = osData?.nutritionData?.targetCalories || 2750;
+    const target = osData?.nutritionData?.targetCalories || 3000;
     const remaining = Math.max(0, target - consumed);
     const protein = osData?.nutritionData?.consumedProtein || 0;
     const proteinTarget = osData?.nutritionData?.targetProtein || 180;

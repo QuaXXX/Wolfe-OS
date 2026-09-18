@@ -3,7 +3,7 @@
  * Uses Google Calendar REST API v3, Google Tasks API v1, and Automated Token Exchange
  */
 
-import { addDays, getTodayIso, formatEventTimeRange, GOOGLE_COLOR_MAP } from './calendarUtils.js';
+import { addDays, getTodayIso, formatEventTimeRange, parseGoogleDateTime, GOOGLE_COLOR_MAP } from './calendarUtils.js';
 
 const GOOGLE_CLIENT_ID_KEY = 'wolfe_gcal_client_id';
 const GOOGLE_CLIENT_SECRET_KEY = 'wolfe_gcal_client_secret';
@@ -176,35 +176,50 @@ export function handleAccountSwitch(prevAccount, newAccount) {
   if (typeof localStorage === 'undefined') return;
   console.info(`[Google Calendar] Switching account: ${prevAccount?.email} -> ${newAccount?.email}`);
 
-  // 1. Wipe cached Google calendar IDs so new account creates/finds its own
+  // 1. Wipe cached Google calendar IDs and vault IDs so new account creates/finds its own
   localStorage.removeItem('wolfe_gcal_deadlines_id');
+  localStorage.removeItem('wolfe_gcal_vault_event_id');
 
-  // 2. Set active email
+  // 2. Set active email and data owner tag
   if (newAccount?.email) {
     localStorage.setItem('wolfe_user_email', newAccount.email);
+    localStorage.setItem('wolfe_data_owner_email', newAccount.email);
   }
 
   // 3. Reset cloud sync meta so we fresh pull new account's vault
   localStorage.removeItem('wolfe_cloud_sync_meta_v1');
   localStorage.removeItem('wolfe_tombstones_v1');
 
-  // 4. Strip old Google items from local calendar storage
-  const calKey = 'wolfe_os_calendar_v5';
-  try {
-    const raw = localStorage.getItem(calKey) || localStorage.getItem('wolfe_calendar_data');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.items)) {
-        parsed.items = parsed.items.filter(it => !it.isGoogle);
-        localStorage.setItem(calKey, JSON.stringify(parsed));
-      }
-    }
-  } catch (e) {}
+  // 4. Reset nutrition to clean blank defaults for the new account
+  const blankNutrition = {
+    targetCalories: 3000,
+    consumedCalories: 0,
+    protein: { current: 0, target: 180, unit: "g", color: "#6366f1" },
+    carbs: { current: 0, target: 400, unit: "g", color: "#06b6d4" },
+    fats: { current: 0, target: 75, unit: "g", color: "#f59e0b" },
+    waterGlasses: 0,
+    targetGlasses: 10,
+    waterMl: 0,
+    targetWaterMl: 3000,
+    currentDate: getTodayIso(),
+    weightHistory: [],
+    weightLogs: [],
+    householdPantry: [],
+    kitchenCalibration: { tasks: [] },
+    dailyTargets: {},
+    meals: []
+  };
+  localStorage.setItem('wolfe_nutrition_data', JSON.stringify(blankNutrition));
 
-  // 5. Notify React app of account switch
+  // 5. Strip old Google items from local calendar storage
+  const calKey = 'wolfe_os_calendar_v5';
+  localStorage.setItem(calKey, JSON.stringify({ items: [] }));
+  localStorage.setItem('wolfe_calendar_data', JSON.stringify({ items: [] }));
+
+  // 6. Notify React app of account switch with blank state
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('wolfe_google_account_switched', {
-      detail: { previousAccount: prevAccount, account: newAccount }
+      detail: { previousAccount: prevAccount, account: newAccount, blankNutrition }
     }));
   }
 }
@@ -229,10 +244,16 @@ export async function fetchGoogleUserProfile(token = null) {
         connectedAt: Date.now()
       };
 
-      // Detect if user switched accounts
+      // Detect if user switched accounts or signed into a different account than the current data owner
       const prevAccount = getGoogleAccount();
-      if (prevAccount?.email && account.email && prevAccount.email.toLowerCase() !== account.email.toLowerCase()) {
-        handleAccountSwitch(prevAccount, account);
+      const currentDataOwner = typeof localStorage !== 'undefined' ? localStorage.getItem('wolfe_data_owner_email') : null;
+      if (
+        (prevAccount?.email && account.email && prevAccount.email.toLowerCase() !== account.email.toLowerCase()) ||
+        (currentDataOwner && account.email && currentDataOwner.toLowerCase() !== account.email.toLowerCase())
+      ) {
+        handleAccountSwitch(prevAccount || { email: currentDataOwner }, account);
+      } else if (account?.email && typeof localStorage !== 'undefined') {
+        localStorage.setItem('wolfe_data_owner_email', account.email);
       }
 
       saveGoogleAccount(account);
@@ -1031,6 +1052,10 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
         url.searchParams.append('singleEvents', 'true');
         url.searchParams.append('orderBy', 'startTime');
         url.searchParams.append('maxResults', '250');
+        const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (userTimeZone) {
+          url.searchParams.append('timeZone', userTimeZone);
+        }
         if (pageToken) {
           url.searchParams.append('pageToken', pageToken);
         }
@@ -1056,8 +1081,16 @@ export async function fetchGoogleCalendarEvents(interactive = false) {
 
           const parsed = rawItems.map(item => {
             const isAllDay = !item.start?.dateTime && !!item.start?.date;
-            const dateStr = item.start?.dateTime ? item.start.dateTime.split('T')[0] : (item.start?.date || getTodayIso());
-            const timeString = isAllDay ? "All Day" : formatEventTimeRange(item.start?.dateTime, item.end?.dateTime);
+            let dateStr;
+            let timeString;
+            if (isAllDay) {
+              dateStr = item.start?.date || getTodayIso();
+              timeString = "All Day";
+            } else {
+              const startParsed = parseGoogleDateTime(item.start?.dateTime);
+              dateStr = startParsed.dateStr;
+              timeString = formatEventTimeRange(item.start?.dateTime, item.end?.dateTime);
+            }
 
             const summary = item.summary || "Untitled Event";
             const lowerSummary = summary.toLowerCase().trim();
@@ -1248,8 +1281,9 @@ export async function createGoogleCalendarEvent(itemData) {
     const startIso = formatLocalRFC3339(targetDate, startTime);
     const endIso = formatLocalRFC3339(targetDate, endTime || (startTime ? addOneHour(startTime) : '03:00 PM'));
 
-    body.start = { dateTime: startIso };
-    body.end = { dateTime: endIso };
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    body.start = { dateTime: startIso, timeZone: userTimeZone };
+    body.end = { dateTime: endIso, timeZone: userTimeZone };
   }
 
   const targetUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`;
