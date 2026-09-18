@@ -322,7 +322,7 @@ export const WeightTrackerModal = ({
           </div>
 
           {/* Log New Morning Weigh-In Form */}
-          <form onSubmit={handleSubmit} className="p-4 rounded-2xl bg-[#131728] border border-white/10 space-y-3">
+          <form onSubmit={handleSubmit} className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
             <span className="text-xs font-bold text-white block">Log Morning Weigh-In</span>
             
             <div className="grid grid-cols-3 gap-2.5">

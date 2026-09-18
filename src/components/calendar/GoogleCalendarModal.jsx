@@ -438,7 +438,7 @@ export const GoogleCalendarModal = ({
             </div>
           ) : (
             /* Clean Not-Connected State */
-            <div className="p-6 rounded-2xl bg-[#131728] border border-white/10 space-y-4 text-center">
+            <div className="p-6 rounded-2xl bg-white/[0.025] border border-white/10 space-y-4 text-center">
               <div className="space-y-1 text-center">
                 <h4 className="text-sm font-bold text-white tracking-tight">Sign in with Google</h4>
                 <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
