@@ -54,9 +54,10 @@ export const CompactVoiceWidget = forwardRef(({
     handleQuerySubmitRef.current = handleQuerySubmit;
   });
 
-  // Initialize UniversalVoiceController (MediaRecorder on iOS/PWA, Web Speech on desktop)
+  // Initialize UniversalVoiceController (Native Speech on Safari/Desktop with MediaRecorder VAD fallback)
   useEffect(() => {
     const controller = new UniversalVoiceController({
+      apiKey: aiConfig?.apiKey,
       onInterim: (text) => {
         setLiveSpeechText(text);
         setInputText(text);
@@ -83,7 +84,7 @@ export const CompactVoiceWidget = forwardRef(({
     return () => {
       controller.destroy();
     };
-  }, []);
+  }, [aiConfig?.apiKey]);
 
   // Global hotkey (Cmd+K / Ctrl+K)
   useEffect(() => {

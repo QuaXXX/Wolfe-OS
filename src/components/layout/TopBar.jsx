@@ -55,9 +55,10 @@ export const TopBar = ({
     handleVoiceQueryRef.current = handleVoiceQuery;
   });
 
-  // Initialize UniversalVoiceController (MediaRecorder on iOS/PWA, Web Speech on desktop)
+  // Initialize UniversalVoiceController (Native Speech on Safari/Desktop with MediaRecorder VAD fallback)
   useEffect(() => {
     const controller = new UniversalVoiceController({
+      apiKey: aiConfig?.apiKey,
       onInterim: (text) => {
         setLiveSpeech(text);
       },
@@ -82,7 +83,7 @@ export const TopBar = ({
     return () => {
       controller.destroy();
     };
-  }, []);
+  }, [aiConfig?.apiKey]);
 
   useEffect(() => {
     const updateTime = () => {
