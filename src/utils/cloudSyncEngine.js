@@ -101,13 +101,14 @@ export function getBlankNutritionData() {
     targetCalories: 3000,
     consumedCalories: 0,
     protein: { current: 0, target: 180, unit: "g", color: "#6366f1" },
-    carbs: { current: 0, target: 400, unit: "g", color: "#06b6d4" },
-    fats: { current: 0, target: 75, unit: "g", color: "#f59e0b" },
+    carbs: { current: 0, target: 450, unit: "g", color: "#06b6d4" },
+    fats: { current: 0, target: 80, unit: "g", color: "#f59e0b" },
     waterGlasses: 0,
     targetGlasses: 10,
     waterMl: 0,
     targetWaterMl: 3000,
     currentDate: getTodayIso(),
+    dailySummaries: {},
     weightHistory: [],
     weightLogs: [],
     householdPantry: [],
@@ -222,6 +223,7 @@ export function exportFullOsState() {
   const nutrition = {
     ...rawNutrition,
     targetCalories: rawNutrition.targetCalories || 3000,
+    dailySummaries: rawNutrition.dailySummaries || {},
     weightHistory: normalizedWeight,
     weightLogs: normalizedWeight
   };
@@ -475,9 +477,42 @@ export function mergeOsState(localVault, remoteVault) {
     ...(localNut.dailyTargets || {})
   };
 
+  // Merge dailySummaries (per-date historical macro summaries) across local and remote vaults
+  const mergedDailySummaries = {
+    ...(remoteNut.dailySummaries || {}),
+    ...(localNut.dailySummaries || {})
+  };
+
+  // Fold any past meals (< todayIso) into mergedDailySummaries
+  const pastMergedMeals = mergedMeals.filter(m => m && m.date && m.date < todayIso);
+  if (pastMergedMeals.length > 0) {
+    const pastMap = {};
+    pastMergedMeals.forEach(m => {
+      if (!pastMap[m.date]) pastMap[m.date] = [];
+      pastMap[m.date].push(m);
+    });
+    Object.entries(pastMap).forEach(([d, dMeals]) => {
+      const agg = aggregateDailyNutrition(dMeals);
+      const existing = mergedDailySummaries[d] || {};
+      const dayTarget = mergedDailyTargets[d];
+      const targetCals = typeof dayTarget === 'number' ? dayTarget : (dayTarget?.calories || targetCalories || 3000);
+      mergedDailySummaries[d] = {
+        calories: Math.max(Number(existing.calories) || 0, Number(agg.calories) || 0),
+        protein: Math.max(Number(existing.protein) || 0, Number(agg.protein) || 0),
+        carbs: Math.max(Number(existing.carbs) || 0, Number(agg.carbs) || 0),
+        fats: Math.max(Number(existing.fats) || 0, Number(agg.fats) || 0),
+        mealCount: (Number(existing.mealCount) || 0) + (Number(agg.mealCount) || dMeals.length),
+        targetCalories: targetCals,
+        updatedAt: Date.now()
+      };
+    });
+  }
+
+  // To keep cloud payloads ultra-lightweight (<5KB), meals array retains only today's active meals!
+  const activeMergedMeals = mergedMeals.filter(m => m && m.date && m.date >= todayIso);
+
   merged.nutrition = {
     ...baseNut,
-    _migration3173Applied: true,
     currentDate: todayIso,
     consumedCalories: todayTotals.calories,
     protein: {
@@ -493,9 +528,10 @@ export function mergeOsState(localVault, remoteVault) {
       current: todayTotals.fats
     },
     targetCalories,
+    dailySummaries: mergedDailySummaries,
     dailyTargets: mergedDailyTargets,
     updatedAt: Math.max(localNutUpdated, remoteNutUpdated, Date.now()),
-    meals: mergedMeals,
+    meals: activeMergedMeals,
     weightHistory: mergedWeightLogs,
     weightLogs: mergedWeightLogs,
     householdPantry: mergedPantry.length > 0 ? mergedPantry : (baseNut.householdPantry || []),
@@ -532,6 +568,16 @@ export function isRemoteSyncApplying() {
  */
 export function importFullOsState(vault, options = {}) {
   if (!vault || typeof vault !== 'object') return false;
+
+  // Strict Account Boundary: NEVER import a vault belonging to a different Google account
+  const currentAcc = getGoogleAccount();
+  if (currentAcc?.email && vault.googleAccount?.email) {
+    if (currentAcc.email.trim().toLowerCase() !== vault.googleAccount.email.trim().toLowerCase()) {
+      console.warn(`[Cloud Sync] Blocked cross-account contamination: active=${currentAcc.email}, incoming=${vault.googleAccount.email}`);
+      return false;
+    }
+  }
+
   isApplyingRemoteSync = true;
 
   const isReplacing = Boolean(options.replaceLocal || options.forcePull);
@@ -540,12 +586,12 @@ export function importFullOsState(vault, options = {}) {
   const activeTombstones = isReplacing ? (vault._tombstones || {}) : { ...getTombstones(), ...(vault._tombstones || {}) };
   saveTombstones(activeTombstones);
 
-  // Auto-link Google Account from incoming vault so secondary devices adopt identical identity
+  // Auto-link Google Account from incoming vault ONLY if device currently has no signed-in account
   if (vault.googleAccount?.email && typeof localStorage !== 'undefined') {
     try {
-      localStorage.setItem('wolfe_user_email', vault.googleAccount.email);
       const existingAcc = getGoogleAccount();
       if (!existingAcc || !existingAcc.email) {
+        localStorage.setItem('wolfe_user_email', vault.googleAccount.email);
         saveGoogleAccount(vault.googleAccount);
       }
     } catch (e) {}
@@ -649,6 +695,35 @@ export function importFullOsState(vault, options = {}) {
 
     const finalCleanWeight = Array.from(weightMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
 
+    // Merge dailySummaries from incoming vault with current local dailySummaries
+    const currentDailySummaries = isReplacing ? {} : (currentLocalNutrition.dailySummaries || {});
+    const incomingDailySummaries = vault.nutrition.dailySummaries || {};
+    const mergedSummaries = { ...currentDailySummaries, ...incomingDailySummaries };
+
+    // Compress any past meals from finalCleanMeals into mergedSummaries and prune
+    const pastCleanMeals = finalCleanMeals.filter(m => m && m.date && m.date < todayIso);
+    if (pastCleanMeals.length > 0) {
+      const pastMap = {};
+      pastCleanMeals.forEach(m => {
+        if (!pastMap[m.date]) pastMap[m.date] = [];
+        pastMap[m.date].push(m);
+      });
+      Object.entries(pastMap).forEach(([d, dMeals]) => {
+        const agg = aggregateDailyNutrition(dMeals);
+        const existing = mergedSummaries[d] || {};
+        mergedSummaries[d] = {
+          calories: Math.max(Number(existing.calories) || 0, Number(agg.calories) || 0),
+          protein: Math.max(Number(existing.protein) || 0, Number(agg.protein) || 0),
+          carbs: Math.max(Number(existing.carbs) || 0, Number(agg.carbs) || 0),
+          fats: Math.max(Number(existing.fats) || 0, Number(agg.fats) || 0),
+          mealCount: (Number(existing.mealCount) || 0) + (Number(agg.mealCount) || dMeals.length),
+          targetCalories: Number(existing.targetCalories) || Number(vault.nutrition.targetCalories) || 3000,
+          updatedAt: Date.now()
+        };
+      });
+    }
+    const todayFinalMeals = finalCleanMeals.filter(m => m && m.date && m.date >= todayIso);
+
     cleanNutrition = {
       ...vault.nutrition,
       targetCalories: vault.nutrition.targetCalories || 3000,
@@ -666,7 +741,8 @@ export function importFullOsState(vault, options = {}) {
         ...(vault.nutrition.fats || { target: 80, unit: "g", color: "#f59e0b" }),
         current: todayTotals.fats
       },
-      meals: finalCleanMeals,
+      dailySummaries: mergedSummaries,
+      meals: todayFinalMeals,
       weightHistory: finalCleanWeight,
       weightLogs: finalCleanWeight,
       householdPantry: (vault.nutrition.householdPantry || []).filter(s => s && !isTomb(s.id, s.updatedAt) && !isTomb(s.name?.toLowerCase(), s.updatedAt)),

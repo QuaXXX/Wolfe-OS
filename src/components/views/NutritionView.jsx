@@ -298,15 +298,33 @@ const NutritionViewInner = ({
     setApplyAsDefault(selectedDate >= currentTodayIso);
   }, [activeTargetCalories, activeTargetProtein, activeTargetCarbs, activeTargetFats, isTargetModalOpen, selectedDate, currentTodayIso]);
 
+  const isPastDay = selectedDate < currentTodayIso;
+  const pastDaySummary = safeNutritionData.dailySummaries?.[selectedDate];
+
   // Filter meals strictly for the selected date
   const selectedDateMeals = useMemo(() => {
     return (meals || []).filter(m => m && m.date === selectedDate);
   }, [meals, selectedDate]);
 
-  // Aggregate selected date nutrition totals
+  // Aggregate selected date nutrition totals (reads compressed dailySummaries for past days)
   const dailyTotals = useMemo(() => {
+    if (isPastDay) {
+      if (pastDaySummary) {
+        return {
+          calories: Number(pastDaySummary.calories) || 0,
+          protein: Number(pastDaySummary.protein) || 0,
+          carbs: Number(pastDaySummary.carbs) || 0,
+          fats: Number(pastDaySummary.fats) || 0,
+          mealCount: Number(pastDaySummary.mealCount) || (Number(pastDaySummary.calories) > 0 ? 1 : 0)
+        };
+      }
+      if (selectedDateMeals.length > 0) {
+        return aggregateDailyNutrition(selectedDateMeals);
+      }
+      return { calories: 0, protein: 0, carbs: 0, fats: 0, mealCount: 0 };
+    }
     return aggregateDailyNutrition(selectedDateMeals);
-  }, [selectedDateMeals]);
+  }, [isPastDay, pastDaySummary, selectedDateMeals]);
 
   const weightTrend14 = useMemo(() => {
     return calculateWeightTrend(weightHistory, 14);
@@ -1026,213 +1044,334 @@ const NutritionViewInner = ({
         </div>
       </GlassCard>
 
-      {/* 5. TODAY'S MEAL ENTRIES BY SLOT */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-              {selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}
-            </h2>
+      {/* 5. MEAL ENTRIES / ARCHIVED PAST-DAY MACRO SUMMARY */}
+      {isPastDay ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-xl bg-white/[0.04] border border-white/10">
+                <History className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+              </div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                Archived Day Summary • {formatDateTitle(selectedDate)}
+              </h2>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400 bg-white/[0.03] px-2.5 py-1 rounded-xl border border-white/10">
+              <Check className="w-3 h-3 text-emerald-400" />
+              <span>Compact Macro Summary</span>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              playSound('click', soundEnabled);
-              setIsMealModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
-            style={{ backgroundColor: 'var(--accent-primary)' }}
-            title="Snap meal with camera or select from gallery"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Camera</span>
-          </button>
-        </div>
+          {(dailyTotals?.calories > 0 || dailyTotals?.protein > 0 || dailyTotals?.carbs > 0 || dailyTotals?.fats > 0) ? (
+            <GlassCard hoverEffect={false} className="p-5 sm:p-6 space-y-4 shadow-xl border-white/15">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Archived Record</span>
+                  <div className="text-sm font-bold text-white flex items-center gap-2 mt-0.5">
+                    <span>{formatDateTitle(selectedDate)}</span>
+                    {dailyTotals?.calories >= activeTargetCalories ? (
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold flex items-center gap-1">
+                        <CheckCheck className="w-3 h-3" /> Target Met
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-lg bg-white/5 text-slate-400 text-[10px] font-mono">
+                        {Math.round(((dailyTotals?.calories || 0) / (activeTargetCalories || 1)) * 100)}% of goal
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-400 font-mono">
+                  Detailed meals are archived into daily totals to optimize storage.
+                </div>
+              </div>
 
-        {selectedDateMeals.length > 0 ? (
-          <div className="space-y-2">
-            {selectedDateMeals.map((meal, mIdx) => {
-              if (!meal) return null;
-              const displayMealName = typeof meal.name === 'string' ? meal.name : (meal.name?.name || meal.name?.title || 'Meal');
-              const displayCals = typeof meal.calories === 'number' ? meal.calories : (Number(meal.calories?.current || meal.calories) || 0);
-              const displayProtein = typeof meal.protein === 'number' ? meal.protein : (Number(meal.protein?.current || meal.protein) || 0);
-              const displayCarbs = typeof meal.carbs === 'number' ? meal.carbs : (Number(meal.carbs?.current || meal.carbs) || 0);
-              const displayFats = typeof meal.fats === 'number' ? meal.fats : (Number(meal.fats?.current || meal.fats) || 0);
-              const mealKey = meal.id || `meal-${mIdx}`;
-              const isExpanded = expandedMealIds.has(mealKey) || (meal.id && expandedMealIds.has(meal.id));
-
-              return (
-                <div 
-                  key={mealKey} 
-                  className={`rounded-2xl border transition-all duration-200 overflow-hidden shadow-md backdrop-blur-xl ${
-                    isExpanded 
-                      ? 'bg-[#101322]/95 border-white/20 p-4 sm:p-5 space-y-3.5' 
-                      : 'bg-[#0f1220]/80 hover:bg-[#101424] border-white/10 hover:border-white/20 px-3.5 sm:px-4 py-3 cursor-pointer'
-                  }`}
-                  onClick={!isExpanded ? () => toggleMealExpand(meal.id || mealKey) : undefined}
-                >
-                  {/* Summary Row: Icon, Name, Time, Calories, Expand Toggle & Delete */}
-                  <div className="flex items-center justify-between gap-3 select-none">
-                    <div 
-                      className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer flex-1"
-                      onClick={isExpanded ? () => toggleMealExpand(meal.id || mealKey) : undefined}
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-base shrink-0 shadow-sm">
-                        {meal.icon || '🍽️'}
-                      </div>
-                      <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
-                        <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
-                          {displayMealName}
-                        </h4>
-                        {meal.time && (
-                          <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5 text-slate-500" />
-                            <span>{meal.time}</span>
-                          </span>
-                        )}
-                        {!isExpanded && Array.isArray(meal.items) && meal.items.length > 0 && (
-                          <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
-                            ({meal.items.length} {meal.items.length === 1 ? 'item' : 'items'})
-                          </span>
-                        )}
-                      </div>
+              {/* 4 Core Macro Metrics: Calories, Protein, Carbs, Fats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* 1. Calories */}
+                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="font-semibold text-slate-300">🔥 Calories</span>
+                    <span className="text-[10px] font-mono">kcal</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xl sm:text-2xl font-black font-mono text-white">
+                      {(dailyTotals?.calories || 0).toLocaleString()}
                     </div>
-
-                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                      {/* Calories Badge */}
-                      <div 
-                        className="flex items-baseline gap-1 cursor-pointer font-mono"
-                        onClick={() => toggleMealExpand(meal.id || mealKey)}
-                      >
-                        <span className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
-                          {displayCals}
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                          kcal
-                        </span>
-                      </div>
-
-                      {/* Dropdown Expand Toggle Arrow */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleMealExpand(meal.id || mealKey);
-                        }}
-                        className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                        title={isExpanded ? "Collapse details" : "Expand full meal details"}
-                      >
-                        <ChevronDown 
-                          className={`w-4 h-4 transition-transform duration-200 ${
-                            isExpanded ? 'rotate-180 text-white' : 'text-slate-400'
-                          }`} 
-                        />
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteMeal(meal.id);
-                        }}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
-                        title="Delete meal"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                      Target: {(activeTargetCalories || 3000).toLocaleString()}
                     </div>
                   </div>
+                </div>
 
-                  {/* EXPANDED SECTION: Complete Macros & Ingredients Details */}
-                  {isExpanded && (
-                    <div className="space-y-3.5 pt-1 animate-fade-in border-t border-white/10">
-                      {/* Clean Macro Pill Trio */}
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-                          <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/80 font-semibold">Protein</div>
-                          <div className="text-xs sm:text-sm font-bold text-emerald-300 font-mono mt-0.5">{displayProtein}g</div>
+                {/* 2. Protein */}
+                <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-xs text-emerald-400">
+                    <span className="font-semibold text-emerald-300">🥩 Protein</span>
+                    <span className="text-[10px] font-mono">4 kcal/g</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400">
+                      {dailyTotals?.protein || 0}g
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                      Target: {activeTargetProtein || 180}g
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Carbs */}
+                <div className="p-3.5 rounded-2xl bg-sky-500/5 border border-sky-500/20 flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-xs text-sky-400">
+                    <span className="font-semibold text-sky-300">🍚 Carbs</span>
+                    <span className="text-[10px] font-mono">4 kcal/g</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xl sm:text-2xl font-black font-mono text-sky-400">
+                      {dailyTotals?.carbs || 0}g
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                      Target: {activeTargetCarbs || 450}g
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Fats */}
+                <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-xs text-amber-400">
+                    <span className="font-semibold text-amber-300">🥑 Fats</span>
+                    <span className="text-[10px] font-mono">9 kcal/g</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xl sm:text-2xl font-black font-mono text-amber-400">
+                      {dailyTotals?.fats || 0}g
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                      Target: {activeTargetFats || 80}g
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          ) : (
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+              <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
+                <CalendarIcon className="w-5 h-5" />
+              </div>
+              <div className="text-xs font-bold text-white">No Nutrition History for {formatDateTitle(selectedDate)}</div>
+              <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                No calories or macros were logged on this date.
+              </p>
+            </GlassCard>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                {selectedDate === todayIso ? "Today's Logged Meals" : `Logged Meals for ${formatDateTitle(selectedDate)}`}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                playSound('click', soundEnabled);
+                setIsMealModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+              style={{ backgroundColor: 'var(--accent-primary)' }}
+              title="Snap meal with camera or select from gallery"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Camera</span>
+            </button>
+          </div>
+
+          {selectedDateMeals.length > 0 ? (
+            <div className="space-y-2">
+              {selectedDateMeals.map((meal, mIdx) => {
+                if (!meal) return null;
+                const displayMealName = typeof meal.name === 'string' ? meal.name : (meal.name?.name || meal.name?.title || 'Meal');
+                const displayCals = typeof meal.calories === 'number' ? meal.calories : (Number(meal.calories?.current || meal.calories) || 0);
+                const displayProtein = typeof meal.protein === 'number' ? meal.protein : (Number(meal.protein?.current || meal.protein) || 0);
+                const displayCarbs = typeof meal.carbs === 'number' ? meal.carbs : (Number(meal.carbs?.current || meal.carbs) || 0);
+                const displayFats = typeof meal.fats === 'number' ? meal.fats : (Number(meal.fats?.current || meal.fats) || 0);
+                const mealKey = meal.id || `meal-${mIdx}`;
+                const isExpanded = expandedMealIds.has(mealKey) || (meal.id && expandedMealIds.has(meal.id));
+
+                return (
+                  <div 
+                    key={mealKey} 
+                    className={`rounded-2xl border transition-all duration-200 overflow-hidden shadow-md backdrop-blur-xl ${
+                      isExpanded 
+                        ? 'bg-[#101322]/95 border-white/20 p-4 sm:p-5 space-y-3.5' 
+                        : 'bg-[#0f1220]/80 hover:bg-[#101424] border-white/10 hover:border-white/20 px-3.5 sm:px-4 py-3 cursor-pointer'
+                    }`}
+                    onClick={!isExpanded ? () => toggleMealExpand(meal.id || mealKey) : undefined}
+                  >
+                    {/* Summary Row: Icon, Name, Time, Calories, Expand Toggle & Delete */}
+                    <div className="flex items-center justify-between gap-3 select-none">
+                      <div 
+                        className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer flex-1"
+                        onClick={isExpanded ? () => toggleMealExpand(meal.id || mealKey) : undefined}
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-base shrink-0 shadow-sm">
+                          {meal.icon || '🍽️'}
                         </div>
-                        <div className="p-2 sm:p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
-                          <div className="text-[10px] font-mono uppercase tracking-wider text-sky-400/80 font-semibold">Carbs</div>
-                          <div className="text-xs sm:text-sm font-bold text-sky-300 font-mono mt-0.5">{displayCarbs}g</div>
-                        </div>
-                        <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-                          <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400/80 font-semibold">Fats</div>
-                          <div className="text-xs sm:text-sm font-bold text-amber-300 font-mono mt-0.5">{displayFats}g</div>
+                        <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
+                          <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
+                            {displayMealName}
+                          </h4>
+                          {meal.time && (
+                            <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                              <Clock className="w-2.5 h-2.5 text-slate-500" />
+                              <span>{meal.time}</span>
+                            </span>
+                          )}
+                          {!isExpanded && Array.isArray(meal.items) && meal.items.length > 0 && (
+                            <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
+                              ({meal.items.length} {meal.items.length === 1 ? 'item' : 'items'})
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      {/* Clean Ingredients Breakdown */}
-                      {Array.isArray(meal.items) && meal.items.length > 0 && (
-                        <div className="pt-1 space-y-1.5">
-                          <div className="text-[10px] uppercase font-sans tracking-wider text-slate-400 font-semibold flex items-center justify-between">
-                            <span>Items & Calculated Ingredients</span>
-                            <span className="text-[10px] text-slate-500">{meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}</span>
-                          </div>
-                          <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                            {meal.items.map((it, idx) => {
-                              const isObj = it && typeof it === 'object';
-                              const name = isObj ? (typeof it.name === 'string' ? it.name : String(it.name?.title || it.name?.name || 'Item')) : String(it || 'Item');
-                              const portion = isObj ? (typeof it.portion === 'string' ? it.portion : (it.portion ? String(it.portion) : null)) : null;
-                              const itCals = isObj && it.calories != null ? (typeof it.calories === 'number' ? it.calories : (Number(it.calories?.current || it.calories) || 0)) : null;
-                              const itProtein = isObj && it.protein != null ? (typeof it.protein === 'number' ? it.protein : (Number(it.protein?.current || it.protein) || 0)) : null;
-                              const itCarbs = isObj && it.carbs != null ? (typeof it.carbs === 'number' ? it.carbs : (Number(it.carbs?.current || it.carbs) || 0)) : null;
-                              const itFats = isObj && it.fats != null ? (typeof it.fats === 'number' ? it.fats : (Number(it.fats?.current || it.fats) || 0)) : null;
-                              const hasMacros = isObj && (itCals != null || itProtein != null || itCarbs != null || itFats != null);
+                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                        {/* Calories Badge */}
+                        <div 
+                          className="flex items-baseline gap-1 cursor-pointer font-mono"
+                          onClick={() => toggleMealExpand(meal.id || mealKey)}
+                        >
+                          <span className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
+                            {displayCals}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            kcal
+                          </span>
+                        </div>
 
-                              return (
-                                <div key={idx} className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-colors">
-                                  <div className="flex items-start sm:items-center gap-2 min-w-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0 mt-1 sm:mt-0" />
-                                    <div className="leading-snug break-words whitespace-normal">
-                                      <span className="text-slate-200 font-medium">{name}</span>
-                                      {portion && (
-                                        <span className="text-[11px] text-slate-400 ml-1.5">({portion})</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {hasMacros && (
-                                    <div className="flex items-center gap-2 text-[11px] shrink-0 font-medium ml-3.5 sm:ml-0">
-                                      {itCals != null && (
-                                        <span className="text-white">{itCals} cal</span>
-                                      )}
-                                      {itProtein != null && (
-                                        <span className="text-emerald-400">{itProtein}g P</span>
-                                      )}
-                                      {itCarbs != null && (
-                                        <span className="text-sky-300">{itCarbs}g C</span>
-                                      )}
-                                      {itFats != null && (
-                                        <span className="text-amber-300">{itFats}g F</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                        {/* Dropdown Expand Toggle Arrow */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMealExpand(meal.id || mealKey);
+                          }}
+                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                          title={isExpanded ? "Collapse details" : "Expand full meal details"}
+                        >
+                          <ChevronDown 
+                            className={`w-4 h-4 transition-transform duration-200 ${
+                              isExpanded ? 'rotate-180 text-white' : 'text-slate-400'
+                            }`} 
+                          />
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMeal(meal.id);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
+                          title="Delete meal"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* EXPANDED SECTION: Complete Macros & Ingredients Details */}
+                    {isExpanded && (
+                      <div className="space-y-3.5 pt-1 animate-fade-in border-t border-white/10">
+                        {/* Clean Macro Pill Trio */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/80 font-semibold">Protein</div>
+                            <div className="text-xs sm:text-sm font-bold text-emerald-300 font-mono mt-0.5">{displayProtein}g</div>
+                          </div>
+                          <div className="p-2 sm:p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-sky-400/80 font-semibold">Carbs</div>
+                            <div className="text-xs sm:text-sm font-bold text-sky-300 font-mono mt-0.5">{displayCarbs}g</div>
+                          </div>
+                          <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400/80 font-semibold">Fats</div>
+                            <div className="text-xs sm:text-sm font-bold text-amber-300 font-mono mt-0.5">{displayFats}g</div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
-            <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
-              <UtensilsCrossed className="w-5 h-5" />
+
+                        {/* Clean Ingredients Breakdown */}
+                        {Array.isArray(meal.items) && meal.items.length > 0 && (
+                          <div className="pt-1 space-y-1.5">
+                            <div className="text-[10px] uppercase font-sans tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                              <span>Items & Calculated Ingredients</span>
+                              <span className="text-[10px] text-slate-500">{meal.items.length} {meal.items.length === 1 ? 'item' : 'items'}</span>
+                            </div>
+                            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                              {meal.items.map((it, idx) => {
+                                const isObj = it && typeof it === 'object';
+                                const name = isObj ? (typeof it.name === 'string' ? it.name : String(it.name?.title || it.name?.name || 'Item')) : String(it || 'Item');
+                                const portion = isObj ? (typeof it.portion === 'string' ? it.portion : (it.portion ? String(it.portion) : null)) : null;
+                                const itCals = isObj && it.calories != null ? (typeof it.calories === 'number' ? it.calories : (Number(it.calories?.current || it.calories) || 0)) : null;
+                                const itProtein = isObj && it.protein != null ? (typeof it.protein === 'number' ? it.protein : (Number(it.protein?.current || it.protein) || 0)) : null;
+                                const itCarbs = isObj && it.carbs != null ? (typeof it.carbs === 'number' ? it.carbs : (Number(it.carbs?.current || it.carbs) || 0)) : null;
+                                const itFats = isObj && it.fats != null ? (typeof it.fats === 'number' ? it.fats : (Number(it.fats?.current || it.fats) || 0)) : null;
+                                const hasMacros = isObj && (itCals != null || itProtein != null || itCarbs != null || itFats != null);
+
+                                return (
+                                  <div key={idx} className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-colors">
+                                    <div className="flex items-start sm:items-center gap-2 min-w-0">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0 mt-1 sm:mt-0" />
+                                      <div className="leading-snug break-words whitespace-normal">
+                                        <span className="text-slate-200 font-medium">{name}</span>
+                                        {portion && (
+                                          <span className="text-[11px] text-slate-400 ml-1.5">({portion})</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {hasMacros && (
+                                      <div className="flex items-center gap-2 text-[11px] shrink-0 font-medium ml-3.5 sm:ml-0">
+                                        {itCals != null && (
+                                          <span className="text-white">{itCals} cal</span>
+                                        )}
+                                        {itProtein != null && (
+                                          <span className="text-emerald-400">{itProtein}g P</span>
+                                        )}
+                                        {itCarbs != null && (
+                                          <span className="text-sky-300">{itCarbs}g C</span>
+                                        )}
+                                        {itFats != null && (
+                                          <span className="text-amber-300">{itFats}g F</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="text-xs font-bold text-white">{selectedDate === todayIso ? "No Meals Logged Today" : `No Meals Logged for ${formatDateTitle(selectedDate)}`}</div>
-            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-              Tap + Log Meal or tap Camera to log meals with photo or barcode analysis.
-            </p>
-          </GlassCard>
-        )}
-      </div>
+          ) : (
+            <GlassCard hoverEffect={false} className="p-8 text-center space-y-2">
+              <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto text-slate-400">
+                <UtensilsCrossed className="w-5 h-5" />
+              </div>
+              <div className="text-xs font-bold text-white">{selectedDate === todayIso ? "No Meals Logged Today" : `No Meals Logged for ${formatDateTitle(selectedDate)}`}</div>
+              <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                Tap + Log Meal or tap Camera to log meals with photo or barcode analysis.
+              </p>
+            </GlassCard>
+          )}
+        </div>
+      )}
 
       {/* DAY-BY-DAY CALENDAR & PROGRESS STRIP (Positioned at bottom) */}
       <div className="p-3 sm:p-4 rounded-3xl bg-[#0f1220]/90 border border-white/10 shadow-xl space-y-3 font-sans mt-2">
@@ -1246,7 +1385,7 @@ const NutritionViewInner = ({
                 <span>{formatDateTitle(selectedDate)}</span>
               </span>
               <div className="text-[10px] font-mono text-slate-400">
-                {selectedDateMeals.length} logged • {dailyTotals?.calories || 0} kcal ({dailyTotals?.protein || 0}g P)
+                {isPastDay ? 'Archived summary' : `${selectedDateMeals.length} logged`} • {dailyTotals?.calories || 0} kcal ({dailyTotals?.protein || 0}g P)
               </div>
             </div>
           </div>
@@ -1290,10 +1429,12 @@ const NutritionViewInner = ({
           {dayWindow.map((day) => {
             const isSelected = day.dateIso === selectedDate;
             const isToday = day.dateIso === todayIso;
+            const isPast = day.dateIso < todayIso;
+            const pastSum = isPast ? safeNutritionData.dailySummaries?.[day.dateIso] : null;
             const dayMeals = (meals || []).filter(m => m && m.date === day.dateIso);
-            const dayTotals = aggregateDailyNutrition(dayMeals);
+            const dayTotals = isPast && pastSum ? pastSum : aggregateDailyNutrition(dayMeals);
             const dayTarget = dailyTargets ? dailyTargets[day.dateIso] : null;
-            const dayTargetCal = (typeof dayTarget === 'number'
+            const dayTargetCal = Number(pastSum?.targetCalories) || (typeof dayTarget === 'number'
               ? dayTarget
               : dayTarget?.calories) || targetCalories;
             const hitGoal = (dayTotals?.calories || 0) >= dayTargetCal;
@@ -1538,6 +1679,7 @@ const NutritionViewInner = ({
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
         nutritionData={safeNutritionData}
+        dailySummaries={safeNutritionData?.dailySummaries || {}}
         selectedDate={selectedDate}
         onSelectDate={(dateIso) => setSelectedDate(dateIso)}
         targetCalories={activeTargetCalories}

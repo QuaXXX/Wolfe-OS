@@ -149,12 +149,6 @@ export default async function handler(req, res) {
           );
           if (matched) vault = matched[1];
         }
-      } else if (!vault && !isAuthenticatedUser) {
-        const entries = Object.entries(fileVaults);
-        if (entries.length > 0) {
-          entries.sort((a, b) => (b[1]?.lastUpdated || 0) - (a[1]?.lastUpdated || 0));
-          vault = entries[0][1];
-        }
       }
       if (vault) {
         memoryStore.set(userKey, vault);
@@ -247,13 +241,6 @@ export default async function handler(req, res) {
       if (k && (memoryStore.has(k) || fileVaults[k])) {
         existingVault = memoryStore.get(k) || fileVaults[k];
         break;
-      }
-    }
-    if (!existingVault && !isAuthenticatedUser && targetUserId === 'primary_user') {
-      const entries = Object.entries(fileVaults);
-      if (entries.length > 0) {
-        entries.sort((a, b) => (b[1]?.lastUpdated || 0) - (a[1]?.lastUpdated || 0));
-        existingVault = entries[0][1];
       }
     }
 

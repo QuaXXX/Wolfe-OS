@@ -17,6 +17,7 @@ export const NutritionHistoryModal = ({
   isOpen,
   onClose,
   nutritionData,
+  dailySummaries,
   selectedDate,
   onSelectDate,
   targetCalories = 3000,
@@ -27,13 +28,14 @@ export const NutritionHistoryModal = ({
 
   const safeNutritionData = (nutritionData && typeof nutritionData === 'object') ? nutritionData : {};
   const rawMeals = Array.isArray(safeNutritionData.meals) ? safeNutritionData.meals : [];
+  const activeDailySummaries = dailySummaries || safeNutritionData.dailySummaries || {};
   const dailyTargets = (safeNutritionData.dailyTargets && typeof safeNutritionData.dailyTargets === 'object')
     ? safeNutritionData.dailyTargets 
     : {};
 
   const nutritionHistory = useMemo(() => {
-    return getDailyNutritionHistory(rawMeals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets);
-  }, [rawMeals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets]);
+    return getDailyNutritionHistory(rawMeals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets, activeDailySummaries);
+  }, [rawMeals, targetCalories, targetProtein, calorieHistoryRange, dailyTargets, activeDailySummaries]);
 
   if (!isOpen || typeof document === 'undefined' || !document.body) return null;
 

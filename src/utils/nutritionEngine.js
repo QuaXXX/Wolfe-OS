@@ -2536,15 +2536,15 @@ export function filterMealsByDate(meals = [], dateIso = null) {
  * Generates an N-day history of nutrition targets hit vs missed without timezone skew
  * Respects per-date historical targets from dailyTargets to prevent retroactive alterations.
  */
-export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 3000, defaultTargetProtein = 180, daysCount = 7, dailyTargets = {}) {
+export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 3000, defaultTargetProtein = 180, daysCount = 7, dailyTargets = {}, dailySummaries = {}) {
   if (!Array.isArray(meals)) meals = [];
   const history = [];
   const todayIso = getTodayIso();
 
   for (let i = daysCount - 1; i >= 0; i--) {
     const dateIso = addDays(todayIso, -i);
+    const isToday = i === 0;
     const dayMeals = filterMealsByDate(meals, dateIso);
-    const totals = aggregateDailyNutrition(dayMeals);
 
     // Look up historical target for this specific day, falling back to default target
     const dayTarget = (dailyTargets && typeof dailyTargets === 'object') ? dailyTargets[dateIso] : null;
@@ -2553,12 +2553,34 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 300
     const dayCarbs = typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.carbs : null;
     const dayFats = typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.fats : null;
 
-    const targetCalories = Number(dayCals) || Number(defaultTargetCalories) || 3000;
+    // Check if this past day has a compressed daily summary
+    const summary = (!isToday && dailySummaries && typeof dailySummaries === 'object') ? dailySummaries[dateIso] : null;
+
+    let totalsCals = 0;
+    let totalsP = 0;
+    let totalsC = 0;
+    let totalsF = 0;
+    let totalsCount = 0;
+
+    if (summary) {
+      totalsCals = Number(summary.calories) || 0;
+      totalsP = Number(summary.protein) || 0;
+      totalsC = Number(summary.carbs) || 0;
+      totalsF = Number(summary.fats) || 0;
+      totalsCount = Number(summary.mealCount) || (totalsCals > 0 ? 1 : 0);
+    } else {
+      const totals = aggregateDailyNutrition(dayMeals);
+      totalsCals = Number(totals?.calories) || 0;
+      totalsP = Number(totals?.protein) || 0;
+      totalsC = Number(totals?.carbs) || 0;
+      totalsF = Number(totals?.fats) || 0;
+      totalsCount = Number(totals?.mealCount) || 0;
+    }
+
+    const targetCalories = Number(summary?.targetCalories) || Number(dayCals) || Number(defaultTargetCalories) || 3000;
     const targetProtein = Number(dayProtein) || Number(defaultTargetProtein) || 180;
     const targetCarbs = Number(dayCarbs) || 450;
     const targetFats = Number(dayFats) || 80;
-
-    const isToday = i === 0;
     let dayName = 'Day';
     let monthDay = dateIso || '';
     try {
@@ -2572,12 +2594,6 @@ export function getDailyNutritionHistory(meals = [], defaultTargetCalories = 300
         }
       }
     } catch (e) {}
-    
-    const totalsCals = Number(totals?.calories) || 0;
-    const totalsP = Number(totals?.protein) || 0;
-    const totalsC = Number(totals?.carbs) || 0;
-    const totalsF = Number(totals?.fats) || 0;
-    const totalsCount = Number(totals?.mealCount) || 0;
 
     const hitCalories = totalsCals >= targetCalories;
     const hitProtein = totalsP >= targetProtein;
@@ -2648,28 +2664,7 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     : [];
   let wasModified = false;
 
-  // 1. One-time legacy flag preservation (ensure migration is marked completed so it never touches data)
-  nutritionData._migration3173Applied = true;
-
-  // If meals array was completely empty but legacy consumedCalories was stuck at 3,173 from 2026-09-08, synthesize it for 2026-09-08
-  if (nutritionData.consumedCalories === 3173 && meals.length === 0) {
-    const syntheticMeal = {
-      id: `meal-1788900000000-yesterday-3173`,
-      date: "2026-09-08",
-      name: "Logged Daily Meals (Historical)",
-      calories: 3173,
-      protein: nutritionData.protein?.current || 180,
-      carbs: nutritionData.carbs?.current || 450,
-      fats: nutritionData.fats?.current || 80,
-      time: "8:00 PM",
-      items: ["Daily Meal Log (3,173 kcal)"],
-      createdAt: 1788900000000
-    };
-    meals = [syntheticMeal];
-    wasModified = true;
-  }
-
-  // 2. Permanent Invariant: Deeply sanitize every meal into primitive strings and finite numbers
+  // 1. Permanent Invariant: Deeply sanitize every meal into primitive strings and finite numbers
   meals = meals.map((m, idx) => {
     if (!m || typeof m !== 'object') return null;
 
@@ -2966,6 +2961,51 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     return m;
   }).filter(Boolean);
 
+  // 1.5 Lightweight Past-Day Archive: Compress past days into dailySummaries & discard individual meals
+  let dailySummaries = (nutritionData.dailySummaries && typeof nutritionData.dailySummaries === 'object' && !Array.isArray(nutritionData.dailySummaries))
+    ? { ...nutritionData.dailySummaries }
+    : {};
+
+  // Purge any phantom synthetic test meals
+  const cleanMeals = meals.filter(m => m && m.id !== 'meal-1788900000000-yesterday-3173');
+  if (cleanMeals.length !== meals.length) {
+    meals = cleanMeals;
+    wasModified = true;
+  }
+
+  // Auto-compress any meals logged for days prior to todayIso (m.date < todayIso)
+  const pastMeals = meals.filter(m => m && m.date && m.date < todayIso);
+  if (pastMeals.length > 0) {
+    const pastDaysMap = {};
+    pastMeals.forEach(m => {
+      const d = m.date;
+      if (!pastDaysMap[d]) pastDaysMap[d] = [];
+      pastDaysMap[d].push(m);
+    });
+
+    Object.entries(pastDaysMap).forEach(([d, dayMealsList]) => {
+      const agg = aggregateDailyNutrition(dayMealsList);
+      const dayTarget = (nutritionData.dailyTargets && typeof nutritionData.dailyTargets === 'object') ? nutritionData.dailyTargets[d] : null;
+      const dayTargetCals = typeof dayTarget === 'number' ? dayTarget : (typeof dayTarget === 'object' && dayTarget !== null ? dayTarget.calories : null);
+      const targetCals = Number(dayTargetCals) || Number(nutritionData.targetCalories) || 3000;
+
+      const existingSummary = dailySummaries[d] || {};
+      dailySummaries[d] = {
+        calories: Math.max(Number(existingSummary.calories) || 0, Number(agg.calories) || 0),
+        protein: Math.max(Number(existingSummary.protein) || 0, Number(agg.protein) || 0),
+        carbs: Math.max(Number(existingSummary.carbs) || 0, Number(agg.carbs) || 0),
+        fats: Math.max(Number(existingSummary.fats) || 0, Number(agg.fats) || 0),
+        mealCount: (Number(existingSummary.mealCount) || 0) + (Number(agg.mealCount) || dayMealsList.length),
+        targetCalories: targetCals,
+        updatedAt: Date.now()
+      };
+    });
+
+    // Discard individual past meals to optimize storage and cloud sync payload size (<5KB)
+    meals = meals.filter(m => m && m.date && m.date >= todayIso);
+    wasModified = true;
+  }
+
   // Sanitize weightHistory and weightLogs seamlessly
   const rawWeightList = Array.isArray(nutritionData.weightHistory)
     ? nutritionData.weightHistory
@@ -3048,8 +3088,10 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
   const waterGlasses = isNewDayForWater ? 0 : (nutritionData.waterGlasses || 0);
 
   // Check if state needs updating
+  const hasDailySummariesChanged = JSON.stringify(nutritionData.dailySummaries || {}) !== JSON.stringify(dailySummaries);
   const needsUpdate = 
     wasModified ||
+    hasDailySummariesChanged ||
     nutritionData.targetCalories !== targetCalories ||
     nutritionData.consumedCalories !== todayTotals.calories ||
     nutritionData.protein?.current !== todayTotals.protein ||
@@ -3086,6 +3128,7 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       waterMl,
       waterGlasses,
       meals,
+      dailySummaries,
       dailyTargets,
       weightHistory: cleanWeight,
       weightLogs: cleanWeight,
