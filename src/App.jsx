@@ -604,12 +604,12 @@ export function App() {
         if (isGoogleCalendarConnected()) {
           if (mounted) await syncWithGoogle(false);
         } else {
-          if (mounted) setSyncStatus('connected');
+          if (mounted) setSyncStatus('disconnected');
         }
       } catch (err) {
         console.warn("OAuth startup initialization notice:", err);
         if (mounted) {
-          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'connected');
+          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
         }
       }
     })();

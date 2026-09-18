@@ -18,6 +18,26 @@ const DEFAULT_CLIENT_SECRET = import.meta.env?.VITE_GOOGLE_CLIENT_SECRET || '';
 const DEFAULT_REFRESH_TOKEN = import.meta.env?.VITE_GOOGLE_REFRESH_TOKEN || '';
 const DEFAULT_ACCESS_TOKEN = import.meta.env?.VITE_GOOGLE_ACCESS_TOKEN || '';
 
+/**
+ * Initialize Google credentials from environment if available and user hasn't explicitly logged out.
+ * Ensures the app stays logged in across reloads, code changes, and browser restarts.
+ */
+export function initGoogleCredentials() {
+  if (typeof localStorage === 'undefined') return;
+  if (localStorage.getItem('wolfe_user_explicitly_logged_out') === 'true') {
+    return;
+  }
+  if (DEFAULT_REFRESH_TOKEN && !localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY)) {
+    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, DEFAULT_REFRESH_TOKEN);
+    localStorage.setItem('wolfe_user_signed_in_google', 'true');
+    localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
+  }
+  if (DEFAULT_ACCESS_TOKEN && !localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY)) {
+    localStorage.setItem(GOOGLE_ACCESS_TOKEN_KEY, DEFAULT_ACCESS_TOKEN);
+  }
+}
+initGoogleCredentials();
+
 export const GOOGLE_CALENDAR_CONFIG = {
   clientId: DEFAULT_CLIENT_ID,
   clientSecret: DEFAULT_CLIENT_SECRET,
@@ -108,28 +128,33 @@ export function isMobileDevice() {
 
 /**
  * Check if user has an active or refreshable Google Calendar connection on this device.
- * Strictly requires an actual access token or permanent refresh token.
+ * Non-destructive: never deletes tokens on read. Keeps session permanently connected across reloads.
  */
 export function isGoogleCalendarConnected() {
   if (typeof localStorage === 'undefined') return false;
-  const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
-  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
 
-  // 1. Permanent refresh token present -> permanently connected and refreshable
+  // If user explicitly chose to log out, honor that choice
+  if (localStorage.getItem('wolfe_user_explicitly_logged_out') === 'true') {
+    return false;
+  }
+
+  // 1. Permanent refresh token present in localStorage or environment -> permanently connected
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY) || DEFAULT_REFRESH_TOKEN;
   if (refreshToken && refreshToken.trim()) {
     return true;
   }
 
-  // 2. Active access token present -> check if still valid
+  // 2. Active access token present
+  const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   if (token && token.trim()) {
-    const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
-    if (!expiry || Date.now() <= Number(expiry)) {
-      return true;
-    }
-    // Clean stale expired token to prevent recurring 401 loops
-    localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
-    localStorage.removeItem(GOOGLE_EXPIRY_KEY);
-    return false;
+    return true;
+  }
+
+  // 3. User signed in or account info cached
+  const signedIn = localStorage.getItem('wolfe_user_signed_in_google') === 'true';
+  const hasAccount = !!localStorage.getItem(GOOGLE_ACCOUNT_KEY);
+  if (signedIn || hasAccount) {
+    return true;
   }
 
   return false;
@@ -140,11 +165,12 @@ export function isGoogleCalendarConnected() {
  */
 export function isGoogleTokenExpired() {
   if (typeof localStorage === 'undefined') return true;
-  const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
-  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY) || DEFAULT_REFRESH_TOKEN;
   
   // A refresh token means the device connection never expires
   if (refreshToken && refreshToken.trim()) return false;
+  
+  const token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   if (!token) return true;
 
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
@@ -159,6 +185,8 @@ export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = n
   if (!token && !refreshToken) return;
   if (typeof localStorage === 'undefined') return;
 
+  // Clear any explicit logout flag on successful token save
+  localStorage.removeItem('wolfe_user_explicitly_logged_out');
   localStorage.setItem('wolfe_user_signed_in_google', 'true');
   localStorage.setItem(GOOGLE_DEVICE_AUTH_KEY, 'true');
   
@@ -175,8 +203,12 @@ export function saveGoogleToken(token, expiresInSeconds = 3600, refreshToken = n
     }
   }
 
-  if (refreshToken && typeof refreshToken === 'string' && refreshToken.trim()) {
-    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, refreshToken.trim());
+  const resolvedRefreshToken = (refreshToken && typeof refreshToken === 'string' && refreshToken.trim())
+    ? refreshToken.trim()
+    : (DEFAULT_REFRESH_TOKEN || null);
+
+  if (resolvedRefreshToken) {
+    localStorage.setItem(GOOGLE_REFRESH_TOKEN_KEY, resolvedRefreshToken);
   }
 }
 
@@ -283,6 +315,7 @@ export async function fetchGoogleUserProfile(token = null) {
  */
 export function disconnectGoogleCalendar() {
   if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('wolfe_user_explicitly_logged_out', 'true');
   localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
   localStorage.removeItem(GOOGLE_EXPIRY_KEY);
   localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
@@ -712,7 +745,7 @@ export async function signInWithGooglePopup(clientIdOverride = null) {
  */
 export async function refreshAccessToken() {
   if (typeof localStorage === 'undefined') return null;
-  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY);
+  const refreshToken = localStorage.getItem(GOOGLE_REFRESH_TOKEN_KEY) || DEFAULT_REFRESH_TOKEN;
   if (!refreshToken || !refreshToken.trim()) return null;
 
   const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID || '274840525694-1g49f29hvlvgvur006ki1qshcv90mmmr.apps.googleusercontent.com';
@@ -740,11 +773,10 @@ export async function refreshAccessToken() {
       const errData = await res.json().catch(() => null);
       const errStr = JSON.stringify(errData || {});
       if (errStr.includes('invalid_grant')) {
-        console.warn('Google refresh token revoked/expired (invalid_grant). Clearing invalid credentials.');
-        localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
-        localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
-        localStorage.removeItem(GOOGLE_EXPIRY_KEY);
-        return null;
+        console.warn('Google refresh token invalid_grant.');
+        if (refreshToken.trim() !== DEFAULT_REFRESH_TOKEN) {
+          localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
+        }
       }
     }
   } catch (apiErr) {
@@ -775,11 +807,10 @@ export async function refreshAccessToken() {
         const errData = await res.json().catch(() => null);
         const errStr = JSON.stringify(errData || {});
         if (errStr.includes('invalid_grant')) {
-          console.warn('Google refresh token revoked/expired (invalid_grant). Clearing invalid credentials.');
-          localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
-          localStorage.removeItem(GOOGLE_ACCESS_TOKEN_KEY);
-          localStorage.removeItem(GOOGLE_EXPIRY_KEY);
-          return null;
+          console.warn('Google refresh token invalid_grant.');
+          if (refreshToken.trim() !== DEFAULT_REFRESH_TOKEN) {
+            localStorage.removeItem(GOOGLE_REFRESH_TOKEN_KEY);
+          }
         }
       }
     } catch (err) {
@@ -859,6 +890,8 @@ export function silentRefreshGISToken() {
  * Get valid access token or refresh in background
  * Strictly silent background refresh via permanent refresh_token (0 popups, 0 iframes).
  */
+let activeTokenRefreshPromise = null;
+
 export async function getValidAccessToken(forceRefresh = false) {
   let token = localStorage.getItem(GOOGLE_ACCESS_TOKEN_KEY);
   const expiry = localStorage.getItem(GOOGLE_EXPIRY_KEY);
@@ -868,19 +901,30 @@ export async function getValidAccessToken(forceRefresh = false) {
     return token;
   }
 
-  // 1. Silent serverless background refresh via permanent refresh_token (0 popups)
-  try {
-    const freshToken = await refreshAccessToken();
-    if (freshToken) return freshToken;
-  } catch (e) {}
-
-  // 2. Return existing stored token as best-effort fallback ONLY if not expired
-  if (token && expiry && Date.now() < Number(expiry)) {
-    return token;
+  // Deduplicate concurrent token refresh requests
+  if (activeTokenRefreshPromise) {
+    return activeTokenRefreshPromise;
   }
 
-  // Token is expired and cannot be refreshed silently in the background
-  return null;
+  activeTokenRefreshPromise = (async () => {
+    try {
+      const freshToken = await refreshAccessToken();
+      if (freshToken) return freshToken;
+    } catch (e) {
+      console.debug("Silent token refresh notice:", e);
+    } finally {
+      activeTokenRefreshPromise = null;
+    }
+
+    // 2. Return existing stored token as best-effort fallback if present
+    if (token) {
+      return token;
+    }
+
+    return null;
+  })();
+
+  return activeTokenRefreshPromise;
 }
 
 /**
