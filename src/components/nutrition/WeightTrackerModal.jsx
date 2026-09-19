@@ -15,10 +15,9 @@ import { playSound } from '../../utils/soundFX';
 import { 
   createWeightLogEntry, 
   calculateMovingAverageWeight, 
-  calculateWeightVelocity,
-  calculateWeightTrend 
+  calculateWeightVelocity 
 } from '../../utils/nutritionEngine.js';
-import { getTodayIso } from '../../utils/calendarUtils.js';
+import { getTodayIso, formatShortDate, addDays } from '../../utils/calendarUtils.js';
 
 export const WeightTrackerModal = ({
   isOpen,
@@ -38,24 +37,159 @@ export const WeightTrackerModal = ({
 
   if (!isOpen) return null;
 
+  // Parse YYYY-MM-DD to local timestamp to avoid UTC midnight date shifts
+  const parseDateIso = (dateStr) => {
+    if (!dateStr || typeof dateStr !== 'string') return 0;
+    const parts = dateStr.split('T')[0].split('-');
+    if (parts.length < 3) return 0;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return 0;
+    return new Date(y, m, d).getTime();
+  };
+
   const sortedHistory = (Array.isArray(weightHistory) ? weightHistory : [])
     .filter(w => w && w.date && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs))
     .sort((a, b) => {
-      const tb = new Date(b.date).getTime();
-      const ta = new Date(a.date).getTime();
-      return (isNaN(tb) ? 0 : tb) - (isNaN(ta) ? 0 : ta);
+      const tb = parseDateIso(b.date);
+      const ta = parseDateIso(a.date);
+      if (tb !== ta) return tb - ta;
+      return (b.createdAt || 0) - (a.createdAt || 0);
     });
 
-  const trend = calculateWeightTrend(weightHistory, weightSpan);
+  // Unique daily logs (latest log of each day) sorted ascending (oldest to newest)
+  const dailyMap = new Map();
+  [...sortedHistory].reverse().forEach(log => {
+    dailyMap.set(log.date, log);
+  });
+  const uniqueDailyLogs = Array.from(dailyMap.values()).sort(
+    (a, b) => parseDateIso(a.date) - parseDateIso(b.date)
+  );
+
   const movingAvg = calculateMovingAverageWeight(weightHistory, weightSpan === 'all' ? 30 : Number(weightSpan));
   const velocity = calculateWeightVelocity(weightHistory);
   const latestWeighIn = sortedHistory[0];
 
-  // SVG Chart points calculation
-  const chartPoints = (trend?.points || []).filter(p => p && typeof p.weightLbs === 'number' && !isNaN(p.weightLbs)).slice(-15);
-  const minWeight = chartPoints.length > 0 ? Math.min(...chartPoints.map(p => p.weightLbs)) - 0.5 : 180;
-  const maxWeight = chartPoints.length > 0 ? Math.max(...chartPoints.map(p => p.weightLbs)) + 0.5 : 190;
-  const weightRange = Math.max(1, maxWeight - minWeight);
+  // Determine timeline boundary for the chart (X-axis domain)
+  const todayIso = getTodayIso();
+  const latestLogIso = latestWeighIn?.date || todayIso;
+  const latestLogTime = parseDateIso(latestLogIso);
+  const todayTime = parseDateIso(todayIso);
+
+  // If latest log is recent or in the future, anchor timeline to today/latestLog
+  // If user is viewing older historical data, anchor to latestLog so data remains visible
+  let endIso = todayIso;
+  if (latestLogTime > todayTime) {
+    endIso = latestLogIso;
+  } else if (weightSpan !== 'all') {
+    const daysSinceLatest = Math.max(0, Math.round((todayTime - latestLogTime) / 86400000));
+    if (daysSinceLatest > Number(weightSpan)) {
+      endIso = latestLogIso;
+    } else {
+      endIso = todayIso;
+    }
+  } else {
+    endIso = todayIso >= latestLogIso ? todayIso : latestLogIso;
+  }
+
+  let startIso;
+  if (weightSpan === 7) {
+    startIso = addDays(endIso, -6);
+  } else if (weightSpan === 14) {
+    startIso = addDays(endIso, -13);
+  } else if (weightSpan === 30) {
+    startIso = addDays(endIso, -29);
+  } else {
+    // 'all'
+    const earliestIso = uniqueDailyLogs[0]?.date || addDays(endIso, -6);
+    startIso = earliestIso === endIso ? addDays(endIso, -6) : earliestIso;
+  }
+
+  let startTime = parseDateIso(startIso);
+  let endTime = parseDateIso(endIso);
+  let totalDuration = Math.max(86400000, endTime - startTime);
+
+  // Active points in the timeline
+  let activePoints = uniqueDailyLogs.filter(p => {
+    const t = parseDateIso(p.date);
+    return t >= startTime && t <= endTime;
+  });
+
+  // Fallback if current span window has no points but user has logs in history
+  if (activePoints.length === 0 && uniqueDailyLogs.length > 0) {
+    const sliceCount = weightSpan === 'all' ? uniqueDailyLogs.length : Number(weightSpan);
+    activePoints = uniqueDailyLogs.slice(-sliceCount);
+    endIso = activePoints[activePoints.length - 1].date;
+    startIso = weightSpan === 'all'
+      ? activePoints[0].date
+      : addDays(endIso, -(Number(weightSpan) - 1));
+    if (startIso === endIso) {
+      startIso = addDays(endIso, -6);
+    }
+    startTime = parseDateIso(startIso);
+    endTime = parseDateIso(endIso);
+    totalDuration = Math.max(86400000, endTime - startTime);
+  }
+
+  // SVG dimensions and plot area
+  const svgWidth = 320;
+  const svgHeight = 94;
+  const paddingLeft = 24;
+  const paddingRight = 24;
+  const paddingTop = 12;
+  const paddingBottom = 22;
+  const plotWidth = svgWidth - paddingLeft - paddingRight; // 272
+  const plotHeight = svgHeight - paddingTop - paddingBottom; // 60
+
+  // Y-axis range
+  const pointWeights = activePoints.map(p => p.weightLbs);
+  const minW = pointWeights.length > 0 ? Math.min(...pointWeights) : 180;
+  const maxW = pointWeights.length > 0 ? Math.max(...pointWeights) : 190;
+  const wDiff = maxW - minW;
+  const yBuffer = Math.max(0.6, wDiff * 0.18);
+  const chartMinY = minW - yBuffer;
+  const chartMaxY = maxW + yBuffer;
+  const yRange = Math.max(1, chartMaxY - chartMinY);
+
+  // Consistent X-axis Ladder Rungs (evenly spaced ticks and grid lines)
+  const numRungs = weightSpan === 7 ? 4 : 5;
+  const ladderRungs = [];
+  for (let i = 0; i < numRungs; i++) {
+    const fraction = i / (numRungs - 1);
+    const rungTime = startTime + fraction * totalDuration;
+    const x = Number((paddingLeft + fraction * plotWidth).toFixed(1));
+    const d = new Date(rungTime);
+    const rungIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    ladderRungs.push({
+      x,
+      time: rungTime,
+      label: formatShortDate(rungIso),
+      fraction
+    });
+  }
+
+  // Map each data point distance-wise strictly proportional to its logged date
+  const plottedPoints = activePoints.map((p, idx) => {
+    const pTime = parseDateIso(p.date);
+    const progress = totalDuration > 0
+      ? Math.max(0, Math.min(1, (pTime - startTime) / totalDuration))
+      : 0.5;
+    const x = Number((paddingLeft + progress * plotWidth).toFixed(1));
+    const y = Number((paddingTop + (1 - (p.weightLbs - chartMinY) / yRange) * plotHeight).toFixed(1));
+    return {
+      ...p,
+      x,
+      y,
+      progress
+    };
+  });
+
+  const startPt = plottedPoints[0];
+  const endPt = plottedPoints[plottedPoints.length - 1];
+  const trajectoryChange = (startPt && endPt)
+    ? Number((endPt.weightLbs - startPt.weightLbs).toFixed(1))
+    : 0;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -105,11 +239,8 @@ export const WeightTrackerModal = ({
                 <Scale className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Morning Weight Tracker & Weekly Velocity</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Daily Progress
-                  </span>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  Morning Weight Tracker & Weekly Velocity
                 </h3>
                 <p className="text-xs text-slate-400">Track fasted morning scale weight & adjust daily caloric intake</p>
               </div>
@@ -157,85 +288,182 @@ export const WeightTrackerModal = ({
             </div>
           </div>
 
-          {/* Multi-Week SVG Weight Trend Graph */}
-          {chartPoints.length >= 2 && (
+          {/* Multi-Week SVG Weight Trend Graph with Consistent Date Ladder */}
+          {uniqueDailyLogs.length > 0 ? (
             <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
               <div className="flex items-center justify-between text-[11px] font-mono">
                 <span className="text-slate-400">
                   {weightSpan === 'all' ? 'All-Time' : `${weightSpan}-Day`} Scale Trajectory:
                 </span>
-                <span className={`font-bold ${trend.changeLbs >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {trend.changeLbs > 0 ? `+${trend.changeLbs}` : trend.changeLbs} lbs ({trend.startWeight} → {trend.endWeight})
+                <span className={`font-bold ${trajectoryChange >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {plottedPoints.length >= 2 
+                    ? `${trajectoryChange > 0 ? `+${trajectoryChange}` : trajectoryChange} lbs (${startPt.weightLbs} → ${endPt.weightLbs})`
+                    : `${startPt?.weightLbs || 0} lbs (${startPt ? formatShortDate(startPt.date) : ''})`
+                  }
                 </span>
               </div>
 
               {/* Sparkline / SVG Graph */}
-              <div className="relative h-24 w-full pt-2">
-                <svg className="w-full h-full overflow-visible" viewBox="0 0 300 80" preserveAspectRatio="none">
+              <div className="relative h-28 w-full pt-1">
+                <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.35" />
+                      <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.3" />
                       <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0.0" />
                     </linearGradient>
                   </defs>
 
-                  {/* Area fill */}
-                  {chartPoints.length > 1 && (
+                  {/* Horizontal Guide Lines */}
+                  <line
+                    x1={paddingLeft}
+                    y1={paddingTop}
+                    x2={paddingLeft + plotWidth}
+                    y2={paddingTop}
+                    stroke="rgba(255, 255, 255, 0.05)"
+                    strokeDasharray="3 3"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1={paddingLeft}
+                    y1={paddingTop + plotHeight / 2}
+                    x2={paddingLeft + plotWidth}
+                    y2={paddingTop + plotHeight / 2}
+                    stroke="rgba(255, 255, 255, 0.05)"
+                    strokeDasharray="3 3"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1={paddingLeft}
+                    y1={paddingTop + plotHeight}
+                    x2={paddingLeft + plotWidth}
+                    y2={paddingTop + plotHeight}
+                    stroke="rgba(255, 255, 255, 0.15)"
+                    strokeWidth="1"
+                  />
+
+                  {/* Consistent X-Axis Ladder (Vertical Grid & Date Labels) */}
+                  {ladderRungs.map((rung, i) => (
+                    <g key={`ladder-rung-${i}`}>
+                      <line
+                        x1={rung.x}
+                        y1={paddingTop}
+                        x2={rung.x}
+                        y2={paddingTop + plotHeight}
+                        stroke="rgba(255, 255, 255, 0.07)"
+                        strokeDasharray="2 3"
+                        strokeWidth="1"
+                      />
+                      <line
+                        x1={rung.x}
+                        y1={paddingTop + plotHeight}
+                        x2={rung.x}
+                        y2={paddingTop + plotHeight + 3}
+                        stroke="rgba(255, 255, 255, 0.3)"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={rung.x}
+                        y={paddingTop + plotHeight + 14}
+                        textAnchor="middle"
+                        fill="#94a3b8"
+                        fontSize="8"
+                        fontFamily="monospace"
+                        fontWeight="500"
+                      >
+                        {rung.label}
+                      </text>
+                    </g>
+                  ))}
+
+                  {/* Y-Axis Weight Bounds */}
+                  <text
+                    x={paddingLeft - 4}
+                    y={paddingTop + 3}
+                    textAnchor="end"
+                    fill="#64748b"
+                    fontSize="7"
+                    fontFamily="monospace"
+                  >
+                    {chartMaxY.toFixed(1)}
+                  </text>
+                  <text
+                    x={paddingLeft - 4}
+                    y={paddingTop + plotHeight + 1}
+                    textAnchor="end"
+                    fill="#64748b"
+                    fontSize="7"
+                    fontFamily="monospace"
+                  >
+                    {chartMinY.toFixed(1)}
+                  </text>
+
+                  {/* Shaded Area Fill */}
+                  {plottedPoints.length > 1 && (
                     <polygon
                       points={`
-                        0,80 
-                        ${chartPoints.map((p, idx) => {
-                          const x = (idx / (chartPoints.length - 1)) * 300;
-                          const y = 80 - ((p.weightLbs - minWeight) / weightRange) * 70;
-                          return `${x},${y}`;
-                        }).join(' ')} 
-                        300,80
+                        ${plottedPoints[0].x},${paddingTop + plotHeight} 
+                        ${plottedPoints.map(p => `${p.x},${p.y}`).join(' ')} 
+                        ${plottedPoints[plottedPoints.length - 1].x},${paddingTop + plotHeight}
                       `}
                       fill="url(#weightGrad)"
                     />
                   )}
 
                   {/* Connecting Line */}
-                  {chartPoints.length > 1 && (
+                  {plottedPoints.length > 1 && (
                     <polyline
                       fill="none"
                       stroke="var(--accent-primary)"
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      points={chartPoints.map((p, idx) => {
-                        const x = (idx / (chartPoints.length - 1)) * 300;
-                        const y = 80 - ((p.weightLbs - minWeight) / weightRange) * 70;
-                        return `${x},${y}`;
-                      }).join(' ')}
+                      points={plottedPoints.map(p => `${p.x},${p.y}`).join(' ')}
                     />
                   )}
 
-                  {/* Data Points */}
-                  {chartPoints.map((p, idx) => {
-                    const x = (idx / (chartPoints.length - 1)) * 300;
-                    const y = 80 - ((p.weightLbs - minWeight) / weightRange) * 70;
-                    return (
-                      <rect
-                        key={idx}
-                        x={x - 3}
-                        y={y - 3}
-                        width="6"
-                        height="6"
-                        rx="1.5"
-                        fill="#fff"
+                  {/* Single Point Horizontal Guide */}
+                  {plottedPoints.length === 1 && (
+                    <line
+                      x1={paddingLeft}
+                      y1={plottedPoints[0].y}
+                      x2={paddingLeft + plotWidth}
+                      y2={plottedPoints[0].y}
+                      stroke="var(--accent-primary)"
+                      strokeOpacity="0.4"
+                      strokeDasharray="4 4"
+                      strokeWidth="1.5"
+                    />
+                  )}
+
+                  {/* Data Points (Positioned distance-wise by actual logged date) */}
+                  {plottedPoints.map((p, idx) => (
+                    <g key={p.id || idx} className="cursor-pointer">
+                      <circle
+                        cx={p.x}
+                        cy={p.y}
+                        r="4"
+                        fill="#0b0e18"
                         stroke="var(--accent-primary)"
-                        strokeWidth="2"
+                        strokeWidth="2.5"
                       />
-                    );
-                  })}
+                      <circle
+                        cx={p.x}
+                        cy={p.y}
+                        r="1.8"
+                        fill="#fff"
+                      />
+                      <title>{`${p.date}: ${p.weightLbs} lbs${p.notes ? ` (${p.notes})` : ''}`}</title>
+                    </g>
+                  ))}
                 </svg>
               </div>
-
-              <div className="flex justify-between text-[9px] font-mono text-slate-500 pt-0.5">
-                <span>{chartPoints[0]?.date}</span>
-                <span>{chartPoints[chartPoints.length - 1]?.date}</span>
-              </div>
+            </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-black/40 border border-white/10 text-center space-y-1">
+              <span className="text-xs font-semibold text-slate-300">No Weight Logs Recorded</span>
+              <p className="text-[11px] text-slate-500 font-mono">
+                Log your morning weight below to view your velocity trend line and date ladder.
+              </p>
             </div>
           )}
 
