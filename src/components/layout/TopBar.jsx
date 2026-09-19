@@ -1,39 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ChevronRight,
-  Settings,
-  Loader2,
-  X,
-  ArrowUpRight,
-  Square,
-  Cloud,
-  Camera
+  Settings, 
+  Loader2, 
+  X, 
+  ArrowUpRight, 
+  Square, 
+  Camera,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { WolfLogo } from '../common/WolfLogo';
 import { playSound } from '../../utils/soundFX';
 import { tryExecuteFastCommand } from '../../utils/fastCommandEngine';
 import { sendQueryToAI } from '../../utils/aiService';
-import { getGoogleAccount } from '../../utils/googleCalendarService';
 import { UniversalVoiceController, isIosDevice } from '../../utils/voiceService';
 
 export const TopBar = ({ 
   soundEnabled, 
   onToggleSound, 
   onOpenSettings,
-  activeView, 
-  onNavigate,
   aiConfig,
   osData,
-  onEventCreated,
-  onClearCalendar,
-  onDeleteSpecificItem,
-  onPurgeItems,
-  isGoogleConnected = false,
-  syncStatus = 'disconnected',
-  onOpenGoogleModal,
-  onSyncNow,
   onOpenMealLogModal,
   onLogMeal = null
 }) => {
@@ -100,38 +89,29 @@ export const TopBar = ({
     return () => clearInterval(interval);
   }, []);
 
-  const toggleTopBarListening = () => {
+  const handleStartListening = async () => {
+    playSound('click', soundEnabled);
     if (!voiceControllerRef.current) return;
 
-    if (isListening) {
-      voiceControllerRef.current.stop();
-      playSound('click', soundEnabled);
-    } else {
-      if (!isIosDevice()) {
-        playSound('click', soundEnabled);
-      } else if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate(25); } catch {}
-      }
-      setLiveSpeech('');
-      setLastHeardQuery('');
-      setVoiceResponse(null);
-      voiceControllerRef.current.start();
+    try {
+      setIsListening(true);
+      await voiceControllerRef.current.start();
+    } catch (err) {
+      console.warn("Could not start voice session:", err);
+      setIsListening(false);
     }
   };
 
   const handleStopListening = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    playSound('click', soundEnabled);
     if (voiceControllerRef.current) {
       voiceControllerRef.current.stop();
     }
     setIsListening(false);
-    setIsProcessing(false);
-    playSound('click', soundEnabled);
   };
 
-  const handleVoiceQuery = async (queryText) => {
+  const handleVoiceQuery = async (rawQuery) => {
+    const queryText = (rawQuery || liveSpeech || '').trim();
     if (!queryText) return;
     if (voiceControllerRef.current) {
       voiceControllerRef.current.stop();
@@ -145,17 +125,10 @@ export const TopBar = ({
     // 1. Fast Local Command Engine (< 3ms)
     const fastResult = tryExecuteFastCommand(queryText, {
       osData,
-      calendarData: osData?.calendarData,
       nutritionData: osData?.nutritionData,
       setSettings: osData?.setSettings,
-      setCalendarData: osData?.setCalendarData,
       setNutritionData: osData?.setNutritionData,
-      onLogMeal: onLogMeal || osData?.onLogMeal,
-      onNavigate,
-      onClearCalendar,
-      onDeleteSpecificItem,
-      onPurgeItems: onPurgeItems || osData?.onPurgeItems,
-      onEventCreated
+      onLogMeal: onLogMeal || osData?.onLogMeal
     });
 
     if (fastResult.handled) {
@@ -184,11 +157,11 @@ export const TopBar = ({
         queryText,
         aiConfig,
         osData,
-        onEventCreated,
-        onClearCalendar,
-        onDeleteSpecificItem,
+        null,
+        null,
+        null,
         [{ role: 'user', content: queryText }],
-        onPurgeItems || osData?.onPurgeItems
+        null
       );
       setVoiceResponse(response);
       playSound('success', soundEnabled);
@@ -203,7 +176,7 @@ export const TopBar = ({
         setVoiceResponse({
           title: "Wolfe Assistant",
           message: "Command processed successfully.",
-          targetView: "home"
+          targetView: "nutrition"
         });
       }
     } finally {
@@ -222,13 +195,7 @@ export const TopBar = ({
         
         {/* Left: Brand Identity with Dynamic Wolf Logo */}
         <div className="flex items-center gap-3">
-          <div 
-            onClick={() => {
-              playSound('click', soundEnabled);
-              onNavigate('home');
-            }}
-            className="flex items-center gap-2.5 cursor-pointer group"
-          >
+          <div className="flex items-center gap-2.5 group">
             {/* Dynamic Wolf Logo Badge synced with color slider */}
             <div 
               className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/[0.04] transition-all shadow-sm group-hover:scale-105"
@@ -240,155 +207,99 @@ export const TopBar = ({
             >
               <WolfLogo className="w-4 h-4" />
             </div>
-            <span className="font-display font-bold text-sm tracking-tight text-white group-hover:text-slate-200 transition-colors">
-              Wolfe OS
-            </span>
-          </div>
-
-          {activeView !== 'home' && (
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 pl-2 border-l border-white/10">
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-              <span className="capitalize font-semibold" style={{ color: 'var(--accent-primary)' }}>
-                {activeView}
+            <div className="flex flex-col">
+              <span className="font-display font-bold text-sm tracking-tight text-white leading-tight">
+                Wolfe OS
               </span>
+              <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400">
+                Macro Tracker
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Center: In-Place Voice & Food Logging Controls */}
+        <div className="flex items-center gap-2">
+          {!isListening && !isProcessing ? (
+            <button
+              onClick={() => {
+                playSound('click', soundEnabled);
+                if (onOpenMealLogModal) {
+                  onOpenMealLogModal();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer border border-white/10"
+              title="Snap photo or log food"
+            >
+              <Camera className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
+              <span className="font-medium">Quick Log</span>
+            </button>
+          ) : isListening ? (
+            <div 
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium animate-pulse"
+              style={{ 
+                backgroundColor: 'var(--accent-subtle)', 
+                border: '1px solid var(--accent-border)',
+                color: 'var(--accent-primary)'
+              }}
+            >
+              {/* Audio Waveform Bars */}
+              <div className="flex items-center gap-0.5">
+                {[0.6, 1.4, 0.8, 1.3, 0.7].map((h, i) => (
+                  <motion.span
+                    key={i}
+                    animate={{ height: ['4px', `${h * 12}px`, '4px'] }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 0.6 + (i * 0.08),
+                      ease: "easeInOut"
+                    }}
+                    className="w-0.5 rounded-sm"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  />
+                ))}
+              </div>
+              <span className="truncate max-w-[90px] sm:max-w-[140px] text-white font-mono text-[11px]">
+                Listening...
+              </span>
+              <button
+                onClick={handleStopListening}
+                className="p-0.5 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+                title="Cancel"
+              >
+                <Square className="w-2.5 h-2.5 fill-current" />
+              </button>
+            </div>
+          ) : (
+            <div 
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono"
+              style={{
+                backgroundColor: 'var(--accent-subtle)',
+                border: '1px solid var(--accent-border)',
+                color: 'var(--accent-primary)'
+              }}
+            >
+              <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
+              <span>Processing...</span>
             </div>
           )}
         </div>
 
-        {/* Center: In-Place Voice & Food Logging Controls */}
-        {activeView !== 'home' && (
-          <div className="flex items-center gap-2">
-            {!isListening && !isProcessing ? (
-              <button
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  if (onOpenMealLogModal) {
-                    onOpenMealLogModal();
-                  } else {
-                    onNavigate('nutrition');
-                  }
-                }}
-                className="hidden xs:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-300 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer border border-white/10"
-                title="Snap photo or log food"
-              >
-                <Camera className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                <span className="hidden md:inline">Log Food</span>
-              </button>
-            ) : isListening ? (
-              <div 
-                className="flex items-center gap-2 px-3 py-1 rounded-xl text-xs font-medium animate-pulse"
-                style={{ 
-                  backgroundColor: 'var(--accent-subtle)', 
-                  border: '1px solid var(--accent-border)',
-                  color: 'var(--accent-primary)'
-                }}
-              >
-                {/* Audio Waveform Bars */}
-                <div className="flex items-center gap-0.5">
-                  {[0.6, 1.4, 0.8, 1.3, 0.7].map((h, i) => (
-                    <motion.span
-                      key={i}
-                      animate={{ height: ['4px', `${h * 12}px`, '4px'] }}
-                      transition={{
-                        repeat: Infinity,
-                        duration: 0.6 + (i * 0.08),
-                        ease: "easeInOut"
-                      }}
-                      className="w-0.5 rounded-sm"
-                      style={{ backgroundColor: 'var(--accent-primary)' }}
-                    />
-                  ))}
-                </div>
-                <span className="truncate max-w-[90px] sm:max-w-[140px] text-white">
-                  Listening...
-                </span>
-                <button
-                  onClick={handleStopListening}
-                  className="p-0.5 rounded hover:bg-white/10 text-slate-400 hover:text-white"
-                  title="Cancel"
-                >
-                  <Square className="w-2.5 h-2.5 fill-current" />
-                </button>
-              </div>
-            ) : (
-              <div 
-                className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono"
-                style={{
-                  backgroundColor: 'var(--accent-subtle)',
-                  border: '1px solid var(--accent-border)',
-                  color: 'var(--accent-primary)'
-                }}
-              >
-                <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
-                <span>Processing...</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Right: Clock, Sound Toggle & Settings */}
-        <div className="flex items-center gap-2.5 sm:gap-3 text-xs">
+        {/* Right: Clock & Settings */}
+        <div className="flex items-center gap-2 sm:gap-2.5 text-xs">
           <div className="hidden sm:flex items-center gap-2 bg-white/[0.03] px-3 py-1.5 rounded-xl border border-white/5 text-slate-300">
             <span className="font-mono font-semibold text-white">{timeStr}</span>
             <span className="text-slate-600">•</span>
             <span className="text-slate-400 font-sans">{dateStr}</span>
           </div>
 
-
-          {/* Cloud Sync & Google Account Indicator */}
-          <button
-            onClick={() => {
-              playSound('click', soundEnabled);
-              if (onSyncNow) {
-                onSyncNow();
-              } else if (onOpenGoogleModal) {
-                onOpenGoogleModal();
-              }
-            }}
-            title={`Wolfe OS Cloud Vault (zachwolfe8888@gmail.com)${isGoogleConnected ? ' • Google Calendar Connected' : ''}. Click to sync.`}
-            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shrink-0 ${
-              syncStatus === 'failed' || syncStatus === 'error'
-                ? 'bg-rose-500/10 text-rose-300 border-rose-500/25 hover:bg-rose-500/20'
-                : syncStatus === 'syncing'
-                  ? 'bg-sky-500/10 text-sky-300 border-sky-500/25 hover:bg-sky-500/20'
-                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
-            }`}
-          >
-            {getGoogleAccount()?.picture ? (
-              <img 
-                src={getGoogleAccount().picture} 
-                alt="Avatar" 
-                className="w-4 h-4 rounded-md object-cover shrink-0 border border-white/20" 
-              />
-            ) : (
-              <Cloud 
-                className={`w-3.5 h-3.5 shrink-0 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`}
-                style={{ color: syncStatus === 'failed' || syncStatus === 'error' ? '#f43f5e' : (syncStatus === 'syncing' ? '#38bdf8' : '#10b981') }}
-              />
-            )}
-            <span className="hidden sm:inline text-[11px]">
-              {syncStatus === 'failed' || syncStatus === 'error'
-                ? "Sync Failed"
-                : syncStatus === 'syncing'
-                  ? "Syncing..."
-                  : "Cloud Synced"}
-            </span>
-            <span className={`w-1.5 h-1.5 rounded-sm shrink-0 ${
-              syncStatus === 'failed' || syncStatus === 'error'
-                ? 'bg-rose-500'
-                : syncStatus === 'syncing'
-                  ? 'bg-sky-400 animate-spin'
-                  : 'bg-emerald-400 animate-pulse'
-            }`} />
-          </button>
-
-          {/* Settings Gear Button */}
+          {/* Settings Gear Button (Opens Macro & Calorie Targets) */}
           <button 
             onClick={() => {
               playSound('click', soundEnabled);
               onOpenSettings();
             }}
-            title="System Settings"
+            title="Macro Targets & Settings"
             className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
             style={{ border: '1px solid var(--accent-border)' }}
           >
@@ -397,58 +308,36 @@ export const TopBar = ({
         </div>
       </div>
 
-      {/* FLOATING TOPBAR VOICE RESPONSE TOAST (Non-intrusive) */}
+      {/* FLOATING TOPBAR VOICE RESPONSE TOAST */}
       <AnimatePresence>
         {voiceResponse && (
           <motion.div
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[92%] max-w-xl p-3 rounded-2xl bg-[#0d101d]/95 backdrop-blur-2xl border border-white/15 shadow-2xl z-50 text-xs flex flex-col gap-2"
-            style={{ boxShadow: '0 10px 30px -5px rgba(0,0,0,0.8)' }}
+            transition={{ duration: 0.15 }}
+            className="max-w-xl mx-auto mt-2 px-3 py-2 rounded-2xl bg-[#0d101a]/95 border border-white/10 backdrop-blur-xl shadow-2xl flex items-center justify-between gap-3 text-xs"
+            style={{ borderLeft: '3px solid var(--accent-primary)' }}
           >
-            {lastHeardQuery && (
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pb-1.5 border-b border-white/[0.08]">
-                <span className="font-medium">Heard:</span>
-                <span className="text-slate-200 font-semibold truncate italic">"{lastHeardQuery}"</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div 
+                className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-primary)' }}
+              >
+                <WolfLogo className="w-3.5 h-3.5" />
               </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <span 
-                  className="w-2 h-2 rounded-sm shrink-0" 
-                  style={{ backgroundColor: 'var(--accent-primary)' }}
-                />
-                <div className="min-w-0 flex items-baseline gap-1.5 flex-wrap">
-                  <span className="font-bold text-white shrink-0">{voiceResponse.title || "Wolfe AI"}:</span>
-                  <FormattedAiText text={voiceResponse.message} inline className="text-slate-300 leading-snug" />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {voiceResponse.targetView && voiceResponse.targetView !== activeView && (
-                  <button
-                    onClick={() => {
-                      playSound('click', soundEnabled);
-                      onNavigate(voiceResponse.targetView);
-                      setVoiceResponse(null);
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-white/10 text-white hover:bg-white/20 flex items-center gap-1 font-medium transition-colors cursor-pointer"
-                  >
-                    <span>{voiceResponse.actionLabel || "View"}</span>
-                    <ArrowUpRight className="w-3 h-3" />
-                  </button>
-                )}
-
-                <button
-                  onClick={() => setVoiceResponse(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-white truncate">{voiceResponse.title || "Wolfe Assistant"}</div>
+                <div className="text-[10px] text-slate-300 truncate">{voiceResponse.message}</div>
               </div>
             </div>
+
+            <button
+              onClick={() => setVoiceResponse(null)}
+              className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

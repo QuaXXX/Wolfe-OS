@@ -1,39 +1,18 @@
-import { X } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { TopBar } from './components/layout/TopBar';
-import { Dock, NAV_ITEMS } from './components/layout/Dock';
 import { BackgroundGlow } from './components/layout/BackgroundGlow';
 import { ComingSoonModal } from './components/common/ComingSoonModal';
 import { UndoActionPopup } from './components/common/UndoActionPopup';
 import { playSound } from './utils/soundFX';
-import { getTodayIso, formatDateTitle, addDays, reconcileCalendarItems, isCalendarOutOfSync } from './utils/calendarUtils';
-import { synchronizeNutritionData, aggregateDailyNutrition, DEFAULT_HOUSEHOLD_PANTRY, DEFAULT_CALIBRATION_TASKS } from './utils/nutritionEngine.js';
+import { getTodayIso } from './utils/calendarUtils';
+import { synchronizeNutritionData, aggregateDailyNutrition } from './utils/nutritionEngine.js';
 import { 
-  isGoogleCalendarConnected, 
-  fetchGoogleCalendarEvents,
-  createGoogleCalendarEvent, 
-  deleteGoogleCalendarEvent,
-  updateGoogleTaskStatus,
-  checkAndHandleOAuthRedirect,
-  syncLocalItemsToGoogle,
-  signInWithGooglePopup,
-  getGoogleAccount
-} from './utils/googleCalendarService';
-import { 
-  syncFullOsWithCloud, 
-  triggerDebouncedCloudPush, 
-  triggerImmediateCloudPush,
   recordDeletion, 
   recordAdditionOrUpdate, 
-  isLocalMutationRecent,
   markLocalMutation 
 } from './utils/cloudSyncEngine';
 
-// HomeView is kept static for instant first paint on mobile
-import { HomeView } from './components/views/HomeView';
-
-// High-resilience code-split loader with automatic retry on transient network blip / low memory reload
+// Resilient code-split loader
 function resilientLazy(factory, retries = 2, intervalMs = 400) {
   return lazy(() => new Promise((resolve, reject) => {
     const attempt = (remaining) => {
@@ -52,21 +31,14 @@ function resilientLazy(factory, retries = 2, intervalMs = 400) {
   }));
 }
 
-// Code-split heavy views & modals to eliminate initial mobile loading freeze
+// Nutrition is the primary core view of Wolfe OS
 const NutritionView = resilientLazy(() => import('./components/views/NutritionView').then(m => ({ default: m.NutritionView || m.default })));
-const CalendarView = resilientLazy(() => import('./components/views/CalendarView').then(m => ({ default: m.CalendarView })));
-
 const SettingsModal = resilientLazy(() => import('./components/layout/SettingsModal').then(m => ({ default: m.SettingsModal })));
-const GoogleCalendarModal = resilientLazy(() => import('./components/calendar/GoogleCalendarModal').then(m => ({ default: m.GoogleCalendarModal })));
 
-// Mock Data
-import { 
-  INITIAL_USER, 
-  INITIAL_NUTRITION_DATA, 
-  INITIAL_CALENDAR_DATA 
-} from './utils/mockData';
+// Mock Initial Data
+import { INITIAL_USER, INITIAL_NUTRITION_DATA } from './utils/mockData';
 
-// Error Boundary to prevent black-screen crashes from view errors
+// Error Boundary
 class ViewErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -90,20 +62,13 @@ class ViewErrorBoundary extends React.Component {
     } catch (e) {}
     window.location.reload();
   };
-  handleResetStorage = () => {
-    try {
-      localStorage.removeItem('wolfe_nutrition_data');
-    } catch (e) {}
-    window.location.reload();
-  };
   render() {
     if (this.state.hasError) {
-      const isChunkError = /dynamically imported module|loading chunk|failed to fetch/i.test(this.state.error?.message || '');
       return (
         <div className="max-w-md mx-auto mt-20 p-6 rounded-3xl bg-[#0f1220]/95 border border-rose-500/30 text-center space-y-3 shadow-2xl backdrop-blur-xl">
-          <div className="text-sm font-bold text-rose-200">Something went wrong rendering this view.</div>
+          <div className="text-sm font-bold text-rose-200">Something went wrong rendering nutrition view.</div>
           <div className="text-xs text-rose-300/70 font-mono break-all">{this.state.error?.message}</div>
-          <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+          <div className="flex items-center justify-center gap-2 pt-2">
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
               className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/20 transition-all cursor-pointer"
@@ -115,7 +80,7 @@ class ViewErrorBoundary extends React.Component {
               className="px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-lg transition-all active:scale-95 cursor-pointer"
               style={{ backgroundColor: 'var(--accent-primary)' }}
             >
-              {isChunkError ? "Reload & Update" : "Recover & Reload"}
+              Recover & Reload
             </button>
           </div>
         </div>
@@ -125,7 +90,6 @@ class ViewErrorBoundary extends React.Component {
   }
 }
 
-// Safe Local & Session Storage wrappers to protect against mobile Safari Private Browsing SecurityErrors
 function safeGetItem(key) {
   try {
     if (typeof localStorage === 'undefined') return null;
@@ -140,39 +104,10 @@ function safeSetItem(key, val) {
     if (typeof localStorage === 'undefined') return;
     localStorage.setItem(key, val);
   } catch (e) {
-    // QuotaExceededError recovery: prune transient debug logs/caches and retry
     try {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && (k.startsWith('debug_') || k.startsWith('temp_') || k.includes('cache') || k.includes('transcript'))) {
-          keysToRemove.push(k);
-        }
-      }
-      keysToRemove.forEach(k => {
-        try { localStorage.removeItem(k); } catch (err) {}
-      });
       localStorage.setItem(key, val);
-    } catch (retryErr) {
-      console.warn('Storage quota full, unable to persist:', key);
-    }
+    } catch (err) {}
   }
-}
-
-function safeSessionGet(key) {
-  try {
-    if (typeof sessionStorage === 'undefined') return null;
-    return sessionStorage.getItem(key);
-  } catch (e) {
-    return null;
-  }
-}
-
-function safeSessionSet(key, val) {
-  try {
-    if (typeof sessionStorage === 'undefined') return;
-    sessionStorage.setItem(key, val);
-  } catch (e) {}
 }
 
 function ViewLoadingFallback() {
@@ -187,22 +122,17 @@ function ViewLoadingFallback() {
           style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }}
         />
       </div>
-      <div className="text-[11px] font-bold text-slate-400 tracking-widest uppercase">Loading Module...</div>
+      <div className="text-[11px] font-bold text-slate-400 tracking-widest uppercase">Loading Macros...</div>
     </div>
   );
 }
 
 const STORAGE_KEY_SETTINGS = 'wolfe_os_settings_v3';
-const STORAGE_KEY_CALENDAR = 'wolfe_os_calendar_v5';
 
 const DEFAULT_SETTINGS = {
   accentHue: 222, // Cyber Blue
   soundEnabled: true,
   compactMode: false,
-  visibleModules: {
-    timeline: true,
-    nutrition: true,
-  },
   aiConfig: {
     provider: 'gemini',
     apiKey: import.meta.env?.VITE_GEMINI_API_KEY || '',
@@ -213,38 +143,18 @@ const DEFAULT_SETTINGS = {
 };
 
 export function App() {
-  const [activeView, setActiveView] = useState(() => {
-    try {
-      const saved = safeGetItem('wolfe_active_view');
-      const validViews = ['home', 'calendar', 'nutrition'];
-      if (saved && validViews.includes(saved)) {
-        return saved;
-      }
-    } catch (e) {}
-    return 'home';
-  });
-
-  // Persist active view so mobile browser tab discards or camera redirects don't kick user out
-  useEffect(() => {
-    try {
-      safeSetItem('wolfe_active_view', activeView);
-    } catch (e) {}
-  }, [activeView]);
-
-  const [slideDirection, setSlideDirection] = useState(0); // -1 for left, 1 for right
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isGCalModalOpen, setIsGCalModalOpen] = useState(false);
   const [comingSoonData, setComingSoonData] = useState(null);
   const [undoAction, setUndoAction] = useState(null);
 
-  // Mark root rendered on mount to dismiss any loading recovery timers
+  // Mark root rendered on mount
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.getElementById('root')?.setAttribute('data-rendered', 'true');
     }
   }, []);
 
-  // Settings State with LocalStorage Persistence & Env Fallback
+  // Settings State with LocalStorage Persistence
   const [settings, setSettings] = useState(() => {
     try {
       const saved = safeGetItem(STORAGE_KEY_SETTINGS);
@@ -269,22 +179,7 @@ export function App() {
     }
   });
 
-  // Calendar & Timeline State
-  const [calendarData, setCalendarData] = useState(() => {
-    try {
-      const saved = safeGetItem(STORAGE_KEY_CALENDAR);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {}
-    return {
-      currentDate: formatDateTitle(getTodayIso()),
-      selectedDate: getTodayIso(),
-      items: []
-    };
-  });
-
-
+  // Nutrition & Fuel State
   const [nutritionData, setNutritionData] = useState(() => {
     try {
       const saved = safeGetItem('wolfe_nutrition_data');
@@ -296,10 +191,7 @@ export function App() {
     return synchronizeNutritionData(INITIAL_NUTRITION_DATA);
   });
 
-  // Flag to suppress debounced auto-push when applying incoming cloud sync
-  const isApplyingInboundSyncRef = useRef(false);
-
-  // Auto-detect day rollover across midnight, window focus, visibility change for nutrition & date
+  // Auto-detect day rollover across midnight, window focus, visibility change for nutrition
   useEffect(() => {
     const checkDayRollover = () => {
       const freshToday = getTodayIso();
@@ -318,7 +210,6 @@ export function App() {
         }
         return prev;
       });
-
     };
 
     window.addEventListener('focus', checkDayRollover);
@@ -335,467 +226,16 @@ export function App() {
     };
   }, []);
 
-  // Listen for real-time Cloud Sync updates from other devices
+  // Save settings & nutrition changes to localStorage
+  const isFirstMountRef = useRef(true);
   useEffect(() => {
-    const handleSyncApplied = (e) => {
-      const vault = e.detail?.vault;
-      if (!vault) return;
-      isApplyingInboundSyncRef.current = true;
-      const isReplacing = Boolean(e.detail?.options?.replaceLocal || e.detail?.options?.forcePull || e.detail?.replaceLocal);
-
-      if (vault.nutrition) {
-        setNutritionData(prev => {
-          if (isReplacing) {
-            return synchronizeNutritionData(vault.nutrition);
-          }
-
-          const tombstones = vault._tombstones || {};
-          const isTomb = (id) => Boolean(id && tombstones[String(id)]);
-
-          const incomingMeals = Array.isArray(vault.nutrition?.meals) ? vault.nutrition.meals : [];
-          const existingMeals = Array.isArray(prev?.meals) ? prev.meals : [];
-          const mealMap = new Map();
-
-          // 1. Add inbound meals that are not tombstoned
-          for (const m of incomingMeals) {
-            if (m && m.id && !isTomb(m.id)) {
-              mealMap.set(m.id, m);
-            }
-          }
-
-          // 2. Union with local meals: any meal not explicitly tombstoned is permanently preserved
-          for (const m of existingMeals) {
-            if (m && m.id && !isTomb(m.id)) {
-              const prevM = mealMap.get(m.id);
-              if (!prevM) {
-                mealMap.set(m.id, m);
-              } else {
-                const localTime = m.updatedAt || m.createdAt || 0;
-                const remoteTime = prevM.updatedAt || prevM.createdAt || 0;
-                if (localTime >= remoteTime) {
-                  mealMap.set(m.id, { ...prevM, ...m });
-                } else {
-                  mealMap.set(m.id, { ...m, ...prevM });
-                }
-              }
-            }
-          }
-
-          const getMealSortTime = (m) => {
-            if (m?.createdAt && typeof m.createdAt === 'number') return m.createdAt;
-            if (m?.updatedAt && typeof m.updatedAt === 'number') return m.updatedAt;
-            if (m?.id && typeof m.id === 'string') {
-              const parts = m.id.split('-');
-              const ts = parseInt(parts[1], 10);
-              if (!isNaN(ts) && ts > 1000000) return ts;
-            }
-            return 0;
-          };
-          const finalMeals = Array.from(mealMap.values()).sort((a, b) => getMealSortTime(b) - getMealSortTime(a));
-
-          // 3. Union weight logs seamlessly across devices (purging tombstoned, newest timestamp wins)
-          const incomingWeight = Array.isArray(vault.nutrition?.weightHistory)
-            ? vault.nutrition.weightHistory
-            : (Array.isArray(vault.nutrition?.weightLogs) ? vault.nutrition.weightLogs : []);
-          const existingWeight = Array.isArray(prev?.weightHistory)
-            ? prev.weightHistory
-            : (Array.isArray(prev?.weightLogs) ? prev.weightLogs : []);
-          const weightMap = new Map();
-
-          incomingWeight.forEach(w => {
-            if (!w) return;
-            const k = w.id || w.date;
-            if (!isTomb(k) && !isTomb(w.id) && !isTomb(w.date)) {
-              const wVal = w.weightLbs ?? w.weight ?? 0;
-              weightMap.set(k, { ...w, weightLbs: wVal, weight: wVal });
-            }
-          });
-
-          existingWeight.forEach(w => {
-            if (!w) return;
-            const k = w.id || w.date;
-            if (!isTomb(k) && !isTomb(w.id) && !isTomb(w.date)) {
-              const wVal = w.weightLbs ?? w.weight ?? 0;
-              const cleanW = { ...w, weightLbs: wVal, weight: wVal };
-              const prevW = weightMap.get(k);
-              if (!prevW) {
-                weightMap.set(k, cleanW);
-              } else {
-                const localTime = cleanW.updatedAt || cleanW.createdAt || new Date(cleanW.date).getTime() || 0;
-                const remoteTime = prevW.updatedAt || prevW.createdAt || new Date(prevW.date).getTime() || 0;
-                if (localTime >= remoteTime) {
-                  weightMap.set(k, { ...prevW, ...cleanW });
-                } else {
-                  weightMap.set(k, { ...cleanW, ...prevW });
-                }
-              }
-            }
-          });
-
-          const finalWeight = Array.from(weightMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
-
-          const todayIso = getTodayIso();
-          const todayMeals = finalMeals.filter(m => m && m.date === todayIso);
-          const todayTotals = aggregateDailyNutrition(todayMeals);
-
-          const mergedNutrition = {
-            ...prev,
-            ...vault.nutrition,
-            currentDate: todayIso,
-            consumedCalories: todayTotals.calories,
-            protein: {
-              ...(vault.nutrition?.protein || prev?.protein || { target: 180, unit: "g", color: "#6366f1" }),
-              current: todayTotals.protein
-            },
-            carbs: {
-              ...(vault.nutrition?.carbs || prev?.carbs || { target: 450, unit: "g", color: "#06b6d4" }),
-              current: todayTotals.carbs
-            },
-            fats: {
-              ...(vault.nutrition?.fats || prev?.fats || { target: 80, unit: "g", color: "#f59e0b" }),
-              current: todayTotals.fats
-            },
-            meals: finalMeals,
-            weightHistory: finalWeight,
-            weightLogs: finalWeight
-          };
-          return synchronizeNutritionData(mergedNutrition);
-        });
-      }
-      // Apply calendar from vault (merging items and filtering tombstones)
-      if (vault.calendar && Array.isArray(vault.calendar.items)) {
-        setCalendarData(prev => {
-          const tombstones = vault._tombstones || {};
-          const isTomb = (id) => Boolean(id && tombstones[String(id)]);
-          const incoming = vault.calendar.items.filter(it => it && !isTomb(it.id));
-          if (isReplacing) {
-            return {
-              currentDate: formatDateTitle(getTodayIso()),
-              selectedDate: getTodayIso(),
-              items: incoming
-            };
-          }
-          return {
-            ...prev,
-            items: reconcileCalendarItems(prev.items, incoming, tombstones)
-          };
-        });
-      }
-      if (vault.settings) setSettings(prev => ({ ...prev, ...vault.settings }));
-      setLastSyncTimestamp(Date.now());
-      setSyncStatus('synced');
-      setTimeout(() => {
-        isApplyingInboundSyncRef.current = false;
-      }, 1500);
-    };
-
-    const handleSyncStatus = (e) => {
-      if (e.detail?.status === 'synced') {
-        setSyncStatus('synced');
-        setLastSyncTimestamp(Date.now());
-      } else if (e.detail?.status === 'syncing') {
-        setSyncStatus('syncing');
-      } else if (e.detail?.status === 'failed') {
-        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'synced');
-      }
-    };
-
-    window.addEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
-    window.addEventListener('wolfe-cloud-sync-status', handleSyncStatus);
-    return () => {
-      window.removeEventListener('wolfe-cloud-sync-applied', handleSyncApplied);
-      window.removeEventListener('wolfe-cloud-sync-status', handleSyncStatus);
-    };
-  }, []);
-
-  // Save changes to localStorage and instant auto-push to cloud (suppressed on inbound sync)
-  const isFirstDataMountRef = useRef(true);
-  useEffect(() => {
-    if (isFirstDataMountRef.current) {
-      isFirstDataMountRef.current = false;
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
       return;
     }
-
-    safeSetItem('wolfe_calendar_data', JSON.stringify(calendarData));
     safeSetItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
-    safeSetItem('wolfe_settings', JSON.stringify(settings));
-
-    if (!isApplyingInboundSyncRef.current) {
-      markLocalMutation();
-      triggerImmediateCloudPush(60, true);
-    }
-  }, [calendarData, nutritionData, settings]);
-
-  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
-  const [syncStatus, setSyncStatus] = useState(() => isGoogleCalendarConnected() ? 'connected' : 'disconnected');
-  const [lastSyncTimestamp, setLastSyncTimestamp] = useState(0);
-  const syncTimeoutRef = useRef(null);
-  const calendarItemsRef = useRef(calendarData.items);
-
-  useEffect(() => {
-    calendarItemsRef.current = calendarData.items;
-  }, [calendarData.items]);
-
-  // Automatic Real-Time 2-Way Sync with Cloud Vault (all 6 hubs) & Google Calendar/Tasks
-  const syncWithGoogle = useCallback(async (showFeedback = false) => {
-    if (!isGoogleCalendarConnected()) {
-      setSyncStatus('disconnected');
-      return;
-    }
-    setIsSyncingGoogle(true);
-    setSyncStatus('syncing');
-
-    try {
-      // 1. Sync full OS state across devices (Nutrition, Calendar, Settings)
-      await syncFullOsWithCloud({ forcePush: false });
-
-      // 2. Auto-upload any local items created in Wolfe OS to Google
-      let currentItems = calendarItemsRef.current || [];
-      const hasUnsynced = currentItems.some(it => !it.isGoogle);
-      if (hasUnsynced) {
-        const uploadedItems = await syncLocalItemsToGoogle(currentItems);
-        currentItems = uploadedItems;
-        setCalendarData(prev => ({
-          ...prev,
-          items: uploadedItems
-        }));
-      }
-
-      // 3. Fetch fresh remote events & tasks from Google (reconciling and preserving all items)
-      const liveGoogleItems = await fetchGoogleCalendarEvents();
-      if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
-        setCalendarData(prev => ({
-          ...prev,
-          currentDate: formatDateTitle(getTodayIso()),
-          selectedDate: prev.selectedDate || getTodayIso(),
-          items: reconcileCalendarItems(prev.items, liveGoogleItems)
-        }));
-        setSyncStatus('synced');
-        setLastSyncTimestamp(Date.now());
-        if (showFeedback) {
-          playSound('success', settings.soundEnabled);
-        }
-      } else {
-        // If fetch returned null (e.g. auth expired or session invalid), mark failed
-        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
-      }
-    } catch (err) {
-      console.warn("Auto sync notice:", err);
-      setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
-    } finally {
-      setIsSyncingGoogle(false);
-    }
-  }, [settings.soundEnabled]);
-
-  // Handle startup sync, OAuth redirect on initial app load
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        // Automatically sync Wolfe OS Master Cloud Vault (nutrition, calories, macros) on startup
-        await syncFullOsWithCloud({ forcePull: false, silent: true });
-
-        const redirected = await checkAndHandleOAuthRedirect();
-        if (redirected) {
-          if (mounted) await syncWithGoogle(true);
-          return;
-        }
-
-        if (isGoogleCalendarConnected()) {
-          if (mounted) await syncWithGoogle(false);
-        } else {
-          if (mounted) setSyncStatus('disconnected');
-        }
-      } catch (err) {
-        console.warn("OAuth startup initialization notice:", err);
-        if (mounted) {
-          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
-        }
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [syncWithGoogle]);
-
-  // Background cloud sync on window focus
-  useEffect(() => {
-    const handleFocusSync = () => {
-      if (!isApplyingInboundSyncRef.current) {
-        syncFullOsWithCloud({ forcePull: false, silent: true }).catch(() => {});
-      }
-    };
-    window.addEventListener('focus', handleFocusSync);
-    return () => window.removeEventListener('focus', handleFocusSync);
-  }, []);
-
-  // Listen for Google Calendar disconnect: keeps all nutrition and local state intact
-  useEffect(() => {
-    const handleUserLoggedOut = () => {
-      console.info("[App] Google Calendar disconnected. Preserving Wolfe OS master data.");
-      setSyncStatus('disconnected');
-      setIsSyncingGoogle(false);
-    };
-
-    window.addEventListener('wolfe_user_logged_out', handleUserLoggedOut);
-    return () => window.removeEventListener('wolfe_user_logged_out', handleUserLoggedOut);
-  }, []);
-
-  // Handle Google account connecting / switching: syncs master cloud vault and calendar events
-  useEffect(() => {
-    const handleAccountSwitched = async (e) => {
-      const newAccount = e.detail?.account;
-      console.info(`[App] Google Account connected/switched to ${newAccount?.email}. Syncing master cloud vault.`);
-      setSyncStatus('syncing');
-
-      try {
-        await syncFullOsWithCloud({ forcePull: false, forceSync: true });
-        const liveItems = await fetchGoogleCalendarEvents(true);
-        if (liveItems && Array.isArray(liveItems)) {
-          setCalendarData(prev => ({
-            ...prev,
-            items: reconcileCalendarItems(prev.items, liveItems)
-          }));
-        }
-        setSyncStatus('synced');
-      } catch (err) {
-        console.warn("Account switch sync notice:", err);
-        setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'connected');
-      }
-    };
-
-    window.addEventListener('wolfe_account_switched', handleAccountSwitched);
-    window.addEventListener('wolfe_google_account_switched', handleAccountSwitched);
-    return () => {
-      window.removeEventListener('wolfe_account_switched', handleAccountSwitched);
-      window.removeEventListener('wolfe_google_account_switched', handleAccountSwitched);
-    };
-  }, []);
-
-  const lastMainScreenFetchRef = useRef(0);
-
-  // Throttled Google Calendar sync on home view (1 hour debounce throttle)
-  useEffect(() => {
-    if (activeView === 'home' && isGoogleCalendarConnected()) {
-      const now = Date.now();
-      // 1-hour debounce throttle to prevent multi-fetch spamming
-      if (now - lastMainScreenFetchRef.current < 3600000) return;
-      lastMainScreenFetchRef.current = now;
-
-      (async () => {
-        try {
-          setIsSyncingGoogle(true);
-          setSyncStatus('syncing');
-          const liveGoogleItems = await fetchGoogleCalendarEvents();
-          if (liveGoogleItems && Array.isArray(liveGoogleItems)) {
-            // Reconcile and retain all Google and local items
-            setCalendarData(prev => ({
-              ...prev,
-              currentDate: formatDateTitle(getTodayIso()),
-              selectedDate: prev.selectedDate || getTodayIso(),
-              items: reconcileCalendarItems(prev.items, liveGoogleItems)
-            }));
-            setSyncStatus('synced');
-            setLastSyncTimestamp(Date.now());
-          } else {
-            setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
-          }
-        } catch (err) {
-          console.warn("Main screen Google Calendar pull notice:", err);
-          setSyncStatus(isGoogleCalendarConnected() ? 'failed' : 'disconnected');
-        } finally {
-          setIsSyncingGoogle(false);
-        }
-      })();
-    } else if (activeView === 'nutrition') {
-      // Proactive cloud vault check when user navigates into nutrition (throttled to 60s, silent)
-      const now = Date.now();
-      if (now - lastMainScreenFetchRef.current >= 60000) {
-        lastMainScreenFetchRef.current = now;
-        syncFullOsWithCloud({ forcePush: false, silent: true }).catch(() => {});
-      }
-    }
-  }, [activeView]);
-
-  // Relaxed background sync: checks every 60s while tab is visible, plus on focus/broadcast
-  useEffect(() => {
-    let lastThrottledSync = 0;
-    const triggerResponsiveSync = () => {
-      const now = Date.now();
-      if (now - lastThrottledSync < 50000) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isLocalMutationRecent(15000)) {
-        lastThrottledSync = now;
-        syncFullOsWithCloud({ forcePush: false, silent: true }).catch(() => {});
-      }
-    };
-
-    const interval = setInterval(triggerResponsiveSync, 60000);
-
-    // Sync on window focus or visibility if at least 50s has elapsed
-    const handleFocus = () => triggerResponsiveSync();
-    const handleVisibility = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        triggerResponsiveSync();
-      }
-    };
-
-    // Cross-tab / same-origin broadcast channel listener for cross-tab sync
-    let channel = null;
-    if (typeof BroadcastChannel !== 'undefined') {
-      try {
-        channel = new BroadcastChannel('wolfe_cloud_sync_bus');
-        channel.onmessage = (msg) => {
-          if (msg?.data?.type === 'VAULT_PUSHED') {
-            syncFullOsWithCloud({ forcePush: false, silent: true }).catch(() => {});
-          }
-        };
-      } catch (e) {}
-    }
-
-    window.addEventListener('focus', handleFocus);
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibility);
-    }
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibility);
-      }
-      if (channel) {
-        try { channel.close(); } catch (e) {}
-      }
-    };
-  }, []);
-
-  // Periodic Google Calendar sync: runs silently in background every 1 hour (3600000ms)
-  useEffect(() => {
-    if (!isGoogleCalendarConnected()) return;
-    const interval = setInterval(() => {
-      if (isGoogleCalendarConnected()) {
-        syncWithGoogle(false);
-      }
-    }, 3600000); // 1 hour
-    return () => clearInterval(interval);
-  }, [syncWithGoogle]);
-
-  // Silent Background Sync Trigger - 0 popups
-  const handleSyncGoogleCalendar = useCallback(async (interactive = false) => {
-    if (!isGoogleCalendarConnected()) {
-      if (interactive === true) {
-        setIsGCalModalOpen(true);
-      }
-      return;
-    }
-    await syncWithGoogle(false);
-  }, [syncWithGoogle]);
-
-  // Touch Swipe Gesture State
-  const touchStartX = useRef(null);
-  const touchStartY = useRef(null);
-  const activeBatchSyncRef = useRef(null);
+    safeSetItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+  }, [nutritionData, settings]);
 
   // Dynamically update CSS root variables and tab favicon when accentHue changes
   useEffect(() => {
@@ -806,7 +246,6 @@ export function App() {
     document.documentElement.style.setProperty('--accent-border', `hsla(${hue}, 95%, 58%, 0.25)`);
     document.documentElement.style.setProperty('--accent-glow', `hsla(${hue}, 95%, 58%, 0.35)`);
 
-    // Dynamically update browser tab favicon with sleek geometric wolf design & dark background matching active theme
     try {
       const color = `hsl(${hue}, 95%, 58%)`;
       const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
@@ -824,597 +263,83 @@ export function App() {
       let link = document.querySelector("link[rel*='icon']");
       if (!link) {
         link = document.createElement('link');
-        link.rel = 'icon';
         link.type = 'image/svg+xml';
-        document.head.appendChild(link);
+        link.rel = 'shortcut icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
       }
       link.href = blobUrl;
-    } catch (e) {
-      console.debug("Favicon sync notice:", e);
-    }
+    } catch (e) {}
   }, [settings.accentHue]);
 
-  // Keyboard navigation shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      if (e.key === 'ArrowRight' || e.key === 'l') {
-        handleNextView();
-      } else if (e.key === 'ArrowLeft' || e.key === 'h') {
-        handlePrevView();
-      } else if (e.key === ',' || e.key === 'Escape') {
-        setIsSettingsOpen(prev => !prev);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeView]);
-
-  const viewIds = NAV_ITEMS.map(item => item.id);
-
-  const handleNavigate = (newView) => {
-    if (newView === activeView) return;
-    const currentIndex = viewIds.indexOf(activeView);
-    const newIndex = viewIds.indexOf(newView);
-    setSlideDirection(newIndex > currentIndex ? 1 : -1);
-    setActiveView(newView);
-  };
-
-  const handleNextView = () => {
-    const currentIndex = viewIds.indexOf(activeView);
-    const nextIndex = (currentIndex + 1) % viewIds.length;
-    setSlideDirection(1);
-    setActiveView(viewIds[nextIndex]);
-  };
-
-  const handlePrevView = () => {
-    const currentIndex = viewIds.indexOf(activeView);
-    const prevIndex = (currentIndex - 1 + viewIds.length) % viewIds.length;
-    setSlideDirection(-1);
-    setActiveView(viewIds[prevIndex]);
-  };
-
-  // Touch Swipe Handlers for Mobile
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = (e) => {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    // Let Calendar View have exclusive control over its own Day / Month swipe navigation
-    if (activeView === 'calendar') {
-      touchStartX.current = null;
-      touchStartY.current = null;
-      return;
-    }
-
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-
-    const diffX = touchStartX.current - touchEndX;
-    const diffY = touchStartY.current - touchEndY;
-
-    // Must be predominantly horizontal and sufficiently long
-    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
-      playSound('swipe', settings.soundEnabled);
-      if (diffX > 0) {
-        handleNextView();
-      } else {
-        handlePrevView();
-      }
-    }
-
-    touchStartX.current = null;
-    touchStartY.current = null;
-  };
-
   const handleResetSettings = () => {
+    playSound('switch', settings.soundEnabled);
     setSettings(DEFAULT_SETTINGS);
-    playSound('switch', true);
+    safeSetItem(STORAGE_KEY_SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
   };
 
-  const handleOpenComingSoon = (featureName, category, description) => {
-    setComingSoonData({ featureName, category, description });
+  const handleToggleSound = () => {
+    const nextSound = !settings.soundEnabled;
+    playSound('switch', nextSound);
+    setSettings(prev => ({ ...prev, soundEnabled: nextSound }));
+  };
+
+  const handleOpenComingSoon = (featureData) => {
+    playSound('pop', settings.soundEnabled);
+    setComingSoonData(featureData);
   };
 
   const handleCloseComingSoon = () => {
+    playSound('click', settings.soundEnabled);
     setComingSoonData(null);
   };
 
-  const handleSyncGoogleCalendarSuccess = (newItems) => {
-    if (newItems && Array.isArray(newItems)) {
-      setCalendarData(prev => ({
-        ...prev,
-        items: reconcileCalendarItems(prev.items, newItems)
-      }));
-    }
-    setSyncStatus('synced');
-    setLastSyncTimestamp(Date.now());
-    localStorage.removeItem('wolfe_signin_modal_dismissed');
-  };
-
-  // Calendar Item Operations (Universal 2-Way Sync + Undo Tracking)
-  const handleAddItem = async (newItem) => {
-    if (!newItem) return;
-    if (Array.isArray(newItem)) {
-      return handleBatchAddItems(newItem);
-    }
-
-    let itemToSave = { ...newItem };
-
-    if (isGoogleCalendarConnected() && !itemToSave.isGoogle) {
-      try {
-        const startTime = itemToSave.isAllDay ? 'All Day' : (itemToSave.time ? itemToSave.time.split(' - ')[0] : '02:00 PM');
-        const endTime = itemToSave.isAllDay ? 'All Day' : (itemToSave.time?.split(' - ')[1] || '03:00 PM');
-        const createdGcal = await createGoogleCalendarEvent({
-          type: itemToSave.type,
-          title: itemToSave.title,
-          startTime,
-          endTime,
-          dateStr: itemToSave.date,
-          isAllDay: itemToSave.isAllDay,
-          category: itemToSave.category
-        });
-        itemToSave.id = createdGcal.id;
-        itemToSave.isGoogle = true;
-        itemToSave.htmlLink = createdGcal.htmlLink;
-        setSyncStatus('synced');
-      } catch (err) {
-        console.warn("Manual add Google Calendar sync error:", err);
-        if (err.message?.includes('401') || err.message?.includes('session')) {
-          setSyncStatus('failed');
-        }
-      }
-    }
-
-    setCalendarData(prev => ({
-      ...prev,
-      items: [itemToSave, ...prev.items.filter(i => i.id !== itemToSave.id)]
-    }));
-    recordAdditionOrUpdate(itemToSave.id);
-
-    // Silent background sync when an item is added
-    if (isGoogleCalendarConnected()) {
-      syncWithGoogle(false).catch(() => {});
-    }
-
-    // Trigger Undo Action Toast (4s auto-dismiss)
-    setUndoAction({
-      title: itemToSave.type === 'deadline' ? "Deadline Added" : "Item Added",
-      description: `"${itemToSave.title}" on ${itemToSave.date}`,
-      type: "ADD_ITEM",
-      itemsAdded: [itemToSave],
-      itemsRemoved: []
-    });
-  };
-
-  const handleBatchAddItems = (itemsArray) => {
-    if (!itemsArray || itemsArray.length === 0) return;
+  // Dedicated Target Adjustment Handler (updates calories, protein, carbs, fats)
+  const handleUpdateNutritionTargets = ({ targetCalories, protein, carbs, fats }) => {
     playSound('success', settings.soundEnabled);
+    const today = getTodayIso();
+    markLocalMutation();
 
-    // 1. Immediately create local items for 0ms visual lag
-    const localItems = itemsArray.map((item, idx) => ({
-      ...item,
-      id: item.id || `batch-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
-      completed: false
-    }));
-
-    const batchSyncId = `batch-sync-${Date.now()}`;
-    activeBatchSyncRef.current = batchSyncId;
-
-    // Instant state update — zero screen freeze or visual lag!
-    setCalendarData(prev => ({
-      ...prev,
-      items: [...localItems, ...prev.items.filter(it => !localItems.some(l => l.id === it.id))]
-    }));
-    localItems.forEach(it => recordAdditionOrUpdate(it.id));
-
-    const isGcalConnected = isGoogleCalendarConnected();
-
-    // 2. Set initial Undo Toast (clean, auto-dismisses)
-    setUndoAction({
-      title: "Calendar Items Added",
-      description: `Added ${localItems.length} items to calendar`,
-      type: "BATCH_ADD",
-      batchSyncId,
-      itemsAdded: localItems,
-      itemsRemoved: [],
-      syncProgress: null
-    });
-
-    // 3. Perform Google Calendar Sync in the Background (Non-blocking & Abort-Safe)
-    if (isGcalConnected) {
-      (async () => {
-        const syncedItems = [];
-        let completedCount = 0;
-
-        for (const item of localItems) {
-          if (item.isGoogle) {
-            completedCount++;
-            syncedItems.push(item);
-            continue;
-          }
-
-          // CHECK IF ABORTED BY USER UNDO MID-UPLOAD
-          if (activeBatchSyncRef.current !== batchSyncId) {
-            console.debug("Batch sync cancelled mid-upload. Rolling back created Google events...");
-            for (const s of syncedItems) {
-              if (s.id && s.isGoogle) {
-                deleteGoogleCalendarEvent(s.id, s.isGoogleTask || s.type === 'task').catch(console.warn);
-              }
-            }
-            return;
-          }
-
-          let updatedItem = { ...item };
-          try {
-            const createdGcal = await createGoogleCalendarEvent({
-              type: item.type,
-              title: item.title,
-              startTime: item.isAllDay ? 'All Day' : (item.time ? item.time.split(' - ')[0] : '02:00 PM'),
-              endTime: item.isAllDay ? 'All Day' : (item.time?.split(' - ')[1] || '03:00 PM'),
-              dateStr: item.date,
-              isAllDay: item.isAllDay,
-              category: item.category
-            });
-            updatedItem.id = createdGcal.id;
-            updatedItem.isGoogle = true;
-            updatedItem.isGoogleTask = item.type === 'task';
-            updatedItem.htmlLink = createdGcal.htmlLink;
-          } catch (err) {
-            console.warn("Background batch sync error:", err);
-          }
-
-          // Check again after await
-          if (activeBatchSyncRef.current !== batchSyncId) {
-            if (updatedItem.isGoogle && updatedItem.id) {
-              deleteGoogleCalendarEvent(updatedItem.id, updatedItem.isGoogleTask).catch(console.warn);
-            }
-            for (const s of syncedItems) {
-              if (s.id && s.isGoogle) {
-                deleteGoogleCalendarEvent(s.id, s.isGoogleTask || s.type === 'task').catch(console.warn);
-              }
-            }
-            return;
-          }
-
-          completedCount++;
-          syncedItems.push(updatedItem);
+    setNutritionData(prev => {
+      const base = (prev && typeof prev === 'object') ? prev : {};
+      const updatedDailyTargets = {
+        ...(base.dailyTargets || {}),
+        [today]: {
+          ...(base.dailyTargets?.[today] || {}),
+          calories: targetCalories,
+          protein,
+          carbs,
+          fats
         }
+      };
 
-        // Final state update with official Google IDs and silent background sync
-        if (activeBatchSyncRef.current === batchSyncId) {
-          setCalendarData(prev => ({
-            ...prev,
-            items: prev.items.map(it => {
-              const match = syncedItems.find(s => s.date === it.date && s.title === it.title);
-              return match || it;
-            })
-          }));
-          syncWithGoogle(false).catch(() => {});
-        }
-      })();
-    }
-  };
+      const next = {
+        ...base,
+        targetCalories,
+        protein: {
+          ...(base.protein || { current: 0, unit: 'g', color: '#6366f1' }),
+          target: protein
+        },
+        carbs: {
+          ...(base.carbs || { current: 0, unit: 'g', color: '#06b6d4' }),
+          target: carbs
+        },
+        fats: {
+          ...(base.fats || { current: 0, unit: 'g', color: '#f59e0b' }),
+          target: fats
+        },
+        dailyTargets: updatedDailyTargets,
+        updatedAt: Date.now()
+      };
 
-  const handleClearDeadlines = async (targetDate = 'ALL') => {
-    playSound('switch', settings.soundEnabled);
-    const toDelete = calendarData.items.filter(it => it.type === 'deadline' && (targetDate === 'ALL' || it.date === targetDate));
+      try {
+        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(next));
+      } catch (e) {}
 
-    setCalendarData(prev => ({
-      ...prev,
-      items: prev.items.filter(it => !(it.type === 'deadline' && (targetDate === 'ALL' || it.date === targetDate)))
-    }));
-    toDelete.forEach(dl => recordDeletion(dl.id));
-
-    if (isGoogleCalendarConnected()) {
-      for (const dl of toDelete) {
-        deleteGoogleCalendarEvent(dl.id, false).catch(console.warn);
-      }
-      syncWithGoogle(false).catch(() => {});
-    }
-
-    setUndoAction({
-      title: "Deadlines Removed",
-      description: `Removed ${toDelete.length} deadline(s) from calendar`,
-      type: "CLEAR_DEADLINES",
-      itemsAdded: [],
-      itemsRemoved: toDelete
+      return next;
     });
   };
 
-  const handleDeleteItem = async (id) => {
-    playSound('click', settings.soundEnabled);
-    const targetItem = calendarData.items.find(it => it.id === id);
-    const isGoogleTask = targetItem?.isGoogleTask || targetItem?.type === 'task';
-
-    // Instant optimistic removal from UI and tombstone registration
-    setCalendarData(prev => ({
-      ...prev,
-      items: prev.items.filter(it => it.id !== id)
-    }));
-    recordDeletion(id);
-
-    // Insta-delete on Google Calendar and Google Tasks in background
-    if (isGoogleCalendarConnected()) {
-      deleteGoogleCalendarEvent(id, isGoogleTask).catch(err => console.warn("Delete error:", err));
-      syncWithGoogle(false).catch(() => {});
-    }
-
-    if (targetItem) {
-      setUndoAction({
-        title: "Item Deleted",
-        description: `Removed "${targetItem.title}"`,
-        type: "DELETE_ITEM",
-        itemsAdded: [],
-        itemsRemoved: [targetItem]
-      });
-    }
-  };
-
-  // Delete a specific event by title and optional date (e.g. from Voice / Text commands)
-  const handleDeleteSpecificItem = async (titleQuery, targetDate) => {
-    playSound('click', settings.soundEnabled);
-    const lowerQuery = (titleQuery || '').toLowerCase().trim().replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '');
-    if (!lowerQuery) return { success: false, query: titleQuery };
-
-    const targetItem = calendarData.items.find(it => {
-      const itTitle = (it.title || '').toLowerCase();
-      const titleMatch = itTitle.includes(lowerQuery) || lowerQuery.includes(itTitle);
-      if (!titleMatch) return false;
-      if (targetDate && targetDate !== 'ANY') {
-        return it.date === targetDate;
-      }
-      return true;
-    });
-
-    if (targetItem) {
-      const isGoogleTask = targetItem.isGoogleTask || targetItem.type === 'task';
-      setCalendarData(prev => ({
-        ...prev,
-        items: prev.items.filter(it => it.id !== targetItem.id)
-      }));
-      recordDeletion(targetItem.id);
-      if (isGoogleCalendarConnected()) {
-        deleteGoogleCalendarEvent(targetItem.id, isGoogleTask).catch(err => console.warn("Delete error:", err));
-        syncWithGoogle(false).catch(() => {});
-      }
-
-      setUndoAction({
-        title: "Item Deleted",
-        description: `Removed "${targetItem.title}"`,
-        type: "DELETE_ITEM",
-        itemsAdded: [],
-        itemsRemoved: [targetItem]
-      });
-
-      return { success: true, item: targetItem };
-    }
-
-    return { success: false, query: titleQuery };
-  };
-
-  const handleClearCalendar = async (targetDate) => {
-    playSound('switch', settings.soundEnabled);
-    const dateToClear = targetDate || getTodayIso();
-    const removedItems = calendarData.items.filter(it => dateToClear === 'ALL' || it.date === dateToClear);
-
-    setCalendarData(prev => ({
-      ...prev,
-      items: dateToClear === 'ALL' ? [] : prev.items.filter(it => it.date !== dateToClear)
-    }));
-    removedItems.forEach(it => recordDeletion(it.id));
-
-    if (isGoogleCalendarConnected()) {
-      // Delete each removed item from Google (handles both Calendar events and Tasks)
-      for (const it of removedItems) {
-        deleteGoogleCalendarEvent(it.id, it.isGoogleTask || it.type === 'task').catch(console.warn);
-      }
-      syncWithGoogle(false).catch(() => {});
-    }
-
-    setUndoAction({
-      title: "🧹 Calendar Cleared",
-      description: `Cleared ${removedItems.length} items for ${dateToClear === 'ALL' ? 'all days' : dateToClear}`,
-      type: "CLEAR_ITEMS",
-      itemsAdded: [],
-      itemsRemoved: removedItems,
-      targetDate: dateToClear
-    });
-  };
-
-  // Comprehensive Purge Command Handler with Live Progress Tracking (e.g. "Purge BTMA", "Purge timetable", "Purge all")
-  const handlePurgeItems = async (filterQuery = 'all') => {
-    playSound('switch', settings.soundEnabled);
-    activeBatchSyncRef.current = null;
-
-    const rawQ = (filterQuery || 'all').trim();
-    const q = rawQ.toLowerCase().replace(/^(all\s+)?(my\s+)?/i, '').trim();
-
-    let itemsToPurge = [];
-    if (q === 'all' || q === 'everything' || q === 'calendar' || q === '') {
-      itemsToPurge = [...calendarData.items];
-    } else if (q === 'timetable' || q === 'schedule' || q === 'classes' || q === 'lectures' || q === 'syllabus') {
-      itemsToPurge = calendarData.items.filter(it => 
-        it.category === 'School' || 
-        /\b(?:class|lecture|lab|tutorial|seminar|session)\b/i.test(it.title || '') ||
-        /\b[A-Z]{2,5}\s*\d{2,4}\b/i.test(it.title || '')
-      );
-    } else if (q === 'deadlines' || q === 'deadline') {
-      itemsToPurge = calendarData.items.filter(it => it.type === 'deadline');
-    } else if (q === 'tasks' || q === 'task') {
-      itemsToPurge = calendarData.items.filter(it => it.type === 'task' || it.type === 'reminder');
-    } else if (q === 'today') {
-      const today = getTodayIso();
-      itemsToPurge = calendarData.items.filter(it => it.date === today);
-    } else if (q === 'tomorrow') {
-      const tom = addDays(getTodayIso(), 1);
-      itemsToPurge = calendarData.items.filter(it => it.date === tom);
-    } else {
-      // Clean query and match title, category, description, or date (e.g. "BTMA", "BTMA 317", "btma-317")
-      const cleanQ = q.replace(/[^a-z0-9]/gi, '').toLowerCase();
-
-      itemsToPurge = calendarData.items.filter(it => {
-        const title = (it.title || '').toLowerCase();
-        const cleanTitle = title.replace(/[^a-z0-9]/gi, '');
-        const category = (it.category || '').toLowerCase();
-        const desc = (it.description || '').toLowerCase();
-        const date = (it.date || '');
-
-        return (
-          title.includes(q) ||
-          cleanTitle.includes(cleanQ) ||
-          category.includes(q) ||
-          desc.includes(q) ||
-          date.includes(q)
-        );
-      });
-    }
-
-    if (itemsToPurge.length === 0) {
-      setUndoAction({
-        title: "🔍 No Matching Items",
-        description: `Found 0 events matching "${rawQ}" to purge.`,
-        type: "PURGE_EMPTY",
-        itemsAdded: [],
-        itemsRemoved: []
-      });
-      return { count: 0, query: q };
-    }
-
-    const purgeIds = new Set(itemsToPurge.map(it => it.id));
-    const isGcal = isGoogleCalendarConnected();
-
-    // 1. Instantly remove from local calendarData and record tombstones
-    setCalendarData(prev => ({
-      ...prev,
-      items: prev.items.filter(it => !purgeIds.has(it.id))
-    }));
-    itemsToPurge.forEach(it => recordDeletion(it.id));
-
-    // 2. Set clean Undo Toast (auto-dismisses)
-    setUndoAction({
-      title: `Purged "${rawQ.toUpperCase()}"`,
-      description: `Purged ${itemsToPurge.length} items from calendar`,
-      type: "PURGE_ITEMS",
-      itemsAdded: [],
-      itemsRemoved: itemsToPurge,
-      syncProgress: null
-    });
-
-    // 3. Delete from Google Calendar & Tasks silently in Background
-    if (isGcal) {
-      (async () => {
-        for (const it of itemsToPurge) {
-          try {
-            await deleteGoogleCalendarEvent(it.id, it.isGoogleTask || it.type === 'task');
-          } catch (err) {
-            console.warn("Purge delete notice:", err);
-          }
-        }
-        syncWithGoogle(false).catch(() => {});
-      })();
-    }
-
-    return { count: itemsToPurge.length, query: q };
-  };
-
-  const handleToggleTask = async (id) => {
-    const item = calendarData.items.find(it => it.id === id);
-    if (!item) return;
-
-    const nextCompleted = !item.completed;
-    if (nextCompleted) playSound('success', settings.soundEnabled);
-
-    // Optimistic UI update first
-    setCalendarData(prev => ({
-      ...prev,
-      items: prev.items.map(it => {
-        if (it.id === id) {
-          return { ...it, completed: nextCompleted };
-        }
-        return it;
-      })
-    }));
-
-    // Sync to Google in background
-    if (isGoogleCalendarConnected()) {
-      updateGoogleTaskStatus(id, nextCompleted).catch(err => console.warn("Task toggle sync error:", err));
-      syncWithGoogle(false).catch(() => {});
-    }
-  };
-
-  // Universal Undo Action Handler (Handles mid-upload cancel, purge undo, delete undo, etc.)
-  const handleUndoAction = async (action) => {
-    if (!action) return;
-    playSound('switch', settings.soundEnabled);
-
-    // 0. Instantly abort any in-flight batch upload loop
-    activeBatchSyncRef.current = null;
-
-    // 1. If items were added, remove them
-    if (action.itemsAdded && action.itemsAdded.length > 0) {
-      const idsToRemove = new Set(action.itemsAdded.map(it => it.id));
-      const titlesToRemove = new Set(action.itemsAdded.map(it => `${it.date}-${it.title}`));
-
-      setCalendarData(prev => ({
-        ...prev,
-        items: prev.items.filter(it => !idsToRemove.has(it.id) && !titlesToRemove.has(`${it.date}-${it.title}`))
-      }));
-
-      // Delete from Google Calendar & Tasks in background
-      if (isGoogleCalendarConnected()) {
-        for (const item of action.itemsAdded) {
-          if (item.id) {
-            deleteGoogleCalendarEvent(item.id, item.isGoogleTask || item.type === 'task').catch(console.warn);
-          }
-        }
-      }
-    }
-
-    // 2. If items were removed (e.g. from Purge or Delete), restore them
-    if (action.itemsRemoved && action.itemsRemoved.length > 0) {
-      // First, restore items to local state immediately (optimistic)
-      setCalendarData(prev => ({
-        ...prev,
-        items: [...action.itemsRemoved, ...prev.items.filter(it => !action.itemsRemoved.some(r => r.id === it.id))]
-      }));
-
-      // Re-create on Google Calendar in background and update IDs
-      if (isGoogleCalendarConnected()) {
-        for (const item of action.itemsRemoved) {
-          try {
-            const created = await createGoogleCalendarEvent({
-              type: item.type,
-              title: item.title,
-              startTime: item.isAllDay ? 'All Day' : (item.time?.split(' - ')[0] || '02:00 PM'),
-              endTime: item.isAllDay ? 'All Day' : (item.time?.split(' - ')[1] || '03:00 PM'),
-              dateStr: item.date,
-              isAllDay: item.isAllDay,
-              category: item.category
-            });
-            // Update local state with new Google ID so future operations work
-            if (created?.id) {
-              const oldId = item.id;
-              setCalendarData(prev => ({
-                ...prev,
-                items: prev.items.map(it => it.id === oldId ? { ...it, id: created.id, isGoogle: true, htmlLink: created.htmlLink } : it)
-              }));
-            }
-          } catch (e) {
-            console.warn("Undo restore Google sync error:", e);
-          }
-        }
-      }
-    }
-
-    setUndoAction(null);
-  };
-
-  // Global Food Logging Handler (usable directly from HomeView, CompactVoiceWidget, and TopBar)
+  // Global Food Logging Handler (triggered from voice in TopBar)
   const handleLogMeal = useCallback((mealEntry) => {
     playSound('success', settings.soundEnabled);
     const today = getTodayIso();
@@ -1468,174 +393,60 @@ export function App() {
 
       return nextData;
     });
-
-    triggerImmediateCloudPush(80);
   }, [settings.soundEnabled]);
 
-  // Render current active view
-  const renderActiveView = () => {
-    const gAccount = getGoogleAccount();
-    const currentUser = gAccount ? {
-      ...INITIAL_USER,
-      name: gAccount.name || INITIAL_USER.name,
-      handle: gAccount.email ? `@${gAccount.email.split('@')[0]}` : INITIAL_USER.handle,
-      avatar: gAccount.picture || INITIAL_USER.avatar,
-    } : INITIAL_USER;
+  // Undo Action Handler for deleted meals
+  const handleUndoAction = (action) => {
+    if (!action) return;
+    playSound('switch', settings.soundEnabled);
 
-    const commonProps = {
-      user: currentUser,
-      settings: settings,
-      onOpenSettings: () => setIsSettingsOpen(true),
-      onOpenComingSoon: handleOpenComingSoon,
-      onNavigate: handleNavigate,
-      soundEnabled: settings.soundEnabled,
-      isSyncingGoogle: isSyncingGoogle,
-      isGoogleConnected: isGoogleCalendarConnected(),
-      onSyncGoogleCalendar: handleSyncGoogleCalendar,
-      syncStatus: syncStatus,
-      lastSyncTimestamp: lastSyncTimestamp,
-      onLogMeal: handleLogMeal
-    };
-
-    switch (activeView) {
-      case 'home':
-        return (
-          <HomeView 
-            nutritionData={nutritionData}
-            calendarData={calendarData}
-            setSettings={setSettings}
-            setNutritionData={setNutritionData}
-            setCalendarData={setCalendarData}
-            onItemCreated={handleAddItem}
-            onClearCalendar={handleClearCalendar}
-            onClearDeadlines={handleClearDeadlines}
-            onDeleteSpecificItem={handleDeleteSpecificItem}
-            onPurgeItems={handlePurgeItems}
-            onToggleTask={handleToggleTask}
-            isSyncingGoogle={isSyncingGoogle}
-            isGoogleConnected={isGoogleCalendarConnected()}
-            onSyncGoogleCalendar={handleSyncGoogleCalendar}
-            {...commonProps}
-          />
-        );
-      case 'nutrition':
-        return (
-          <NutritionView 
-            nutritionData={nutritionData}
-            setNutritionData={setNutritionData}
-            settings={settings}
-            {...commonProps}
-          />
-        );
-      case 'calendar':
-        return (
-          <CalendarView 
-            calendarData={calendarData}
-            onAddItem={handleAddItem}
-            onBatchAddItems={handleBatchAddItems}
-            onClearDeadlines={handleClearDeadlines}
-            onDeleteItem={handleDeleteItem}
-            onToggleTask={handleToggleTask}
-            onOpenGoogleCalendar={() => setIsGCalModalOpen(true)}
-            onSyncGoogle={() => syncWithGoogle(true)}
-            isSyncingGoogle={isSyncingGoogle}
-            {...commonProps}
-          />
-        );
-      default:
-        return null;
+    if (action.mealRestored) {
+      handleLogMeal(action.mealRestored);
     }
-  };
-
-  // Variants for direction-aware swipe animations
-  const pageVariants = {
-    initial: (dir) => ({
-      opacity: 0,
-      x: dir * 30,
-    }),
-    animate: {
-      opacity: 1,
-      x: 0,
-      transition: {
-        x: { type: 'spring', stiffness: 350, damping: 30 },
-        opacity: { duration: 0.15 }
-      }
-    },
-    exit: (dir) => ({
-      opacity: 0,
-      x: dir * -30,
-      transition: {
-        opacity: { duration: 0.1 }
-      }
-    })
+    setUndoAction(null);
   };
 
   return (
-    <div 
-      className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-white/20"
-    >
-      {/* Background Interactive Ambient Glow */}
+    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-white/20">
+      {/* Background Ambient Glow */}
       <BackgroundGlow accentHue={settings.accentHue} />
 
       {/* Top Application Bar */}
       <TopBar 
-        activeView={activeView} 
-        onNavigate={handleNavigate}
-        onOpenSettings={() => setIsSettingsOpen(true)}
         soundEnabled={settings.soundEnabled}
-        onToggleSound={() => setSettings(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+        onToggleSound={handleToggleSound}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         aiConfig={settings.aiConfig}
-        isGoogleConnected={isGoogleCalendarConnected()}
-        syncStatus={syncStatus}
-        onOpenGoogleModal={() => setIsGCalModalOpen(true)}
-        onSyncNow={handleSyncGoogleCalendar}
         osData={{
+          settings,
           nutritionData,
-          calendarData,
           setSettings,
           setNutritionData,
-          setCalendarData,
-          onClearDeadlines: handleClearDeadlines,
-          onClearCalendar: handleClearCalendar,
-          onDeleteItem: handleDeleteItem,
-          onPurgeItems: handlePurgeItems,
           onLogMeal: handleLogMeal
         }}
-        onEventCreated={handleAddItem}
-        onClearCalendar={handleClearCalendar}
-        onDeleteSpecificItem={handleDeleteSpecificItem}
-        onPurgeItems={handlePurgeItems}
+        onOpenMealLogModal={() => {
+          // Trigger meal log modal inside nutrition view via dispatch
+          window.dispatchEvent(new CustomEvent('wolfe-open-meal-modal'));
+        }}
         onLogMeal={handleLogMeal}
-        onOpenMealLogModal={() => handleNavigate('nutrition')}
       />
 
-      {/* Main Dynamic Viewport Container */}
-      <main className={`flex-1 w-full px-4 sm:px-6 pt-5 ${settings.compactMode ? 'max-w-5xl' : 'max-w-6xl'} mx-auto`}>
-        <AnimatePresence mode="wait" custom={slideDirection}>
-          <motion.div
-            key={activeView}
-            custom={slideDirection}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-          >
-            <ViewErrorBoundary key={activeView}>
-              <Suspense fallback={<ViewLoadingFallback />}>
-                {renderActiveView()}
-              </Suspense>
-            </ViewErrorBoundary>
-          </motion.div>
-        </AnimatePresence>
+      {/* Primary Viewport: Macro & Nutrition Tracker */}
+      <main className={`flex-1 w-full px-3 sm:px-6 pt-4 pb-12 ${settings.compactMode ? 'max-w-5xl' : 'max-w-6xl'} mx-auto`}>
+        <ViewErrorBoundary>
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <NutritionView 
+              nutritionData={nutritionData}
+              setNutritionData={setNutritionData}
+              settings={settings}
+              user={INITIAL_USER}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              onOpenComingSoon={handleOpenComingSoon}
+              soundEnabled={settings.soundEnabled}
+            />
+          </Suspense>
+        </ViewErrorBoundary>
       </main>
-
-
-      {/* Floating Interactive Dock */}
-      <Dock 
-        activeView={activeView} 
-        onViewChange={handleNavigate}
-        soundEnabled={settings.soundEnabled}
-      />
 
       {/* Persistent Undo Action Toast Popup */}
       <UndoActionPopup 
@@ -1645,7 +456,7 @@ export function App() {
         soundEnabled={settings.soundEnabled}
       />
 
-      {/* Interactive Settings Drawer with Google Calendar & Color Slider (Lazily Loaded) */}
+      {/* Macro Targets & App Settings Drawer */}
       {isSettingsOpen && (
         <Suspense fallback={null}>
           <SettingsModal 
@@ -1654,30 +465,9 @@ export function App() {
             settings={settings}
             onUpdateSettings={setSettings}
             onResetSettings={handleResetSettings}
-            onOpenGoogleCalendarModal={() => setIsGCalModalOpen(true)}
-            onSyncGoogleCalendarSuccess={handleSyncGoogleCalendarSuccess}
-            onSyncNow={() => syncWithGoogle(true)}
-            syncStatus={syncStatus}
-            lastSyncTimestamp={lastSyncTimestamp}
+            nutritionData={nutritionData}
+            onUpdateTargets={handleUpdateNutritionTargets}
             soundEnabled={settings.soundEnabled}
-          />
-        </Suspense>
-      )}
-
-      {/* Google Calendar 2-Way Sync Modal (Lazily Loaded) */}
-      {isGCalModalOpen && (
-        <Suspense fallback={null}>
-          <GoogleCalendarModal 
-            isOpen={isGCalModalOpen}
-            onClose={() => {
-              setIsGCalModalOpen(false);
-              safeSetItem('wolfe_signin_modal_dismissed', 'true');
-            }}
-            onSyncSuccess={handleSyncGoogleCalendarSuccess}
-            soundEnabled={settings.soundEnabled}
-            syncStatus={syncStatus}
-            lastSyncTimestamp={lastSyncTimestamp}
-            onSyncNow={() => syncWithGoogle(true)}
           />
         </Suspense>
       )}

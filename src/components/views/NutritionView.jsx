@@ -63,6 +63,16 @@ const NutritionViewInner = ({
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [expandedMealIds, setExpandedMealIds] = useState(() => new Set());
 
+  // Listen for global open meal modal event (e.g. from TopBar Quick Log button)
+  useEffect(() => {
+    const handleOpen = () => {
+      playSound('click', soundEnabled);
+      setIsMealModalOpen(true);
+    };
+    window.addEventListener('wolfe-open-meal-modal', handleOpen);
+    return () => window.removeEventListener('wolfe-open-meal-modal', handleOpen);
+  }, [soundEnabled]);
+
   const toggleMealExpand = (mealId) => {
     playSound('click', soundEnabled);
     setExpandedMealIds(prev => {
