@@ -794,6 +794,19 @@ const NutritionViewInner = ({
             </button>
           </div>
 
+          {/* Morning Weight Button */}
+          <button
+            onClick={() => {
+              playSound('click', soundEnabled);
+              setIsWeightModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
+            title="Log morning weight"
+          >
+            <Scale className="w-3.5 h-3.5 text-slate-400" />
+            <span>{latestWeightLog?.weightLbs != null ? `${latestWeightLog.weightLbs} lbs` : 'Weight'}</span>
+          </button>
+
           {/* Camera AI Scan Modal */}
           <button
             onClick={() => {
@@ -810,42 +823,7 @@ const NutritionViewInner = ({
         </div>
       </div>
 
-      {/* Morning Weight Bar (Minimal & Sleek Status) */}
-      <div 
-        onClick={() => {
-          playSound('click', soundEnabled);
-          setIsWeightModalOpen(true);
-        }}
-        className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.08] transition-all cursor-pointer group shadow-sm"
-        title="Click to log or edit morning fasted weight"
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-6 h-6 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center text-slate-300 shrink-0">
-            <Scale className="w-3.5 h-3.5" />
-          </div>
-          <span className="text-xs font-semibold text-slate-300 shrink-0">Morning Weight:</span>
-          <span className="font-mono text-xs font-bold text-white shrink-0">
-            {latestWeightLog?.weightLbs != null ? `${latestWeightLog.weightLbs} lbs` : 'Not logged today'}
-          </span>
-          {movingAvgWeight && (
-            <span className="text-[11px] font-mono text-slate-400 hidden sm:inline truncate">
-              • 7d Avg: <strong className="text-slate-200">{movingAvgWeight} lbs</strong>
-            </span>
-          )}
-          {weightTrend14?.changeLbs != null && (
-            <span className={`text-[11px] font-mono hidden md:inline shrink-0 ${weightTrend14.changeLbs > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-              ({weightTrend14.changeLbs > 0 ? '+' : ''}{weightTrend14.changeLbs} lbs 14d)
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 text-xs font-medium text-slate-400 group-hover:text-white transition-colors shrink-0 ml-2">
-          <span>{latestWeightLog?.weightLbs != null ? 'Edit' : '+ Log Weight'}</span>
-          <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-        </div>
-      </div>
-
-      {/* 3. Primary Macro & Calorie Tracking Dashboard (Full Width Star Feature) */}
+      {/* 2. Primary Macro & Calorie Tracking Dashboard (Full Width Star Feature) */}
       <GlassCard hoverEffect={false} className="p-5 sm:p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div>
