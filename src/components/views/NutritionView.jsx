@@ -807,7 +807,7 @@ const NutritionViewInner = ({
             <span>{latestWeightLog?.weightLbs != null ? `${latestWeightLog.weightLbs} lbs` : 'Weight'}</span>
           </button>
 
-          {/* Camera AI Scan Modal */}
+          {/* Log Meal Modal Button */}
           <button
             onClick={() => {
               playSound('click', soundEnabled);
@@ -815,10 +815,10 @@ const NutritionViewInner = ({
             }}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
             style={{ backgroundColor: 'var(--accent-primary)' }}
-            title="Snap meal with camera or select from gallery"
+            title="Log meal with camera or type description"
           >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Camera</span>
+            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <span>Log</span>
           </button>
         </div>
       </div>
@@ -1094,10 +1094,10 @@ const NutritionViewInner = ({
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
               style={{ backgroundColor: 'var(--accent-primary)' }}
-              title="Snap meal with camera or select from gallery"
+              title="Log meal with camera or type description"
             >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Camera</span>
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+              <span>Log</span>
             </button>
           </div>
 
