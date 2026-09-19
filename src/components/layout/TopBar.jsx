@@ -195,10 +195,10 @@ export const TopBar = ({
         
         {/* Left: Brand Identity with Dynamic Wolf Logo */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 group">
+          <div className="flex items-center gap-2.5">
             {/* Dynamic Wolf Logo Badge synced with color slider */}
             <div 
-              className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/[0.04] transition-all shadow-sm group-hover:scale-105"
+              className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/[0.04] transition-all shadow-sm"
               style={{
                 border: '1px solid var(--accent-border)',
                 color: 'var(--accent-primary)',
@@ -207,83 +207,66 @@ export const TopBar = ({
             >
               <WolfLogo className="w-4 h-4" />
             </div>
-            <div className="flex flex-col">
-              <span className="font-display font-bold text-sm tracking-tight text-white leading-tight">
-                Wolfe OS
-              </span>
-              <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400">
-                Macro Tracker
-              </span>
-            </div>
+            <span className="font-display font-bold text-sm tracking-tight text-white leading-tight">
+              Wolfe OS
+            </span>
           </div>
         </div>
 
-        {/* Center: In-Place Voice & Food Logging Controls */}
-        <div className="flex items-center gap-2">
-          {!isListening && !isProcessing ? (
-            <button
-              onClick={() => {
-                playSound('click', soundEnabled);
-                if (onOpenMealLogModal) {
-                  onOpenMealLogModal();
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer border border-white/10"
-              title="Snap photo or log food"
-            >
-              <Camera className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-              <span className="font-medium">Quick Log</span>
-            </button>
-          ) : isListening ? (
-            <div 
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium animate-pulse"
-              style={{ 
-                backgroundColor: 'var(--accent-subtle)', 
-                border: '1px solid var(--accent-border)',
-                color: 'var(--accent-primary)'
-              }}
-            >
-              {/* Audio Waveform Bars */}
-              <div className="flex items-center gap-0.5">
-                {[0.6, 1.4, 0.8, 1.3, 0.7].map((h, i) => (
-                  <motion.span
-                    key={i}
-                    animate={{ height: ['4px', `${h * 12}px`, '4px'] }}
-                    transition={{
-                      repeat: Infinity,
-                      duration: 0.6 + (i * 0.08),
-                      ease: "easeInOut"
-                    }}
-                    className="w-0.5 rounded-sm"
-                    style={{ backgroundColor: 'var(--accent-primary)' }}
-                  />
-                ))}
-              </div>
-              <span className="truncate max-w-[90px] sm:max-w-[140px] text-white font-mono text-[11px]">
-                Listening...
-              </span>
-              <button
-                onClick={handleStopListening}
-                className="p-0.5 rounded hover:bg-white/10 text-slate-400 hover:text-white"
-                title="Cancel"
+        {/* Center: In-Place Voice Controls (when active) */}
+        {(isListening || isProcessing) && (
+          <div className="flex items-center gap-2">
+            {isListening ? (
+              <div 
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium animate-pulse"
+                style={{ 
+                  backgroundColor: 'var(--accent-subtle)', 
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                }}
               >
-                <Square className="w-2.5 h-2.5 fill-current" />
-              </button>
-            </div>
-          ) : (
-            <div 
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono"
-              style={{
-                backgroundColor: 'var(--accent-subtle)',
-                border: '1px solid var(--accent-border)',
-                color: 'var(--accent-primary)'
-              }}
-            >
-              <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
-              <span>Processing...</span>
-            </div>
-          )}
-        </div>
+                {/* Audio Waveform Bars */}
+                <div className="flex items-center gap-0.5">
+                  {[0.6, 1.4, 0.8, 1.3, 0.7].map((h, i) => (
+                    <motion.span
+                      key={i}
+                      animate={{ height: ['4px', `${h * 12}px`, '4px'] }}
+                      transition={{
+                        repeat: Infinity,
+                        duration: 0.6 + (i * 0.08),
+                        ease: "easeInOut"
+                      }}
+                      className="w-0.5 rounded-sm"
+                      style={{ backgroundColor: 'var(--accent-primary)' }}
+                    />
+                  ))}
+                </div>
+                <span className="truncate max-w-[90px] sm:max-w-[140px] text-white font-mono text-[11px]">
+                  Listening...
+                </span>
+                <button
+                  onClick={handleStopListening}
+                  className="p-0.5 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+                  title="Cancel"
+                >
+                  <Square className="w-2.5 h-2.5 fill-current" />
+                </button>
+              </div>
+            ) : (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono"
+                style={{
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent-primary)'
+                }}
+              >
+                <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--accent-primary)' }} />
+                <span>Processing...</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Right: Clock & Settings */}
         <div className="flex items-center gap-2 sm:gap-2.5 text-xs">

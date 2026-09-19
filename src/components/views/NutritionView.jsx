@@ -794,65 +794,6 @@ const NutritionViewInner = ({
             </button>
           </div>
 
-          {/* 1-Click Cloud Sync Button */}
-          <button
-            onClick={handleTriggerCloudSync}
-            disabled={isSyncingCloud}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
-              syncFeedback === 'synced'
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                : syncFeedback === 'error'
-                ? 'bg-rose-500/10 border-rose-500/20 text-rose-300'
-                : isSyncingCloud
-                ? 'bg-white/[0.04] border-white/10 text-slate-300'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/10'
-            }`}
-            title="Sync nutrition data across your phone and computer"
-          >
-            {syncFeedback === 'synced' ? (
-              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            ) : syncFeedback === 'error' ? (
-              <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-            ) : (
-              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncingCloud ? 'animate-spin text-white' : 'text-slate-400'}`} />
-            )}
-            <span>
-              {isSyncingCloud
-                ? 'Syncing...'
-                : syncFeedback === 'synced'
-                ? 'Synced'
-                : syncFeedback === 'error'
-                ? 'Sync Failed'
-                : 'Sync Cloud'}
-            </span>
-          </button>
-
-          {/* Calendar History Modal Button */}
-          <button
-            onClick={() => {
-              playSound('click', soundEnabled);
-              setIsHistoryModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
-            title="View calendar & calorie history"
-          >
-            <History className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-            <span>Calendar History</span>
-          </button>
-
-          {/* Morning Weight Tracker */}
-          <button
-            onClick={() => {
-              playSound('click', soundEnabled);
-              setIsWeightModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-semibold border border-white/10 transition-all active:scale-95 cursor-pointer"
-            title="Log morning weight"
-          >
-            <Scale className="w-3.5 h-3.5 text-slate-400" />
-            <span>Morning Weight</span>
-          </button>
-
           {/* Camera AI Scan Modal */}
           <button
             onClick={() => {
@@ -913,22 +854,6 @@ const NutritionViewInner = ({
               <h3 className="text-lg sm:text-xl font-bold text-white font-mono">
                 {activeTargetCalories} kcal
               </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  playSound('click', soundEnabled);
-                  setCustomCalories(activeTargetCalories);
-                  setCustomProtein(activeTargetProtein);
-                  setCustomCarbs(activeTargetCarbs);
-                  setCustomFats(activeTargetFats);
-                  setIsTargetModalOpen(true);
-                }}
-                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
-                title="Edit Daily Target Calories & Macros"
-              >
-                <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--accent-primary)' }} />
-                <span className="text-[11px] font-medium">Edit Target</span>
-              </button>
             </div>
           </div>
           <div className="text-right">
