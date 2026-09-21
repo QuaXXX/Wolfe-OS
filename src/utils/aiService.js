@@ -201,12 +201,14 @@ RESPOND ONLY IN VALID JSON:
   "meal": {
     "name": "Meal Title",
     "slot": "breakfast" | "lunch" | "dinner" | "snack" | "meal",
-    "calories": 500,
-    "protein": 40,
-    "carbs": 50,
-    "fats": 15,
+    "calories": 340,
+    "protein": 32,
+    "carbs": 38,
+    "fats": 7,
     "items": [
-      { "name": "Item Name", "portion": "1 serving", "calories": 500, "protein": 40, "carbs": 50, "fats": 15 }
+      { "name": "Grilled Chicken Breast", "portion": "100g (3.5 oz)", "calories": 165, "protein": 31, "carbs": 0, "fats": 3.6 },
+      { "name": "Steamed White Rice", "portion": "120g (0.75 cup)", "calories": 155, "protein": 3.2, "carbs": 34, "fats": 0.4 },
+      { "name": "Steamed Broccoli", "portion": "60g", "calories": 20, "protein": 1.5, "carbs": 4, "fats": 0.2 }
     ]
   }
 }
@@ -2390,96 +2392,115 @@ export async function analyzeMealWithAI({ imageBase64, mimeType = 'image/jpeg', 
   if (apiKey && imageBase64) {
     const rawBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
     const visionModels = [
-      'gemini-3.5-flash-lite',
       'gemini-3.6-flash',
       'gemini-3.5-flash',
-      'gemini-flash-lite-latest',
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite',
-      'gemini-1.5-flash'
+      'gemini-3.7-flash',
+      'gemini-flash-latest',
+      'gemini-3.5-flash-lite'
     ];
 
-    const systemInstruction = `You are a clinical sports dietitian, USDA nutritional database authority, and precise food vision intelligence engine for Wolfe OS.
-CRITICAL ACCURACY & INTEGRITY INSTRUCTIONS:
+    const systemInstruction = `You are a clinical sports dietitian, USDA nutritional database authority, and high-precision computer vision intelligence engine for Wolfe OS (engineered to Cal AI and MacroFactor standards).
+
+CRITICAL ACCURACY & PERSPECTIVE-INVARIANCE MANDATES:
 1. FIRST, inspect the image to determine if edible food, beverage, food packaging, or a Nutrition Facts label / barcode is present.
 2. If the image shows a person (face, body, selfie, hands without food), an empty room, furniture, an empty desk/plate, pets, electronics, or no recognizable food/packaging, you MUST NEVER GUESS OR FABRICATE FOOD. In that case, return strictly:
    { "hasFood": false, "errorMessage": "No food or nutrition label detected. Please take a clear photo of your meal or packaging." }
 
-3. UNIFIED SCANNING (Food Plated, Packaged Food, or Attached Label/Barcode):
-   The image may depict:
-   a. Plated food / meal in a bowl or plate.
-   b. A packaged food item with a printed Nutrition Facts label or barcode.
-   c. Plated food with a label / packaging attached or alongside it.
-   - If a printed Nutrition Facts label or barcode is readable, prioritize the EXACT printed numbers from the label.
-   - If plated food is visible, break down the individual items using realistic portion sizes and strict USDA ground-truth macros.
-   - If food is pictured in a meal prep container, storage container, or snack bowl, dynamically evaluate the container size and food fill depth using visual cues.
-   - If both are present, merge them accurately into the items list.
+3. CAMERA PERSPECTIVE & SCALE NORMALIZATION (ELIMINATE THE 500-CALORIE ANCHOR & ANGLE SKEW):
+   - PROBLEM: Close-up photos or angled shots make a small 200g portion occupy 80%+ of the camera frame. NEVER treat frame fill percentage as portion size! A 150-calorie muffin or single fried egg can fill the frame in a close-up photo.
+   - SPATIAL CALIBRATION STEP:
+     a. Identify the containment vessel:
+        * Standard Dinner Plate: ~10.5 inches (26.7 cm) outer diameter.
+        * Salad / Dessert Plate: ~8.0 inches (20.3 cm).
+        * Cereal / Soup Bowl: ~6.0 inches (15.2 cm) diameter, ~2.5-3.0 inches deep (~500-750 ml usable volume).
+        * Mug / Tumbler: ~3.25 inches (8.3 cm) diameter (~250-350 ml).
+        * Meal Prep Container (Rectangular): ~8 x 5.5 x 2 inches (~800-950 ml).
+        * Utensil Scale: Standard table fork or spoon is ~7.0-7.5 inches (18-19 cm).
+        * Hand / Handheld Scale: Adult palm width is ~3.2 inches (8.0 cm); adult finger width is ~0.75 inch (1.9 cm).
+        * Natural Grain Scale: If no vessel or reference is present, use natural grain size (e.g. grain of rice ~6mm, blueberry ~1.5cm, standard bread slice ~11x11cm and ~1.2cm thick).
+     b. Estimate Camera Angle:
+        * Top-Down / Bird's Eye (75°-90°): Full 2D surface area is visible. Infer mound height / thickness from shadows, rim depth, and food pile curvature.
+        * Angled / Oblique (35°-65°): Both surface area and vertical profile (height of piles) are visible. Compensate for perspective foreshortening (food closer to lens appears larger).
+        * Low-Angle / Close-Up (<35°): High distortion risk. Use vessel rim curvature radius to determine true scale, not foreground pixel size.
+     c. Measure Plate Coverage Fraction & Vertical Mound Depth:
+        * Food Coverage: What % of the plate surface is covered? (e.g., a small piece of chicken covers only 20-30% of a 10.5" plate).
+        * Mound Height: Is it flat (single layer ~1cm, e.g. pancake or toast) or heaped (mound of rice/pasta ~3-5cm)?
+
 ${calibPrompt ? `\n${calibPrompt}\n` : ''}
 ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
-4. STRICT USDA MACRO CALIBRATION (PREVENT OVER-ESTIMATION):
-   - Cooked Quinoa: ~120 kcal, 4.4g protein, 21.3g carbs, 1.9g fats per 100g (~222 kcal, 8.1g protein per cup). NEVER assign >10g protein to 1 cup of quinoa!
-   - Cooked Chickpeas / Garbanzo: ~164 kcal, 8.9g protein, 27.4g carbs, 2.6g fats per 100g (~135 kcal, 7.3g protein per 0.5 cup; ~269 kcal, 14.5g protein per 1 cup). Plant legumes are predominantly complex carbs; NEVER treat them like animal meat (never assign 30g+ protein to chickpeas)!
-   - Low-Fat Cottage Cheese: ~110 kcal, 14g protein per 0.5 cup (28g protein per full cup).
-   - Cooked Sweet Potato: ~103 kcal, 2.3g protein, 24g carbs per medium potato (114g).
-   - Kale / Greens: ~33 kcal, 2.5g protein per cup cooked (~8 kcal raw).
-   - Peanut Butter Toast: ~260 kcal, 9g protein, 24g carbs, 14g fats per slice (1 slice bread + 1.5 tbsp peanut butter).
-   - Cooked Chicken Breast: ~165 kcal, 31g protein, 3.6g fats per 100g (~280 kcal, 53g protein per breast).
-   - Lean Ground Beef (90/10): ~190 kcal, 26g protein, 9.5g fats per 100g.
-   - Whole Large Eggs: ~72 kcal, 6.3g protein, 4.8g fats per egg.
-   - Cooked White/Jasmine Rice: ~205 kcal, 4.2g protein, 45g carbs per cup.
-   - Bun / Dinner Roll (~50g): ~130 kcal, 4g protein, 24g carbs, 1.5g fats.
-   - Veggies / Mixed Vegetables: ~35 kcal, 2g protein, 7g carbs, 0.2g fats per 100g (~35 kcal per cup).
-   - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
-   - Milk (Normal / Standard Household Milk):
-     * DEFAULT TO NORMAL MILK: When the user mentions or shows "milk" (e.g. "milk", "glass of milk", "cup of milk", "milk in oatmeal"), treat it as STANDARD / NORMAL MILK (2% reduced fat: ~120 kcal, 8g protein, 11.5g carbs, ~4.8g fats per 1 cup / 240-250ml).
-     * NEVER assume whole milk (~150 kcal) unless explicitly specified ("whole milk", "3.25%").
-     * NEVER assign 9g, 10g, or more protein to 1 cup of standard milk (it is strictly 8g protein).
-   - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (240-260 kcal, 16-18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~465-485 kcal, ~37-39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). NEVER output 91g protein for a household protein shake!
-   - Nature Valley Bar / Granola Bar: Exactly 170 kcal, ~3.5g protein, 23g carbs, 7.5g fats per bar / pouch. Calibrate strictly to 170 kcal (NEVER default to 190 kcal).
-   - Bone-In Meats (Chicken Drumsticks, Wings, Bone-in Thighs, Ribs, T-Bone):
-     * CRITICAL BONE REFUSE RULE: Gross / as-served weight includes inedible bones and cartilage which provide ZERO calories and ZERO protein.
-     * Chicken Drumsticks: ~40% bone refuse (only ~60% is edible meat + skin). A 70g drumstick (as served with bone) has only ~42g edible meat = ~78 kcal, ~10.5g protein, ~3.8g fats. NEVER assign 15g protein to a 70g bone-in drumstick (that mistakenly counts the bone weight as meat)!
-     * Chicken Wings: ~46% bone refuse (only ~54% is edible meat + skin). A 48g wing as served has ~26g edible meat = ~65 kcal, ~6.5g protein, ~4.2g fats.
-     * Chicken Thigh (Bone-in): ~30% bone refuse. A 130g bone-in thigh has ~91g edible meat = ~180 kcal, ~22g protein, ~10g fats.
-     * Label portion clearly: e.g. "1 drumstick (~70g gross, ~42g edible meat)" or "70g bone-in drumstick (~42g meat)".
-   - ATWATER ENERGY CONSISTENCY: Every item and total calories MUST align with: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
 
-4b. COMPOUND FILLINGS & INSIDES PARTITIONING (WEIGHT CONSERVATION RULE):
-    - When a filled item is described (e.g. "bun with 70g insides of beef and veggies", "taco with 60g chicken & peppers", "sandwich with 80g turkey and cheese"):
-    - The stated weight (e.g. 70g) is the TOTAL weight of the filling inside the item, NEVER the individual weight of each ingredient.
-    - Partition the specified weight across the inner components (e.g. for 70g beef & veggies: ~60% beef = 42g [~80 kcal, 11g P], ~40% veggies = 28g [~10 kcal, 1g P], totaling exactly 70g insides). NEVER double the weight to 70g beef AND 70g veggies!
-    - Include the outer bread/bun container (1 bun ~50g = ~130 kcal). Total for a bun with 70g beef & veggies insides is ~220 kcal, NOT >350 kcal.
+4. DECOMPOSITION & 3D VOLUME-TO-MASS IN GRAMS:
+   - MacroFactor & Cal AI Rule: Never guess total calories directly!
+   - Every identified item MUST have an explicit estimated weight in GRAMS (estimatedGrams) derived from its 3D volume (length x width x height in cm) multiplied by food density:
+     * Cooked Meats / Poultry / Fish: ~1.05 g/cm³
+     * Cooked Grains / White Rice / Jasmine Rice: ~0.80 g/cm³ (1 standard cup cooked ≈ 160g)
+     * Cooked Pasta: ~0.72 g/cm³ (1 standard cup cooked ≈ 140g)
+     * Cooked Legumes / Chickpeas: ~0.85 g/cm³ (1 cup ≈ 170g)
+     * Raw Leafy Greens (Spinach, Lettuce): ~0.20 g/cm³ (1 cup ≈ 30-40g)
+     * Steamed Dense Veggies (Broccoli, Carrots): ~0.55 g/cm³ (1 cup ≈ 90-110g)
+     * Whole Potatoes (Baked/Cooked): ~0.90 g/cm³ (1 medium potato ≈ 150g)
+     * Bread / Rolls: ~0.30 g/cm³ (1 standard slice ≈ 30g, thick artisan slice ≈ 45-50g)
+     * Cheese / Dairy Solids: ~0.95 g/cm³
+     * Cooking Oils: 0.92 g/ml (1 tsp ≈ 4.5g / 40 kcal; 1 tbsp ≈ 14g / 120 kcal)
 
-4c. CONSERVATIVE UNDERESTIMATION & ROUND-DOWN MANDATE:
-    - Wolfe OS Principle: Never over-inflate numbers for protein or calories. The user tracks diligently and relies on numbers never being artificially inflated, so they do not get a false sense of hitting their targets.
-    - ROUND DOWN POLICY: When estimating portions, volumes, calories, or protein, ALWAYS ROUND DOWN if there is any fractional ambiguity (e.g. round 14.8g protein down to 14g; round 235 kcal down to 230 kcal; round 0.75 cup down to 0.7 cup). Never round up numbers for protein or calories.
-    - Do NOT inject hidden butter, oils, or sugars unless visibly oily or explicitly stated by the user.
+5. CLINICAL USDA FOODDATA CENTRAL BENCHMARKS (PER 100G EDIBLE PORTION):
+   - Calculate each item's calories and macros strictly from: (estimatedGrams / 100) * USDA_per_100g.
+   - Key Reference Standards:
+     * Cooked Skinless Chicken Breast: 165 kcal, 31.0g P, 0.0g C, 3.6g F per 100g.
+     * Cooked Chicken Thigh (Skinless): 209 kcal, 26.0g P, 0.0g C, 11.0g F per 100g.
+     * Cooked Lean Ground Beef (90/10): 190 kcal, 26.0g P, 0.0g C, 9.5g F per 100g.
+     * Cooked Salmon Fillet: 206 kcal, 22.0g P, 0.0g C, 12.0g F per 100g.
+     * Canned Salmon: Exactly 200 kcal, 40g P, 0g C, 4g F per can (150g).
+     * Canned Tuna (in water, drained): 116 kcal, 25.5g P, 0g C, 0.8g F per 100g (1 standard can ~120g drained = 140 kcal, 30g P).
+     * Whole Large Egg (Cooked/Poached/Boiled): 72 kcal, 6.3g P, 0.4g C, 4.8g F per egg (~50g).
+     * Large Egg White: 17 kcal, 3.6g P, 0.2g C, 0.1g F per white (~33g).
+     * Cooked White/Jasmine Rice: 130 kcal, 2.7g P, 28.0g C, 0.3g F per 100g (~205 kcal per 1 cup cooked / 160g).
+     * Cooked Brown Rice: 123 kcal, 2.7g P, 26.0g C, 1.0g F per 100g.
+     * Cooked Quinoa: 120 kcal, 4.4g P, 21.3g C, 1.9g F per 100g (~222 kcal, 8.1g P per 1 cup cooked / 185g). NEVER assign >10g protein to 1 cup quinoa!
+     * Cooked Chickpeas / Garbanzo: 164 kcal, 8.9g P, 27.4g C, 2.6g F per 100g.
+     * Cooked Rolled Oats (Oatmeal in water): 71 kcal, 2.5g P, 12.0g C, 1.5g F per 100g (~165 kcal per 1 cup cooked / 234g).
+     * Bread (White / Wheat): ~265 kcal, 9.0g P, 49.0g C, 3.2g F per 100g (1 slice ~30g = ~80 kcal, 2.7g P, 15g C, 1g F).
+     * Steamed Mixed Vegetables (Broccoli, Cauliflower, Zucchini): ~35 kcal, 2.0g P, 7.0g C, 0.4g F per 100g (~35 kcal per cup).
+     * Low-Fat Cottage Cheese (2%): 81 kcal, 11.0g P, 4.0g C, 2.3g F per 100g (~90 kcal, 12.5g P per 0.5 cup / 113g).
+     * Plain Nonfat Greek Yogurt: 59 kcal, 10.0g P, 3.6g C, 0.4g F per 100g (~145 kcal, 25g P per 1 cup / 245g).
+     * Standard / Normal Milk (2% reduced fat): 50 kcal, 3.3g P, 4.8g C, 2.0g F per 100ml (~120 kcal, 8g P, 11.5g C, 4.8g F per 1 cup / 240ml). DEFAULT TO 2% NORMAL MILK when milk is mentioned/shown.
+     * Peanut Butter / Almond Butter: 588 kcal, 25.0g P, 20.0g C, 50.0g F per 100g (1 level tbsp ~16g = 94 kcal, 4g P, 3.2g C, 8g F).
+     * Nature Valley Bar: Exactly 170 kcal, 3.5g P, 23g C, 7.5g F per 1 pouch / 2 bars (35g).
+     * Surface Cooking Oil / Dressing: Visually check for gloss/sheen. If matte/dry, do NOT add phantom oils. If visibly glistening, add 0.5-1.0 tsp olive/cooking oil (20-40 kcal, 2.5-4.5g F).
+     * BONE-IN REFUSE RULE: Gross as-served weight of chicken drumsticks has ~40% bone refuse; wings have ~46% bone refuse. Calculate calories and protein STRICTLY on the edible meat (~60%), never on the bone!
+     * ATWATER ENERGY LAW: For every item and the meal sum: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
 
-4d. HIGH-PRECISION VOLUME ESTIMATION (0.1 CUP INTERVALS):
-    - AVOID coarse rounding to 0.5, 1.0, or 1.5 cups! Real food servings are rarely exact half or whole cups.
-    - Measure and state cup volumes at granular 0.1 cup precision (e.g. "0.3 cup", "0.6 cup", "0.7 cup", "0.8 cup", "1.1 cups", "1.2 cups", "1.3 cups", "1.4 cups").
-    - CONSERVATIVE ROUND-DOWN MANDATE: If uncertain between intervals or volume, ALWAYS round down to the nearest lower 0.1 interval or nearest 1 (e.g., if visually between 1.2 and 1.3 cups, choose 1.2 cups; if uncertain between a fraction and a whole amount, round down to the lower tenth or nearest 1). Never overestimate volume.
-
-5. Output itemized breakdown:
-   - "name": Clean item name (e.g. "Cooked Quinoa", "Low-fat Cottage Cheese", "Steamed Kale", "Chicken Drumstick (Bone-In)")
-   - "portion": Realistic, high-precision portion (e.g. "0.8 cup (145g)", "1.2 cups (180g)", "1 drumstick (~70g gross, ~42g edible meat)", "1 slice")
-   - "calories": Number
-   - "protein": Grams
-   - "carbs": Grams
-   - "fats": Grams
+6. STRICT MATHEMATICAL SUMMATION:
+   - The meal total calories, protein, carbs, and fats MUST equal the exact sum of the individual items.
 
 Return ONLY valid JSON matching this schema:
 {
   "hasFood": true,
-  "name": "Concise Meal Title",
+  "name": "Concise Descriptive Meal Title",
+  "visualAnalysis": {
+    "cameraPerspective": "top_down_overhead" | "angled_45_deg" | "close_up_macro",
+    "scaleReference": "Detected 10.5-inch ceramic dinner plate rim",
+    "vesselType": "dinner_plate" | "salad_plate" | "bowl" | "container" | "handheld" | "none",
+    "plateCoveragePercent": 40,
+    "estimatedDepthCm": 2.5,
+    "estimatedTotalGrams": 240
+  },
   "items": [
-    { "name": "Item Name", "portion": "Portion", "calories": 220, "protein": 8, "carbs": 39, "fats": 4 }
+    {
+      "name": "Item Name",
+      "portion": "120g (4.2 oz)",
+      "estimatedGrams": 120,
+      "calories": 198,
+      "protein": 37,
+      "carbs": 0,
+      "fats": 4
+    }
   ],
-  "calories": 220,
-  "protein": 8,
-  "carbs": 39,
+  "calories": 198,
+  "protein": 37,
+  "carbs": 0,
   "fats": 4,
-  "notes": "Verified against clinical USDA benchmarks"
+  "notes": "Verified against vessel scale & USDA ground truth"
 }`;
 
     const prompt = cleanDesc 
@@ -2541,14 +2562,10 @@ Return ONLY valid JSON matching this schema:
               const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(parsed.name || '') ||
                 (parsed.items.length === 1 && parsed.items.some(it => /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(it.name || '')));
 
-              if (isCannedSalmon && parsed.items.length <= 1 && (parsed.protein !== 40 || parsed.calories !== 200)) {
+              if (isCannedSalmon && parsed.items.length <= 1) {
                 parsed.name = "Canned Salmon";
-                parsed.calories = 200;
-                parsed.protein = 40;
-                parsed.carbs = 0;
-                parsed.fats = 4;
                 parsed.items = [
-                  { name: "Canned Salmon", portion: "1 can (150g)", calories: 200, protein: 40, carbs: 0, fats: 4 }
+                  { name: "Canned Salmon", portion: "1 can (150g)", estimatedGrams: 150, calories: 200, protein: 40, carbs: 0, fats: 4 }
                 ];
                 parsed.notes = "Calibrated to verified sports nutrition ground truth (200 kcal, 40g protein per can)";
               }
@@ -2558,12 +2575,8 @@ Return ONLY valid JSON matching this schema:
 
               if (isNatureValley && parsed.items.length <= 1 && (parsed.calories === 190 || parsed.calories === 0 || !parsed.calories)) {
                 parsed.name = parsed.name || "Nature Valley Bar";
-                parsed.calories = 170;
-                parsed.protein = 3.5;
-                parsed.carbs = 23;
-                parsed.fats = 7.5;
                 parsed.items = [
-                  { name: "Nature Valley Bar", portion: "1 bar / pouch (35g)", calories: 170, protein: 3.5, carbs: 23, fats: 7.5 }
+                  { name: "Nature Valley Bar", portion: "1 bar / pouch (35g)", estimatedGrams: 35, calories: 170, protein: 3.5, carbs: 23, fats: 7.5 }
                 ];
                 parsed.notes = "Calibrated to verified nutrition facts (170 kcal, 3.5g protein, 23g carbs, 7.5g fats per bar/pouch)";
               }
@@ -2571,30 +2584,37 @@ Return ONLY valid JSON matching this schema:
               parsed.items = (parsed.items || []).map(it => {
                 const itName = typeof it === 'string' ? it : it?.name || '';
                 if (/nature\s*valley/i.test(itName) && it && typeof it === 'object' && it.calories === 190) {
-                  return { ...it, calories: 170, protein: 3.5, carbs: 23, fats: 7.5 };
+                  return { ...it, calories: 170, protein: 3.5, carbs: 23, fats: 7.5, estimatedGrams: 35 };
                 }
                 return it;
               });
 
               parsed.items = calibrateMealItems(parsed.items || []);
-              const hasCalibrated = parsed.items.some(it => String(it?.portion || '').includes('bone') || (it?.name && it.name.includes('Normal / 2%')));
-              if (hasCalibrated) {
-                parsed.calories = Math.floor(parsed.items.reduce((s, it) => s + (it.calories || 0), 0));
-                parsed.protein = Math.floor(parsed.items.reduce((s, it) => s + (it.protein || 0), 0) * 10) / 10;
-                parsed.carbs = Math.floor(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0) * 10) / 10;
-                parsed.fats = Math.floor(parsed.items.reduce((s, it) => s + (it.fats || 0), 0) * 10) / 10;
-                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated against verified clinical ground truth";
-              }
+
+              // STRICT MATHEMATICAL SUMMATION LAW (Cal AI & MacroFactor Standard):
+              // Recalculate total calories and macros strictly as the sum of verified parsed.items.
+              // This permanently prevents arbitrary model hallucinations (like defaulting to ~500 kcal)
+              // from overriding the verified itemized components.
+              const itemsSumCalories = parsed.items.reduce((s, it) => s + (Number(it.calories) || 0), 0);
+              const itemsSumProtein = parsed.items.reduce((s, it) => s + (Number(it.protein) || 0), 0);
+              const itemsSumCarbs = parsed.items.reduce((s, it) => s + (Number(it.carbs) || 0), 0);
+              const itemsSumFats = parsed.items.reduce((s, it) => s + (Number(it.fats) || 0), 0);
+
+              const totalCalories = Math.round(itemsSumCalories);
+              const totalProtein = Math.round(itemsSumProtein * 10) / 10;
+              const totalCarbs = Math.round(itemsSumCarbs * 10) / 10;
+              const totalFats = Math.round(itemsSumFats * 10) / 10;
 
               return {
                 hasFood: true,
                 name: parsed.name || "Analyzed Meal",
+                visualAnalysis: parsed.visualAnalysis || null,
                 items: parsed.items,
-                calories: parsed.calories || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats),
-                protein: parsed.protein || 0,
-                carbs: parsed.carbs || 0,
-                fats: parsed.fats || 0,
-                notes: parsed.notes || ""
+                calories: totalCalories > 0 ? totalCalories : (parsed.calories || calculateCaloriesFromMacros(totalProtein, totalCarbs, totalFats)),
+                protein: totalProtein,
+                carbs: totalCarbs,
+                fats: totalFats,
+                notes: parsed.notes || "Calculated via vessel scale ruler and USDA ground truth"
               };
             }
           }

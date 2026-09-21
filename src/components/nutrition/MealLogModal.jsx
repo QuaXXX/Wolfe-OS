@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   X, 
   Flame,
-  SwitchCamera 
+  SwitchCamera,
+  Scale 
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { createMealEntry } from '../../utils/nutritionEngine.js';
@@ -37,6 +38,7 @@ export const MealLogModal = ({
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [imageAnalysisError, setImageAnalysisError] = useState(null);
   const [analyzedMeal, setAnalyzedMeal] = useState(null);
+  const [portionScale, setPortionScale] = useState(1.0);
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
@@ -425,7 +427,8 @@ export const MealLogModal = ({
       });
 
       if (result && result.hasFood !== false && result.calories > 0) {
-        setAnalyzedMeal(result);
+        setPortionScale(1.0);
+        setAnalyzedMeal({ ...result, _originalItems: result.items });
         playSound('success', soundEnabled);
         setIsAnalyzingImage(false);
         return;
@@ -441,18 +444,22 @@ export const MealLogModal = ({
 
         if (labelResult.hasLabel) {
           const itemTitle = labelResult.productName || "Scanned Food Item";
+          const labelItems = [
+            {
+              name: itemTitle,
+              portion: labelResult.servingSize || "1 serving",
+              estimatedGrams: 0,
+              calories: labelResult.calories || 0,
+              protein: labelResult.protein || 0,
+              carbs: labelResult.carbs || 0,
+              fats: labelResult.fats || 0
+            }
+          ];
+          setPortionScale(1.0);
           setAnalyzedMeal({
             name: itemTitle,
-            items: [
-              {
-                name: itemTitle,
-                portion: labelResult.servingSize || "1 serving",
-                calories: labelResult.calories || 0,
-                protein: labelResult.protein || 0,
-                carbs: labelResult.carbs || 0,
-                fats: labelResult.fats || 0
-              }
-            ],
+            items: labelItems,
+            _originalItems: labelItems,
             calories: labelResult.calories || 0,
             protein: labelResult.protein || 0,
             carbs: labelResult.carbs || 0,
@@ -473,6 +480,37 @@ export const MealLogModal = ({
     }
   };
 
+  const handleScaleAnalyzedMeal = (multiplier) => {
+    if (!analyzedMeal || !Array.isArray(analyzedMeal.items)) return;
+    playSound('click', soundEnabled);
+    const baseItems = analyzedMeal._originalItems || analyzedMeal.items;
+    const scaledItems = baseItems.map(it => {
+      const origCal = Number(it.calories) || 0;
+      const origP = Number(it.protein) || 0;
+      const origC = Number(it.carbs) || 0;
+      const origF = Number(it.fats) || 0;
+      const origG = Number(it.estimatedGrams) || 0;
+      return {
+        ...it,
+        estimatedGrams: origG > 0 ? Math.round(origG * multiplier) : undefined,
+        calories: Math.round(origCal * multiplier),
+        protein: Math.round(origP * multiplier * 10) / 10,
+        carbs: Math.round(origC * multiplier * 10) / 10,
+        fats: Math.round(origF * multiplier * 10) / 10,
+      };
+    });
+    setPortionScale(multiplier);
+    setAnalyzedMeal({
+      ...analyzedMeal,
+      _originalItems: baseItems,
+      items: scaledItems,
+      calories: Math.round(scaledItems.reduce((acc, it) => acc + (it.calories || 0), 0)),
+      protein: Math.round(scaledItems.reduce((acc, it) => acc + (it.protein || 0), 0) * 10) / 10,
+      carbs: Math.round(scaledItems.reduce((acc, it) => acc + (it.carbs || 0), 0) * 10) / 10,
+      fats: Math.round(scaledItems.reduce((acc, it) => acc + (it.fats || 0), 0) * 10) / 10
+    });
+  };
+
   const handleRemoveAnalyzedItem = (index) => {
     if (!analyzedMeal) return;
     playSound('click', soundEnabled);
@@ -481,13 +519,15 @@ export const MealLogModal = ({
       setAnalyzedMeal(null);
       return;
     }
+    const nextOriginal = (analyzedMeal._originalItems || []).filter((_, i) => i !== index);
     setAnalyzedMeal({
       ...analyzedMeal,
+      _originalItems: nextOriginal,
       items: nextItems,
-      calories: nextItems.reduce((acc, it) => acc + (Number(it.calories) || 0), 0),
-      protein: nextItems.reduce((acc, it) => acc + (Number(it.protein) || 0), 0),
-      carbs: nextItems.reduce((acc, it) => acc + (Number(it.carbs) || 0), 0),
-      fats: nextItems.reduce((acc, it) => acc + (Number(it.fats) || 0), 0)
+      calories: Math.round(nextItems.reduce((acc, it) => acc + (Number(it.calories) || 0), 0)),
+      protein: Math.round(nextItems.reduce((acc, it) => acc + (Number(it.protein) || 0), 0) * 10) / 10,
+      carbs: Math.round(nextItems.reduce((acc, it) => acc + (Number(it.carbs) || 0), 0) * 10) / 10,
+      fats: Math.round(nextItems.reduce((acc, it) => acc + (Number(it.fats) || 0), 0) * 10) / 10
     });
   };
 
@@ -766,14 +806,37 @@ export const MealLogModal = ({
             {/* Analyzed Meal Results Card */}
             {analyzedMeal && (
               <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3.5 shadow-xl">
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <div>
-                    <span className="text-[10px] font-mono uppercase text-slate-400">Meal Identified</span>
-                    <h4 className="text-base font-bold text-white flex items-center gap-1.5">
-                      <span>{analyzedMeal.name}</span>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    </h4>
+                <div className="flex flex-col gap-1 pb-2 border-b border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-slate-400">Meal Identified</span>
+                      <h4 className="text-base font-bold text-white flex items-center gap-1.5">
+                        <span>{analyzedMeal.name}</span>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      </h4>
+                    </div>
                   </div>
+
+                  {analyzedMeal.visualAnalysis && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {analyzedMeal.visualAnalysis.scaleReference && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10 text-[10px] text-slate-300 font-mono">
+                          <Scale className="w-3 h-3 text-emerald-400" />
+                          {analyzedMeal.visualAnalysis.scaleReference}
+                        </span>
+                      )}
+                      {analyzedMeal.visualAnalysis.cameraPerspective && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10 text-[10px] text-slate-400 font-mono">
+                          {analyzedMeal.visualAnalysis.cameraPerspective.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                      {analyzedMeal.visualAnalysis.estimatedTotalGrams > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-mono">
+                          ~{analyzedMeal.visualAnalysis.estimatedTotalGrams}g total
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Total Macros */}
@@ -801,6 +864,28 @@ export const MealLogModal = ({
                   </div>
                 </div>
 
+                {/* Quick Portion Adjuster (Cal AI / MacroFactor style) */}
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] text-slate-400 font-mono">Portion Multiplier:</span>
+                  <div className="flex items-center gap-1">
+                    {[0.5, 0.75, 1.0, 1.25, 1.5].map((mult) => (
+                      <button
+                        key={mult}
+                        type="button"
+                        onClick={() => handleScaleAnalyzedMeal(mult)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                          portionScale === mult
+                            ? 'text-white shadow-sm'
+                            : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
+                        }`}
+                        style={portionScale === mult ? { backgroundColor: 'var(--accent-primary)' } : {}}
+                      >
+                        {mult}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Itemized List */}
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {analyzedMeal.items?.map((item, idx) => (
@@ -808,8 +893,10 @@ export const MealLogModal = ({
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: 'var(--accent-primary)' }} />
                         <span className="font-semibold text-white truncate">{item.name}</span>
-                        {item.portion && (
-                          <span className="text-[11px] font-mono text-slate-400 shrink-0">({item.portion})</span>
+                        {(item.portion || item.estimatedGrams) && (
+                          <span className="text-[11px] font-mono text-slate-400 shrink-0">
+                            ({item.portion || `${item.estimatedGrams}g`})
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2.5 shrink-0">
