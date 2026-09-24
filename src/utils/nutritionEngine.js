@@ -855,7 +855,21 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:cereal|cheerios|corn\s*flakes|special\s*k|granola\s+cereal)\b/i,
+    regex: /\b(?:multigrain\s+cheerios?|honey\s+nut\s+cheerios?|cheerios?)\b/i,
+    name: "Cheerios",
+    defaultUnit: "cup",
+    defaultQty: 1,
+    per100g: { calories: 375, protein: 8, carbs: 82, fats: 4 },
+    perUnit: {
+      cup: { calories: 110, protein: 3, carbs: 24, fats: 1.5 },
+      cups: { calories: 110, protein: 3, carbs: 24, fats: 1.5 },
+      bowl: { calories: 220, protein: 6, carbs: 48, fats: 3 },
+      bowls: { calories: 220, protein: 6, carbs: 48, fats: 3 },
+      g: { calories: 3.75, protein: 0.08, carbs: 0.82, fats: 0.04 }
+    }
+  },
+  {
+    regex: /\b(?:cereal|corn\s*flakes|special\s*k|granola\s+cereal)\b/i,
     name: "Cereal",
     defaultUnit: "cup",
     defaultQty: 1,
@@ -1203,6 +1217,9 @@ export function calibrateBoneInMeats(items = []) {
     const name = String(item.name || '').toLowerCase();
     const portion = String(item.portion || '').toLowerCase();
 
+    const isComposite = /\b(?:with|w\/|and|&|\+|rice|pasta|salad|fries|potatoes|noodles|soup|curry|sauce)\b/i.test(name);
+    if (isComposite) return item;
+
     // 1. Chicken Drumsticks / Legs (Bone-In)
     const isDrumstick = /\b(?:chicken\s+)?(?:drumsticks?|legs?)\b/i.test(name) || /\b(?:chicken\s+)?(?:drumsticks?|legs?)\b/i.test(portion);
     const isBoneless = /\bboneless|meat\s+only|skinless\s+boneless\b/i.test(name) || /\bboneless\b/i.test(portion);
@@ -1287,25 +1304,60 @@ export function calibrateBoneInMeats(items = []) {
 }
 
 /**
+ * Distinguishes standalone pure dairy milk from composite dishes or beverages
+ * that merely contain milk as an ingredient or topping (e.g. cereal with milk, coffee with milk, oatmeal with milk).
+ */
+export function isPureMilkItem(name = '', portion = '') {
+  const n = String(name || '').trim().toLowerCase();
+  const p = String(portion || '').trim().toLowerCase();
+
+  // Exclude non-dairy or specialty milks
+  if (/\b(?:whole\s+milk|3\.25%|homo(?:genized)?|fairlife|soy|almond|oat|coconut|cashew|goat|rice\s+milk|hemp\s+milk|condensed|evaporated|buttermilk)\b/i.test(n) ||
+      /\b(?:whole\s+milk|3\.25%|homo(?:genized)?|fairlife|soy|almond|oat|coconut|cashew|goat|rice\s+milk|hemp\s+milk|condensed|evaporated|buttermilk)\b/i.test(p)) {
+    return false;
+  }
+
+  // Must NOT be a composite dish, meal with toppings/beverages, or food prepared with milk
+  const compositePattern = /\b(?:with|w\/|and|&|\+|cereal|cheerios?|oats?|oatmeal|granola|corn\s*flakes?|special\s*k|coffee|tea|latte|mocha|espresso|cappuccino|macchiato|shake|smoothie|chocolate|cookie|cookies|bread|toast|pancake|pancakes|waffle|waffles|soup|chowder|cake|dessert|ice\s*cream|creamer|protein\s+powder|bar|pie|muffin|pasta|sauce)\b/i;
+  if (compositePattern.test(n) || compositePattern.test(p)) {
+    return false;
+  }
+
+  const isMilkKeyword = /\bmilk\b/i.test(n) || /\bmilk\b/i.test(p);
+  if (!isMilkKeyword) return false;
+
+  const cleanName = n
+    .replace(/^(?:a|an|the|my|some)\s+/, '')
+    .replace(/^(?:\d+(?:\.\d+)?|\d+\/\d+|one|two)(?!%)\s*(?:glass(?:es)?|cups?|bottles?|cartons?|mugs?|servings?|pints?|litres?|liters?|l|ml)?\s*(?:of\s+)?/, '')
+    .replace(/^(?:glass(?:es)?|cups?|bottles?|cartons?|mugs?|servings?|pints?|litres?|liters?|l|ml)\s*(?:of\s+)?/, '')
+    .trim();
+
+  return /^(?:dairy\s+)?(?:cow(?:'s)?\s+)?(?:standard\s+|normal\s+|regular\s+|2%\s+|1%\s+|skim\s+|low\s*fat\s+|reduced\s*fat\s+)?milk(?:\s*\([^)]*\))?$/i.test(cleanName) ||
+         cleanName === 'milk' ||
+         cleanName === '2% milk';
+}
+
+/**
  * Calibrates milk items to ensure standard/normal milk (2% reduced fat) is represented
  * accurately at 120 kcal and 8g protein per cup (250ml / 244g), avoiding over-inflation
  * from whole milk (150 kcal) or higher protein values.
  * If whole milk is specifically requested, retains whole milk benchmarks.
+ * Never touches composite dishes containing milk (e.g. cereal with milk, coffee with milk).
  */
 export function calibrateMilk(items = []) {
   if (!Array.isArray(items)) return items;
 
   return items.map(item => {
     if (!item || typeof item !== 'object') return item;
-    const name = String(item.name || '').toLowerCase();
-    const portion = String(item.portion || '').toLowerCase();
+    const name = String(item.name || '').trim();
+    const portion = String(item.portion || '').trim();
 
-    // Check if it's generic/standard milk
-    const isMilk = /\bmilk\b/i.test(name) || /\bmilk\b/i.test(portion);
-    const isSpecialty = /\b(?:whole\s+milk|3\.25%|homo(?:genized)?|fairlife|soy|almond|oat|coconut|cashew|goat)\b/i.test(name) ||
-      /\b(?:whole\s+milk|3\.25%|homo(?:genized)?|fairlife|soy|almond|oat|coconut|cashew|goat)\b/i.test(portion);
+    // Check if it's generic/standard standalone milk (NEVER composite foods containing milk like cereal, coffee, oatmeal)
+    if (!isPureMilkItem(name, portion)) {
+      return item;
+    }
 
-    if (isMilk && !isSpecialty) {
+    if (true) {
       // Determine cups or volume
       const litreMatch = portion.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\b/i) || name.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\b/i);
       const mlMatch = portion.match(/(\d+(?:\.\d+)?)\s*ml\b/i) || name.match(/(\d+(?:\.\d+)?)\s*ml\b/i);
@@ -1921,9 +1973,14 @@ export function parseMealDescription(text, options = {}) {
   // Extract carrier dish if user used "with", "containing", or "made with" (e.g. "protein smoothie with 2 cups of milk, 1 banana and 1 scoop of vegan protein powder")
   let dishCarrierTitle = null;
   const carrierMatch = stripped.match(/^(.+?)\s+(?:with|w\/|containing|made\s+with)\s+(.+)$/i);
-  if (carrierMatch && /\b(?:protein\s+(?:shake|smoothie)|smoothie|shake|salad|sandwich|bowl)\b/i.test(carrierMatch[1])) {
-    dishCarrierTitle = carrierMatch[1].trim();
-    stripped = carrierMatch[2].trim();
+  if (carrierMatch) {
+    const carrierPart = carrierMatch[1].trim();
+    // Only treat as pure recipe/smoothie wrapper if it doesn't contain a substantive ingredient
+    const hasFoodIngredient = /\b(?:cereal|cheerios?|oats?|oatmeal|rice|pasta|noodles?|soup|chili|chicken|beef|steak|turkey|tuna|salmon|fish|pork|meat|eggs?|tofu|toast|bread|pancakes?|waffles?|yogurt|fruit|berries|apple|banana|potatoes?)\b/i.test(carrierPart);
+    if (!hasFoodIngredient && /^(?:a\s+|an\s+)?(?:protein\s+(?:shake|smoothie)|smoothie|shake|drink|beverage)$/i.test(carrierPart)) {
+      dishCarrierTitle = carrierPart;
+      stripped = carrierMatch[2].trim();
+    }
   }
 
   // Composite meal weight (e.g. "400g chicken and rice in bowl")
@@ -2178,13 +2235,24 @@ export function parseMealDescription(text, options = {}) {
         const bowlCount = (unit === 'bowl' || unit === 'bowls') ? ((qty !== null && !isNaN(qty)) ? qty : 1) : 1;
         portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (${bowlVol}ml capacity)`;
 
-        if (matchedFood.name === 'Cereal') {
-          // A full bowl of cereal incorporates 2 cups cereal + 1 cup normal milk (120 kcal, 8g P)
-          itemCals = Math.floor(340 * bowlCount * volScale);
-          itemP = Math.floor(13 * bowlCount * volScale);
-          itemC = Math.floor(60 * bowlCount * volScale);
-          itemF = Math.floor(6.8 * bowlCount * volScale);
-          portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (Cereal + Normal Milk)`;
+        if (matchedFood.name === 'Cereal' || matchedFood.name === 'Cheerios') {
+          const hasSeparateMilk = rawClauses.some(c => /\bmilk\b/i.test(c));
+          if (hasSeparateMilk) {
+            // Cereal only; milk is parsed as its own separate item
+            const cupCount = bowlCount * 1;
+            itemCals = Math.round(110 * cupCount);
+            itemP = Math.round(3 * cupCount);
+            itemC = Math.round(24 * cupCount);
+            itemF = Math.round(1.5 * cupCount);
+            portionLabel = `${cupCount} cup (${matchedFood.name})`;
+          } else {
+            // Standard bowl of cereal with milk (Cheerios + Milk ~220 kcal)
+            itemCals = Math.floor(220 * bowlCount * volScale);
+            itemP = Math.floor(10 * bowlCount * volScale);
+            itemC = Math.floor(36 * bowlCount * volScale);
+            itemF = Math.floor(5.5 * bowlCount * volScale);
+            portionLabel = `${bowlCount === 1 ? '1' : bowlCount} ${vBowl.name} (${matchedFood.name} + Milk)`;
+          }
         } else if (matchedFood.perUnit && matchedFood.perUnit.bowl) {
           const r = matchedFood.perUnit.bowl;
           itemCals = Math.round(r.calories * bowlCount * volScale);
@@ -2360,10 +2428,29 @@ export function createMealEntry({
 
   if (finalItems.length === 1 && typeof finalItems[0] === 'object') {
     const singleIt = finalItems[0];
-    if (singleIt.calories != null && !isNaN(singleIt.calories)) calories = singleIt.calories;
-    if (singleIt.protein != null && !isNaN(singleIt.protein)) p = singleIt.protein;
-    if (singleIt.carbs != null && !isNaN(singleIt.carbs)) c = singleIt.carbs;
-    if (singleIt.fats != null && !isNaN(singleIt.fats)) f = singleIt.fats;
+    if (singleIt.calories != null && !isNaN(singleIt.calories) && (calories === 0 || singleIt.name?.includes('Normal / 2%') || singleIt.portion?.includes('bone'))) {
+      calories = singleIt.calories;
+    }
+    if (singleIt.protein != null && !isNaN(singleIt.protein) && (p === 0 || singleIt.name?.includes('Normal / 2%') || singleIt.portion?.includes('bone'))) {
+      p = singleIt.protein;
+    }
+    if (singleIt.carbs != null && !isNaN(singleIt.carbs) && (c === 0 || singleIt.name?.includes('Normal / 2%') || singleIt.portion?.includes('bone'))) {
+      c = singleIt.carbs;
+    }
+    if (singleIt.fats != null && !isNaN(singleIt.fats) && (f === 0 || singleIt.name?.includes('Normal / 2%') || singleIt.portion?.includes('bone'))) {
+      f = singleIt.fats;
+    }
+  } else if (finalItems.length > 1) {
+    const itemsSumCals = finalItems.reduce((acc, it) => acc + (typeof it === 'object' && it?.calories != null ? (Number(it.calories) || 0) : 0), 0);
+    const itemsSumP = finalItems.reduce((acc, it) => acc + (typeof it === 'object' && it?.protein != null ? (Number(it.protein) || 0) : 0), 0);
+    const itemsSumC = finalItems.reduce((acc, it) => acc + (typeof it === 'object' && it?.carbs != null ? (Number(it.carbs) || 0) : 0), 0);
+    const itemsSumF = finalItems.reduce((acc, it) => acc + (typeof it === 'object' && it?.fats != null ? (Number(it.fats) || 0) : 0), 0);
+    if (itemsSumCals > 0) {
+      calories = Math.round(itemsSumCals);
+      p = Math.round(itemsSumP * 10) / 10;
+      c = Math.round(itemsSumC * 10) / 10;
+      f = Math.round(itemsSumF * 10) / 10;
+    }
   }
   
   const calculatedCals = calculateCaloriesFromMacros(p, c, f);
@@ -2372,11 +2459,14 @@ export function createMealEntry({
   let finalName = (name || "Logged Meal").trim();
 
   // Safety calibration: a single can of salmon is strictly 200 cals / 40g protein
-  const isCannedSalmon = /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(finalName) ||
+  const isCannedSalmonComposite = /\b(?:with|w\/|and|&|\+|rice|salad|pasta|bread|toast|veggies|vegetables)\b/i.test(finalName);
+  const isCannedSalmon = !isCannedSalmonComposite && (
+    /^(?:1\s+)?(?:can\s+of\s+salmon|canned\s+salmon|salmon\s+can)$/i.test(finalName) ||
     (finalItems.length === 1 && finalItems.some(it => {
       const itName = typeof it === 'string' ? it : it?.name || '';
-      return /can\s+of\s+salmon|canned\s+salmon|salmon\s+can/i.test(itName);
-    }));
+      return /^(?:1\s+)?(?:can\s+of\s+salmon|canned\s+salmon|salmon\s+can)$/i.test(itName);
+    }))
+  );
 
   if (isCannedSalmon && (p !== 40 || finalCals !== 200) && finalItems.length <= 1) {
     finalName = "Canned Salmon";
@@ -2390,11 +2480,14 @@ export function createMealEntry({
   }
 
   // Safety calibration: a single Nature Valley bar / granola bar is strictly 170 cals / 3.5g protein
-  const isNatureValleyBar = /nature\s*valley|oats\s*(?:and|&)\s*honey\s*bar/i.test(finalName) ||
+  const isNatureValleyComposite = /\b(?:with|w\/|and|&|\+|milk|shake|yogurt|coffee)\b/i.test(finalName);
+  const isNatureValleyBar = !isNatureValleyComposite && (
+    /^(?:1\s+)?(?:nature\s*valley|granola\s*bar|oats\s*(?:and|&)\s*honey\s*bar)(?:\s+bar)?$/i.test(finalName) ||
     (finalItems.length === 1 && finalItems.some(it => {
       const itName = typeof it === 'string' ? it : it?.name || '';
-      return /nature\s*valley|oats\s*(?:and|&)\s*honey\s*bar/i.test(itName);
-    }));
+      return /^(?:1\s+)?(?:nature\s*valley|granola\s*bar|oats\s*(?:and|&)\s*honey\s*bar)(?:\s+bar)?$/i.test(itName);
+    }))
+  );
 
   if (isNatureValleyBar && (finalCals === 190 || finalCals === 0 || !finalCals) && finalItems.length <= 1) {
     finalName = finalName.includes("Nature Valley") ? finalName : "Nature Valley Bar";
@@ -2976,11 +3069,8 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
 
     // 2.61 Reconcile past generic milk meals: preserve litres (480 kcal/32g P per 1L) and calibrate single cups to 120 kcal / 8g P
     const isSuspectMilk = 
-      (m.name && /\bmilk\b/i.test(m.name) && !/\b(?:whole|fairlife|soy|almond|oat|smoothie|shake)\b/i.test(m.name)) ||
-      (Array.isArray(m.items) && m.items.length === 1 && m.items.some(it => {
-        const itName = typeof it === 'string' ? it : it?.name || '';
-        return /\bmilk\b/i.test(itName) && !/\b(?:whole|fairlife|soy|almond|oat|smoothie|shake)\b/i.test(itName);
-      }));
+      isPureMilkItem(m.name) &&
+      (!m.items || m.items.length === 0 || (m.items.length === 1 && isPureMilkItem(m.items[0]?.name, m.items[0]?.portion)));
 
     if (isSuspectMilk && (!m.items || m.items.length <= 1)) {
       const firstItemPortion = m.items?.[0]?.portion || '';

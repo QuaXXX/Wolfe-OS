@@ -25,6 +25,7 @@ import {
   buildAiPantryPrompt, 
   calibrateBoneInMeats, 
   calibrateMealItems,
+  isPureMilkItem,
   isFoodLogQuery,
   isFoodRemovalQuery,
   createMealEntry,
@@ -2680,11 +2681,11 @@ export async function analyzeQuickLogWithAI({
     } catch (e) {}
 
     const textModels = [
-      'gemini-3.5-flash-lite',
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite',
+      'gemini-3.6-flash',
       'gemini-3.5-flash',
-      'gemini-1.5-flash'
+      'gemini-3.7-flash',
+      'gemini-flash-latest',
+      'gemini-3.5-flash-lite'
     ];
 
     const systemInstruction = `You are the elite clinical sports dietitian, USDA nutritional authority, and Quick Log AI Engine for Wolfe OS.
@@ -2719,6 +2720,13 @@ ${pantryPrompt ? `${pantryPrompt}\n` : ''}
      * DEFAULT TO NORMAL MILK: When the user mentions "milk" (e.g. "milk", "glass of milk", "cup of milk", "milk in coffee/cereal"), treat it as STANDARD / NORMAL MILK (2% reduced fat: ~120 kcal, 8g protein, 11.5g carbs, ~4.8g fats per 1 cup / 240-250ml).
      * NEVER assume whole milk (~150 kcal) unless explicitly specified ("whole milk", "3.25%").
      * NEVER assign 9g, 10g, or more protein to 1 cup of standard milk (it is strictly 8g protein).
+   - Cereal with Milk (Cheerios, Multigrain Cheerios, Corn Flakes, etc.):
+     * When cereal with milk or a bowl of cereal is mentioned (e.g. "bowl of multigrain cheerios", "cereal with milk"):
+       ALWAYS itemize the cereal and the milk as TWO distinct items:
+       1) The Cereal (e.g. 1 cup Multigrain Cheerios: ~110 kcal, ~2.5-3g protein, ~24g carbs, ~1.5g fats)
+       2) The Milk (e.g. 1 cup or 3/4 cup 2% milk: ~110-120 kcal, ~7-8g protein, ~10-11.5g carbs, ~4-4.8g fats)
+       Total meal: ~220-230 kcal, ~10-11g protein, ~34-36g carbs, ~5.5-6.3g fats.
+       NEVER omit the cereal or replace the meal with just milk!
    - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
    - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (240-260 kcal, 16-18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~465-485 kcal, ~37-39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). If the user mentions 'protein shake', 'smoothie', or 'protein smoothie', default to 1 scoop vegan powder + 2 cups milk + 1 banana = ~37-39g protein, NEVER 91g protein!
    - Nature Valley Bar / Granola Bar: Exactly 170 kcal, ~3.5g protein, 23g carbs, 7.5g fats per bar / pouch. Calibrate strictly to 170 kcal (NEVER default to 190 kcal).
@@ -2834,25 +2842,31 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
               });
 
               parsed.items = calibrateMealItems(parsed.items || []);
-              const hasCalibrated = parsed.items.some(it => String(it?.portion || '').includes('bone') || (it?.name && it.name.includes('Normal / 2%')));
-              if (hasCalibrated) {
-                parsed.calories = Math.floor(parsed.items.reduce((s, it) => s + (it.calories || 0), 0));
-                parsed.protein = Math.floor(parsed.items.reduce((s, it) => s + (it.protein || 0), 0) * 10) / 10;
-                parsed.carbs = Math.floor(parsed.items.reduce((s, it) => s + (it.carbs || 0), 0) * 10) / 10;
-                parsed.fats = Math.floor(parsed.items.reduce((s, it) => s + (it.fats || 0), 0) * 10) / 10;
-                parsed.notes = (parsed.notes ? `${parsed.notes}. ` : '') + "Calibrated against verified clinical ground truth";
-              }
 
-              const totalCals = parsed.calories || calculateCaloriesFromMacros(parsed.protein, parsed.carbs, parsed.fats);
+              // STRICT MATHEMATICAL SUMMATION LAW (Cal AI & MacroFactor Standard):
+              // Recalculate total calories and macros strictly as the sum of verified parsed.items.
+              // This permanently prevents arbitrary model hallucinations or item drift from overriding verified components.
+              const itemsSumCalories = parsed.items.reduce((s, it) => s + (Number(it.calories) || 0), 0);
+              const itemsSumProtein = parsed.items.reduce((s, it) => s + (Number(it.protein) || 0), 0);
+              const itemsSumCarbs = parsed.items.reduce((s, it) => s + (Number(it.carbs) || 0), 0);
+              const itemsSumFats = parsed.items.reduce((s, it) => s + (Number(it.fats) || 0), 0);
+
+              const totalCalories = itemsSumCalories > 0
+                ? Math.round(itemsSumCalories)
+                : (parsed.calories || calculateCaloriesFromMacros(itemsSumProtein, itemsSumCarbs, itemsSumFats));
+              const totalProtein = Math.round(itemsSumProtein * 10) / 10;
+              const totalCarbs = Math.round(itemsSumCarbs * 10) / 10;
+              const totalFats = Math.round(itemsSumFats * 10) / 10;
+
               return {
                 hasFood: true,
                 name: parsed.name || "Analyzed Meal",
                 slot: parsed.slot || "meal",
                 items: parsed.items,
-                calories: totalCals,
-                protein: parsed.protein || 0,
-                carbs: parsed.carbs || 0,
-                fats: parsed.fats || 0,
+                calories: totalCalories,
+                protein: totalProtein,
+                carbs: totalCarbs,
+                fats: totalFats,
                 notes: parsed.notes || "Verified by Wolfe Quick Log AI"
               };
             }
