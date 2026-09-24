@@ -74,6 +74,22 @@ export function useBackgroundMealQueue({
 
     // Run AI analysis detached in background with strict parameter isolation
     (async () => {
+      let isDone = false;
+      const safetyTimer = setTimeout(() => {
+        if (!isDone) {
+          setTasks(prev => prev.map(t => {
+            if (t.id === taskId && t.status === 'thinking') {
+              return {
+                ...t,
+                status: 'error',
+                error: "Meal analysis took too long. Please try again."
+              };
+            }
+            return t;
+          }));
+        }
+      }, 10000);
+
       try {
         const result = await analyzeMealWithAI({
           imageBase64,
@@ -84,7 +100,10 @@ export function useBackgroundMealQueue({
           householdPantry
         });
 
-        if (result && result.hasFood !== false && result.calories > 0) {
+        isDone = true;
+        clearTimeout(safetyTimer);
+
+        if (result && result.hasFood !== false && (result.calories > 0 || (Array.isArray(result.items) && result.items.length > 0) || cleanDesc)) {
           const finalTitle = result.name || taskTitle;
           setTasks(prev => prev.map(t => {
             if (t.id !== taskId) return t;
@@ -94,10 +113,10 @@ export function useBackgroundMealQueue({
               title: finalTitle,
               result: { ...result, _originalItems: result.items },
               editedName: finalTitle,
-              editedCalories: String(result.calories),
-              editedProtein: String(result.protein),
-              editedCarbs: String(result.carbs),
-              editedFats: String(result.fats)
+              editedCalories: String(result.calories != null ? result.calories : 0),
+              editedProtein: String(result.protein != null ? result.protein : 0),
+              editedCarbs: String(result.carbs != null ? result.carbs : 0),
+              editedFats: String(result.fats != null ? result.fats : 0)
             };
           }));
           playSound('success', soundEnabled);
@@ -165,6 +184,8 @@ export function useBackgroundMealQueue({
         }));
         playSound('alert', soundEnabled);
       } catch (err) {
+        isDone = true;
+        clearTimeout(safetyTimer);
         setTasks(prev => prev.map(t => {
           if (t.id !== taskId) return t;
           return {
