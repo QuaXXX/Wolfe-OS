@@ -2393,11 +2393,11 @@ export async function analyzeMealWithAI({ imageBase64, mimeType = 'image/jpeg', 
   if (apiKey && imageBase64) {
     const rawBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
     const visionModels = [
+      'gemini-3.5-flash-lite',
       'gemini-3.6-flash',
       'gemini-3.5-flash',
-      'gemini-3.7-flash',
       'gemini-flash-latest',
-      'gemini-3.5-flash-lite'
+      'gemini-3.7-flash'
     ];
 
     const systemInstruction = `You are a clinical sports dietitian, USDA nutritional database authority, and high-precision computer vision intelligence engine for Wolfe OS (engineered to Cal AI and MacroFactor standards).
@@ -2426,6 +2426,7 @@ CRITICAL ACCURACY & PERSPECTIVE-INVARIANCE MANDATES:
      c. Measure Plate Coverage Fraction & Vertical Mound Depth:
         * Food Coverage: What % of the plate surface is covered? (e.g., a small piece of chicken covers only 20-30% of a 10.5" plate).
         * Mound Height: Is it flat (single layer ~1cm, e.g. pancake or toast) or heaped (mound of rice/pasta ~3-5cm)?
+   - USER WEIGHT PROTOCOL (ZERO TARE DEDUCTION): If the user states a weight in grams (e.g. "350g steak on plate", "400g chicken and rice"), that weight is ALREADY 100% TOTAL NET FOOD VOLUME WEIGHT (user pre-subtracted the plate weight). NEVER deduct plate weight or vessel tare from stated grams!
 
 ${calibPrompt ? `\n${calibPrompt}\n` : ''}
 ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
@@ -2512,7 +2513,7 @@ Return ONLY valid JSON matching this schema:
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 14000);
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
 
         const response = await fetch(url, {
           method: 'POST',
@@ -2681,11 +2682,11 @@ export async function analyzeQuickLogWithAI({
     } catch (e) {}
 
     const textModels = [
+      'gemini-3.5-flash-lite',
       'gemini-3.6-flash',
       'gemini-3.5-flash',
-      'gemini-3.7-flash',
       'gemini-flash-latest',
-      'gemini-3.5-flash-lite'
+      'gemini-3.7-flash'
     ];
 
     const systemInstruction = `You are the elite clinical sports dietitian, USDA nutritional authority, and Quick Log AI Engine for Wolfe OS.
@@ -2706,11 +2707,12 @@ KEY INTELLIGENCE RULES:
      STRICTLY DO NOT include those items.
    - Brand & Restaurant Menus: Understand menu items from Chipotle, Starbucks, Subway, Chick-fil-A, In-N-Out, etc., using true menu nutrition facts.
 
-3. HARDWARE & KITCHEN CALIBRATION:
-${calibPrompt ? `${calibPrompt}\n` : `   - Primary Large Bowl: 750ml capacity, 420g empty tare weight.\n   - Main Dinner Plate: 10.5" diameter, 550g empty tare weight.\n`}
+3. HARDWARE & USER WEIGHT PROTOCOL (ZERO TARE DEDUCTION):
+${calibPrompt ? `${calibPrompt}\n` : `   - Primary Large Bowl: 750ml capacity.\n   - Main Dinner Plate: 10.5" outer diameter.\n`}
 ${pantryPrompt ? `${pantryPrompt}\n` : ''}
-   - When scale gross weight is mentioned with a calibrated vessel (e.g. "scale said 720g with primary bowl"):
-     Deduct 420g tare = 300g net food, and partition the net weight across the items.
+   - ZERO TARE DEDUCTION RULE (CRITICAL): The user ALWAYS tares the scale or subtracts plate/bowl weight beforehand!
+     Whenever the user specifies a weight in grams (e.g. "400g chicken and rice", "300g food on plate", "250g steak"), that weight is ALREADY 100% TOTAL NET FOOD VOLUME WEIGHT.
+     NEVER subtract plate weight (550g) or bowl weight (420g) or any tare deduction from the user's stated grams!
    - When a compound filling is mentioned (e.g. "bun with 70g insides of beef and veggies"):
      Distribute the 70g total filling across the inner ingredients (e.g. 42g beef [80 kcal, 11g P] + 28g veggies [10 kcal, 1g P] = 70g) plus 1 bun (~130 kcal) = 220 kcal, NEVER doubling the filling.
 
@@ -2778,7 +2780,7 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 9000);
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
 
         const response = await fetch(url, {
           method: 'POST',

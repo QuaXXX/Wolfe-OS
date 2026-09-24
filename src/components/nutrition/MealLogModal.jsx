@@ -13,7 +13,8 @@ import {
   X, 
   Flame,
   SwitchCamera,
-  Scale 
+  Scale,
+  Plus
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
 import { createMealEntry } from '../../utils/nutritionEngine.js';
@@ -23,6 +24,7 @@ export const MealLogModal = ({
   isOpen,
   onClose,
   onLogMeal,
+  onQueueMeal = null,
   selectedDate = null,
   householdPantry = [],
   onAddHouseholdStaple = null,
@@ -36,6 +38,8 @@ export const MealLogModal = ({
   const [imageBase64, setImageBase64] = useState(null);
   const [imageMimeType, setImageMimeType] = useState('image/jpeg');
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [isQueuedInBackground, setIsQueuedInBackground] = useState(false);
+  const [lastQueuedTitle, setLastQueuedTitle] = useState('');
   const [imageAnalysisError, setImageAnalysisError] = useState(null);
   const [analyzedMeal, setAnalyzedMeal] = useState(null);
   const [portionScale, setPortionScale] = useState(1.0);
@@ -83,6 +87,8 @@ export const MealLogModal = ({
     setImageDescription('');
     setImageBase64(null);
     setIsAnalyzingImage(false);
+    setIsQueuedInBackground(false);
+    setLastQueuedTitle('');
     setImageAnalysisError(null);
     setAnalyzedMeal(null);
   };
@@ -408,20 +414,34 @@ export const MealLogModal = ({
   // AI Image Meal Analysis
   const handleAnalyzeImage = async () => {
     playSound('click', soundEnabled);
-    setIsAnalyzingImage(true);
     setImageAnalysisError(null);
 
-    if (!imageDescription.trim() && !imageBase64) {
+    const desc = imageDescription.trim();
+    if (!desc && !imageBase64) {
       setImageAnalysisError("Please snap a photo, choose from gallery, or enter food details.");
-      setIsAnalyzingImage(false);
       return;
     }
+
+    if (onQueueMeal) {
+      const taskTitle = desc || (imageBase64 ? 'Scanned Meal Photo' : 'Logged Meal');
+      onQueueMeal({
+        description: desc,
+        imageBase64,
+        mimeType: imageMimeType,
+        selectedDate
+      });
+      setLastQueuedTitle(taskTitle);
+      setIsQueuedInBackground(true);
+      return;
+    }
+
+    setIsAnalyzingImage(true);
 
     try {
       const result = await analyzeMealWithAI({
         imageBase64,
         mimeType: imageMimeType,
-        description: imageDescription.trim(),
+        description: desc,
         aiConfig,
         kitchenCalibration
       });
@@ -762,19 +782,75 @@ export const MealLogModal = ({
               )}
             </div>
 
+            {/* Background Analyzing Status Sign & Fast Log-Another Button */}
+            {isQueuedInBackground && (
+              <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-9 h-9 rounded-2xl flex items-center justify-center border border-white/10 shadow-inner shrink-0"
+                    style={{ backgroundColor: 'var(--accent-subtle)' }}
+                  >
+                    <RefreshCw className="w-4 h-4 animate-spin" style={{ color: 'var(--accent-primary)' }} />
+                  </div>
+                  <div className="min-w-0 pr-1">
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                      <span>AI Analyzing in Background</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Calculating macros for <span className="font-semibold text-white">"{lastQueuedTitle}"</span>. A popup notification will appear when ready!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSound('click', soundEnabled);
+                      resetAllStates();
+                    }}
+                    className="flex-1 py-2.5 px-3 rounded-xl text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Log Another Food</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSound('click', soundEnabled);
+                      onClose();
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 font-semibold text-xs border border-white/10 transition-all cursor-pointer"
+                  >
+                    Done / Close
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Optional Food Description Input */}
-            <div className="space-y-1">
-              <input
-                type="text"
-                value={imageDescription}
-                onChange={(e) => setImageDescription(e.target.value)}
-                placeholder="Optional meal details (e.g. 'chicken breast with rice', 'olive oil dressing')..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-white/30"
-              />
-            </div>
+            {!isQueuedInBackground && (
+              <div className="space-y-1">
+                <input
+                  type="text"
+                  value={imageDescription}
+                  onChange={(e) => setImageDescription(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAnalyzeImage();
+                    }
+                  }}
+                  placeholder="Enter meal (e.g. 'bowl of multigrain cheerios', '400g chicken and rice')..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-white/30"
+                />
+              </div>
+            )}
 
             {/* Analyze Action Button */}
-            {!analyzedMeal && (
+            {!analyzedMeal && !isQueuedInBackground && (
               <button
                 type="button"
                 disabled={isAnalyzingImage || (!imageBase64 && !imageDescription.trim())}
@@ -790,7 +866,7 @@ export const MealLogModal = ({
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Analyze Photo & Calculate Macros</span>
+                    <span>Analyze & Calculate Macros</span>
                   </>
                 )}
               </button>

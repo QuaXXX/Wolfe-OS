@@ -1697,7 +1697,7 @@ export function parseMealDescription(text, options = {}) {
     };
   }
 
-  // 2. Tare & Scale Gross Deduction
+  // 2. Scale Stated Weight (User always tares scale beforehand; weight is 100% net food weight)
   let tareAdjustedWeightG = null;
   let tareVessel = activeVessel || dishware.bowl;
   const scaleGrossMatch = cleanText.match(/(?:scale\s+(?:reads?|says?)?|weighs?|weighing|total\s+weight\s+is?|gross)?\s*(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:with|in|on)?\s*(?:my\s+|the\s+)?(?:primary\s+|large\s+|main\s+|dinner\s+)?(bowl|plate)/i)
@@ -1714,12 +1714,8 @@ export function parseMealDescription(text, options = {}) {
       grossG = parseFloat(scaleGrossMatch[2]);
     }
     tareVessel = vesselWord.includes('plate') ? dishware.plate : dishware.bowl;
-    const tareG = tareVessel.tareWeightG;
-    if (grossG > tareG) {
-      tareAdjustedWeightG = Math.round(grossG - tareG);
-    } else {
-      tareAdjustedWeightG = Math.round(grossG);
-    }
+    // User explicitly tares their scale / subtracts plate weight; stated grams is 100% net food weight
+    tareAdjustedWeightG = Math.round(grossG);
   }
 
   // ---------------------------------------------------------------------------
@@ -2337,7 +2333,7 @@ export function parseMealDescription(text, options = {}) {
       it.protein = Math.round(perGram.protein * netG);
       it.carbs = Math.round(perGram.carbs * netG);
       it.fats = Math.round(perGram.fats * netG);
-      it.portion = `${netG}g on ${tareVessel.name} (net from scale: ${tareAdjustedWeightG + tareVessel.tareWeightG}g - ${tareVessel.tareWeightG}g tare)`;
+      it.portion = `${netG}g on ${tareVessel.name}`;
     }
   } else if (compositeMealTotalWeightG && matchedItems.length > 1) {
     const splitGrams = Math.round(compositeMealTotalWeightG / matchedItems.length);
@@ -2775,6 +2771,7 @@ export function buildAiCalibrationPrompt(kitchenCalibration = {}) {
   lines.push("MASS CONSERVATION & GRAM WEIGHTS: Every single food item MUST be dimensioned (L x W x H in cm) and multiplied by its physical food density (meats ~1.05 g/cm³, grains ~0.80 g/cm³, vegetables ~0.55 g/cm³) to yield an exact weight in GRAMS, matched strictly against USDA FoodData Central per-100g values.");
   lines.push("CONSERVATIVE ESTIMATION & NON-INFLATION MANDATE: Never over-inflate numbers for protein or calories. When estimating calories, protein, or portions, ALWAYS ROUND DOWN if uncertain so the user never overestimates their nutritional intake.");
   lines.push("NORMAL MILK DEFAULT: When 'milk' is mentioned or pictured without qualification, assume standard/normal 2% milk (120 kcal, 8g protein per cup/250ml), NOT whole milk (150 kcal).");
+  lines.push("USER WEIGHT PROTOCOL (ZERO TARE DEDUCTION): The user ALWAYS tares the scale or subtracts plate/bowl weight beforehand. Any weight in grams given by the user (e.g. '400g chicken and rice', '250g steak') is ALREADY 100% TOTAL FOOD VOLUME WEIGHT. NEVER deduct plate weight or vessel tare from stated grams!");
   lines.push("BONE-IN MEATS REFUSE RULE: Gross/as-served weight includes inedible bone (~40% on chicken drumsticks, ~46% on wings). Calculate calories and protein strictly on the ~60% edible meat, never treating total bone weight as edible meat.");
   return lines.join("\n");
 }

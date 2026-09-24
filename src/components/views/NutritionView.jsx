@@ -43,6 +43,7 @@ import {
 } from '../../utils/nutritionEngine.js';
 import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
+import { useBackgroundMealQueue, BackgroundMealNotifications } from '../nutrition/BackgroundMealQueue';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
 import { NutritionHistoryModal } from '../nutrition/NutritionHistoryModal';
@@ -429,6 +430,23 @@ const NutritionViewInner = ({
 
     triggerImmediateCloudPush(80);
   };
+
+  // Background Meal Intelligence Queue (concurrent, non-blocking food analysis)
+  const {
+    tasks: backgroundMealTasks,
+    queueMeal: handleQueueMeal,
+    cancelTask: handleCancelBackgroundTask,
+    confirmTask: handleConfirmBackgroundTask,
+    scaleTaskPortion: handleScaleBackgroundTaskPortion,
+    removeTaskItem: handleRemoveBackgroundTaskItem,
+    updateTaskEdits: handleUpdateBackgroundTaskEdits
+  } = useBackgroundMealQueue({
+    onLogMeal: handleLogMeal,
+    aiConfig: settings?.aiConfig,
+    kitchenCalibration: safeNutritionData?.kitchenCalibration,
+    householdPantry: householdPantry,
+    soundEnabled: soundEnabled
+  });
 
   const handleDeleteMeal = (mealId) => {
     playSound('click', soundEnabled);
@@ -1569,6 +1587,7 @@ const NutritionViewInner = ({
         selectedDate={selectedDate}
         onClose={() => setIsMealModalOpen(false)}
         onLogMeal={handleLogMeal}
+        onQueueMeal={handleQueueMeal}
         householdPantry={householdPantry}
         onAddHouseholdStaple={handleAddHouseholdStaple}
         onDeleteHouseholdStaple={handleDeleteHouseholdStaple}
@@ -1606,6 +1625,17 @@ const NutritionViewInner = ({
         kitchenCalibration={safeNutritionData?.kitchenCalibration}
         onUpdateCalibration={handleUpdateCalibration}
         aiConfig={settings?.aiConfig}
+        soundEnabled={soundEnabled}
+      />
+
+      {/* Floating Background Intelligence Notifications & Status Pill */}
+      <BackgroundMealNotifications
+        tasks={backgroundMealTasks}
+        onConfirmTask={handleConfirmBackgroundTask}
+        onCancelTask={handleCancelBackgroundTask}
+        onScalePortion={handleScaleBackgroundTaskPortion}
+        onRemoveItem={handleRemoveBackgroundTaskItem}
+        onUpdateEdits={handleUpdateBackgroundTaskEdits}
         soundEnabled={soundEnabled}
       />
     </div>
