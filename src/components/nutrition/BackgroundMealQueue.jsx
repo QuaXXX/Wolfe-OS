@@ -88,7 +88,7 @@ export function useBackgroundMealQueue({
             return t;
           }));
         }
-      }, 10000);
+      }, 45000);
 
       try {
         const result = await analyzeMealWithAI({

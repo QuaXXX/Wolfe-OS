@@ -232,7 +232,7 @@ export const MealLogModal = ({
    * completely bypassing 50-megapixel uncompressed bitmap RAM allocation (drops peak RAM from ~200MB to ~3MB).
    * Automatically frees image bitmap and canvas context buffers immediately.
    */
-  const compressAndResizeImage = async (file, maxDimension = 1024, quality = 0.75) => {
+  const compressAndResizeImage = async (file, maxDimension = 800, quality = 0.70) => {
     if (!file) throw new Error('No file provided');
     if (file.type && !file.type.startsWith('image/')) {
       throw new Error('File is not an image');
@@ -383,8 +383,8 @@ export const MealLogModal = ({
     playSound('click', soundEnabled);
 
     try {
-      // 1024px at 0.75 quality: perfect clarity for Gemini Vision food recognition while preventing mobile OOM
-      const compressed = await compressAndResizeImage(file, 1024, 0.75);
+      // 800px at 0.70 quality: fast upload & token inference for Gemini Vision food recognition while preventing mobile OOM
+      const compressed = await compressAndResizeImage(file, 800, 0.70);
       setImageBase64(compressed.base64);
       setImageMimeType(compressed.mimeType);
       setImageAnalysisError(null);
