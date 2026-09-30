@@ -86,20 +86,19 @@ export function isFoodLogQuery(text) {
   }
 
   // 4. Common Food, Beverage, and Ingredient Dictionary
-  const FOOD_TERMS = /\b(?:egg|eggs|egg whites|whites|chicken|chicken breast|thigh|thighs|wings|turkey|beef|ground beef|steak|sirloin|ribeye|pork|bacon|ham|sausage|fish|salmon|tuna|cod|tilapia|shrimp|prawns|crab|lobster|tofu|tempeh|edamame|rice|white rice|brown rice|jasmine rice|basmati|quinoa|oats|oatmeal|bread|toast|sourdough|bagel|tortilla|wrap|pita|pasta|spaghetti|noodles|ramen|mac and cheese|macaroni|cereal|granola|pancake|pancakes|waffle|waffles|potato|potatoes|sweet potato|sweet potatoes|fries|yam|broccoli|spinach|kale|lettuce|salad|cucumber|tomato|tomatoes|carrot|carrots|onion|onions|pepper|peppers|bell pepper|mushroom|mushrooms|zucchini|asparagus|green beans|peas|corn|avocado|avocados|apple|apples|banana|bananas|orange|oranges|berry|berries|blueberry|blueberries|strawberry|strawberries|raspberry|raspberries|blackberry|blackberries|mango|pineapple|watermelon|grapes|peach|pear|kiwi|lemon|lime|milk|almond milk|oat milk|soy milk|yogurt|greek yogurt|cottage cheese|cheese|cheddar|mozzarella|parmesan|feta|butter|ghee|oil|olive oil|peanut butter|almond butter|peanuts|almonds|walnuts|cashews|pistachios|seeds|chia|flax|whey|casein|protein powder|protein bar|protein shake|creatine|smoothie|shake|coffee|latte|cappuccino|tea|juice|pizza|burger|hamburger|cheeseburger|sandwich|sub|taco|tacos|burrito|fajita|quesadilla|enchilada|chipotle|subway|sushi|sashimi|poke|soup|stew|chili|curry|sauce|dressing|mayo|mayonnaise|mustard|ketchup|bbq sauce|honey|syrup|cookie|cookies|brownie|brownies|cake|chocolate|ice cream|popcorn|chips|pretzel|pretzels|cracker|crackers|snack|meat|beans|lentils|chickpeas)\b/i;
+  const FOOD_TERMS = /\b(?:egg|eggs|egg whites|whites|chicken|chicken breast|thigh|thighs|wings|turkey|beef|ground beef|steak|sirloin|ribeye|pork|bacon|ham|sausage|fish|salmon|tuna|cod|tilapia|shrimp|prawns|crab|lobster|tofu|tempeh|edamame|rice|white rice|brown rice|jasmine rice|basmati|quinoa|oats|oatmeal|bread|toast|sourdough|bagel|tortilla|wrap|pita|pasta|spaghetti|noodles|ramen|mac and cheese|macaroni|cereal|granola|cheerios|pancake|pancakes|waffle|waffles|potato|potatoes|sweet potato|sweet potatoes|fries|yam|broccoli|spinach|kale|lettuce|salad|cucumber|tomato|tomatoes|carrot|carrots|onion|onions|pepper|peppers|bell pepper|mushroom|mushrooms|zucchini|asparagus|green beans|peas|corn|avocado|avocados|apple|apples|banana|bananas|orange|oranges|clementine|clementines|mandarin|mandarins|tangerine|tangerines|berry|berries|blueberry|blueberries|strawberry|strawberries|raspberry|raspberries|blackberry|blackberries|mango|pineapple|watermelon|grapes|peach|pear|kiwi|lemon|lime|milk|almond milk|oat milk|soy milk|yogurt|greek yogurt|cottage cheese|cheese|cheddar|mozzarella|parmesan|feta|butter|ghee|oil|olive oil|peanut butter|almond butter|peanuts|almonds|walnuts|cashews|pistachios|seeds|chia|flax|whey|casein|protein powder|protein bar|protein shake|creatine|smoothie|shake|coffee|latte|cappuccino|iced tea|ice tea|tea|juice|pizza|burger|hamburger|cheeseburger|sandwich|sub|taco|tacos|burrito|fajita|quesadilla|enchilada|chipotle|subway|sushi|sashimi|poke|soup|stew|chili|curry|sauce|dressing|mayo|mayonnaise|mustard|ketchup|bbq sauce|honey|syrup|cookie|cookies|brownie|brownies|cake|chocolate|ice cream|popcorn|chips|pretzel|pretzels|cracker|crackers|snack|meat|beans|lentils|chickpeas)\b/i;
 
   if (FOOD_TERMS.test(lower)) {
-    if (lower.match(/^(?:add|log|record|track|ate|had|eating|eat|put)\b/i) || lower.match(/\b(?:with|and|\+|\&)\b/i)) {
-      return true;
-    }
-    if (lower.match(/^\d+(?:\.\d+)?\s*(?:g|grams?|oz|ounces?|cups?|tbsp|tsp|scoops?|slices?|pieces?|can|cans?|serving|servings?|bowl|plate|bar|bottle)?\s+[a-z]+/i)) {
+    // Exclude explicit calendar meetings/appointments unless food logging is indicated
+    const isCalendarMeeting = lower.match(/\b(?:meeting|appointment|interview|call|sync|session|hangout|flight|trip|doctor|dentist)\b/i);
+    if (!isCalendarMeeting) {
       return true;
     }
   }
 
-  // 5. Quantity + Food Measurement
+  // 5. Quantity + Food Measurement (e.g. "150g", "200 grams", "2 slices", "1 cup")
   const FOOD_UNIT_REGEX = /\b\d+(?:\.\d+)?\s*(?:g\b|grams?\b|oz\b|ounces?\b|cups?\b|tbsp\b|tablespoons?\b|tsp\b|teaspoons?\b|scoops?\b|slices?\b|pieces?\b|can\b|cans?\b|serving\b|servings?\b|bowls?\b|plates?\b|bars?\b|bottles?\b|pouch(?:es)?\b|pack(?:et)?s?\b)/i;
-  if (lower.match(/^(?:add|log|ate|had|eating)\b/i) && FOOD_UNIT_REGEX.test(lower)) {
+  if (FOOD_UNIT_REGEX.test(lower)) {
     return true;
   }
 
@@ -239,12 +238,14 @@ export const INGREDIENT_DATABASE = [
     name: "Costco Hot Dog (Beef Frank & Bun)",
     defaultUnit: "hot dog",
     defaultQty: 1,
+    per100g: { calories: 285, protein: 12, carbs: 23, fats: 16.5 },
     perUnit: {
       "hot dog": { calories: 570, protein: 24, carbs: 46, fats: 33 },
       "hotdog": { calories: 570, protein: 24, carbs: 46, fats: 33 },
       "dog": { calories: 570, protein: 24, carbs: 46, fats: 33 },
       "item": { calories: 570, protein: 24, carbs: 46, fats: 33 },
-      "serving": { calories: 570, protein: 24, carbs: 46, fats: 33 }
+      "serving": { calories: 570, protein: 24, carbs: 46, fats: 33 },
+      g: { calories: 2.85, protein: 0.12, carbs: 0.23, fats: 0.165 }
     }
   },
   {
@@ -411,13 +412,15 @@ export const INGREDIENT_DATABASE = [
     name: "Peanut Butter Toast",
     defaultUnit: "slice",
     defaultQty: 1,
+    per100g: { calories: 360, protein: 12.5, carbs: 33, fats: 20 },
     perUnit: {
       slice: { calories: 260, protein: 9, carbs: 24, fats: 14 },
       slices: { calories: 260, protein: 9, carbs: 24, fats: 14 },
       toast: { calories: 260, protein: 9, carbs: 24, fats: 14 },
       toasts: { calories: 260, protein: 9, carbs: 24, fats: 14 },
       piece: { calories: 260, protein: 9, carbs: 24, fats: 14 },
-      pieces: { calories: 260, protein: 9, carbs: 24, fats: 14 }
+      pieces: { calories: 260, protein: 9, carbs: 24, fats: 14 },
+      g: { calories: 3.6, protein: 0.125, carbs: 0.33, fats: 0.20 }
     }
   },
   {
@@ -425,9 +428,11 @@ export const INGREDIENT_DATABASE = [
     name: "Plain Bagel",
     defaultUnit: "bagel",
     defaultQty: 1,
+    per100g: { calories: 270, protein: 10.5, carbs: 53, fats: 1.5 },
     perUnit: {
       bagel: { calories: 280, protein: 11, carbs: 56, fats: 1.5 },
-      bagels: { calories: 280, protein: 11, carbs: 56, fats: 1.5 }
+      bagels: { calories: 280, protein: 11, carbs: 56, fats: 1.5 },
+      g: { calories: 2.7, protein: 0.105, carbs: 0.53, fats: 0.015 }
     }
   },
   {
@@ -435,10 +440,12 @@ export const INGREDIENT_DATABASE = [
     name: "Bread / Toast",
     defaultUnit: "slices",
     defaultQty: 2,
+    per100g: { calories: 265, protein: 9.0, carbs: 49.0, fats: 3.2 },
     perUnit: {
       slice: { calories: 80, protein: 3, carbs: 15, fats: 1 },
       slices: { calories: 80, protein: 3, carbs: 15, fats: 1 },
-      sandwich: { calories: 160, protein: 6, carbs: 30, fats: 2 }
+      sandwich: { calories: 160, protein: 6, carbs: 30, fats: 2 },
+      g: { calories: 2.65, protein: 0.09, carbs: 0.49, fats: 0.032 }
     }
   },
   {
@@ -487,10 +494,12 @@ export const INGREDIENT_DATABASE = [
     name: "Olive Oil",
     defaultUnit: "tbsp",
     defaultQty: 1,
+    per100g: { calories: 884, protein: 0, carbs: 0, fats: 100 },
     perUnit: {
       tbsp: { calories: 120, protein: 0, carbs: 0, fats: 14 },
       tablespoon: { calories: 120, protein: 0, carbs: 0, fats: 14 },
-      tablespoons: { calories: 120, protein: 0, carbs: 0, fats: 14 }
+      tablespoons: { calories: 120, protein: 0, carbs: 0, fats: 14 },
+      g: { calories: 8.84, protein: 0, carbs: 0, fats: 1.0 }
     }
   },
   {
@@ -498,9 +507,11 @@ export const INGREDIENT_DATABASE = [
     name: "Butter",
     defaultUnit: "tbsp",
     defaultQty: 1,
+    per100g: { calories: 717, protein: 0.9, carbs: 0.1, fats: 81 },
     perUnit: {
       tbsp: { calories: 102, protein: 0.1, carbs: 0, fats: 11.5 },
-      tablespoon: { calories: 102, protein: 0.1, carbs: 0, fats: 11.5 }
+      tablespoon: { calories: 102, protein: 0.1, carbs: 0, fats: 11.5 },
+      g: { calories: 7.17, protein: 0.009, carbs: 0.001, fats: 0.81 }
     }
   },
   {
@@ -559,6 +570,26 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
+    regex: /\b(?:iced\s*tea|ice\s*tea|good\s+host\s+iced\s+tea)\b/i,
+    name: "Iced Tea (Good Host Mix)",
+    defaultUnit: "mix",
+    defaultQty: 1,
+    per100g: { calories: 6, protein: 0, carbs: 1.5, fats: 0 },
+    perUnit: {
+      mix: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      serving: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      glass: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      cup: { calories: 15, protein: 0, carbs: 3.8, fats: 0 },
+      l: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      litre: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      litres: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      liter: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      liters: { calories: 60, protein: 0, carbs: 15, fats: 0 },
+      ml: { calories: 0.06, protein: 0, carbs: 0.015, fats: 0 },
+      g: { calories: 0.06, protein: 0, carbs: 0.015, fats: 0 }
+    }
+  },
+  {
     regex: /\b(?:apple\s+juice)\b/i,
     name: "Apple Juice",
     defaultUnit: "glass",
@@ -587,11 +618,13 @@ export const INGREDIENT_DATABASE = [
     name: "Protein Smoothie",
     defaultUnit: "smoothie",
     defaultQty: 1,
+    per100g: { calories: 75, protein: 6, carbs: 8.3, fats: 1.8 },
     perUnit: {
       shake: { calories: 485, protein: 39, carbs: 54, fats: 12 },
       shakes: { calories: 485, protein: 39, carbs: 54, fats: 12 },
       smoothie: { calories: 485, protein: 39, carbs: 54, fats: 12 },
-      smoothies: { calories: 485, protein: 39, carbs: 54, fats: 12 }
+      smoothies: { calories: 485, protein: 39, carbs: 54, fats: 12 },
+      g: { calories: 0.75, protein: 0.06, carbs: 0.083, fats: 0.018 }
     }
   },
   {
@@ -599,10 +632,12 @@ export const INGREDIENT_DATABASE = [
     name: "Fairlife Milk",
     defaultUnit: "cups",
     defaultQty: 1,
+    per100g: { calories: 60, protein: 5.4, carbs: 2.5, fats: 3.3 },
     perUnit: {
       cup: { calories: 150, protein: 13, carbs: 6, fats: 8 },
       cups: { calories: 150, protein: 13, carbs: 6, fats: 8 },
-      oz: { calories: 18.75, protein: 1.6, carbs: 0.75, fats: 1 }
+      oz: { calories: 18.75, protein: 1.6, carbs: 0.75, fats: 1 },
+      g: { calories: 0.60, protein: 0.054, carbs: 0.025, fats: 0.033 }
     }
   },
   {
@@ -624,9 +659,14 @@ export const INGREDIENT_DATABASE = [
     name: "Banana",
     defaultUnit: "banana",
     defaultQty: 1,
+    per100g: { calories: 89, protein: 1.1, carbs: 22.8, fats: 0.3 },
     perUnit: {
       banana: { calories: 105, protein: 1.3, carbs: 27, fats: 0.3 },
-      bananas: { calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
+      bananas: { calories: 105, protein: 1.3, carbs: 27, fats: 0.3 },
+      medium: { calories: 105, protein: 1.3, carbs: 27, fats: 0.3 },
+      large: { calories: 121, protein: 1.5, carbs: 31, fats: 0.4 },
+      small: { calories: 90, protein: 1.1, carbs: 23, fats: 0.3 },
+      g: { calories: 0.89, protein: 0.011, carbs: 0.228, fats: 0.003 }
     }
   },
   {
@@ -634,9 +674,35 @@ export const INGREDIENT_DATABASE = [
     name: "Apple",
     defaultUnit: "apple",
     defaultQty: 1,
+    per100g: { calories: 52, protein: 0.3, carbs: 13.8, fats: 0.2 },
     perUnit: {
       apple: { calories: 95, protein: 0.5, carbs: 25, fats: 0.3 },
-      apples: { calories: 95, protein: 0.5, carbs: 25, fats: 0.3 }
+      apples: { calories: 95, protein: 0.5, carbs: 25, fats: 0.3 },
+      medium: { calories: 95, protein: 0.5, carbs: 25, fats: 0.3 },
+      large: { calories: 116, protein: 0.6, carbs: 30.8, fats: 0.4 },
+      small: { calories: 77, protein: 0.4, carbs: 20.5, fats: 0.3 },
+      g: { calories: 0.52, protein: 0.003, carbs: 0.138, fats: 0.002 }
+    }
+  },
+  {
+    regex: /\b(?:orange|oranges|clementine|clementines|mandarin|mandarins|tangerine|tangerines)\b/i,
+    name: "Orange",
+    defaultUnit: "orange",
+    defaultQty: 1,
+    per100g: { calories: 47, protein: 0.9, carbs: 11.8, fats: 0.1 },
+    perUnit: {
+      orange: { calories: 62, protein: 1.2, carbs: 15.4, fats: 0.2 },
+      oranges: { calories: 62, protein: 1.2, carbs: 15.4, fats: 0.2 },
+      medium: { calories: 62, protein: 1.2, carbs: 15.4, fats: 0.2 },
+      large: { calories: 86, protein: 1.7, carbs: 21.6, fats: 0.2 },
+      small: { calories: 45, protein: 0.9, carbs: 11.3, fats: 0.1 },
+      clementine: { calories: 35, protein: 0.6, carbs: 8.9, fats: 0.1 },
+      clementines: { calories: 35, protein: 0.6, carbs: 8.9, fats: 0.1 },
+      mandarin: { calories: 47, protein: 0.7, carbs: 12.0, fats: 0.3 },
+      mandarins: { calories: 47, protein: 0.7, carbs: 12.0, fats: 0.3 },
+      tangerine: { calories: 47, protein: 0.7, carbs: 12.0, fats: 0.3 },
+      tangerines: { calories: 47, protein: 0.7, carbs: 12.0, fats: 0.3 },
+      g: { calories: 0.47, protein: 0.009, carbs: 0.118, fats: 0.001 }
     }
   },
   {
@@ -644,9 +710,11 @@ export const INGREDIENT_DATABASE = [
     name: "Avocado",
     defaultUnit: "whole",
     defaultQty: 0.5,
+    per100g: { calories: 160, protein: 2.0, carbs: 8.5, fats: 14.7 },
     perUnit: {
       whole: { calories: 320, protein: 4, carbs: 17, fats: 30 },
-      half: { calories: 160, protein: 2, carbs: 8.5, fats: 15 }
+      half: { calories: 160, protein: 2, carbs: 8.5, fats: 15 },
+      g: { calories: 1.60, protein: 0.020, carbs: 0.085, fats: 0.147 }
     }
   },
   {
@@ -915,10 +983,12 @@ export const INGREDIENT_DATABASE = [
     name: "Pizza",
     defaultUnit: "slice",
     defaultQty: 1,
+    per100g: { calories: 266, protein: 11, carbs: 33, fats: 10 },
     perUnit: {
       slice: { calories: 280, protein: 12, carbs: 32, fats: 11 },
       slices: { calories: 280, protein: 12, carbs: 32, fats: 11 },
-      pie: { calories: 2240, protein: 96, carbs: 256, fats: 88 }
+      pie: { calories: 2240, protein: 96, carbs: 256, fats: 88 },
+      g: { calories: 2.66, protein: 0.11, carbs: 0.33, fats: 0.10 }
     }
   },
   {
@@ -926,9 +996,11 @@ export const INGREDIENT_DATABASE = [
     name: "Tacos",
     defaultUnit: "taco",
     defaultQty: 1,
+    per100g: { calories: 210, protein: 12, carbs: 18, fats: 10 },
     perUnit: {
       taco: { calories: 210, protein: 12, carbs: 18, fats: 10 },
-      tacos: { calories: 210, protein: 12, carbs: 18, fats: 10 }
+      tacos: { calories: 210, protein: 12, carbs: 18, fats: 10 },
+      g: { calories: 2.10, protein: 0.12, carbs: 0.18, fats: 0.10 }
     }
   },
   {
@@ -936,9 +1008,11 @@ export const INGREDIENT_DATABASE = [
     name: "Cheeseburger",
     defaultUnit: "burger",
     defaultQty: 1,
+    per100g: { calories: 250, protein: 13, carbs: 24, fats: 12 },
     perUnit: {
       burger: { calories: 535, protein: 30, carbs: 40, fats: 28 },
-      burgers: { calories: 535, protein: 30, carbs: 40, fats: 28 }
+      burgers: { calories: 535, protein: 30, carbs: 40, fats: 28 },
+      g: { calories: 2.50, protein: 0.13, carbs: 0.24, fats: 0.12 }
     }
   },
   {
@@ -946,11 +1020,13 @@ export const INGREDIENT_DATABASE = [
     name: "Burrito / Bowl",
     defaultUnit: "burrito",
     defaultQty: 1,
+    per100g: { calories: 165, protein: 9.5, carbs: 21, fats: 5.5 },
     perUnit: {
       burrito: { calories: 750, protein: 38, carbs: 85, fats: 26 },
       burritos: { calories: 750, protein: 38, carbs: 85, fats: 26 },
       bowl: { calories: 680, protein: 42, carbs: 70, fats: 22 },
-      bowls: { calories: 680, protein: 42, carbs: 70, fats: 22 }
+      bowls: { calories: 680, protein: 42, carbs: 70, fats: 22 },
+      g: { calories: 1.65, protein: 0.095, carbs: 0.21, fats: 0.055 }
     }
   },
   {
@@ -958,11 +1034,13 @@ export const INGREDIENT_DATABASE = [
     name: "Sandwich / Sub",
     defaultUnit: "sandwich",
     defaultQty: 1,
+    per100g: { calories: 210, protein: 12, carbs: 25, fats: 7 },
     perUnit: {
       sandwich: { calories: 420, protein: 24, carbs: 44, fats: 16 },
       sandwiches: { calories: 420, protein: 24, carbs: 44, fats: 16 },
       sub: { calories: 550, protein: 32, carbs: 62, fats: 18 },
-      subs: { calories: 550, protein: 32, carbs: 62, fats: 18 }
+      subs: { calories: 550, protein: 32, carbs: 62, fats: 18 },
+      g: { calories: 2.10, protein: 0.12, carbs: 0.25, fats: 0.07 }
     }
   }
 ];
@@ -1118,6 +1196,33 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
     fats: 7.5,
     category: "Snacks",
     icon: "🍫"
+  },
+  {
+    id: "staple-iced-tea",
+    name: "Iced Tea",
+    portion: "1L mix (1 tbsp Good Host powder, 5g creatine, pink salt, lemon juice, 1L water)",
+    calories: 60,
+    protein: 0,
+    carbs: 15,
+    fats: 0,
+    category: "Hydration",
+    icon: "🧊",
+    items: [
+      { name: "Good Host Iced Tea Powder", portion: "1 tbsp (15g)", calories: 60, protein: 0, carbs: 15, fats: 0 },
+      { name: "Creatine Monohydrate", portion: "5g", calories: 0, protein: 0, carbs: 0, fats: 0 },
+      { name: "Pink Himalayan Salt & Lemon Juice (1L Water)", portion: "1L (1000ml)", calories: 2, protein: 0, carbs: 0.5, fats: 0 }
+    ]
+  },
+  {
+    id: "staple-orange",
+    name: "Orange",
+    portion: "1 medium orange (131g)",
+    calories: 62,
+    protein: 1.2,
+    carbs: 15.4,
+    fats: 0.2,
+    category: "Fruit",
+    icon: "🍊"
   }
 ];
 
@@ -1125,12 +1230,13 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
  * Validates and sanitizes household pantry staples against calibrated ground truth.
  * Ensures the household protein shake is strictly 485 kcal / 39g P (1 scoop vegan powder, 2 cups milk, 1 banana).
  * Ensures Nature Valley bar is calibrated to 170 kcal / 3.5g P.
+ * Ensures custom Iced Tea is strictly 60 kcal / 0g P / 15g C / 0g F (Good Host mix in 1L water with creatine and pink salt).
  */
 export function sanitizeHouseholdPantry(householdPantry = []) {
   if (!Array.isArray(householdPantry) || householdPantry.length === 0) {
     return DEFAULT_HOUSEHOLD_PANTRY;
   }
-  return householdPantry.map(s => {
+  const cleanList = householdPantry.map(s => {
     if (s && (s.id === 'staple-protein-shake' || /protein\s*(?:shake|smoothie)|smoothie/i.test(s.name || ''))) {
       if (s.protein > 50 || s.calories > 600 || /1\s*cup/i.test(s.portion || '') || !Array.isArray(s.items) || s.items.length === 0) {
         return {
@@ -1151,6 +1257,25 @@ export function sanitizeHouseholdPantry(householdPantry = []) {
           ]
         };
       }
+    }
+    if (s && (s.id === 'staple-iced-tea' || /iced\s*tea|ice\s*tea/i.test(s.name || ''))) {
+      return {
+        ...s,
+        id: s.id || 'staple-iced-tea',
+        name: "Iced Tea",
+        portion: "1L mix (1 tbsp Good Host powder, 5g creatine, pink salt, lemon juice, 1L water)",
+        calories: 60,
+        protein: 0,
+        carbs: 15,
+        fats: 0,
+        category: "Hydration",
+        icon: "🧊",
+        items: [
+          { name: "Good Host Iced Tea Powder", portion: "1 tbsp (15g)", calories: 60, protein: 0, carbs: 15, fats: 0 },
+          { name: "Creatine Monohydrate", portion: "5g", calories: 0, protein: 0, carbs: 0, fats: 0 },
+          { name: "Pink Himalayan Salt & Lemon Juice (1L Water)", portion: "1L (1000ml)", calories: 2, protein: 0, carbs: 0.5, fats: 0 }
+        ]
+      };
     }
     if (s && (s.id === 'staple-canned-salmon' || /canned\s+salmon|can\s+of\s+salmon/i.test(s.name || ''))) {
       if (s.protein !== 40 || s.calories !== 200) {
@@ -1202,6 +1327,43 @@ export function sanitizeHouseholdPantry(householdPantry = []) {
     }
     return s;
   });
+
+  const hasIcedTea = cleanList.some(s => s && (s.id === 'staple-iced-tea' || /iced\s*tea|ice\s*tea/i.test(s.name || '')));
+  if (!hasIcedTea) {
+    cleanList.push({
+      id: "staple-iced-tea",
+      name: "Iced Tea",
+      portion: "1L mix (1 tbsp Good Host powder, 5g creatine, pink salt, lemon juice, 1L water)",
+      calories: 60,
+      protein: 0,
+      carbs: 15,
+      fats: 0,
+      category: "Hydration",
+      icon: "🧊",
+      items: [
+        { name: "Good Host Iced Tea Powder", portion: "1 tbsp (15g)", calories: 60, protein: 0, carbs: 15, fats: 0 },
+        { name: "Creatine Monohydrate", portion: "5g", calories: 0, protein: 0, carbs: 0, fats: 0 },
+        { name: "Pink Himalayan Salt & Lemon Juice (1L Water)", portion: "1L (1000ml)", calories: 2, protein: 0, carbs: 0.5, fats: 0 }
+      ]
+    });
+  }
+
+  const hasOrange = cleanList.some(s => s && (s.id === 'staple-orange' || /^orange$/i.test(s.name || '')));
+  if (!hasOrange) {
+    cleanList.push({
+      id: "staple-orange",
+      name: "Orange",
+      portion: "1 medium orange (131g)",
+      calories: 62,
+      protein: 1.2,
+      carbs: 15.4,
+      fats: 0.2,
+      category: "Fruit",
+      icon: "🍊"
+    });
+  }
+
+  return cleanList;
 }
 
 /**
@@ -1424,12 +1586,64 @@ export function calibrateMilk(items = []) {
 }
 
 /**
+ * Calibrates custom Iced Tea to user's Good Host mix:
+ * 1 tbsp Good Host powder, 5g creatine, pink Himalayan salt, lemon juice, 1L water = 60 kcal, 0g P, 15g C, 0g F per 1L mix.
+ */
+export function calibrateIcedTea(items = []) {
+  if (!Array.isArray(items)) return items;
+  return items.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const name = String(item.name || '').toLowerCase();
+    const isCustomIcedTea = /\b(?:iced\s*tea|ice\s*tea)\b/i.test(name) && !/\bbottled|nestea|brisk|arizona|sweet\s+tea\s+bottle\b/i.test(name);
+    if (isCustomIcedTea) {
+      if (item.calories !== 60 || item.protein !== 0 || item.carbs !== 15 || item.fats !== 0) {
+        return {
+          ...item,
+          name: "Iced Tea (Good Host Mix)",
+          portion: item.portion || "1L mix (1 tbsp powder, 5g creatine, salt, lemon)",
+          calories: 60,
+          protein: 0,
+          carbs: 15,
+          fats: 0
+        };
+      }
+    }
+    return item;
+  });
+}
+
+/**
+ * Calibrates single whole fresh produce (Orange, Apple, Banana) to clinical USDA benchmarks if misclassified or inflated:
+ */
+export function calibrateFreshProduce(items = []) {
+  if (!Array.isArray(items)) return items;
+  return items.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const name = String(item.name || '').toLowerCase();
+    const isOrange = /\b(?:orange|oranges|clementine|clementines|mandarin|mandarins|tangerine|tangerines)\b/i.test(name) && !/\b(?:juice|soda|chicken|sauce)\b/i.test(name);
+    if (isOrange && (item.calories > 110 || item.calories === 0 || item.protein > 2.5 || item.fats > 1)) {
+      return {
+        ...item,
+        name: "Fresh Orange",
+        portion: item.portion || "1 medium (131g)",
+        calories: 62,
+        protein: 1.2,
+        carbs: 15.4,
+        fats: 0.2
+      };
+    }
+    return item;
+  });
+}
+
+/**
  * Universal calibration safeguard across all items:
- * Calibrates bone-in meats (deducting bone refuse) and milk (enforcing normal 2% milk benchmarks).
+ * Calibrates bone-in meats (deducting bone refuse), milk (enforcing normal 2% milk benchmarks),
+ * custom iced tea (enforcing Good Host 1L mix), and fresh produce (enforcing USDA orange benchmarks).
  */
 export function calibrateMealItems(items = []) {
   if (!Array.isArray(items)) return items;
-  return calibrateMilk(calibrateBoneInMeats(items));
+  return calibrateIcedTea(calibrateFreshProduce(calibrateMilk(calibrateBoneInMeats(items))));
 }
 
 // ---------------------------------------------------------------------------
@@ -2055,6 +2269,55 @@ export function parseMealDescription(text, options = {}) {
       continue;
     }
 
+    // Custom Iced Tea Mix (Good Host iced tea powder, pink Himalayan salt, 1L water, 5g creatine, lemon juice)
+    if (/\b(?:iced\s*tea|ice\s*tea|my\s+iced\s+tea)\b/i.test(clause) && !/\bbottled|nestea|brisk|arizona|sweet\s+tea\s+bottle\b/i.test(clause)) {
+      let mult = 1;
+      const directLMatch = clause.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\b/i);
+      const directMlMatch = clause.match(/(\d+(?:\.\d+)?)\s*ml\b/i);
+      const qm = clause.match(/(?:^|\s)(\d+(?:\.\d+)?|\d+\/\d+|half|a|an|one|two|three|four|2|3|4)\s*(?:mixes?|servings?|bottles?|glasses?|cups?|drinks?)?/i);
+      if (directLMatch) {
+        mult = parseFloat(directLMatch[1]) || 1;
+      } else if (directMlMatch) {
+        mult = (parseFloat(directMlMatch[1]) || 1000) / 1000;
+      } else if (qm) {
+        const w = qm[1].toLowerCase();
+        if (w === 'half' || w === '1/2') mult = 0.5;
+        else if (w === 'two' || w === '2') mult = 2;
+        else if (w === 'three' || w === '3') mult = 3;
+        else if (w === 'four' || w === '4') mult = 4;
+        else if (parseFloat(w)) mult = parseFloat(w);
+      }
+
+      dishCarrierTitle = 'Custom Iced Tea';
+      matchedItems.push(
+        {
+          name: 'Good Host Iced Tea Powder',
+          portion: mult === 1 ? '1 tbsp (15g)' : `${mult} tbsp (${Math.round(mult * 15)}g)`,
+          calories: Math.round(60 * mult),
+          protein: 0,
+          carbs: Math.round(15 * mult),
+          fats: 0
+        },
+        {
+          name: 'Creatine Monohydrate',
+          portion: mult === 1 ? '5g' : `${mult * 5}g`,
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fats: 0
+        },
+        {
+          name: 'Pink Himalayan Salt & Lemon Juice (1L Water)',
+          portion: mult === 1 ? '1L (1000ml)' : `${mult}L (${mult * 1000}ml)`,
+          calories: Math.round(2 * mult),
+          protein: 0,
+          carbs: Math.round(0.5 * mult * 10) / 10,
+          fats: 0
+        }
+      );
+      continue;
+    }
+
     let qty = null;
     let unit = null;
 
@@ -2370,7 +2633,8 @@ export function parseMealDescription(text, options = {}) {
   let title = '';
   if (dishCarrierTitle) {
     const isSmoothieOrShake = /smoothie|shake/i.test(dishCarrierTitle);
-    title = isSmoothieOrShake ? 'Protein Smoothie' : (dishCarrierTitle.charAt(0).toUpperCase() + dishCarrierTitle.slice(1));
+    const isIcedTea = /iced\s*tea|ice\s*tea/i.test(dishCarrierTitle);
+    title = isSmoothieOrShake ? 'Protein Smoothie' : isIcedTea ? 'Custom Iced Tea' : (dishCarrierTitle.charAt(0).toUpperCase() + dishCarrierTitle.slice(1));
   } else if (cleanItemNames.length === 1) {
     title = cleanItemNames[0];
   } else if (cleanItemNames.length === 2) {
@@ -2738,7 +3002,11 @@ export function buildAiPantryPrompt(householdPantry = []) {
 
   for (const item of pantry) {
     if (!item || !item.name) continue;
-    lines.push(`- "${item.name}": Portion "${item.portion || '1 serving'}" -> ${item.calories} kcal, ${item.protein}g P, ${item.carbs}g C, ${item.fats}g F.`);
+    let itemLine = `- "${item.name}": Portion "${item.portion || '1 serving'}" -> ${item.calories} kcal, ${item.protein}g P, ${item.carbs}g C, ${item.fats}g F.`;
+    if (Array.isArray(item.items) && item.items.length > 0) {
+      itemLine += ` (Constituent ingredients: ${item.items.map(sub => `${sub.name} [${sub.portion || ''}]: ${sub.calories} kcal, ${sub.protein}g P, ${sub.carbs}g C, ${sub.fats}g F`).join(', ')})`;
+    }
+    lines.push(itemLine);
   }
 
   return lines.join("\n");

@@ -630,8 +630,10 @@ export function directFallbackAnswer(prompt, osData, history = []) {
     };
   }
 
-  // Theme Color Change Fallback
-  if (lower.includes('theme') || lower.includes('color') || lower.includes('accent') || ['purple', 'blue', 'green', 'emerald', 'indigo', 'cyan', 'rose', 'red', 'orange', 'yellow'].includes(lower)) {
+  // Theme Color Change Fallback (Must be an explicit theme/color setting command; never hijack bare food names like "orange")
+  const isThemeContext = lower.includes('theme') || lower.includes('accent') || lower.match(/\bcolor\b/i);
+  const isDirectThemeCommand = /^(?:theme|color|accent)\s+(?:to\s+)?(purple|violet|indigo|blue|cyan|teal|emerald|green|lime|yellow|orange|red|rose|pink)$/i.test(lower);
+  if ((isThemeContext || isDirectThemeCommand) && !isFoodLogQuery(lower)) {
     const colorMap = {
       purple: 280,
       violet: 270,
@@ -2468,6 +2470,8 @@ ${pantryPrompt ? `\n${pantryPrompt}\n` : ''}
      * Standard / Normal Milk (2% reduced fat): 50 kcal, 3.3g P, 4.8g C, 2.0g F per 100ml (~120 kcal, 8g P, 11.5g C, 4.8g F per 1 cup / 240ml). DEFAULT TO 2% NORMAL MILK when milk is mentioned/shown.
      * Peanut Butter / Almond Butter: 588 kcal, 25.0g P, 20.0g C, 50.0g F per 100g (1 level tbsp ~16g = 94 kcal, 4g P, 3.2g C, 8g F).
      * Nature Valley Bar: Exactly 170 kcal, 3.5g P, 23g C, 7.5g F per 1 pouch / 2 bars (35g).
+     * Fresh Orange / Navel Orange: 47 kcal, 0.9g P, 11.8g C, 0.1g F per 100g (1 medium orange ~131g = 62 kcal, 1.2g P, 15.4g C, 0.2g F; 1 large orange ~184g = 86 kcal). Always recognize fresh fruit as food!
+     * Custom Iced Tea Hydration Mix: When iced tea is pictured or described, it is the user's custom calibrated mix: 1 tbsp Good Host iced tea powder (60 kcal, 15g C), 5g creatine (0 kcal), dash pink Himalayan salt, lemon juice in 1L water = strictly 60 kcal, 0g P, 15g C, 0g F per 1L mix.
      * Surface Cooking Oil / Dressing: Visually check for gloss/sheen. If matte/dry, do NOT add phantom oils. If visibly glistening, add 0.5-1.0 tsp olive/cooking oil (20-40 kcal, 2.5-4.5g F).
      * BONE-IN REFUSE RULE: Gross as-served weight of chicken drumsticks has ~40% bone refuse; wings have ~46% bone refuse. Calculate calories and protein STRICTLY on the edible meat (~60%), never on the bone!
      * ATWATER ENERGY LAW: For every item and the meal sum: Calories ≈ (Protein * 4) + (Carbs * 4) + (Fats * 9) within ±5%.
@@ -2732,6 +2736,24 @@ ${pantryPrompt ? `${pantryPrompt}\n` : ''}
    - Canned Salmon / Can of Salmon: Exactly 200 kcal, 40g protein, 0g carbs, 4g fats per can (1 can = 200 cals, 40g protein).
    - Household Protein Shake / Smoothie: A standard shake with 2 cups milk (240-260 kcal, 16-18g P), 1 scoop Canadian Protein vegan powder (120 kcal, 20g P), and 1 banana (105 kcal, 1.3g P) is ~465-485 kcal, ~37-39g protein, ~54g carbs, ~12g fats. (1 scoop vegan powder is 20g P, NEVER 1 cup or 65g P). If the user mentions 'protein shake', 'smoothie', or 'protein smoothie', default to 1 scoop vegan powder + 2 cups milk + 1 banana = ~37-39g protein, NEVER 91g protein!
    - Nature Valley Bar / Granola Bar: Exactly 170 kcal, ~3.5g protein, 23g carbs, 7.5g fats per bar / pouch. Calibrate strictly to 170 kcal (NEVER default to 190 kcal).
+   - Custom Iced Tea Mix (Good Host Daily Hydration):
+     * When the user mentions "iced tea", "custom iced tea", or an iced tea drink (unless specifically branded commercial bottled tea like Nestea, Brisk, Peace Tea, Arizona):
+       This is strictly the user's specific household hydration mix:
+       1) Good Host Iced Tea Powder: 1 tbsp (~15g) = 60 kcal, 0g protein, 15g carbs, 0g fats.
+       2) Creatine Monohydrate: 5g = 0 kcal, 0g protein, 0g carbs, 0g fats.
+       3) Pink Himalayan Salt & Lemon Juice (in 1L Water): ~2 kcal, 0g protein, ~0.5g carbs, 0g fats (~300mg electrolytes).
+       TOTAL FOR THE 1L MIX: Strictly 60-62 kcal, 0g protein, 15-15.5g carbs, 0g fats.
+       Itemize the mix into these constituent ingredients or output 60 kcal, 0g P, 15g C, 0g F. NEVER output standard commercial iced tea (150-200 kcal).
+   - Single Whole Produce & Fresh Fruit (Common Sense Principle):
+     * The user is strictly logging food. Common-sense understanding must be applied to single words (e.g. "orange", "apple", "banana").
+     * Whole Medium Orange (approx 130-150g): Exactly 62 kcal, 1.2g protein, 15.4g carbs, 0.2g fats.
+     * If user specifies grams (e.g. "150g orange"): Use USDA net per-gram density (0.47 kcal/g, 0.009g P, 0.118g C, 0.001g F -> 150g = 71 kcal, 1.4g P, 17.7g C, 0.2g F).
+     * Whole Medium Apple: ~95 kcal, 0.5g protein, 25g carbs, 0.3g fats (0.52 kcal/g).
+     * Whole Medium Banana: ~105 kcal, 1.3g protein, 27g carbs, 0.3g fats (0.89 kcal/g).
+   - User Stated Gram Weights (Zero Plate Tare Deduction):
+     * The user ALWAYS tares the food scale beforehand.
+     * When the user gives a gram weight in their log (e.g. "150g orange", "200g chicken", "80g oats", "120g rice"), that weight is ALWAYS 100% net food volume weight.
+     * NEVER deduct plate weight (550g) or bowl weight (420g) or any tare deduction from user stated grams! Multiply stated grams directly by the food's per-gram nutritional density.
    - Bone-In Meats (Chicken Drumsticks, Wings, Bone-in Thighs, Ribs, T-Bone):
      * CRITICAL BONE REFUSE RULE: Gross / as-served weight includes inedible bones and cartilage which provide ZERO calories and ZERO protein.
      * Chicken Drumsticks: ~40% bone refuse (only ~60% is edible meat + skin). A 70g drumstick (as served with bone) has only ~42g edible meat = ~78 kcal, ~10.5g protein, ~3.8g fats. NEVER assign 15g protein to a 70g bone-in drumstick (that mistakenly counts the bone weight as meat)!
@@ -2842,6 +2864,49 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN OUTSIDE THE JSON):
                 }
                 return it;
               });
+
+              // Custom Iced Tea Mix Safeguard
+              const isIcedTeaQuery = /(?:^|\s)(?:iced|ice)\s*tea(?:\s|$)/i.test(cleanQuery) && !/\bbottled|brisk|nestea|arizona|sweet\s+tea\s+bottle\b/i.test(cleanQuery);
+              if (isIcedTeaQuery && (parsed.items.length <= 1 || parsed.calories > 80)) {
+                parsed.name = "Custom Iced Tea";
+                parsed.calories = 62;
+                parsed.protein = 0;
+                parsed.carbs = 15.5;
+                parsed.fats = 0;
+                parsed.items = [
+                  { name: "Good Host Iced Tea Powder", portion: "1 tbsp (15g)", calories: 60, protein: 0, carbs: 15, fats: 0 },
+                  { name: "Creatine Monohydrate", portion: "5g", calories: 0, protein: 0, carbs: 0, fats: 0 },
+                  { name: "Pink Himalayan Salt & Lemon Juice in 1L Water", portion: "1L (1000ml)", calories: 2, protein: 0, carbs: 0.5, fats: 0 }
+                ];
+                parsed.notes = "Calibrated to user custom hydration mix: Good Host powder, 5g creatine, Himalayan salt, and lemon juice in 1L water (60 kcal, 15g carbs)";
+              }
+
+              // Single Orange / Fresh Fruit Common Sense Safeguard
+              const isOrangeQuery = /(?:^|\s)(?:an?\s+)?(?:orange|clementine|mandarin|tangerine)(?:s)?(?:\s|$)/i.test(cleanQuery) && !/\b(?:juice|soda|chicken|sauce)\b/i.test(cleanQuery);
+              const orangeGramMatch = cleanQuery.match(/(\d+(?:\.\d+)?)\s*(?:g|grams?)\s*(?:of\s+)?(?:an?\s+)?(?:orange|clementine|mandarin|tangerine)/i)
+                || cleanQuery.match(/(?:an?\s+)?(?:orange|clementine|mandarin|tangerine)s?\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:g|grams?)/i);
+
+              if (isOrangeQuery && (parsed.items.length <= 1 || !parsed.hasFood || parsed.calories > 150)) {
+                let netG = null;
+                if (orangeGramMatch) {
+                  netG = parseFloat(orangeGramMatch[1]);
+                }
+                const cal = netG ? Math.round(netG * 0.47) : 62;
+                const p = netG ? Number((netG * 0.009).toFixed(1)) : 1.2;
+                const c = netG ? Number((netG * 0.118).toFixed(1)) : 15.4;
+                const f = netG ? Number((netG * 0.001).toFixed(1)) : 0.2;
+                const portionStr = netG ? `${netG}g` : "1 medium (131g)";
+
+                parsed.name = "Fresh Orange";
+                parsed.calories = cal;
+                parsed.protein = p;
+                parsed.carbs = c;
+                parsed.fats = f;
+                parsed.items = [
+                  { name: "Fresh Orange", portion: portionStr, calories: cal, protein: p, carbs: c, fats: f }
+                ];
+                parsed.notes = netG ? `Calibrated to USDA whole fresh orange (${netG}g net food weight)` : "Calibrated to USDA standard medium orange (62 kcal, 1.2g protein, 15.4g carbs)";
+              }
 
               parsed.items = calibrateMealItems(parsed.items || []);
 

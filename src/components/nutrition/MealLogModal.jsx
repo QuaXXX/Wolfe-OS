@@ -433,7 +433,8 @@ export const MealLogModal = ({
         mimeType: imageMimeType,
         description: desc,
         aiConfig,
-        kitchenCalibration
+        kitchenCalibration,
+        householdPantry
       });
 
       if (result && result.hasFood !== false && result.calories > 0) {
