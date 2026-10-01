@@ -47,6 +47,7 @@ import { useBackgroundMealQueue, BackgroundMealNotifications } from '../nutritio
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
 import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
 import { NutritionHistoryModal } from '../nutrition/NutritionHistoryModal';
+import { DailyImpactQuote } from '../nutrition/DailyImpactQuote';
 import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush, syncFullOsWithCloud, isLocalMutationRecent } from '../../utils/cloudSyncEngine.js';
 
 const NutritionViewInner = ({ 
@@ -769,7 +770,7 @@ const NutritionViewInner = ({
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-24 touch-pan-y">
+    <div className="space-y-6 max-w-6xl mx-auto pb-8 sm:pb-10 touch-pan-y">
       {/* 1. Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
         <div>
@@ -1431,6 +1432,9 @@ const NutritionViewInner = ({
           <span>Open Full Calendar & Calorie History</span>
         </button>
       </div>
+
+      {/* ROTATING DAILY IMPACT QUOTE & SCRIPTURE WIDGET */}
+      <DailyImpactQuote soundEnabled={soundEnabled} />
 
       {/* CUSTOM TARGET ADJUSTMENT MODAL */}
       <AnimatePresence>
