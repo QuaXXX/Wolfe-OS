@@ -4,10 +4,10 @@
 export const QUOTE_POOL = [
   {
     "id": "wq_1",
-    "text": "Freedom is the Goal, Health is the Reason and Family is the Reason.",
-    "author": "Personal North Star",
+    "text": "Freedom is the Goal, Health is the foundation, and family is the reason.",
+    "author": "Zach Wolfe",
     "category": "Core Values",
-    "source": "Wolfe OS Anchor"
+    "source": ""
   },
   {
     "id": "wq_2",

@@ -1433,8 +1433,8 @@ const NutritionViewInner = ({
         </button>
       </div>
 
-      {/* ROTATING DAILY IMPACT QUOTE & SCRIPTURE WIDGET */}
-      <DailyImpactQuote soundEnabled={soundEnabled} />
+      {/* MINIMALIST DAILY INSPIRATION QUOTE (Subtle credits styling) */}
+      <DailyImpactQuote />
 
       {/* CUSTOM TARGET ADJUSTMENT MODAL */}
       <AnimatePresence>

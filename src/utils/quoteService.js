@@ -4,9 +4,9 @@
 
 import { QUOTE_POOL } from './quotesData.js';
 
-const STORAGE_ACTIVE = 'wolfe_active_quote_v1';
-const STORAGE_SEEN = 'wolfe_seen_quote_ids_v1';
-const STORAGE_FAVORITES = 'wolfe_favorite_quote_ids_v1';
+const STORAGE_ACTIVE = 'wolfe_active_quote_v2';
+const STORAGE_SEEN = 'wolfe_seen_quote_ids_v2';
+const STORAGE_FAVORITES = 'wolfe_favorite_quote_ids_v2';
 
 // Auto-rotate every 3 hours (8 dynamic windows per day)
 export const ROTATION_HOURS = 3;
@@ -79,10 +79,10 @@ export function drawRandomQuote(preferredCategory = null) {
   if (!QUOTE_POOL || QUOTE_POOL.length === 0) {
     return {
       id: 'wq_default',
-      text: 'Freedom is the Goal, Health is the Reason and Family is the Reason.',
-      author: 'Personal North Star',
+      text: 'Freedom is the Goal, Health is the foundation, and family is the reason.',
+      author: 'Zach Wolfe',
       category: 'Core Values',
-      source: 'Wolfe OS Anchor'
+      source: ''
     };
   }
 
@@ -125,17 +125,8 @@ export function getOrRotateActiveQuote() {
     }
   } catch {}
 
-  // If missing or window expired, draw a new random quote!
-  // On first run, ensure the user's favorite core anchor quote is favored or present
-  let newQuote;
-  const seen = getSeenQuoteIds();
-  if (seen.length === 0) {
-    // Show the user's North Star quote first!
-    newQuote = QUOTE_POOL[0];
-    markQuoteAsSeen(newQuote.id);
-  } else {
-    newQuote = drawRandomQuote();
-  }
+  // Pick a fresh quote randomly from the pool by chance
+  const newQuote = drawRandomQuote();
 
   const activeRecord = {
     windowKey: currentWindowKey,
