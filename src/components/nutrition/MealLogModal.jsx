@@ -67,14 +67,6 @@ export const MealLogModal = ({
     setIsStartingCamera(false);
   };
 
-  // Sync state & cleanup on modal open/close
-  useEffect(() => {
-    resetAllStates();
-    return () => {
-      stopLiveCamera();
-    };
-  }, [isOpen]);
-
   const resetAllStates = () => {
     stopLiveCamera();
     setImageDescription('');
@@ -101,8 +93,10 @@ export const MealLogModal = ({
    * Starts live in-app camera viewfinder inside the modal.
    * Keeps browser focused and alive, completely preventing mobile OS task-kill/reload.
    */
-  const startLiveCamera = async (facing = cameraFacingMode) => {
-    playSound('click', soundEnabled);
+  const startLiveCamera = async (facing = cameraFacingMode, isAuto = false) => {
+    if (!isAuto) {
+      playSound('click', soundEnabled);
+    }
     setImageAnalysisError(null);
 
     // Release any previous camera stream
@@ -114,7 +108,7 @@ export const MealLogModal = ({
     }
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      triggerNativeCamera();
+      if (!isAuto) triggerNativeCamera();
       return;
     }
 
@@ -146,12 +140,14 @@ export const MealLogModal = ({
     } catch (err) {
       console.warn('getUserMedia error, falling back:', err);
       stopLiveCamera();
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setImageAnalysisError('Camera is blocked. To unblock: 1) In Chrome, tap 3 dots > Settings > Site settings > Camera > Allow this site, OR 2) Long-press the app icon on home screen > App info > Permissions > Camera > Allow.');
-      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-        setImageAnalysisError('No camera found on this device. Please select a photo from Gallery.');
-      } else {
-        setImageAnalysisError('Could not start live camera viewfinder. You can use Gallery or the system camera option.');
+      if (!isAuto) {
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          setImageAnalysisError('Camera is blocked or asks every time. To always allow: In Safari, tap "aA" in the URL bar > Website Settings > Camera > Allow. In Chrome, click the tune/lock icon next to the URL > Camera > Allow.');
+        } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+          setImageAnalysisError('No camera found on this device. Please select a photo from Gallery.');
+        } else {
+          setImageAnalysisError('Could not start live camera viewfinder. You can use Gallery or the system camera option.');
+        }
       }
     }
   };
@@ -163,6 +159,17 @@ export const MealLogModal = ({
       await startLiveCamera(nextFacing);
     }
   };
+
+  // Sync state & cleanup on modal open/close (auto-start camera if opened via camera action)
+  useEffect(() => {
+    resetAllStates();
+    if (isOpen && initialTab === 'upload_image') {
+      startLiveCamera(cameraFacingMode, true);
+    }
+    return () => {
+      stopLiveCamera();
+    };
+  }, [isOpen, initialTab]);
 
   /**
    * Captures the current video frame into a downsampled, compressed JPEG.
@@ -769,6 +776,10 @@ export const MealLogModal = ({
                       Or use system camera app
                     </button>
                   </div>
+
+                  <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed pt-1">
+                    Tip: To stop permission prompts, tap the lock or <span className="font-semibold text-slate-400">aA</span> icon in your URL bar and set Camera to <span className="font-semibold text-slate-300">&ldquo;Always Allow&rdquo;</span>.
+                  </p>
                 </div>
               )}
             </div>
