@@ -23,7 +23,8 @@ import {
   Ruler,
   CheckCircle2,
   RefreshCw,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '../common/GlassCard.jsx';
@@ -39,7 +40,8 @@ import {
   getTargetForDate,
   calculateWeightTrend,
   synchronizeNutritionData,
-  sanitizeHouseholdPantry
+  sanitizeHouseholdPantry,
+  getFrequentUserFoods
 } from '../../utils/nutritionEngine.js';
 import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils.js';
 import { MealLogModal } from '../nutrition/MealLogModal';
@@ -430,6 +432,39 @@ const NutritionViewInner = ({
     });
 
     triggerImmediateCloudPush(80);
+  };
+
+  // Quick frequent staples mined from user's history (5+ logs) & core items
+  const frequentStaples = useMemo(() => {
+    return getFrequentUserFoods(meals, 5);
+  }, [meals]);
+
+  const handleLogQuickStaple = (staple) => {
+    if (!staple) return;
+    const mealDate = selectedDate || currentTodayIso;
+    const stapleItems = (Array.isArray(staple.items) && staple.items.length > 0)
+      ? staple.items
+      : [{
+          name: staple.baseFood || staple.name,
+          portion: staple.portion || '1 serving',
+          calories: staple.calories,
+          protein: staple.protein,
+          carbs: staple.carbs,
+          fats: staple.fats
+        }];
+
+    const mealEntry = createMealEntry({
+      date: mealDate,
+      name: staple.name,
+      slot: 'meal',
+      calories: staple.calories,
+      protein: staple.protein,
+      carbs: staple.carbs,
+      fats: staple.fats,
+      items: stapleItems
+    });
+
+    handleLogMeal(mealEntry);
   };
 
   // Background Meal Intelligence Queue (concurrent, non-blocking food analysis)
@@ -1118,6 +1153,29 @@ const NutritionViewInner = ({
               <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
               <span>Log</span>
             </button>
+          </div>
+
+          {/* Quick Frequent Staples (Eaten 5+ Times & Core Staples) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-1 px-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0 flex items-center gap-1 mr-1">
+              <Zap className="w-3 h-3 text-amber-400" />
+              <span>Quick:</span>
+            </span>
+            {frequentStaples.slice(0, 8).map(staple => (
+              <button
+                key={staple.id}
+                type="button"
+                onClick={() => handleLogQuickStaple(staple)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] active:scale-95 border border-white/5 hover:border-white/15 text-slate-300 hover:text-white text-xs transition-all shrink-0 cursor-pointer shadow-sm group"
+                title={`Quick log ${staple.name} (${staple.calories} kcal | ${staple.protein}g P)`}
+              >
+                <span>{staple.icon || '⚡'}</span>
+                <span className="font-medium">{staple.name}</span>
+                <span className="text-[10px] text-slate-500 group-hover:text-slate-400 font-mono">
+                  {staple.calories}k
+                </span>
+              </button>
+            ))}
           </div>
 
           {selectedDateMeals.length > 0 ? (

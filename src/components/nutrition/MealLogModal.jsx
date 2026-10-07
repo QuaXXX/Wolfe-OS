@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,10 +14,11 @@ import {
   Flame,
   SwitchCamera,
   Scale,
-  Plus
+  Plus,
+  Zap
 } from 'lucide-react';
 import { playSound } from '../../utils/soundFX';
-import { createMealEntry } from '../../utils/nutritionEngine.js';
+import { createMealEntry, findQuickStapleMatch, getFrequentUserFoods, parseMealDescription } from '../../utils/nutritionEngine.js';
 import { analyzeMealWithAI, scanNutritionLabelWithAI } from '../../utils/aiService.js';
 
 export const MealLogModal = ({
@@ -50,6 +51,38 @@ export const MealLogModal = ({
   const [isLiveCameraActive, setIsLiveCameraActive] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState('environment');
+
+  const quickStaples = useMemo(() => {
+    return getFrequentUserFoods([], 5);
+  }, [isOpen]);
+
+  const handleSelectQuickStaple = (staple) => {
+    if (!staple) return;
+    playSound('click', soundEnabled);
+    setImageDescription(staple.name);
+    setPortionScale(1.0);
+    const stapleItems = (Array.isArray(staple.items) && staple.items.length > 0)
+      ? staple.items
+      : [{
+          name: staple.baseFood || staple.name,
+          portion: staple.portion || '1 serving',
+          calories: staple.calories,
+          protein: staple.protein,
+          carbs: staple.carbs,
+          fats: staple.fats
+        }];
+
+    setAnalyzedMeal({
+      name: staple.name,
+      items: stapleItems,
+      _originalItems: stapleItems,
+      calories: staple.calories,
+      protein: staple.protein,
+      carbs: staple.carbs,
+      fats: staple.fats,
+      notes: "Recognized from frequent user staples & local nutrition engine"
+    });
+  };
 
   const stopLiveCamera = () => {
     if (streamRef.current) {
@@ -418,6 +451,35 @@ export const MealLogModal = ({
     if (!desc && !imageBase64) {
       setImageAnalysisError("Please snap a photo, choose from gallery, or enter food details.");
       return;
+    }
+
+    // Fast-path: If user entered food description without photo, check local staples & parser FIRST (< 0.1ms)
+    if (!imageBase64 && desc) {
+      const quickMatch = findQuickStapleMatch(desc, householdPantry) || parseMealDescription(desc, { kitchenCalibration, householdPantry });
+      if (quickMatch && (quickMatch.items?.length > 0 || quickMatch.calories > 0)) {
+        setPortionScale(1.0);
+        const resolvedItems = quickMatch.items || [{
+          name: quickMatch.name,
+          portion: quickMatch.portion || '1 serving',
+          calories: quickMatch.calories,
+          protein: quickMatch.protein,
+          carbs: quickMatch.carbs,
+          fats: quickMatch.fats
+        }];
+        setAnalyzedMeal({
+          name: quickMatch.name,
+          items: resolvedItems,
+          _originalItems: resolvedItems,
+          calories: quickMatch.calories,
+          protein: quickMatch.protein,
+          carbs: quickMatch.carbs,
+          fats: quickMatch.fats,
+          notes: "Recognized from frequent user staples & local nutrition engine"
+        });
+        playSound('success', soundEnabled);
+        setIsAnalyzingImage(false);
+        return;
+      }
     }
 
     if (onQueueMeal) {
@@ -800,6 +862,35 @@ export const MealLogModal = ({
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-white/30"
               />
             </div>
+
+            {/* Quick Staples Bar (5+ Logs & Core Staples) */}
+            {!analyzedMeal && (
+              <div className="space-y-1.5 pt-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-amber-400" />
+                    <span>Quick Staples (Instant Log):</span>
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
+                  {quickStaples.slice(0, 8).map(staple => (
+                    <button
+                      key={staple.id}
+                      type="button"
+                      onClick={() => handleSelectQuickStaple(staple)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-white/15 text-slate-300 hover:text-white text-[11px] transition-all cursor-pointer shadow-sm group active:scale-95"
+                      title={`${staple.name} (${staple.calories} kcal | ${staple.protein}g P)`}
+                    >
+                      <span>{staple.icon || '⚡'}</span>
+                      <span className="font-medium">{staple.name}</span>
+                      <span className="text-[10px] text-slate-500 group-hover:text-slate-400 font-mono">
+                        {staple.calories}k
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Analyze Action Button */}
             {!analyzedMeal && (

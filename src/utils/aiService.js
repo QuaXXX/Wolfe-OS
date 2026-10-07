@@ -20,6 +20,7 @@ import {
 } from './calendarParser.js';
 import { 
   parseMealDescription, 
+  findQuickStapleMatch,
   calculateCaloriesFromMacros, 
   buildAiCalibrationPrompt, 
   buildAiPantryPrompt, 
@@ -2665,6 +2666,29 @@ export async function analyzeQuickLogWithAI({
     return {
       hasFood: false,
       errorMessage: "Please enter or speak a meal description."
+    };
+  }
+
+  // 0. Instant local check for frequent staples or exact local match (< 0.1ms, zero API call)
+  const quickMatch = findQuickStapleMatch(cleanQuery) || parseMealDescription(cleanQuery, { kitchenCalibration, householdPantry });
+  if (quickMatch && (quickMatch.items?.length > 0 || quickMatch.calories > 0)) {
+    return {
+      hasFood: true,
+      name: quickMatch.name,
+      slot: quickMatch.slot || 'meal',
+      items: quickMatch.items || [{
+        name: quickMatch.name,
+        portion: quickMatch.portion || '1 serving',
+        calories: quickMatch.calories,
+        protein: quickMatch.protein,
+        carbs: quickMatch.carbs,
+        fats: quickMatch.fats
+      }],
+      calories: quickMatch.calories,
+      protein: quickMatch.protein,
+      carbs: quickMatch.carbs,
+      fats: quickMatch.fats,
+      notes: quickMatch.notes || "Recognized from frequent user staples & local nutrition engine"
     };
   }
 

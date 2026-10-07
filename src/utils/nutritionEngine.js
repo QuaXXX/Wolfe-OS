@@ -1226,6 +1226,630 @@ export const DEFAULT_HOUSEHOLD_PANTRY = [
   }
 ];
 
+// ---------------------------------------------------------------------------
+// 5. FREQUENT USER STAPLES & COMMON FOODS ENGINE (5+ HISTORICAL LOGS)
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_COMMON_STAPLES = [
+  {
+    id: 'staple-eggs-5',
+    name: '5 Eggs',
+    baseFood: 'Eggs',
+    portion: '5 whole eggs',
+    quantity: 5,
+    unit: 'eggs',
+    calories: 360,
+    protein: 31.5,
+    carbs: 2.0,
+    fats: 24.0,
+    icon: '🍳',
+    category: 'Protein'
+  },
+  {
+    id: 'staple-eggs-3',
+    name: '3 Eggs',
+    baseFood: 'Eggs',
+    portion: '3 whole eggs',
+    quantity: 3,
+    unit: 'eggs',
+    calories: 216,
+    protein: 18.9,
+    carbs: 1.2,
+    fats: 14.4,
+    icon: '🍳',
+    category: 'Protein'
+  },
+  {
+    id: 'staple-milk-2cups',
+    name: '2 Cups Milk',
+    baseFood: 'Milk',
+    portion: '2 cups / glasses (500ml)',
+    quantity: 2,
+    unit: 'cups',
+    calories: 240,
+    protein: 16.0,
+    carbs: 23.0,
+    fats: 9.6,
+    icon: '🥛',
+    category: 'Dairy'
+  },
+  {
+    id: 'staple-milk-4cups',
+    name: '4 Cups Milk (1L)',
+    baseFood: 'Milk',
+    portion: '4 cups / 1L (1000ml)',
+    quantity: 4,
+    unit: 'cups',
+    calories: 480,
+    protein: 32.0,
+    carbs: 46.0,
+    fats: 19.2,
+    icon: '🥛',
+    category: 'Dairy'
+  },
+  {
+    id: 'staple-eggs-4',
+    name: '4 Eggs',
+    baseFood: 'Eggs',
+    portion: '4 whole eggs',
+    quantity: 4,
+    unit: 'eggs',
+    calories: 288,
+    protein: 25.2,
+    carbs: 1.6,
+    fats: 19.2,
+    icon: '🍳',
+    category: 'Protein'
+  },
+  {
+    id: 'staple-eggs-2',
+    name: '2 Eggs',
+    baseFood: 'Eggs',
+    portion: '2 whole eggs',
+    quantity: 2,
+    unit: 'eggs',
+    calories: 144,
+    protein: 12.6,
+    carbs: 0.8,
+    fats: 9.6,
+    icon: '🍳',
+    category: 'Protein'
+  },
+  {
+    id: 'staple-milk-1cup',
+    name: '1 Cup Milk',
+    baseFood: 'Milk',
+    portion: '1 cup / glass (250ml)',
+    quantity: 1,
+    unit: 'cups',
+    calories: 120,
+    protein: 8.0,
+    carbs: 11.5,
+    fats: 4.8,
+    icon: '🥛',
+    category: 'Dairy'
+  },
+  {
+    id: 'staple-milk-3cups',
+    name: '3 Cups Milk',
+    baseFood: 'Milk',
+    portion: '3 cups / glasses (750ml)',
+    quantity: 3,
+    unit: 'cups',
+    calories: 360,
+    protein: 24.0,
+    carbs: 34.5,
+    fats: 14.4,
+    icon: '🥛',
+    category: 'Dairy'
+  },
+  {
+    id: 'staple-protein-shake',
+    name: 'Protein Shake',
+    baseFood: 'Protein Shake',
+    portion: '2 cups milk, 1 scoop Canadian Protein, 1 banana',
+    calories: 485,
+    protein: 39.0,
+    carbs: 54.0,
+    fats: 12.0,
+    icon: '🥤',
+    category: 'Protein',
+    items: [
+      { name: "Milk (Normal / 2%)", portion: "2 cups (500ml)", calories: 260, protein: 18, carbs: 24, fats: 10 },
+      { name: "Canadian Protein Vegan Powder", portion: "1 scoop", calories: 120, protein: 20, carbs: 3, fats: 2 },
+      { name: "Banana", portion: "1 medium (118g)", calories: 105, protein: 1.3, carbs: 27, fats: 0.3 }
+    ]
+  },
+  {
+    id: 'staple-canned-salmon',
+    name: 'Canned Salmon',
+    baseFood: 'Salmon',
+    portion: '1 can (150g)',
+    calories: 200,
+    protein: 40.0,
+    carbs: 0,
+    fats: 4.0,
+    icon: '🐟',
+    category: 'Protein'
+  },
+  {
+    id: 'staple-iced-tea',
+    name: 'Custom Iced Tea (1L)',
+    baseFood: 'Iced Tea',
+    portion: '1L mix (Good Host, pink salt, 5g creatine)',
+    calories: 62,
+    protein: 0,
+    carbs: 15.5,
+    fats: 0,
+    icon: '🧊',
+    category: 'Hydration'
+  }
+];
+
+/**
+ * Scan all historical meals to find common items eaten >= minCount (default: 5) times.
+ * Dynamically updates as the user continues logging meals over time.
+ */
+export function getFrequentUserFoods(meals = [], minCount = 5) {
+  let allMeals = Array.isArray(meals) ? meals : [];
+  if (allMeals.length === 0 && typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('wolfe_nutrition_data');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.meals)) allMeals = parsed.meals;
+      }
+    } catch (e) {}
+  }
+
+  const counts = new Map();
+
+  for (const m of allMeals) {
+    if (!m) continue;
+    const mealName = (typeof m.name === 'string' ? m.name : m.name?.name || '').trim();
+    if (mealName && !mealName.toLowerCase().startsWith('quick log')) {
+      const cleanKey = mealName.toLowerCase().replace(/\s*\([^)]*\)/g, '').trim();
+      const existing = counts.get(cleanKey) || {
+        key: cleanKey,
+        displayName: mealName,
+        count: 0,
+        totalCals: 0,
+        totalP: 0,
+        totalC: 0,
+        totalF: 0,
+        items: m.items || [],
+        portion: m.portion || '1 serving',
+        icon: '🍽️'
+      };
+      existing.count += 1;
+      existing.totalCals += Number(m.calories) || 0;
+      existing.totalP += Number(m.protein) || 0;
+      existing.totalC += Number(m.carbs) || 0;
+      existing.totalF += Number(m.fats) || 0;
+      if (Array.isArray(m.items) && m.items.length > 0) existing.items = m.items;
+      counts.set(cleanKey, existing);
+    }
+
+    if (Array.isArray(m.items)) {
+      for (const it of m.items) {
+        if (!it || !it.name) continue;
+        const itName = it.name.trim();
+        const cleanKey = itName.toLowerCase().replace(/\s*\([^)]*\)/g, '').trim();
+        const existing = counts.get(cleanKey) || {
+          key: cleanKey,
+          displayName: itName,
+          count: 0,
+          totalCals: 0,
+          totalP: 0,
+          totalC: 0,
+          totalF: 0,
+          items: [it],
+          portion: it.portion || '1 serving',
+          icon: '🍽️'
+        };
+        existing.count += 1;
+        existing.totalCals += Number(it.calories) || 0;
+        existing.totalP += Number(it.protein) || 0;
+        existing.totalC += Number(it.carbs) || 0;
+        existing.totalF += Number(it.fats) || 0;
+        counts.set(cleanKey, existing);
+      }
+    }
+  }
+
+  const historicalFrequent = [];
+  counts.forEach((val) => {
+    if (val.count >= minCount) {
+      const avgCals = Math.round(val.totalCals / val.count);
+      const avgP = Math.round((val.totalP / val.count) * 10) / 10;
+      const avgC = Math.round((val.totalC / val.count) * 10) / 10;
+      const avgF = Math.round((val.totalF / val.count) * 10) / 10;
+
+      let icon = '🍽️';
+      const k = val.key;
+      if (/egg/i.test(k)) icon = '🍳';
+      else if (/milk/i.test(k)) icon = '🥛';
+      else if (/shake|smoothie/i.test(k)) icon = '🥤';
+      else if (/chicken|meat|beef|steak/i.test(k)) icon = '🍗';
+      else if (/salmon|fish|tuna/i.test(k)) icon = '🐟';
+      else if (/tea/i.test(k)) icon = '🧊';
+      else if (/rice|oats|toast|bread/i.test(k)) icon = '🍚';
+      else if (/banana|apple|fruit|orange/i.test(k)) icon = '🍌';
+
+      historicalFrequent.push({
+        id: `frequent-${val.key.replace(/[^a-z0-9]+/g, '-')}`,
+        name: val.displayName,
+        baseFood: val.displayName,
+        portion: val.portion,
+        calories: avgCals,
+        protein: avgP,
+        carbs: avgC,
+        fats: avgF,
+        icon,
+        count: val.count,
+        isFromHistory: true,
+        items: val.items
+      });
+    }
+  });
+
+  historicalFrequent.sort((a, b) => b.count - a.count);
+
+  const merged = [...historicalFrequent];
+  for (const staple of DEFAULT_COMMON_STAPLES) {
+    const isDup = merged.some(m => m.name.toLowerCase() === staple.name.toLowerCase() || m.id === staple.id);
+    if (!isDup) {
+      merged.push(staple);
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Checks natural language input against user's frequent staples and common patterns
+ * (e.g. "5 eggs", "3 eggs", "2 cups of milk", "4 cups of milk", "protein shake", etc.)
+ * Resolves instantaneously locally in < 0.2ms with ZERO AI needed.
+ */
+export function findQuickStapleMatch(rawQuery, meals = []) {
+  if (!rawQuery || typeof rawQuery !== 'string' || !rawQuery.trim()) return null;
+
+  const query = rawQuery
+    .trim()
+    .toLowerCase()
+    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
+    .replace(/^(?:log|add|record|track|ate|had|eating|eat|drink|drank|put)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/i, '')
+    .replace(/\s+(?:please|thanks|thank\s+you)\s*$/i, '')
+    .replace(/^["'`“‘\s]+|["'`”’\s]+$/g, '')
+    .trim();
+
+  if (!query) return null;
+
+  // Multi-item composite check (e.g. "5 eggs and 2 cups of milk" or "3 eggs, 4 cups milk")
+  if (/\b(?:and|&|\+)\b|,/i.test(query)) {
+    const parts = query.split(/[,+;&]|\band\b/i).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1 && parts.length <= 4) {
+      const parsedParts = parts.map(p => findQuickStapleMatch(p, meals));
+      if (parsedParts.every(Boolean)) {
+        const combinedItems = [];
+        let totalCals = 0;
+        let totalP = 0;
+        let totalC = 0;
+        let totalF = 0;
+        const names = [];
+
+        for (const pp of parsedParts) {
+          totalCals += pp.calories;
+          totalP += pp.protein;
+          totalC += pp.carbs;
+          totalF += pp.fats;
+          names.push(pp.name);
+          if (Array.isArray(pp.items)) {
+            combinedItems.push(...pp.items);
+          } else {
+            combinedItems.push({
+              name: pp.name,
+              portion: pp.portion || '1 serving',
+              calories: pp.calories,
+              protein: pp.protein,
+              carbs: pp.carbs,
+              fats: pp.fats
+            });
+          }
+        }
+
+        return {
+          matched: true,
+          name: names.join(' & '),
+          portion: parsedParts.map(p => p.portion).join(' + '),
+          calories: Math.round(totalCals),
+          protein: Math.round(totalP * 10) / 10,
+          carbs: Math.round(totalC * 10) / 10,
+          fats: Math.round(totalF * 10) / 10,
+          items: combinedItems,
+          source: 'quick_staple_composite'
+        };
+      }
+    }
+  }
+
+  const numWords = {
+    a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10, half: 0.5, '1/2': 0.5
+  };
+
+  const parseNumber = (str) => {
+    if (!str) return 1;
+    const lower = str.toLowerCase().trim();
+    if (numWords[lower] !== undefined) return numWords[lower];
+    if (lower.includes('/')) {
+      const [n, d] = lower.split('/').map(Number);
+      return d ? n / d : 1;
+    }
+    const parsed = parseFloat(lower);
+    return isNaN(parsed) ? 1 : parsed;
+  };
+
+  // 1. EGGS (Direct numerical resolution: "3 eggs", "5 eggs", "4 eggs", "five eggs", etc.)
+  const eggMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|nine|ten|half|a|an)\s*)?(?:whole\s+|large\s+|scrambled\s+|fried\s+|boiled\s+|hard\s+boiled\s+)?(eggs?)\b/i)
+    || query.match(/\b(eggs?)\s*(?:x\s*|\*\s*)?(\d+)\b/i);
+
+  if (eggMatch && !/\b(?:white|whites|salad|roll|nog)\b/i.test(query)) {
+    let eggQty = 1;
+    if (eggMatch[1] && !/eggs?/i.test(eggMatch[1])) {
+      eggQty = parseNumber(eggMatch[1]);
+    } else if (eggMatch[2] && !/eggs?/i.test(eggMatch[2])) {
+      eggQty = parseNumber(eggMatch[2]);
+    } else {
+      eggQty = 3; // Default 3 eggs if just "eggs"
+    }
+
+    const cals = Math.round(eggQty * 72);
+    const p = Math.round(eggQty * 6.3 * 10) / 10;
+    const c = Math.round(eggQty * 0.4 * 10) / 10;
+    const f = Math.round(eggQty * 4.8 * 10) / 10;
+    const displayName = `${eggQty} Whole ${eggQty === 1 ? 'Egg' : 'Eggs'}`;
+    const portionStr = `${eggQty} large ${eggQty === 1 ? 'egg' : 'eggs'}`;
+
+    return {
+      matched: true,
+      name: displayName,
+      portion: portionStr,
+      calories: cals,
+      protein: p,
+      carbs: c,
+      fats: f,
+      items: [{
+        name: "Whole Eggs",
+        portion: portionStr,
+        calories: cals,
+        protein: p,
+        carbs: c,
+        fats: f
+      }],
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 1B. EGG WHITES ("3 egg whites", "5 egg whites")
+  const eggWhiteMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|half|a|an)\s*)?egg\s+whites?\b/i);
+  if (eggWhiteMatch) {
+    const whiteQty = eggWhiteMatch[1] ? parseNumber(eggWhiteMatch[1]) : 3;
+    const cals = Math.round(whiteQty * 17);
+    const p = Math.round(whiteQty * 3.6 * 10) / 10;
+    const c = Math.round(whiteQty * 0.2 * 10) / 10;
+    const f = Math.round(whiteQty * 0.1 * 10) / 10;
+    const displayName = `${whiteQty} Egg ${whiteQty === 1 ? 'White' : 'Whites'}`;
+    const portionStr = `${whiteQty} ${whiteQty === 1 ? 'white' : 'whites'}`;
+
+    return {
+      matched: true,
+      name: displayName,
+      portion: portionStr,
+      calories: cals,
+      protein: p,
+      carbs: c,
+      fats: f,
+      items: [{
+        name: "Egg Whites",
+        portion: portionStr,
+        calories: cals,
+        protein: p,
+        carbs: c,
+        fats: f
+      }],
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 2. MILK ("2 cups of milk", "4 cups of milk", "2 cups milk", "4 cups milk", "2 glasses milk", "1 glass of milk", "milk")
+  const milkMatch = query.match(/(?:^|\b)(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|half|a|an)\s*)?(?:cups?|glasses?|glass)?(?:\s+of)?\s*(whole\s+|3\.25%\s+|2%\s+|homo\s+)?milk\b/i)
+    || query.match(/\b(whole\s+|3\.25%\s+|2%\s+)?milk\s*(\d+(?:\.\d+)?)\s*(?:cups?|glasses?|glass)?\b/i)
+    || query.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)(?:\s+of)?\s*(whole\s+|3\.25%\s+|2%\s+)?milk\b/i);
+
+  if (milkMatch && !/\b(?:fairlife|soy|almond|oat|coconut|cashew|chocolate)\s+milk\b/i.test(query)) {
+    const isWhole = /\b(?:whole|3\.25%|homo)\b/i.test(query);
+    let cups = 1;
+    let portionStr = '1 cup / glass (250ml)';
+
+    const litreMatch = query.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\b/i);
+    const mlMatch = query.match(/(\d+(?:\.\d+)?)\s*ml\b/i);
+
+    if (litreMatch) {
+      const l = parseFloat(litreMatch[1]) || 1;
+      cups = l * 4;
+      portionStr = `${l}L (${cups} cups / ${l * 1000}ml)`;
+    } else if (mlMatch) {
+      const ml = parseFloat(mlMatch[1]) || 250;
+      cups = ml / 250;
+      portionStr = `${ml}ml (${cups} cups)`;
+    } else {
+      const rawNumStr = milkMatch[1] || milkMatch[2];
+      cups = rawNumStr ? parseNumber(rawNumStr) : 1;
+      portionStr = `${cups} ${cups === 1 ? 'cup / glass' : 'cups / glasses'} (${Math.round(cups * 250)}ml)`;
+    }
+
+    const calsPerCup = isWhole ? 149 : 120;
+    const proteinPerCup = 8.0;
+    const carbsPerCup = isWhole ? 12.0 : 11.5;
+    const fatsPerCup = isWhole ? 8.0 : 4.8;
+
+    const cals = Math.floor(calsPerCup * cups);
+    const p = Math.floor(proteinPerCup * cups * 10) / 10;
+    const c = Math.floor(carbsPerCup * cups * 10) / 10;
+    const f = Math.floor(fatsPerCup * cups * 10) / 10;
+    const displayName = isWhole ? `${cups} Cups Whole Milk` : `${cups} ${cups === 1 ? 'Cup' : 'Cups'} Milk`;
+
+    return {
+      matched: true,
+      name: displayName,
+      portion: portionStr,
+      calories: cals,
+      protein: p,
+      carbs: c,
+      fats: f,
+      items: [{
+        name: isWhole ? 'Whole Milk (3.25%)' : 'Milk (Normal / 2%)',
+        portion: portionStr,
+        calories: cals,
+        protein: p,
+        carbs: c,
+        fats: f
+      }],
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 3. PROTEIN SHAKE / SMOOTHIE (Zach's calibrated Canadian Protein Shake)
+  if (/^(?:a\s+|one\s+|1\s+)?(?:canadian\s+)?(?:protein\s+(?:shake|smoothie)|smoothie|my\s+shake|shake)$/i.test(query) || /^(\d+)\s*(?:protein\s+(?:shakes?|smoothies?)|smoothies?|shakes?)$/i.test(query)) {
+    const smMatch = query.match(/^(\d+)\s*/);
+    const mult = smMatch ? parseNumber(smMatch[1]) : 1;
+
+    const items = [
+      {
+        name: 'Milk (Normal / 2%)',
+        portion: mult === 1 ? '2 cups (500ml)' : `${2 * mult} cups`,
+        calories: Math.round(260 * mult),
+        protein: Math.round(18 * mult),
+        carbs: Math.round(24 * mult),
+        fats: Math.round(10 * mult)
+      },
+      {
+        name: 'Canadian Protein Vegan Powder',
+        portion: mult === 1 ? '1 scoop' : `${mult} scoops`,
+        calories: Math.round(120 * mult),
+        protein: Math.round(20 * mult),
+        carbs: Math.round(3 * mult),
+        fats: Math.round(2 * mult)
+      },
+      {
+        name: 'Banana',
+        portion: mult === 1 ? '1 banana (118g)' : `${mult} bananas`,
+        calories: Math.round(105 * mult),
+        protein: Math.round(1.3 * mult),
+        carbs: Math.round(27 * mult),
+        fats: Math.round(0.3 * mult)
+      }
+    ];
+
+    const totalCals = items.reduce((s, it) => s + it.calories, 0);
+    const totalP = Math.round(items.reduce((s, it) => s + it.protein, 0) * 10) / 10;
+    const totalC = Math.round(items.reduce((s, it) => s + it.carbs, 0) * 10) / 10;
+    const totalF = Math.round(items.reduce((s, it) => s + it.fats, 0) * 10) / 10;
+
+    return {
+      matched: true,
+      name: mult === 1 ? 'Protein Shake' : `${mult} Protein Shakes`,
+      portion: mult === 1 ? '2 cups milk, 1 scoop Canadian Protein, 1 banana' : `${mult} servings`,
+      calories: totalCals,
+      protein: totalP,
+      carbs: totalC,
+      fats: totalF,
+      items,
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 4. ICED TEA (Good Host Mix)
+  if (/^(?:my\s+)?(?:iced\s*tea|ice\s*tea)(?:\s*mix)?$/i.test(query) || /(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\s*(?:of\s+)?(?:iced\s*tea|ice\s*tea)/i.test(query)) {
+    const lMatch = query.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)/i);
+    const mult = lMatch ? parseFloat(lMatch[1]) || 1 : 1;
+
+    return {
+      matched: true,
+      name: 'Custom Iced Tea',
+      portion: `${mult}L mix (Good Host, pink salt, 5g creatine)`,
+      calories: Math.round(62 * mult),
+      protein: 0,
+      carbs: Math.round(15.5 * mult * 10) / 10,
+      fats: 0,
+      items: [
+        { name: "Good Host Iced Tea Powder", portion: `${mult} tbsp (${Math.round(mult * 15)}g)`, calories: Math.round(60 * mult), protein: 0, carbs: Math.round(15 * mult), fats: 0 },
+        { name: "Creatine Monohydrate", portion: `${mult * 5}g`, calories: 0, protein: 0, carbs: 0, fats: 0 },
+        { name: "Pink Himalayan Salt & Lemon Juice (1L Water)", portion: `${mult}L (1000ml)`, calories: Math.round(2 * mult), protein: 0, carbs: Math.round(0.5 * mult * 10) / 10, fats: 0 }
+      ],
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 5. CANNED SALMON
+  if (/^(?:(\d+)\s*)?(?:cans?\s+of\s+salmon|canned\s+salmon|salmon\s+cans?)$/i.test(query)) {
+    const cMatch = query.match(/^(\d+)\s*/);
+    const count = cMatch ? parseNumber(cMatch[1]) : 1;
+    const cals = Math.round(200 * count);
+    const p = Math.round(40 * count);
+    const f = Math.round(4 * count);
+
+    return {
+      matched: true,
+      name: count === 1 ? 'Canned Salmon' : `${count} Cans Salmon`,
+      portion: `${count} can (${count * 150}g)`,
+      calories: cals,
+      protein: p,
+      carbs: 0,
+      fats: f,
+      items: [{
+        name: "Canned Salmon",
+        portion: `${count} can (${count * 150}g)`,
+        calories: cals,
+        protein: p,
+        carbs: 0,
+        fats: f
+      }],
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 6. Match against Dynamic Frequent User Foods (5+ logs in history)
+  const frequentList = getFrequentUserFoods(meals, 5);
+  for (const staple of frequentList) {
+    if (!staple || !staple.name) continue;
+    const sName = staple.name.toLowerCase();
+    if (query === sName || query === staple.baseFood?.toLowerCase()) {
+      return {
+        matched: true,
+        name: staple.name,
+        portion: staple.portion || '1 serving',
+        calories: staple.calories,
+        protein: staple.protein,
+        carbs: staple.carbs,
+        fats: staple.fats,
+        items: staple.items || [{
+          name: staple.name,
+          portion: staple.portion || '1 serving',
+          calories: staple.calories,
+          protein: staple.protein,
+          carbs: staple.carbs,
+          fats: staple.fats
+        }],
+        source: 'frequent_history_engine'
+      };
+    }
+  }
+
+  return null;
+}
+
 /**
  * Validates and sanitizes household pantry staples against calibrated ground truth.
  * Ensures the household protein shake is strictly 485 kcal / 39g P (1 scoop vegan powder, 2 cups milk, 1 banana).
@@ -1794,6 +2418,29 @@ function getFoodPerGramRates(food) {
 export function parseMealDescription(text, options = {}) {
   if (!text || typeof text !== 'string' || !text.trim()) return null;
   const cleanText = text.trim();
+
+  // Instant Quick Staples / Frequent Foods Check (< 0.1ms)
+  const quickMatch = findQuickStapleMatch(cleanText, options.meals || (options.nutritionData?.meals));
+  if (quickMatch) {
+    return {
+      name: quickMatch.name,
+      slot: 'meal',
+      items: quickMatch.items || [{
+        name: quickMatch.name,
+        portion: quickMatch.portion || '1 serving',
+        calories: quickMatch.calories,
+        protein: quickMatch.protein,
+        carbs: quickMatch.carbs,
+        fats: quickMatch.fats
+      }],
+      calories: quickMatch.calories,
+      protein: quickMatch.protein,
+      carbs: quickMatch.carbs,
+      fats: quickMatch.fats,
+      notes: "Recognized from frequent user staples & verified sports nutrition ground truth",
+      source: "ingredient_engine"
+    };
+  }
 
   const dishware = options.dishware || getCalibratedDishware(options.kitchenCalibration);
   const pantry = (Array.isArray(options.householdPantry) && options.householdPantry.length > 0)

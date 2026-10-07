@@ -6,7 +6,7 @@ import {
   deleteGoogleCalendarEvent, 
   isGoogleCalendarConnected
 } from './googleCalendarService.js';
-import { parseMealDescription, createMealEntry, aggregateDailyNutrition, isFoodLogQuery, isFoodRemovalQuery } from './nutritionEngine.js';
+import { parseMealDescription, createMealEntry, aggregateDailyNutrition, isFoodLogQuery, isFoodRemovalQuery, findQuickStapleMatch } from './nutritionEngine.js';
 import { recordAdditionOrUpdate, recordDeletion, triggerImmediateCloudPush, markLocalMutation } from './cloudSyncEngine.js';
 
 // Color theme hue mappings
