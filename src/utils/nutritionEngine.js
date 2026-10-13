@@ -307,14 +307,16 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:whole\s+eggs?|eggs?)\b/i,
+    regex: /(?<!egg\s+)\b(?:whole\s+eggs?|eggs?)(?!\s*(?:sandwich(?:es)?|wrap|burrito|bagel|muffin|noodles?|soup|fried\s+rice|salad|roll|nog|toast|bacon|cheese))\b/i,
     name: "Whole Eggs",
     defaultUnit: "eggs",
     defaultQty: 3,
+    per100g: { calories: 143, protein: 12.6, carbs: 0.8, fats: 9.6 },
     perUnit: {
       egg: { calories: 72, protein: 6.3, carbs: 0.4, fats: 4.8 },
       eggs: { calories: 72, protein: 6.3, carbs: 0.4, fats: 4.8 },
-      large: { calories: 72, protein: 6.3, carbs: 0.4, fats: 4.8 }
+      large: { calories: 72, protein: 6.3, carbs: 0.4, fats: 4.8 },
+      g: { calories: 1.43, protein: 0.126, carbs: 0.008, fats: 0.096 }
     }
   },
   {
@@ -342,7 +344,65 @@ export const INGREDIENT_DATABASE = [
     }
   },
   {
-    regex: /\b(?:white\s+rice|jasmine\s+rice|basmati\s+rice|rice)\b/i,
+    regex: /\b(?:rice\s*(?:krispies?|crispies?)(?:\s+cereal)?|crispy\s+rice(?:\s+cereal)?)\b/i,
+    name: "Rice Krispies Cereal",
+    defaultUnit: "cup",
+    defaultQty: 1.5,
+    per100g: { calories: 382, protein: 6.4, carbs: 87, fats: 1.0 },
+    perUnit: {
+      g: { calories: 3.82, protein: 0.064, carbs: 0.87, fats: 0.01 },
+      cup: { calories: 87, protein: 1.5, carbs: 20, fats: 0.2 },
+      cups: { calories: 87, protein: 1.5, carbs: 20, fats: 0.2 },
+      bowl: { calories: 175, protein: 3.0, carbs: 40, fats: 0.4 },
+      bowls: { calories: 175, protein: 3.0, carbs: 40, fats: 0.4 },
+      serving: { calories: 130, protein: 2.2, carbs: 30, fats: 0.3 },
+      servings: { calories: 130, protein: 2.2, carbs: 30, fats: 0.3 }
+    }
+  },
+  {
+    regex: /\b(?:rice\s*cakes?)\b/i,
+    name: "Rice Cakes",
+    defaultUnit: "cake",
+    defaultQty: 2,
+    per100g: { calories: 387, protein: 8.0, carbs: 82, fats: 2.8 },
+    perUnit: {
+      cake: { calories: 35, protein: 0.7, carbs: 7.3, fats: 0.3 },
+      cakes: { calories: 35, protein: 0.7, carbs: 7.3, fats: 0.3 },
+      piece: { calories: 35, protein: 0.7, carbs: 7.3, fats: 0.3 },
+      pieces: { calories: 35, protein: 0.7, carbs: 7.3, fats: 0.3 },
+      g: { calories: 3.87, protein: 0.08, carbs: 0.82, fats: 0.028 }
+    }
+  },
+  {
+    regex: /\b(?:fried\s+rice)\b/i,
+    name: "Fried Rice",
+    defaultUnit: "cups",
+    defaultQty: 1.5,
+    per100g: { calories: 168, protein: 4.5, carbs: 27, fats: 5.0 },
+    perUnit: {
+      cup: { calories: 240, protein: 6.5, carbs: 38, fats: 7.0 },
+      cups: { calories: 240, protein: 6.5, carbs: 38, fats: 7.0 },
+      bowl: { calories: 480, protein: 13, carbs: 76, fats: 14 },
+      bowls: { calories: 480, protein: 13, carbs: 76, fats: 14 },
+      g: { calories: 1.68, protein: 0.045, carbs: 0.27, fats: 0.05 }
+    }
+  },
+  {
+    regex: /\b(?:cauliflower\s+rice)\b/i,
+    name: "Cauliflower Rice",
+    defaultUnit: "cup",
+    defaultQty: 1,
+    per100g: { calories: 25, protein: 1.9, carbs: 5.0, fats: 0.3 },
+    perUnit: {
+      cup: { calories: 25, protein: 1.9, carbs: 5.0, fats: 0.3 },
+      cups: { calories: 25, protein: 1.9, carbs: 5.0, fats: 0.3 },
+      bowl: { calories: 50, protein: 3.8, carbs: 10.0, fats: 0.6 },
+      bowls: { calories: 50, protein: 3.8, carbs: 10.0, fats: 0.6 },
+      g: { calories: 0.25, protein: 0.019, carbs: 0.05, fats: 0.003 }
+    }
+  },
+  {
+    regex: /(?<!cauliflower\s+|fried\s+)\b(?:white\s+rice|jasmine\s+rice|basmati\s+rice|rice)(?!\s*(?:krispies?|crispies?|cakes?|pudding|noodles?|paper|flour|cereal|vinegar|syrup|chex|treats?))\b/i,
     name: "White Rice (Cooked)",
     defaultUnit: "cups",
     defaultQty: 1.5,
@@ -1591,10 +1651,10 @@ export function findQuickStapleMatch(rawQuery, meals = []) {
   };
 
   // 1. EGGS (Direct numerical resolution: "3 eggs", "5 eggs", "4 eggs", "five eggs", etc.)
-  const eggMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|nine|ten|half|a|an)\s*)?(?:whole\s+|large\s+|scrambled\s+|fried\s+|boiled\s+|hard\s+boiled\s+)?(eggs?)\b/i)
-    || query.match(/\b(eggs?)\s*(?:x\s*|\*\s*)?(\d+)\b/i);
+  const eggMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|nine|ten|half|a|an)\s*)?(?:whole\s+|large\s+|scrambled\s+|fried\s+|boiled\s+|hard\s+boiled\s+|poached\s+)?(eggs?)$/i)
+    || query.match(/^(eggs?)\s*(?:x\s*|\*\s*)?(\d+)$/i);
 
-  if (eggMatch && !/\b(?:white|whites|salad|roll|nog)\b/i.test(query)) {
+  if (eggMatch && !/\b(?:white|whites|salad|roll|nog|sandwich|wrap|burrito|bagel|muffin|noodles?|soup|fried\s+rice|toast)\b/i.test(query)) {
     let eggQty = 1;
     if (eggMatch[1] && !/eggs?/i.test(eggMatch[1])) {
       eggQty = parseNumber(eggMatch[1]);
@@ -1632,7 +1692,7 @@ export function findQuickStapleMatch(rawQuery, meals = []) {
   }
 
   // 1B. EGG WHITES ("3 egg whites", "5 egg whites")
-  const eggWhiteMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|half|a|an)\s*)?egg\s+whites?\b/i);
+  const eggWhiteMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|half|a|an)\s*)?egg\s+whites?$/i);
   if (eggWhiteMatch) {
     const whiteQty = eggWhiteMatch[1] ? parseNumber(eggWhiteMatch[1]) : 3;
     const cals = Math.round(whiteQty * 17);
@@ -1663,11 +1723,11 @@ export function findQuickStapleMatch(rawQuery, meals = []) {
   }
 
   // 2. MILK ("2 cups of milk", "4 cups of milk", "2 cups milk", "4 cups milk", "2 glasses milk", "1 glass of milk", "milk")
-  const milkMatch = query.match(/(?:^|\b)(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|half|a|an)\s*)?(?:cups?|glasses?|glass)?(?:\s+of)?\s*(whole\s+|3\.25%\s+|2%\s+|homo\s+)?milk\b/i)
-    || query.match(/\b(whole\s+|3\.25%\s+|2%\s+)?milk\s*(\d+(?:\.\d+)?)\s*(?:cups?|glasses?|glass)?\b/i)
-    || query.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)(?:\s+of)?\s*(whole\s+|3\.25%\s+|2%\s+)?milk\b/i);
+  const milkMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|half|a|an)\s*)?(?:cups?|glasses?|glass)?(?:\s+of)?\s*(whole\s+|3\.25%\s+|2%\s+|homo\s+)?milk$/i)
+    || query.match(/^(whole\s+|3\.25%\s+|2%\s+)?milk\s*(\d+(?:\.\d+)?)\s*(?:cups?|glasses?|glass)?$/i)
+    || query.match(/^(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?|ml)(?:\s+of)?\s*(whole\s+|3\.25%\s+|2%\s+)?milk$/i);
 
-  if (milkMatch && !/\b(?:fairlife|soy|almond|oat|coconut|cashew|chocolate)\s+milk\b/i.test(query)) {
+  if (milkMatch && !/\b(?:fairlife|soy|almond|oat|coconut|cashew|chocolate|tea|shake|bar|candy)\b/i.test(query)) {
     const isWhole = /\b(?:whole|3\.25%|homo)\b/i.test(query);
     let cups = 1;
     let portionStr = '1 cup / glass (250ml)';
@@ -2859,7 +2919,8 @@ export function parseMealDescription(text, options = {}) {
   }
 
   const rawClauses = stripped
-    .replace(/(?<=[a-zA-Z])\s+(?=\d+(?:\.\d+)?|\d+\/\d+)/g, ', ')
+    .replace(/(?<=\b\d+(?:\.\d+)?\s*(?:g|grams?|oz|ounces?|cups?|glasses?|tbsp|tablespoons?|tsp|teaspoons?|scoops?|slices?|pieces?|cans?|bars?|bowls?|plates?|eggs?|whites?))\s+(?=(?:\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|half)\b)/gi, ', ')
+    .replace(/(?<=[a-zA-Z]+\s+\d+(?:\.\d+)?\s*(?:g|grams?|oz|ounces?|cups?|glasses?|tbsp|tablespoons?|tsp|teaspoons?|scoops?|slices?|pieces?|cans?|bars?|bowls?|plates?))\s+(?=(?!and\b|with\b|plus\b|w\/)[a-zA-Z]+\s+\d)/gi, ', ')
     .split(/[,+;\n]|\band\b|\bplus\b|\bwith\b|\bw\//i)
     .map(c => c.trim())
     .filter(c => {
