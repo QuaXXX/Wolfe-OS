@@ -1585,52 +1585,10 @@ export function findQuickStapleMatch(rawQuery, meals = []) {
 
   if (!query) return null;
 
-  // Multi-item composite check (e.g. "5 eggs and 2 cups of milk" or "3 eggs, 4 cups milk")
-  if (/\b(?:and|&|\+)\b|,/i.test(query)) {
-    const parts = query.split(/[,+;&]|\band\b/i).map(s => s.trim()).filter(Boolean);
-    if (parts.length > 1 && parts.length <= 4) {
-      const parsedParts = parts.map(p => findQuickStapleMatch(p, meals));
-      if (parsedParts.every(Boolean)) {
-        const combinedItems = [];
-        let totalCals = 0;
-        let totalP = 0;
-        let totalC = 0;
-        let totalF = 0;
-        const names = [];
-
-        for (const pp of parsedParts) {
-          totalCals += pp.calories;
-          totalP += pp.protein;
-          totalC += pp.carbs;
-          totalF += pp.fats;
-          names.push(pp.name);
-          if (Array.isArray(pp.items)) {
-            combinedItems.push(...pp.items);
-          } else {
-            combinedItems.push({
-              name: pp.name,
-              portion: pp.portion || '1 serving',
-              calories: pp.calories,
-              protein: pp.protein,
-              carbs: pp.carbs,
-              fats: pp.fats
-            });
-          }
-        }
-
-        return {
-          matched: true,
-          name: names.join(' & '),
-          portion: parsedParts.map(p => p.portion).join(' + '),
-          calories: Math.round(totalCals),
-          protein: Math.round(totalP * 10) / 10,
-          carbs: Math.round(totalC * 10) / 10,
-          fats: Math.round(totalF * 10) / 10,
-          items: combinedItems,
-          source: 'quick_staple_composite'
-        };
-      }
-    }
+  // STRICT STANDALONE RULE: If the query contains multiple items, conjunctions, or combo connectors (and, with, plus, &, +, comma, w/),
+  // it is NOT a single clear staple. DO NOT attempt to piece it together locally. Let AI evaluate the entire meal!
+  if (/\b(?:and|with|plus|w\/)\b|[,+;&]/i.test(query)) {
+    return null;
   }
 
   const numWords = {
@@ -1692,9 +1650,11 @@ export function findQuickStapleMatch(rawQuery, meals = []) {
   }
 
   // 1B. EGG WHITES ("3 egg whites", "5 egg whites")
-  const eggWhiteMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|half|a|an)\s*)?egg\s+whites?$/i);
+  const eggWhiteMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|four|five|six|seven|eight|half|a|an)\s*)?egg\s+whites?$/i)
+    || query.match(/^egg\s+whites?\s*(?:x\s*|\*\s*)?(\d+)$/i);
   if (eggWhiteMatch) {
-    const whiteQty = eggWhiteMatch[1] ? parseNumber(eggWhiteMatch[1]) : 3;
+    const rawVal = eggWhiteMatch[1] || eggWhiteMatch[2];
+    const whiteQty = rawVal ? parseNumber(rawVal) : 3;
     const cals = Math.round(whiteQty * 17);
     const p = Math.round(whiteQty * 3.6 * 10) / 10;
     const c = Math.round(whiteQty * 0.2 * 10) / 10;
@@ -1732,8 +1692,8 @@ export function findQuickStapleMatch(rawQuery, meals = []) {
     let cups = 1;
     let portionStr = '1 cup / glass (250ml)';
 
-    const litreMatch = query.match(/(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\b/i);
-    const mlMatch = query.match(/(\d+(?:\.\d+)?)\s*ml\b/i);
+    const litreMatch = query.match(/^(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\b/i);
+    const mlMatch = query.match(/^(\d+(?:\.\d+)?)\s*ml\b/i);
 
     if (litreMatch) {
       const l = parseFloat(litreMatch[1]) || 1;
@@ -1777,6 +1737,123 @@ export function findQuickStapleMatch(rawQuery, meals = []) {
         fats: f
       }],
       source: 'quick_staple_engine'
+    };
+  }
+
+  // 3. RICE (ONLY if query is strictly standalone white/jasmine/basmati/plain rice with or without grams or cups)
+  // If the query contains ANY other words (e.g. "rice crispies", "rice cakes", "rice pudding", "rice with ___"), DO NOT match!
+  const riceGramMatch = query.match(/^(?:(\d+(?:\.\d+)?)\s*(?:g|grams?)\s+(?:of\s+)?)?(?:white\s+|cooked\s+|jasmine\s+|basmati\s+)?rice(?:\s+(\d+(?:\.\d+)?)\s*(?:g|grams?))?$/i);
+  const riceCupMatch = query.match(/^(?:(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|half|a|an)\s*)?(?:cups?|bowls?)(?:\s+of)?\s*(?:white\s+|cooked\s+|jasmine\s+|basmati\s+)?rice$/i)
+    || query.match(/^(?:white\s+|cooked\s+|jasmine\s+|basmati\s+)?rice\s+(\d+(?:\.\d+)?|\d+\/\d+|one|two|three|half)\s*(?:cups?|bowls?)$/i);
+  const plainRiceMatch = query.match(/^(?:white\s+|cooked\s+|jasmine\s+|basmati\s+)?rice$/i);
+
+  if ((riceGramMatch && (riceGramMatch[1] || riceGramMatch[2])) || riceCupMatch || plainRiceMatch) {
+    let grams = null;
+    let cups = null;
+
+    if (riceGramMatch && (riceGramMatch[1] || riceGramMatch[2])) {
+      grams = parseFloat(riceGramMatch[1] || riceGramMatch[2]);
+    } else if (riceCupMatch) {
+      const rawC = riceCupMatch[1];
+      cups = rawC ? parseNumber(rawC) : 1;
+    } else {
+      cups = 1.5; // Default 1.5 cups cooked if just "rice"
+    }
+
+    let cals, p, c, f, portionStr;
+    if (grams !== null) {
+      // 1.30 kcal/g, 0.027g P, 0.28g C, 0.003g F
+      cals = Math.round(grams * 1.30);
+      p = Math.round(grams * 0.027 * 10) / 10;
+      c = Math.round(grams * 0.28 * 10) / 10;
+      f = Math.round(grams * 0.003 * 10) / 10;
+      portionStr = `${grams}g`;
+    } else {
+      // 1 cup cooked = ~205 kcal, 4.2g P, 45g C, 0.4g F
+      cals = Math.round(cups * 205);
+      p = Math.round(cups * 4.2 * 10) / 10;
+      c = Math.round(cups * 45 * 10) / 10;
+      f = Math.round(cups * 0.4 * 10) / 10;
+      portionStr = `${cups} ${cups === 1 ? 'cup' : 'cups'} cooked`;
+    }
+
+    return {
+      matched: true,
+      name: "White Rice",
+      portion: portionStr,
+      calories: cals,
+      protein: p,
+      carbs: c,
+      fats: f,
+      items: [{
+        name: "White Rice (Cooked)",
+        portion: portionStr,
+        calories: cals,
+        protein: p,
+        carbs: c,
+        fats: f
+      }],
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 4. CHICKEN BREAST (ONLY if query is strictly standalone cooked/grilled chicken breast with or without grams)
+  const chickenGramMatch = query.match(/^(?:(\d+(?:\.\d+)?)\s*(?:g|grams?)\s+(?:of\s+)?)?(?:cooked\s+|grilled\s+)?chicken(?:\s*breast)?(?:\s+(\d+(?:\.\d+)?)\s*(?:g|grams?))?$/i);
+  const plainChickenMatch = query.match(/^(?:cooked\s+|grilled\s+)?chicken(?:\s*breast)?$/i);
+
+  if ((chickenGramMatch && (chickenGramMatch[1] || chickenGramMatch[2])) || plainChickenMatch) {
+    const grams = (chickenGramMatch && (chickenGramMatch[1] || chickenGramMatch[2]))
+      ? parseFloat(chickenGramMatch[1] || chickenGramMatch[2])
+      : 200; // Default 200g cooked breast
+
+    // Chicken breast per 100g: 165 kcal, 31g P, 0g C, 3.6g F
+    const cals = Math.round(grams * 1.65);
+    const p = Math.round(grams * 0.31 * 10) / 10;
+    const c = 0;
+    const f = Math.round(grams * 0.036 * 10) / 10;
+    const portionStr = `${grams}g`;
+
+    return {
+      matched: true,
+      name: "Chicken Breast",
+      portion: portionStr,
+      calories: cals,
+      protein: p,
+      carbs: c,
+      fats: f,
+      items: [{
+        name: "Chicken Breast (Cooked)",
+        portion: portionStr,
+        calories: cals,
+        protein: p,
+        carbs: c,
+        fats: f
+      }],
+      source: 'quick_staple_engine'
+    };
+  }
+
+  // 5. DIRECT CALORIE ENTRY (e.g. "500 calories", "400 cals")
+  const calOnlyMatch = query.match(/^(\d+)\s*(?:cals?|calories|kcal)$/i);
+  if (calOnlyMatch) {
+    const specifiedCals = parseInt(calOnlyMatch[1], 10);
+    return {
+      matched: true,
+      name: `Quick Log (${specifiedCals} kcal)`,
+      portion: '1 serving',
+      calories: specifiedCals,
+      protein: 0,
+      carbs: 0,
+      fats: 0,
+      items: [{
+        name: `Quick Log (${specifiedCals} kcal)`,
+        portion: '1 serving',
+        calories: specifiedCals,
+        protein: 0,
+        carbs: 0,
+        fats: 0
+      }],
+      source: 'quick_calorie_log'
     };
   }
 

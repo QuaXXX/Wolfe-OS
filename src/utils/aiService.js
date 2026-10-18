@@ -2669,8 +2669,9 @@ export async function analyzeQuickLogWithAI({
     };
   }
 
-  // 0. Instant local check for frequent staples or exact local match (< 0.1ms, zero API call)
-  const quickMatch = findQuickStapleMatch(cleanQuery) || parseMealDescription(cleanQuery, { kitchenCalibration, householdPantry });
+  // 0. Instant local check for unambiguous standalone staples (< 0.1ms, zero API call).
+  // If it's a composite meal, descriptive text, or less common food, proceed to Gemini AI.
+  const quickMatch = findQuickStapleMatch(cleanQuery, householdPantry);
   if (quickMatch && (quickMatch.items?.length > 0 || quickMatch.calories > 0)) {
     return {
       hasFood: true,

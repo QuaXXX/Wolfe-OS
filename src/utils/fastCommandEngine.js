@@ -572,10 +572,8 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
       : text.replace(/^(?:log|add|record|track|ate|had|eating|eat|put)\s+(?:food|meal|breakfast|lunch|dinner|snack)?\s*[:\-]?\s*/i, '').trim();
 
     if (!rawFoodPhrase.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock)\b/i)) {
-      const parsedMeal = parseMealDescription(rawFoodPhrase, {
-        kitchenCalibration: nutritionData?.kitchenCalibration || osData?.nutritionData?.kitchenCalibration,
-        householdPantry: nutritionData?.householdPantry || osData?.nutritionData?.householdPantry
-      });
+      const parsedMeal = findQuickStapleMatch(rawFoodPhrase, nutritionData?.householdPantry || osData?.nutritionData?.householdPantry)
+        || ((/\b\d+\s*(?:cals?|calories|kcal)\b/i.test(rawFoodPhrase)) ? parseMealDescription(rawFoodPhrase) : null);
 
       if (parsedMeal && parsedMeal.items && parsedMeal.items.length > 0) {
         let slot = 'meal';
@@ -719,10 +717,10 @@ export function tryExecuteFastCommand(rawText, ctx = {}) {
     };
   }
 
-  // Direct food utterance without prefix: "1 peanutbutter toast", "quinoa, cottagecheese, kale, chickpea and sweet potato bowl"
+  // Direct food utterance without prefix (ONLY unambiguous standalone staples: e.g. "5 eggs", "2 cups milk", "rice 50g")
   if (!text.match(/\b(?:task|todo|deadline|event|meeting|class|workout|gym|trade|stock|water|theme|color|accent|mode|screen|view|brief|position)\b/i)) {
-    const directMeal = parseMealDescription(text);
-    if (directMeal && directMeal.items && directMeal.items.length > 0 && directMeal.source === "ingredient_engine") {
+    const directMeal = findQuickStapleMatch(text, nutritionData?.householdPantry || osData?.nutritionData?.householdPantry);
+    if (directMeal && directMeal.items && directMeal.items.length > 0) {
       const todayIso = getTodayIso();
       const mealEntry = createMealEntry({
         date: todayIso,

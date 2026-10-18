@@ -420,9 +420,10 @@ export const MealLogModal = ({
       return;
     }
 
-    // Fast-path: If user entered food description without photo, check local staples & parser FIRST (< 0.1ms)
+    // Fast-path: ONLY for simple, clear, standalone quick staples (< 0.1ms).
+    // If it's a composite meal, less common food, or descriptive text, skip local defaults and let AI analyze it.
     if (!imageBase64 && desc) {
-      const quickMatch = findQuickStapleMatch(desc, householdPantry) || parseMealDescription(desc, { kitchenCalibration, householdPantry });
+      const quickMatch = findQuickStapleMatch(desc, householdPantry);
       if (quickMatch && (quickMatch.items?.length > 0 || quickMatch.calories > 0)) {
         setPortionScale(1.0);
         const resolvedItems = quickMatch.items || [{
