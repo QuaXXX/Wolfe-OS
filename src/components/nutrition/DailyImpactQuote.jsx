@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getOrRotateActiveQuote } from '../../utils/quoteService';
+import { getOrRotateActiveQuote, getRemainingMsInWindow } from '../../utils/quoteService';
 
 /**
  * Minimalist Daily Quote
@@ -10,16 +10,35 @@ import { getOrRotateActiveQuote } from '../../utils/quoteService';
 export const DailyImpactQuote = ({ className = '' }) => {
   const [quote, setQuote] = useState(() => getOrRotateActiveQuote());
 
-  // Check periodically for 3-hour window auto-rotation
+  // Schedule exact timer for the next 3-hour rotation window instead of 30s polling
   useEffect(() => {
-    const interval = setInterval(() => {
-      const active = getOrRotateActiveQuote();
-      if (active && active.id !== quote?.id) {
-        setQuote(active);
-      }
-    }, 30000); // Check every 30s
+    let timerId = null;
 
-    return () => clearInterval(interval);
+    const scheduleNextRotation = () => {
+      const delayMs = Math.max(5000, getRemainingMsInWindow() + 250);
+      timerId = setTimeout(() => {
+        const active = getOrRotateActiveQuote();
+        if (active) setQuote(active);
+        scheduleNextRotation();
+      }, delayMs);
+    };
+
+    scheduleNextRotation();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const active = getOrRotateActiveQuote();
+        if (active && active.id !== quote?.id) {
+          setQuote(active);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [quote?.id]);
 
   if (!quote) return null;

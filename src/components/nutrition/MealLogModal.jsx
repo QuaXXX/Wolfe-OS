@@ -239,7 +239,7 @@ export const MealLogModal = ({
    * completely bypassing 50-megapixel uncompressed bitmap RAM allocation (drops peak RAM from ~200MB to ~3MB).
    * Automatically frees image bitmap and canvas context buffers immediately.
    */
-  const compressAndResizeImage = async (file, maxDimension = 800, quality = 0.70) => {
+  const compressAndResizeImage = async (file, maxDimension = 1024, quality = 0.78) => {
     if (!file) throw new Error('No file provided');
     if (file.type && !file.type.startsWith('image/')) {
       throw new Error('File is not an image');
@@ -250,20 +250,10 @@ export const MealLogModal = ({
       throw new Error('Image file is too large (>30MB). Please select a standard JPEG or PNG photo.');
     }
 
-    // Pipeline A: High-performance native streaming createImageBitmap (Available in Chrome, Edge, Safari 15+, Firefox)
+    // Pipeline A: High-performance native createImageBitmap with single-pass aspect-preserving canvas scaling
     if (typeof window !== 'undefined' && typeof window.createImageBitmap === 'function') {
       try {
-        let bitmap = null;
-        try {
-          // Hardware downsampling during stream decode directly to maxDimension
-          bitmap = await window.createImageBitmap(file, {
-            resizeWidth: maxDimension,
-            resizeQuality: 'medium'
-          });
-        } catch (optionsErr) {
-          // Fallback to plain createImageBitmap if browser doesn't support resize options dictionary
-          bitmap = await window.createImageBitmap(file);
-        }
+        const bitmap = await window.createImageBitmap(file);
 
         if (bitmap) {
           let width = bitmap.width;
@@ -295,6 +285,8 @@ export const MealLogModal = ({
             throw new Error('Canvas context unavailable');
           }
 
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(bitmap, 0, 0, width, height);
           const base64 = canvas.toDataURL('image/jpeg', quality);
 
@@ -306,7 +298,7 @@ export const MealLogModal = ({
           return { base64, mimeType: 'image/jpeg' };
         }
       } catch (streamErr) {
-        console.warn('createImageBitmap streaming decode failed, using fallback reader:', streamErr);
+        console.warn('createImageBitmap decode failed, using fallback reader:', streamErr);
       }
     }
 
@@ -390,8 +382,8 @@ export const MealLogModal = ({
     playSound('click', soundEnabled);
 
     try {
-      // 800px at 0.70 quality: fast upload & token inference for Gemini Vision food recognition while preventing mobile OOM
-      const compressed = await compressAndResizeImage(file, 800, 0.70);
+      // 1024px at 0.78 quality: sharp vessel rims & food textures for Gemini Vision while preventing mobile OOM
+      const compressed = await compressAndResizeImage(file, 1024, 0.78);
       setImageBase64(compressed.base64);
       setImageMimeType(compressed.mimeType);
       setImageAnalysisError(null);

@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { TopBar } from './components/layout/TopBar';
 import { BackgroundGlow } from './components/layout/BackgroundGlow';
-import { ComingSoonModal } from './components/common/ComingSoonModal';
-import { UndoActionPopup } from './components/common/UndoActionPopup';
 import { playSound } from './utils/soundFX';
 import { getTodayIso } from './utils/calendarUtils';
 import { synchronizeNutritionData, aggregateDailyNutrition } from './utils/nutritionEngine.js';
 import { 
-  recordDeletion, 
   recordAdditionOrUpdate, 
   markLocalMutation 
 } from './utils/cloudSyncEngine';
@@ -36,7 +33,7 @@ const NutritionView = resilientLazy(() => import('./components/views/NutritionVi
 const SettingsModal = resilientLazy(() => import('./components/layout/SettingsModal').then(m => ({ default: m.SettingsModal })));
 
 // Mock Initial Data
-import { INITIAL_USER, INITIAL_NUTRITION_DATA } from './utils/mockData';
+import { INITIAL_NUTRITION_DATA } from './utils/mockData';
 
 // Error Boundary
 class ViewErrorBoundary extends React.Component {
@@ -144,8 +141,6 @@ const DEFAULT_SETTINGS = {
 
 export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [comingSoonData, setComingSoonData] = useState(null);
-  const [undoAction, setUndoAction] = useState(null);
 
   // Mark root rendered on mount
   useEffect(() => {
@@ -191,6 +186,28 @@ export function App() {
     return synchronizeNutritionData(INITIAL_NUTRITION_DATA);
   });
 
+  // Listen to background cloud sync pulls so React state stays in sync with localStorage
+  useEffect(() => {
+    const handleCloudSyncApplied = (e) => {
+      const merged = e?.detail;
+      if (merged?.nutritionData) {
+        setNutritionData(synchronizeNutritionData(merged.nutritionData));
+      }
+      if (merged?.settings && typeof merged.settings === 'object') {
+        setSettings(prev => ({
+          ...prev,
+          ...merged.settings,
+          aiConfig: {
+            ...prev.aiConfig,
+            ...(merged.settings.aiConfig || {})
+          }
+        }));
+      }
+    };
+    window.addEventListener('wolfe-cloud-sync-applied', handleCloudSyncApplied);
+    return () => window.removeEventListener('wolfe-cloud-sync-applied', handleCloudSyncApplied);
+  }, []);
+
   // Auto-detect day rollover across midnight, window focus, visibility change for nutrition
   useEffect(() => {
     const checkDayRollover = () => {
@@ -203,9 +220,6 @@ export function App() {
           synced.consumedCalories !== prev.consumedCalories ||
           synced.meals !== prev.meals
         ) {
-          try {
-            localStorage.setItem('wolfe_nutrition_data', JSON.stringify(synced));
-          } catch (e) {}
           return synced;
         }
         return prev;
@@ -226,18 +240,27 @@ export function App() {
     };
   }, []);
 
-  // Save settings & nutrition changes to localStorage
-  const isFirstMountRef = useRef(true);
+  // Save nutrition & settings independently so slider adjustments never re-serialize nutritionData
+  const isFirstNutritionMountRef = useRef(true);
   useEffect(() => {
-    if (isFirstMountRef.current) {
-      isFirstMountRef.current = false;
+    if (isFirstNutritionMountRef.current) {
+      isFirstNutritionMountRef.current = false;
       return;
     }
     safeSetItem('wolfe_nutrition_data', JSON.stringify(nutritionData));
-    safeSetItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
-  }, [nutritionData, settings]);
+  }, [nutritionData]);
 
-  // Dynamically update CSS root variables and tab favicon when accentHue changes
+  const isFirstSettingsMountRef = useRef(true);
+  useEffect(() => {
+    if (isFirstSettingsMountRef.current) {
+      isFirstSettingsMountRef.current = false;
+      return;
+    }
+    safeSetItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+  }, [settings]);
+
+  // Dynamically update CSS root variables immediately, and debounce favicon Blob URL updates with cleanup
+  const lastFaviconBlobUrlRef = useRef(null);
   useEffect(() => {
     const hue = settings.accentHue || 222;
     document.documentElement.style.setProperty('--accent-hue', hue);
@@ -246,51 +269,43 @@ export function App() {
     document.documentElement.style.setProperty('--accent-border', `hsla(${hue}, 95%, 58%, 0.25)`);
     document.documentElement.style.setProperty('--accent-glow', `hsla(${hue}, 95%, 58%, 0.35)`);
 
-    try {
-      const color = `hsl(${hue}, 95%, 58%)`;
-      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-        <rect width="24" height="24" rx="6" fill="#08090d" />
-        <rect width="24" height="24" rx="6" stroke="${color}" stroke-width="0.8" stroke-opacity="0.4" fill="none" />
-        <path fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M5.5 5.5L8.5 11L4.5 13.5L5.5 5.5Z" />
-        <path fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M18.5 5.5L15.5 11L19.5 13.5L18.5 5.5Z" />
-        <path stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M8.5 11L12 8L15.5 11" />
-        <path fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M9 13.5L12 19L15 13.5L12 11.5L9 13.5Z" />
-        <path stroke="${color}" stroke-width="1.6" stroke-linecap="round" d="M4.5 13.5L9 13.5" />
-        <path stroke="${color}" stroke-width="1.6" stroke-linecap="round" d="M19.5 13.5L15 13.5" />
-      </svg>`;
-      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
-      const blobUrl = URL.createObjectURL(blob);
-      let link = document.querySelector("link[rel*='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.type = 'image/svg+xml';
-        link.rel = 'shortcut icon';
-        document.getElementsByTagName('head')[0].appendChild(link);
-      }
-      link.href = blobUrl;
-    } catch (e) {}
+    const timer = setTimeout(() => {
+      try {
+        const color = `hsl(${hue}, 95%, 58%)`;
+        const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+          <rect width="24" height="24" rx="6" fill="#08090d" />
+          <rect width="24" height="24" rx="6" stroke="${color}" stroke-width="0.8" stroke-opacity="0.4" fill="none" />
+          <path fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M5.5 5.5L8.5 11L4.5 13.5L5.5 5.5Z" />
+          <path fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M18.5 5.5L15.5 11L19.5 13.5L18.5 5.5Z" />
+          <path stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M8.5 11L12 8L15.5 11" />
+          <path fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M9 13.5L12 19L15 13.5L12 11.5L9 13.5Z" />
+          <path stroke="${color}" stroke-width="1.6" stroke-linecap="round" d="M4.5 13.5L9 13.5" />
+          <path stroke="${color}" stroke-width="1.6" stroke-linecap="round" d="M19.5 13.5L15 13.5" />
+        </svg>`;
+        const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+        const blobUrl = URL.createObjectURL(blob);
+        if (lastFaviconBlobUrlRef.current) {
+          URL.revokeObjectURL(lastFaviconBlobUrlRef.current);
+        }
+        lastFaviconBlobUrlRef.current = blobUrl;
+        let link = document.querySelector("link[rel*='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.type = 'image/svg+xml';
+          link.rel = 'shortcut icon';
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = blobUrl;
+      } catch (e) {}
+    }, 120);
+
+    return () => clearTimeout(timer);
   }, [settings.accentHue]);
 
   const handleResetSettings = () => {
     playSound('switch', settings.soundEnabled);
     setSettings(DEFAULT_SETTINGS);
     safeSetItem(STORAGE_KEY_SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
-  };
-
-  const handleToggleSound = () => {
-    const nextSound = !settings.soundEnabled;
-    playSound('switch', nextSound);
-    setSettings(prev => ({ ...prev, soundEnabled: nextSound }));
-  };
-
-  const handleOpenComingSoon = (featureData) => {
-    playSound('pop', settings.soundEnabled);
-    setComingSoonData(featureData);
-  };
-
-  const handleCloseComingSoon = () => {
-    playSound('click', settings.soundEnabled);
-    setComingSoonData(null);
   };
 
   // Dedicated Target Adjustment Handler (updates calories, protein, carbs, fats)
@@ -312,7 +327,7 @@ export function App() {
         }
       };
 
-      const next = {
+      return {
         ...base,
         targetCalories,
         protein: {
@@ -330,16 +345,10 @@ export function App() {
         dailyTargets: updatedDailyTargets,
         updatedAt: Date.now()
       };
-
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(next));
-      } catch (e) {}
-
-      return next;
     });
   };
 
-  // Global Food Logging Handler (triggered from voice in TopBar)
+  // Global Food Logging Handler
   const handleLogMeal = useCallback((mealEntry) => {
     playSound('success', settings.soundEnabled);
     const today = getTodayIso();
@@ -356,16 +365,7 @@ export function App() {
 
     setNutritionData(prev => {
       const base = (prev && typeof prev === 'object') ? prev : {};
-      let storageMeals = [];
-      try {
-        const raw = localStorage.getItem('wolfe_nutrition_data');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed?.meals)) storageMeals = parsed.meals;
-        }
-      } catch (e) {}
-
-      const combined = [stampedMeal, ...(base.meals || []), ...storageMeals];
+      const combined = [stampedMeal, ...(base.meals || [])];
       const mealMap = new Map();
       combined.forEach(m => {
         if (m && m.id && !mealMap.has(m.id)) {
@@ -376,7 +376,7 @@ export function App() {
       const todayMeals = nextMeals.filter(m => m && m.date === today);
       const todayTotals = aggregateDailyNutrition(todayMeals);
 
-      const nextData = {
+      return {
         ...base,
         currentDate: today,
         consumedCalories: todayTotals.calories,
@@ -386,49 +386,18 @@ export function App() {
         meals: nextMeals,
         updatedAt: Date.now()
       };
-
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-      } catch (e) {}
-
-      return nextData;
     });
   }, [settings.soundEnabled]);
-
-  // Undo Action Handler for deleted meals
-  const handleUndoAction = (action) => {
-    if (!action) return;
-    playSound('switch', settings.soundEnabled);
-
-    if (action.mealRestored) {
-      handleLogMeal(action.mealRestored);
-    }
-    setUndoAction(null);
-  };
 
   return (
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-white/20">
       {/* Background Ambient Glow */}
-      <BackgroundGlow accentHue={settings.accentHue} />
+      <BackgroundGlow hue={settings.accentHue} />
 
       {/* Top Application Bar */}
       <TopBar 
         soundEnabled={settings.soundEnabled}
-        onToggleSound={handleToggleSound}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        aiConfig={settings.aiConfig}
-        osData={{
-          settings,
-          nutritionData,
-          setSettings,
-          setNutritionData,
-          onLogMeal: handleLogMeal
-        }}
-        onOpenMealLogModal={() => {
-          // Trigger meal log modal inside nutrition view via dispatch
-          window.dispatchEvent(new CustomEvent('wolfe-open-meal-modal'));
-        }}
-        onLogMeal={handleLogMeal}
       />
 
       {/* Primary Viewport: Macro & Nutrition Tracker */}
@@ -439,22 +408,12 @@ export function App() {
               nutritionData={nutritionData}
               setNutritionData={setNutritionData}
               settings={settings}
-              user={INITIAL_USER}
               onOpenSettings={() => setIsSettingsOpen(true)}
-              onOpenComingSoon={handleOpenComingSoon}
               soundEnabled={settings.soundEnabled}
             />
           </Suspense>
         </ViewErrorBoundary>
       </main>
-
-      {/* Persistent Undo Action Toast Popup */}
-      <UndoActionPopup 
-        undoAction={undoAction}
-        onUndo={handleUndoAction}
-        onDismiss={() => setUndoAction(null)}
-        soundEnabled={settings.soundEnabled}
-      />
 
       {/* Macro Targets & App Settings Drawer */}
       {isSettingsOpen && (
@@ -471,14 +430,6 @@ export function App() {
           />
         </Suspense>
       )}
-
-      {/* Reusable Coming Soon Feature Preview Modal */}
-      <ComingSoonModal 
-        isOpen={!!comingSoonData}
-        onClose={handleCloseComingSoon}
-        soundEnabled={settings.soundEnabled}
-        {...comingSoonData}
-      />
     </div>
   );
 }

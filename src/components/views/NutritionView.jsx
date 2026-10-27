@@ -2,42 +2,24 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   UtensilsCrossed, 
   Plus, 
-  Camera, 
-  Clock, 
   Scale, 
-  TrendingUp, 
-  Flame, 
   Check, 
   Trash2, 
   ChevronRight, 
   ChevronLeft, 
   ChevronDown,
   ChevronUp,
-  Calendar as CalendarIcon, 
   CheckCheck, 
   History,
-  AlertCircle,
-  BookmarkPlus,
-  Edit3,
-  Barcode,
-  Ruler,
-  CheckCircle2,
-  RefreshCw,
-  X
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '../common/GlassCard.jsx';
 import { playSound } from '../../utils/soundFX.js';
 import { 
   aggregateDailyNutrition, 
-  calculateMovingAverageWeight, 
-  calculateWeightVelocity, 
-  createMealEntry,
   DEFAULT_HOUSEHOLD_PANTRY,
-  getCalibrationProgress,
-  filterMealsByDate,
   getTargetForDate,
-  calculateWeightTrend,
   synchronizeNutritionData,
   sanitizeHouseholdPantry
 } from '../../utils/nutritionEngine.js';
@@ -45,27 +27,26 @@ import { getTodayIso, formatDateTitle, addDays } from '../../utils/calendarUtils
 import { MealLogModal } from '../nutrition/MealLogModal';
 import { useBackgroundMealQueue, BackgroundMealNotifications } from '../nutrition/BackgroundMealQueue';
 import { WeightTrackerModal } from '../nutrition/WeightTrackerModal';
-import { KitchenCalibrationModal } from '../nutrition/KitchenCalibrationModal';
 import { NutritionHistoryModal } from '../nutrition/NutritionHistoryModal';
 import { DailyImpactQuote } from '../nutrition/DailyImpactQuote';
-import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush, syncFullOsWithCloud, isLocalMutationRecent } from '../../utils/cloudSyncEngine.js';
+import { recordDeletion, recordAdditionOrUpdate, markLocalMutation, triggerImmediateCloudPush } from '../../utils/cloudSyncEngine.js';
+
+const WEEKDAY_FORMATTER = typeof Intl !== 'undefined' ? new Intl.DateTimeFormat('en-US', { weekday: 'short' }) : null;
+const MONTH_FORMATTER = typeof Intl !== 'undefined' ? new Intl.DateTimeFormat('en-US', { month: 'short' }) : null;
 
 const NutritionViewInner = ({ 
   nutritionData, 
   setNutritionData, 
   settings = {},
-  onOpenComingSoon, 
   soundEnabled = true 
 }) => {
   // Modals state
   const [isMealModalOpen, setIsMealModalOpen] = useState(false);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
-  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
-  const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [expandedMealIds, setExpandedMealIds] = useState(() => new Set());
 
-  // Listen for global open meal modal event (e.g. from TopBar Quick Log button)
+  // Listen for global open meal modal event
   useEffect(() => {
     const handleOpen = () => {
       playSound('click', soundEnabled);
@@ -85,7 +66,6 @@ const NutritionViewInner = ({
     });
   };
 
-
   // Date Navigation State: Dynamic today tracking that automatically updates on new day / midnight / window focus
   const [currentTodayIso, setCurrentTodayIso] = useState(() => getTodayIso());
   const [selectedDate, setSelectedDate] = useState(() => getTodayIso());
@@ -99,7 +79,6 @@ const NutritionViewInner = ({
       const freshToday = getTodayIso();
       setCurrentTodayIso(prev => {
         if (prev !== freshToday) {
-          // If the user was viewing today, automatically advance to the new day
           setSelectedDate(currSel => (currSel === prev ? freshToday : currSel));
           return freshToday;
         }
@@ -107,14 +86,11 @@ const NutritionViewInner = ({
       });
     };
 
-    // Check immediately on window focus (phone wake / tab return)
     window.addEventListener('focus', checkRollover);
     const handleVis = () => {
       if (document.visibilityState === 'visible') checkRollover();
     };
     document.addEventListener('visibilitychange', handleVis);
-
-    // Periodic check every 30 seconds
     const interval = setInterval(checkRollover, 30000);
 
     return () => {
@@ -138,8 +114,8 @@ const NutritionViewInner = ({
         days.push({
           dateIso,
           dayNumber: d.getDate(),
-          dayName: d.toLocaleDateString('en-US', { weekday: 'short' }) || 'Day',
-          monthName: d.toLocaleDateString('en-US', { month: 'short' }) || ''
+          dayName: WEEKDAY_FORMATTER ? WEEKDAY_FORMATTER.format(d) : d.toLocaleDateString('en-US', { weekday: 'short' }),
+          monthName: MONTH_FORMATTER ? MONTH_FORMATTER.format(d) : d.toLocaleDateString('en-US', { month: 'short' })
         });
       }
       return days;
@@ -173,7 +149,7 @@ const NutritionViewInner = ({
     } catch (e) {}
   }, [selectedDate]);
 
-  // Synchronize nutrition on mount and date rollover to guarantee proper day boundaries
+  // Synchronize nutrition on date rollover to guarantee proper day boundaries
   useEffect(() => {
     const safeData = (nutritionData && typeof nutritionData === 'object') ? nutritionData : {};
     const synced = synchronizeNutritionData(safeData, currentTodayIso);
@@ -187,54 +163,8 @@ const NutritionViewInner = ({
       if (typeof setNutritionData === 'function') {
         setNutritionData(synced);
       }
-      try {
-        localStorage.setItem('wolfe_nutrition_data', JSON.stringify(synced));
-      } catch (e) {}
     }
   }, [currentTodayIso]);
-
-  // Listen for sync events & handle manual cloud sync
-  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
-  const [syncFeedback, setSyncFeedback] = useState(null); // 'synced' | 'error' | null
-
-  useEffect(() => {
-    const handleSyncStatus = (e) => {
-      if (e.detail?.status === 'syncing') {
-        setIsSyncingCloud(true);
-      } else {
-        setTimeout(() => setIsSyncingCloud(false), 500);
-      }
-    };
-    window.addEventListener('wolfe-cloud-sync-status', handleSyncStatus);
-
-    return () => {
-      window.removeEventListener('wolfe-cloud-sync-status', handleSyncStatus);
-    };
-  }, []);
-
-  const handleTriggerCloudSync = async () => {
-    playSound('click', soundEnabled);
-    setIsSyncingCloud(true);
-    setSyncFeedback(null);
-    try {
-      // Execute a guaranteed bidirectional force sync bypassing conditional caching
-      const res = await syncFullOsWithCloud({ forceSync: true, silent: false });
-      if (res && res.success) {
-        playSound('success', soundEnabled);
-        setSyncFeedback('synced');
-        setTimeout(() => setSyncFeedback(null), 2500);
-      } else {
-        setSyncFeedback('error');
-        setTimeout(() => setSyncFeedback(null), 3000);
-      }
-    } catch (e) {
-      console.warn("Manual nutrition cloud sync notice:", e);
-      setSyncFeedback('error');
-      setTimeout(() => setSyncFeedback(null), 3000);
-    } finally {
-      setIsSyncingCloud(false);
-    }
-  };
 
   const handlePrevDay = () => {
     playSound('switch', soundEnabled);
@@ -259,13 +189,26 @@ const NutritionViewInner = ({
   const targetProtein = Number(safeNutritionData.protein?.target) || 180;
   const targetCarbs = Number(safeNutritionData.carbs?.target) || 400;
   const targetFats = Number(safeNutritionData.fats?.target) || 75;
-  const targetWaterMl = Number(safeNutritionData.targetWaterMl) || 3000;
-  const waterMl = Number(safeNutritionData.waterMl) || 0;
 
   const rawMeals = Array.isArray(safeNutritionData.meals) ? safeNutritionData.meals : [];
   const meals = useMemo(() => {
     return rawMeals.filter(m => m && typeof m === 'object' && m.date);
   }, [rawMeals]);
+
+  // Pre-compute O(1) lookup map of aggregated daily totals by dateIso for the 34-day strip
+  const mealsTotalsByDate = useMemo(() => {
+    const map = new Map();
+    for (const m of meals) {
+      const d = m.date;
+      if (!map.has(d)) map.set(d, []);
+      map.get(d).push(m);
+    }
+    const totalsMap = new Map();
+    map.forEach((dayMeals, d) => {
+      totalsMap.set(d, aggregateDailyNutrition(dayMeals));
+    });
+    return totalsMap;
+  }, [meals]);
 
   const rawWeightHistory = Array.isArray(safeNutritionData.weightHistory) ? safeNutritionData.weightHistory : [];
   const weightHistory = useMemo(() => {
@@ -294,22 +237,6 @@ const NutritionViewInner = ({
   const activeTargetCarbs = activeDayTarget?.carbs || targetCarbs || 450;
   const activeTargetFats = activeDayTarget?.fats || targetFats || 80;
 
-  // Target modal form state
-  const [customCalories, setCustomCalories] = useState(activeTargetCalories);
-  const [customProtein, setCustomProtein] = useState(activeTargetProtein);
-  const [customCarbs, setCustomCarbs] = useState(activeTargetCarbs);
-  const [customFats, setCustomFats] = useState(activeTargetFats);
-  const [applyAsDefault, setApplyAsDefault] = useState(true);
-
-  // Synchronize custom target fields with active targets whenever selectedDate or modal opens
-  useEffect(() => {
-    setCustomCalories(activeTargetCalories);
-    setCustomProtein(activeTargetProtein);
-    setCustomCarbs(activeTargetCarbs);
-    setCustomFats(activeTargetFats);
-    setApplyAsDefault(selectedDate >= currentTodayIso);
-  }, [activeTargetCalories, activeTargetProtein, activeTargetCarbs, activeTargetFats, isTargetModalOpen, selectedDate, currentTodayIso]);
-
   const isPastDay = selectedDate < currentTodayIso;
   const pastDaySummary = safeNutritionData.dailySummaries?.[selectedDate];
 
@@ -335,33 +262,13 @@ const NutritionViewInner = ({
       }
       return { calories: 0, protein: 0, carbs: 0, fats: 0, mealCount: 0 };
     }
-    return aggregateDailyNutrition(selectedDateMeals);
-  }, [isPastDay, pastDaySummary, selectedDateMeals]);
-
-  const weightTrend14 = useMemo(() => {
-    return calculateWeightTrend(weightHistory, 14);
-  }, [weightHistory]);
+    return mealsTotalsByDate.get(selectedDate) || { calories: 0, protein: 0, carbs: 0, fats: 0, mealCount: 0 };
+  }, [isPastDay, pastDaySummary, selectedDateMeals, mealsTotalsByDate, selectedDate]);
 
   const remainingCals = activeTargetCalories - (dailyTotals?.calories || 0);
   const calPercent = activeTargetCalories > 0
     ? Math.min(100, Math.round(((dailyTotals?.calories || 0) / activeTargetCalories) * 100))
     : 0;
-
-  // Weight statistics
-  const movingAvgWeight = useMemo(() => {
-    return calculateMovingAverageWeight(weightHistory, 7);
-  }, [weightHistory]);
-
-  const weightVelocity = useMemo(() => {
-    return calculateWeightVelocity(weightHistory);
-  }, [weightHistory]);
-
-  // Kitchen Hardware Calibration Progress
-  const calibrationProgress = useMemo(() => {
-    return getCalibrationProgress(safeNutritionData?.kitchenCalibration);
-  }, [safeNutritionData?.kitchenCalibration]);
-
-  
 
   const latestWeightLog = useMemo(() => {
     if (!weightHistory.length) return null;
@@ -546,128 +453,41 @@ const NutritionViewInner = ({
     triggerImmediateCloudPush(80);
   };
 
-  // Quick calorie target adjuster: adjusts draft value in edit modal
-  const handleAdjustTargetCalories = (delta) => {
-    playSound('click', soundEnabled);
-    const current = parseInt(customCalories, 10) || activeTargetCalories;
-    const nextVal = Math.max(1500, Math.min(6500, current + delta));
-    setCustomCalories(nextVal);
-  };
-
   const handleApplySurplus = (newTarget) => {
     playSound('success', soundEnabled);
     markLocalMutation();
 
-    let currentNut = safeNutritionData || {};
-    try {
-      const raw = localStorage.getItem('wolfe_nutrition_data');
-      if (raw) currentNut = JSON.parse(raw);
-    } catch (e) {}
-
-    const nextData = {
-      ...currentNut,
-      targetCalories: newTarget,
-      dailyTargets: {
-        ...(currentNut.dailyTargets || {}),
-        [selectedDate]: {
-          ...getTargetForDate(currentNut, selectedDate),
-          calories: newTarget
-        }
-      },
-      updatedAt: Date.now()
-    };
-    try {
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-    } catch (e) {}
-
-    setNutritionData(nextData);
+    setNutritionData(prev => {
+      const currentNut = (prev && typeof prev === 'object') ? prev : {};
+      return {
+        ...currentNut,
+        targetCalories: newTarget,
+        dailyTargets: {
+          ...(currentNut.dailyTargets || {}),
+          [selectedDate]: {
+            ...getTargetForDate(currentNut, selectedDate),
+            calories: newTarget
+          }
+        },
+        updatedAt: Date.now()
+      };
+    });
     triggerImmediateCloudPush(80);
-  };
-
-  // Save custom targets from modal
-  const handleSaveCustomTargets = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    playSound('success', soundEnabled);
-    const newTargetCals = parseInt(customCalories, 10) || activeTargetCalories;
-    const newProtein = parseInt(customProtein, 10) || activeTargetProtein;
-    const newCarbs = parseInt(customCarbs, 10) || activeTargetCarbs;
-    const newFats = parseInt(customFats, 10) || activeTargetFats;
-
-    markLocalMutation();
-
-    let currentNut = safeNutritionData || {};
-    try {
-      const raw = localStorage.getItem('wolfe_nutrition_data');
-      if (raw) currentNut = JSON.parse(raw);
-    } catch (e) {}
-
-    const updatedDailyTargets = {
-      ...(currentNut.dailyTargets || {}),
-      [selectedDate]: {
-        calories: newTargetCals,
-        protein: newProtein,
-        carbs: newCarbs,
-        fats: newFats
-      }
-    };
-
-    const shouldApplyAsDefault = applyAsDefault || selectedDate === currentTodayIso;
-
-    const nextData = {
-      ...currentNut,
-      dailyTargets: updatedDailyTargets,
-      ...(shouldApplyAsDefault ? {
-        targetCalories: newTargetCals,
-        protein: { ...(currentNut.protein || {}), target: newProtein },
-        carbs: { ...(currentNut.carbs || {}), target: newCarbs },
-        fats: { ...(currentNut.fats || {}), target: newFats }
-      } : {}),
-      updatedAt: Date.now()
-    };
-    try {
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-    } catch (err) {}
-
-    setNutritionData(nextData);
-    triggerImmediateCloudPush(80);
-    setIsTargetModalOpen(false);
-  };
-
-  const handleAutoRebalanceMacros = () => {
-    const cals = parseInt(customCalories, 10) || activeTargetCalories;
-    const p = 180; // Standard 180g protein base
-    const pCals = p * 4; // 720 kcal
-    const fCals = Math.round(cals * 0.22); // 22% fats
-    const f = Math.round(fCals / 9);
-    const remainingCalsForCarbs = Math.max(0, cals - pCals - (f * 9));
-    const c = Math.round(remainingCalsForCarbs / 4);
-
-    setCustomProtein(p);
-    setCustomFats(f);
-    setCustomCarbs(c);
   };
 
   const handleAddHouseholdStaple = (staple) => {
     if (staple?.id) recordAdditionOrUpdate(staple.id);
     markLocalMutation();
 
-    let currentNut = safeNutritionData || {};
-    try {
-      const raw = localStorage.getItem('wolfe_nutrition_data');
-      if (raw) currentNut = JSON.parse(raw);
-    } catch (e) {}
-
-    const existingStaples = (currentNut.householdPantry || []).filter(s => s && s.id !== staple?.id);
-    const nextData = {
-      ...currentNut,
-      householdPantry: [staple, ...existingStaples],
-      updatedAt: Date.now()
-    };
-    try {
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-    } catch (e) {}
-
-    setNutritionData(nextData);
+    setNutritionData(prev => {
+      const currentNut = (prev && typeof prev === 'object') ? prev : {};
+      const existingStaples = (currentNut.householdPantry || []).filter(s => s && s.id !== staple?.id);
+      return {
+        ...currentNut,
+        householdPantry: [staple, ...existingStaples],
+        updatedAt: Date.now()
+      };
+    });
     triggerImmediateCloudPush(80);
   };
 
@@ -675,98 +495,15 @@ const NutritionViewInner = ({
     recordDeletion(stapleId);
     markLocalMutation();
 
-    let currentNut = safeNutritionData || {};
-    try {
-      const raw = localStorage.getItem('wolfe_nutrition_data');
-      if (raw) currentNut = JSON.parse(raw);
-    } catch (e) {}
-
-    const nextData = {
-      ...currentNut,
-      householdPantry: (currentNut.householdPantry || []).filter(s => s && s.id !== stapleId),
-      updatedAt: Date.now()
-    };
-    try {
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-    } catch (e) {}
-
-    setNutritionData(nextData);
-    triggerImmediateCloudPush(80);
-  };
-
-  const handleUpdateCalibration = (newCalibration) => {
-    playSound('success', soundEnabled);
-    
-    // 1. Record addition/update for the changed task and mark local mutation
-    const taskId = newCalibration?.lastUpdatedTaskId;
-    if (taskId) {
-      recordAdditionOrUpdate(taskId);
-    }
-    if (newCalibration?.deletedTaskId) {
-      recordDeletion(newCalibration.deletedTaskId);
-    }
-    recordAdditionOrUpdate('kitchen_calibration');
-    markLocalMutation();
-
-    const stampedCalibration = {
-      ...newCalibration,
-      updatedAt: Date.now()
-    };
-
-    // 2. Immediately persist to localStorage synchronously so any export/sync reads latest data!
-    try {
-      const rawCurrent = localStorage.getItem('wolfe_nutrition_data');
-      const parsedCurrent = rawCurrent ? JSON.parse(rawCurrent) : (safeNutritionData || {});
-      const updatedNut = {
-        ...parsedCurrent,
-        ...safeNutritionData,
-        kitchenCalibration: stampedCalibration
+    setNutritionData(prev => {
+      const currentNut = (prev && typeof prev === 'object') ? prev : {};
+      return {
+        ...currentNut,
+        householdPantry: (currentNut.householdPantry || []).filter(s => s && s.id !== stapleId),
+        updatedAt: Date.now()
       };
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(updatedNut));
-    } catch (e) {
-      console.warn("Failed to write nutrition calibration to localStorage immediately:", e);
-    }
-
-    // 3. Update React state
-    setNutritionData(prev => ({
-      ...prev,
-      kitchenCalibration: stampedCalibration
-    }));
-
-    // 4. Immediately trigger cloud sync so new data pushes to cloud BEFORE any background pull
-    triggerImmediateCloudPush(60);
-  };
-
-  const addWater = (deltaMl = 250) => {
-    playSound('click', soundEnabled);
-    const nextMl = Math.max(0, Math.min(6000, waterMl + deltaMl));
-    const glasses = Math.round(nextMl / 250);
-    recordAdditionOrUpdate('water_daily_' + currentTodayIso);
-    markLocalMutation();
-
-    let currentNut = safeNutritionData || {};
-    try {
-      const raw = localStorage.getItem('wolfe_nutrition_data');
-      if (raw) currentNut = JSON.parse(raw);
-    } catch (e) {}
-
-    const nextData = {
-      ...currentNut,
-      waterMl: nextMl,
-      waterGlasses: glasses,
-      waterDate: currentTodayIso,
-      updatedAt: Date.now()
-    };
-    try {
-      localStorage.setItem('wolfe_nutrition_data', JSON.stringify(nextData));
-    } catch (e) {}
-
-    setNutritionData(nextData);
-    triggerImmediateCloudPush(50);
-
-    if (nextMl >= targetWaterMl && waterMl < targetWaterMl) {
-      playSound('success', soundEnabled);
-    }
+    });
+    triggerImmediateCloudPush(80);
   };
 
   return (
@@ -1363,8 +1100,7 @@ const NutritionViewInner = ({
             const isToday = day.dateIso === todayIso;
             const isPast = day.dateIso < todayIso;
             const pastSum = isPast ? safeNutritionData.dailySummaries?.[day.dateIso] : null;
-            const dayMeals = (meals || []).filter(m => m && m.date === day.dateIso);
-            const dayTotals = isPast && pastSum ? pastSum : aggregateDailyNutrition(dayMeals);
+            const dayTotals = (isPast && pastSum) ? pastSum : (mealsTotalsByDate.get(day.dateIso) || { calories: 0 });
             const dayTarget = dailyTargets ? dailyTargets[day.dateIso] : null;
             const dayTargetCal = Number(pastSum?.targetCalories) || (typeof dayTarget === 'number'
               ? dayTarget
@@ -1436,155 +1172,6 @@ const NutritionViewInner = ({
       {/* MINIMALIST DAILY INSPIRATION QUOTE (Subtle credits styling) */}
       <DailyImpactQuote />
 
-      {/* CUSTOM TARGET ADJUSTMENT MODAL */}
-      <AnimatePresence>
-        {isTargetModalOpen && (
-          <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-[100] flex items-center justify-center p-4 select-none">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsTargetModalOpen(false)}
-              className="fixed inset-0 top-0 left-0 w-full h-full bg-black/70 backdrop-blur-xl"
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              className="relative w-full max-w-md bg-[#0b0e18]/95 border border-white/15 rounded-3xl p-5 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] backdrop-blur-2xl z-10 space-y-4"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-amber-400">
-                    <Flame className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Adjust Daily Targets</h3>
-                    <p className="text-[11px] text-slate-400">Target for {selectedDate === todayIso ? 'Today' : formatDateTitle(selectedDate)}</p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsTargetModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveCustomTargets} className="space-y-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-300">Daily Target Calories (kcal)</label>
-                    <span className="text-[10px] font-mono text-slate-400">1,500 – 6,500 kcal</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="50"
-                    min="1500"
-                    max="6500"
-                    value={customCalories}
-                    onChange={(e) => setCustomCalories(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white font-mono font-bold text-sm focus:outline-none focus:border-white/30"
-                  />
-                  {/* Quick delta adjustment chips INSIDE edit modal */}
-                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-                    <span className="text-[10px] text-slate-400 font-mono mr-0.5">Quick Adjust:</span>
-                    {[-250, -100, 100, 250, 500].map(delta => (
-                      <button
-                        key={delta}
-                        type="button"
-                        onClick={() => handleAdjustTargetCalories(delta)}
-                        className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-[11px] font-mono border border-white/10 transition-all active:scale-95 cursor-pointer"
-                      >
-                        {delta > 0 ? `+${delta}` : delta}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-mono uppercase text-slate-300">Protein (g)</label>
-                    <input
-                      type="number"
-                      value={customProtein}
-                      onChange={(e) => setCustomProtein(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-xl bg-white/5 border border-white/15 text-white font-mono font-bold text-xs focus:outline-none focus:border-white/30"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-mono uppercase text-slate-300">Carbs (g)</label>
-                    <input
-                      type="number"
-                      value={customCarbs}
-                      onChange={(e) => setCustomCarbs(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-xl bg-white/5 border border-white/15 text-white font-mono font-bold text-xs focus:outline-none focus:border-white/30"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-mono uppercase text-slate-300">Fats (g)</label>
-                    <input
-                      type="number"
-                      value={customFats}
-                      onChange={(e) => setCustomFats(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-xl bg-white/5 border border-white/15 text-white font-mono font-bold text-xs focus:outline-none focus:border-white/30"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleAutoRebalanceMacros}
-                  className="w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[11px] border border-white/10 transition-all cursor-pointer"
-                >
-                  ⚡ Auto-Calculate Macros from Calories (180g P Baseline)
-                </button>
-
-                {/* Apply as default baseline for future days toggle */}
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-                  <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-200 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={applyAsDefault}
-                      onChange={(e) => setApplyAsDefault(e.target.checked)}
-                      className="rounded border-white/20 bg-white/10 text-amber-500 focus:ring-0 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Apply as default for future days</span>
-                  </label>
-                  <p className="text-[10px] text-slate-400 pl-6.5">
-                    {applyAsDefault 
-                      ? 'Sets future baseline goal without altering past days\' status.' 
-                      : `Applies only to ${selectedDate === todayIso ? 'today' : formatDateTitle(selectedDate)}. Past and future targets remain untouched.`}
-                  </p>
-                </div>
-
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    type="submit"
-                    className="flex-1 py-2 rounded-xl text-white font-semibold text-xs shadow-lg transition-all active:scale-95 cursor-pointer"
-                    style={{ backgroundColor: 'var(--accent-primary)' }}
-                  >
-                    Save Target
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsTargetModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 font-medium text-xs hover:bg-white/10 transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* MODALS */}
       <MealLogModal
         isOpen={isMealModalOpen}
@@ -1600,37 +1187,32 @@ const NutritionViewInner = ({
         soundEnabled={soundEnabled}
       />
 
-      <WeightTrackerModal
-        isOpen={isWeightModalOpen}
-        onClose={() => setIsWeightModalOpen(false)}
-        weightHistory={weightHistory}
-        currentCalorieTarget={activeTargetCalories}
-        onLogWeight={handleLogWeight}
-        onDeleteWeightLog={handleDeleteWeightLog}
-        onApplySurplus={handleApplySurplus}
-        soundEnabled={soundEnabled}
-      />
+      {isWeightModalOpen && (
+        <WeightTrackerModal
+          isOpen={isWeightModalOpen}
+          onClose={() => setIsWeightModalOpen(false)}
+          weightHistory={weightHistory}
+          currentCalorieTarget={activeTargetCalories}
+          onLogWeight={handleLogWeight}
+          onDeleteWeightLog={handleDeleteWeightLog}
+          onApplySurplus={handleApplySurplus}
+          soundEnabled={soundEnabled}
+        />
+      )}
 
-      <NutritionHistoryModal
-        isOpen={isHistoryModalOpen}
-        onClose={() => setIsHistoryModalOpen(false)}
-        nutritionData={safeNutritionData}
-        dailySummaries={safeNutritionData?.dailySummaries || {}}
-        selectedDate={selectedDate}
-        onSelectDate={(dateIso) => setSelectedDate(dateIso)}
-        targetCalories={activeTargetCalories}
-        targetProtein={activeTargetProtein}
-        soundEnabled={soundEnabled}
-      />
-
-      <KitchenCalibrationModal
-        isOpen={isCalibrationModalOpen}
-        onClose={() => setIsCalibrationModalOpen(false)}
-        kitchenCalibration={safeNutritionData?.kitchenCalibration}
-        onUpdateCalibration={handleUpdateCalibration}
-        aiConfig={settings?.aiConfig}
-        soundEnabled={soundEnabled}
-      />
+      {isHistoryModalOpen && (
+        <NutritionHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          nutritionData={safeNutritionData}
+          dailySummaries={safeNutritionData?.dailySummaries || {}}
+          selectedDate={selectedDate}
+          onSelectDate={(dateIso) => setSelectedDate(dateIso)}
+          targetCalories={activeTargetCalories}
+          targetProtein={activeTargetProtein}
+          soundEnabled={soundEnabled}
+        />
+      )}
 
       {/* Floating Background Intelligence Notifications & Status Pill */}
       <BackgroundMealNotifications

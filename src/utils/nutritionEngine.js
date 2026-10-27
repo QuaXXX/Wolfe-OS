@@ -2398,6 +2398,229 @@ export function calibrateFreshProduce(items = []) {
 }
 
 /**
+ * Pure Single-Ingredient USDA Ground-Truth Table (Per 100g Edible Portion)
+ * Used by reconcileVisionMealItems to lock photo-estimated gram weights to exact USDA macro densities
+ * and clamp extreme single-plate visual volume outliers when no user weight was typed.
+ */
+const VISION_USDA_DENSITY_ANCHORS = [
+  {
+    id: 'chicken_breast',
+    match: /^(?:grilled\s+|baked\s+|roasted\s+|pan[\s-]*seared\s+|cooked\s+|rotisserie\s+|sliced\s+|diced\s+)?(?:skinless\s+)?(?:boneless\s+)?chicken\s+breasts?(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 165, protein: 31.0, carbs: 0, fats: 3.6 },
+    photoBoundsG: [65, 340]
+  },
+  {
+    id: 'chicken_thigh',
+    match: /^(?:grilled\s+|baked\s+|roasted\s+|cooked\s+|boneless\s+|skinless\s+)*chicken\s+thighs?(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 209, protein: 26.0, carbs: 0, fats: 10.9 },
+    photoBoundsG: [55, 320]
+  },
+  {
+    id: 'steak_beef',
+    match: /^(?:grilled\s+|pan[\s-]*seared\s+|cooked\s+|sliced\s+)?(?:sirloin|ribeye|ny\s+strip|new\s+york\s+strip|flank|filet\s+mignon|tenderloin|beef)?\s*steaks?(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 242, protein: 27.0, carbs: 0, fats: 14.0 },
+    photoBoundsG: [75, 380]
+  },
+  {
+    id: 'ground_beef',
+    match: /^(?:cooked\s+|lean\s+|extra\s+lean\s+|90\/10\s+|85\/15\s+)*ground\s+beef(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 215, protein: 26.0, carbs: 0, fats: 11.5 },
+    photoBoundsG: [60, 350]
+  },
+  {
+    id: 'salmon_fillet',
+    match: /^(?:baked\s+|grilled\s+|pan[\s-]*seared\s+|cooked\s+|wild\s+|atlantic\s+)*salmon(?:\s+fillets?)?(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 208, protein: 20.4, carbs: 0, fats: 13.4 },
+    photoBoundsG: [70, 320]
+  },
+  {
+    id: 'white_rice',
+    match: /^(?:steamed\s+|cooked\s+|plain\s+|boiled\s+)*(?:white\s+|jasmine\s+|basmati\s+|sushi\s+|long[\s-]*grain\s+)?rice(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:fried|pudding|cake|cakes|crispy|krispies|paper|noodles|milk|vinegar|bowl)\b/i,
+    per100g: { calories: 130, protein: 2.7, carbs: 28.2, fats: 0.3 },
+    photoBoundsG: [60, 380]
+  },
+  {
+    id: 'brown_rice',
+    match: /^(?:steamed\s+|cooked\s+|plain\s+|boiled\s+)*brown\s+rice(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 112, protein: 2.6, carbs: 23.5, fats: 0.9 },
+    photoBoundsG: [60, 380]
+  },
+  {
+    id: 'quinoa',
+    match: /^(?:steamed\s+|cooked\s+|plain\s+)*quinoa(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 120, protein: 4.4, carbs: 21.3, fats: 1.9 },
+    photoBoundsG: [60, 350]
+  },
+  {
+    id: 'pasta_plain',
+    match: /^(?:cooked\s+|boiled\s+|plain\s+)*(?:pasta|spaghetti|penne|rigatoni|fusilli|rotini|fettuccine|macaroni|linguine)(?:\s+noodles)?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:sauce|bolognese|alfredo|carbonara|cheese|mac\s+and\s+cheese|meatballs?|chicken|shrimp|sausage|baked|lasagna|ravioli|tortellini|salad)\b/i,
+    per100g: { calories: 158, protein: 5.8, carbs: 30.9, fats: 0.9 },
+    photoBoundsG: [70, 380]
+  },
+  {
+    id: 'potato_plain',
+    match: /^(?:baked\s+|boiled\s+|roasted\s+|steamed\s+|cooked\s+|diced\s+|wedged\s+)*(?:russet\s+|red\s+|yellow\s+|yukon\s+gold\s+|baby\s+|white\s+)?potato(?:es)?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:mashed|fries|french|chips|crisps|salad|hash\s*browns?|tater\s*tots?|scalloped|au\s+gratin|sweet)\b/i,
+    per100g: { calories: 93, protein: 2.5, carbs: 21.2, fats: 0.1 },
+    photoBoundsG: [70, 380]
+  },
+  {
+    id: 'sweet_potato',
+    match: /^(?:baked\s+|boiled\s+|roasted\s+|steamed\s+|cooked\s+|diced\s+)*sweet\s+potato(?:es)?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:fries|chips|pie|casserole)\b/i,
+    per100g: { calories: 86, protein: 1.6, carbs: 20.1, fats: 0.1 },
+    photoBoundsG: [70, 360]
+  },
+  {
+    id: 'broccoli',
+    match: /^(?:steamed\s+|roasted\s+|boiled\s+|cooked\s+|raw\s+|fresh\s+)*broccoli(?:\s+florets)?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:cheese|cheddar|soup|salad|beef|chicken|casserole)\b/i,
+    per100g: { calories: 35, protein: 2.4, carbs: 7.2, fats: 0.4 },
+    photoBoundsG: [40, 280]
+  },
+  {
+    id: 'mixed_veggies',
+    match: /^(?:steamed\s+|roasted\s+|cooked\s+|sauteed\s+)*(?:mixed\s+vegetables|mixed\s+veggies|green\s+beans|asparagus|brussels\s+sprouts|zucchini|cauliflower|carrots|spinach)(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 38, protein: 2.2, carbs: 7.0, fats: 0.4 },
+    photoBoundsG: [40, 280]
+  },
+  {
+    id: 'avocado',
+    match: /^(?:fresh\s+|sliced\s+|diced\s+|half\s+|whole\s+)*avocados?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:toast|roll|sushi|oil|dressing|burger|sandwich)\b/i,
+    per100g: { calories: 160, protein: 2.0, carbs: 8.5, fats: 14.7 },
+    photoBoundsG: [35, 220]
+  },
+  {
+    id: 'whole_eggs',
+    match: /^(?:boiled\s+|hard[\s-]*boiled\s+|soft[\s-]*boiled\s+|poached\s+|fried\s+|scrambled\s+|whole\s+|large\s+)*eggs?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:whites?|yolk|salad|sandwich|muffin|roll|fried\s+rice|noodles|benedict|omelet|omelette|frittata)\b/i,
+    per100g: { calories: 144, protein: 12.6, carbs: 0.8, fats: 9.6 },
+    photoBoundsG: [45, 350]
+  },
+  {
+    id: 'greek_yogurt',
+    match: /^(?:plain\s+|non[\s-]*fat\s+|0%\s+|low[\s-]*fat\s+)*greek\s+yogurt(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:parfait|granola|berries|honey|fruit)\b/i,
+    per100g: { calories: 59, protein: 10.2, carbs: 3.6, fats: 0.4 },
+    photoBoundsG: [80, 400]
+  },
+  {
+    id: 'cottage_cheese',
+    match: /^(?:low[\s-]*fat\s+|2%\s+|1%\s+|plain\s+)*cottage\s+cheese(?:\s*\([^)]*\))?$/i,
+    per100g: { calories: 86, protein: 11.1, carbs: 3.4, fats: 2.3 },
+    photoBoundsG: [80, 400]
+  },
+  {
+    id: 'banana',
+    match: /^(?:fresh\s+|medium\s+|large\s+|small\s+|sliced\s+|whole\s+)*bananas?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:bread|muffin|pudding|chips|pancakes?|smoothie|shake|split)\b/i,
+    per100g: { calories: 89, protein: 1.1, carbs: 22.8, fats: 0.3 },
+    photoBoundsG: [70, 220]
+  },
+  {
+    id: 'apple',
+    match: /^(?:fresh\s+|medium\s+|large\s+|small\s+|sliced\s+|whole\s+|honeycrisp\s+|gala\s+|fuji\s+|granny\s+smith\s+)*apples?(?:\s*\([^)]*\))?$/i,
+    exclude: /\b(?:pie|crisp|cobbler|juice|cider|sauce|applesauce|fritter|strudel)\b/i,
+    per100g: { calories: 52, protein: 0.3, carbs: 13.8, fats: 0.2 },
+    photoBoundsG: [90, 260]
+  }
+];
+
+/**
+ * Reconciles AI-generated meal items (especially photo-only scans) against:
+ * 1. Explicit user weights if provided (100% net weight respected)
+ * 2. Photo-only single-serving physical plausibility bounds (prevents 2x-3x over/under hallucinations)
+ * 3. USDA per-100g density locks for pure single-ingredient foods
+ * 4. Atwater energy equivalence (4P + 4C + 9F = Calories)
+ */
+export function reconcileVisionMealItems(items = [], userDescription = '') {
+  if (!Array.isArray(items)) return [];
+  const desc = String(userDescription || '').trim();
+  const userProvidedExplicitWeight = /\b\d+(?:\.\d+)?\s*(?:g|grams?|oz|ounces?|lbs?|pounds?|kg|ml|l|litres?|liters?|cups?|tbsp|tsp)\b/i.test(desc);
+
+  const reconciled = items.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const rawName = String(item.name || '').trim();
+    const rawPortion = String(item.portion || '').trim();
+
+    // Extract gram weight from item.estimatedGrams or portion string e.g. "160g" or "(150g)"
+    let grams = Number(item.estimatedGrams) || 0;
+    if (grams <= 0 && rawPortion) {
+      const gMatch = rawPortion.match(/(\d+(?:\.\d+)?)\s*g(?:rams?)?\b/i);
+      if (gMatch) grams = parseFloat(gMatch[1]) || 0;
+    }
+
+    let p = Math.max(0, Number(item.protein) || 0);
+    let c = Math.max(0, Number(item.carbs) || 0);
+    let f = Math.max(0, Number(item.fats) || 0);
+    let cals = Math.max(0, Math.round(Number(item.calories) || 0));
+    let nextPortion = rawPortion;
+
+    // Check if this item matches a pure single-ingredient USDA anchor
+    const anchor = VISION_USDA_DENSITY_ANCHORS.find(a =>
+      a.match.test(rawName) && (!a.exclude || !a.exclude.test(rawName))
+    );
+
+    if (anchor && grams > 0) {
+      const isMultiCount = /\b(?:[2-9]|[1-9]\d+)\s*(?:breasts?|steaks?|fillets?|bowls?|plates?|cups?|cans?)\b/i.test(`${rawName} ${rawPortion}`);
+      // Clamp extreme photo-only gram outliers when user did not type an explicit weight
+      if (!userProvidedExplicitWeight && !isMultiCount && Array.isArray(anchor.photoBoundsG)) {
+        const [minG, maxG] = anchor.photoBoundsG;
+        if (grams < minG || grams > maxG) {
+          const clampedG = Math.max(minG, Math.min(maxG, Math.round(grams)));
+          if (nextPortion.includes(`${Math.round(grams)}g`)) {
+            nextPortion = nextPortion.replace(`${Math.round(grams)}g`, `${clampedG}g`);
+          } else {
+            nextPortion = `${clampedG}g`;
+          }
+          grams = clampedG;
+        }
+      }
+
+      // Compute exact USDA macros for this gram weight
+      const factor = grams / 100;
+      const usdaCals = Math.round(anchor.per100g.calories * factor);
+      const usdaP = Math.round(anchor.per100g.protein * factor * 10) / 10;
+      const usdaC = Math.round(anchor.per100g.carbs * factor * 10) / 10;
+      const usdaF = Math.round(anchor.per100g.fats * factor * 10) / 10;
+
+      // If AI calories or dominant macro drifted >15% from USDA density for the stated grams, lock to USDA
+      const calDrift = usdaCals > 0 ? Math.abs(cals - usdaCals) / usdaCals : 0;
+      const protDrift = usdaP >= 5 ? Math.abs(p - usdaP) / usdaP : 0;
+      const carbDrift = usdaC >= 5 ? Math.abs(c - usdaC) / usdaC : 0;
+
+      if (cals === 0 || calDrift > 0.15 || protDrift > 0.15 || carbDrift > 0.15) {
+        cals = usdaCals;
+        p = usdaP;
+        c = usdaC;
+        f = usdaF;
+      }
+    }
+
+    // Enforce Atwater Energy Equivalence (4P + 4C + 9F) if calories are missing or inconsistent (>18% and >25 kcal drift)
+    const atwaterCals = calculateCaloriesFromMacros(p, c, f);
+    if (atwaterCals > 0 && (cals === 0 || (Math.abs(cals - atwaterCals) > 25 && Math.abs(cals - atwaterCals) / atwaterCals > 0.18))) {
+      cals = atwaterCals;
+    }
+
+    return {
+      ...item,
+      portion: nextPortion || (grams > 0 ? `${Math.round(grams)}g` : '1 serving'),
+      estimatedGrams: grams > 0 ? Math.round(grams) : undefined,
+      calories: Math.round(cals),
+      protein: Math.round(p * 10) / 10,
+      carbs: Math.round(c * 10) / 10,
+      fats: Math.round(f * 10) / 10
+    };
+  });
+
+  return calibrateMealItems(reconciled);
+}
+
+/**
  * Universal calibration safeguard across all items:
  * Calibrates bone-in meats (deducting bone refuse), milk (enforcing normal 2% milk benchmarks),
  * custom iced tea (enforcing Good Host 1L mix), and fresh produce (enforcing USDA orange benchmarks).
@@ -4025,9 +4248,9 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
       return isNaN(parsed) ? 0 : parsed;
     };
 
-    let protein = Math.max(0, Math.round(extractNum(m.protein)));
-    let carbs = Math.max(0, Math.round(extractNum(m.carbs)));
-    let fats = Math.max(0, Math.round(extractNum(m.fats)));
+    let protein = Math.max(0, Math.round(extractNum(m.protein) * 10) / 10);
+    let carbs = Math.max(0, Math.round(extractNum(m.carbs) * 10) / 10);
+    let fats = Math.max(0, Math.round(extractNum(m.fats) * 10) / 10);
     let calories = Math.max(0, Math.round(extractNum(m.calories)));
     if (calories === 0 && (protein > 0 || carbs > 0 || fats > 0)) {
       calories = calculateCaloriesFromMacros(protein, carbs, fats);
@@ -4061,11 +4284,18 @@ export function synchronizeNutritionData(nutritionData, activeDateIso = null) {
     cleanItems = calibrateMealItems(cleanItems);
     const hasCalibratedItem = cleanItems.some(it => typeof it === 'object' && ((it?.portion && it.portion.includes('bone')) || (it?.name && it.name.includes('Normal / 2%'))));
     if (hasCalibratedItem && cleanItems.length === 1 && typeof cleanItems[0] === 'object') {
-      calories = cleanItems[0].calories;
-      protein = cleanItems[0].protein;
-      carbs = cleanItems[0].carbs;
-      fats = cleanItems[0].fats;
-      wasModified = true;
+      if (
+        calories !== cleanItems[0].calories ||
+        protein !== cleanItems[0].protein ||
+        carbs !== cleanItems[0].carbs ||
+        fats !== cleanItems[0].fats
+      ) {
+        calories = cleanItems[0].calories;
+        protein = cleanItems[0].protein;
+        carbs = cleanItems[0].carbs;
+        fats = cleanItems[0].fats;
+        wasModified = true;
+      }
     }
 
     if (
