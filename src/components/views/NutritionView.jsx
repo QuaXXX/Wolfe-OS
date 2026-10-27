@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   UtensilsCrossed, 
   Plus, 
+  Clock,
   Scale, 
   Check, 
   Trash2, 
@@ -9,6 +10,7 @@ import {
   ChevronLeft, 
   ChevronDown,
   ChevronUp,
+  Calendar as CalendarIcon,
   CheckCheck, 
   History,
   AlertCircle
@@ -184,16 +186,18 @@ const NutritionViewInner = ({
   };
 
   // Destructure state from nutritionData with bulletproof safe fallbacks
-  const safeNutritionData = (nutritionData && typeof nutritionData === 'object') ? nutritionData : {};
+  const safeNutritionData = useMemo(() => {
+    return (nutritionData && typeof nutritionData === 'object') ? nutritionData : {};
+  }, [nutritionData]);
   const targetCalories = Number(safeNutritionData.targetCalories) || 3000;
   const targetProtein = Number(safeNutritionData.protein?.target) || 180;
   const targetCarbs = Number(safeNutritionData.carbs?.target) || 400;
   const targetFats = Number(safeNutritionData.fats?.target) || 75;
 
-  const rawMeals = Array.isArray(safeNutritionData.meals) ? safeNutritionData.meals : [];
   const meals = useMemo(() => {
-    return rawMeals.filter(m => m && typeof m === 'object' && m.date);
-  }, [rawMeals]);
+    const raw = Array.isArray(safeNutritionData.meals) ? safeNutritionData.meals : [];
+    return raw.filter(m => m && typeof m === 'object' && m.date);
+  }, [safeNutritionData.meals]);
 
   // Pre-compute O(1) lookup map of aggregated daily totals by dateIso for the 34-day strip
   const mealsTotalsByDate = useMemo(() => {
@@ -210,18 +214,18 @@ const NutritionViewInner = ({
     return totalsMap;
   }, [meals]);
 
-  const rawWeightHistory = Array.isArray(safeNutritionData.weightHistory) ? safeNutritionData.weightHistory : [];
   const weightHistory = useMemo(() => {
-    return rawWeightHistory.filter(w => w && typeof w === 'object' && w.date && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs));
-  }, [rawWeightHistory]);
+    const raw = Array.isArray(safeNutritionData.weightHistory) ? safeNutritionData.weightHistory : [];
+    return raw.filter(w => w && typeof w === 'object' && w.date && typeof w.weightLbs === 'number' && !isNaN(w.weightLbs));
+  }, [safeNutritionData.weightHistory]);
 
-  const rawPantry = (Array.isArray(safeNutritionData.householdPantry) && safeNutritionData.householdPantry.length > 0) 
-    ? safeNutritionData.householdPantry 
-    : DEFAULT_HOUSEHOLD_PANTRY;
   const householdPantry = useMemo(() => {
+    const rawPantry = (Array.isArray(safeNutritionData.householdPantry) && safeNutritionData.householdPantry.length > 0) 
+      ? safeNutritionData.householdPantry 
+      : DEFAULT_HOUSEHOLD_PANTRY;
     const clean = sanitizeHouseholdPantry(rawPantry);
     return (clean || []).filter(s => s && typeof s === 'object' && s.id);
-  }, [rawPantry]);
+  }, [safeNutritionData.householdPantry]);
 
   const dailyTargets = (safeNutritionData.dailyTargets && typeof safeNutritionData.dailyTargets === 'object')
     ? safeNutritionData.dailyTargets 

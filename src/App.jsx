@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { TopBar } from './components/layout/TopBar';
 import { BackgroundGlow } from './components/layout/BackgroundGlow';
 import { playSound } from './utils/soundFX';
 import { getTodayIso } from './utils/calendarUtils';
-import { synchronizeNutritionData, aggregateDailyNutrition } from './utils/nutritionEngine.js';
-import { 
-  recordAdditionOrUpdate, 
-  markLocalMutation 
-} from './utils/cloudSyncEngine';
+import { synchronizeNutritionData } from './utils/nutritionEngine.js';
+import { markLocalMutation } from './utils/cloudSyncEngine';
 
 // Resilient code-split loader
 function resilientLazy(factory, retries = 2, intervalMs = 400) {
@@ -347,47 +344,6 @@ export function App() {
       };
     });
   };
-
-  // Global Food Logging Handler
-  const handleLogMeal = useCallback((mealEntry) => {
-    playSound('success', settings.soundEnabled);
-    const today = getTodayIso();
-    const mealDate = mealEntry?.date || today;
-    const stampedMeal = {
-      ...mealEntry,
-      date: mealDate,
-      createdAt: mealEntry?.createdAt || Date.now(),
-      updatedAt: Date.now()
-    };
-
-    if (stampedMeal?.id) recordAdditionOrUpdate(stampedMeal.id);
-    markLocalMutation();
-
-    setNutritionData(prev => {
-      const base = (prev && typeof prev === 'object') ? prev : {};
-      const combined = [stampedMeal, ...(base.meals || [])];
-      const mealMap = new Map();
-      combined.forEach(m => {
-        if (m && m.id && !mealMap.has(m.id)) {
-          mealMap.set(m.id, m);
-        }
-      });
-      const nextMeals = Array.from(mealMap.values());
-      const todayMeals = nextMeals.filter(m => m && m.date === today);
-      const todayTotals = aggregateDailyNutrition(todayMeals);
-
-      return {
-        ...base,
-        currentDate: today,
-        consumedCalories: todayTotals.calories,
-        protein: { ...(base.protein || {}), current: todayTotals.protein },
-        carbs: { ...(base.carbs || {}), current: todayTotals.carbs },
-        fats: { ...(base.fats || {}), current: todayTotals.fats },
-        meals: nextMeals,
-        updatedAt: Date.now()
-      };
-    });
-  }, [settings.soundEnabled]);
 
   return (
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-white/20">
